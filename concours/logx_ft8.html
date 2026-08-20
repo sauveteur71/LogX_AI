@@ -2668,28 +2668,37 @@ if(localStorage.getItem('rc_theme') === null){
     const emissionAnterieureNonRelachee = pttDemande;
     armerChienDeGarde();
     const ptt = await pttOn(true);
-    if(!ptt.ok){
-      // Verrou SO2R (409), ou pilotage radio absent (non_engage) : dans les
-      // deux cas le serveur a refusé AVANT d'appeler le moindre pilote, donc
-      // la radio n'a PAS été passée en émission par nous. Ce sont les seuls
-      // cas où sortir sans relâcher est correct.
+    // ─── ÉMISSION EN VOX, SANS AUCUN PILOTAGE RADIO ────────────────────────
+    //
+    // TRANCHÉ PAR F4GLD LE 20/08/2026. Jusqu'ici, `non_engage` (aucun pilote
+    // appelé, donc aucun CAT configuré) sortait par le bloc ci-dessous : la
+    // page ne fabriquait AUCUNE forme d'onde. Or le message affiché conseillait
+    // « passe en émission au micro ou en VOX » — un conseil impossible à
+    // suivre, puisque rien n'était joué dans la carte son. L'opérateur tournait
+    // en rond.
+    //
+    // Désormais on CONTINUE jusqu'à la modulation : la forme d'onde part dans
+    // la carte son et c'est le VOX du poste qui déclenche l'émission. Usage
+    // courant en FT8, et c'est ce que le message promettait déjà.
+    //
+    // DÉCIDÉ ICI, AVANT le bloc de sortie : son `return false` final
+    // s'appliquerait sinon au VOX aussi, et le correctif serait mort-né.
+    const enVox = !ptt.ok && !!ptt.nonEngage;
+    if(!ptt.ok && !enVox){
+      // Verrou SO2R (409) : le serveur a refusé AVANT d'appeler le moindre
+      // pilote, donc la radio n'a PAS été passée en émission par nous. C'est
+      // le seul cas où sortir sans relâcher est correct.
       //
       // Nuance ajoutée après revue (18/08/2026) : on ne remet pttDemande à
       // false que si AUCUNE émission antérieure n'est restée non relâchée.
       // Sinon un refus de verrou — événement sans aucun rapport — effacerait
       // l'état de sûreté d'une émission précédente encore en l'air, et ferait
       // disparaître le bouton STOP au pire moment.
-      if(ptt.verrou || ptt.nonEngage){
-        // Mémorisé pour que le séquenceur puisse afficher la BONNE raison :
-        // sans cela il ne voit qu'un `false` et renvoie vers un message qui,
-        // dans ce cas précis, conseille l'impossible.
-        dernierRefusPtt = ptt.nonEngage ? 'non_engage' : 'verrou';
+      if(ptt.verrou){
+        dernierRefusPtt = 'verrou';
         desarmerChienDeGarde();
         if(!emissionAnterieureNonRelachee){ pttDemande = false; majBoutonStop(); }
-        statusEl.textContent = ptt.verrou
-          ? 'Autre radio déjà en émission (verrou SO2R)'
-          : 'Pas de pilotage radio configuré : passe en émission au micro ou en VOX, '
-            + 'ou configure le CAT dans CONFIG';
+        statusEl.textContent = 'Autre radio déjà en émission (verrou SO2R)';
       } else {
         // Tous les autres cas : la radio PEUT être en émission (voir le
         // commentaire de pttOn). On relâche avant toute chose, puis
@@ -2703,6 +2712,26 @@ if(localStorage.getItem('rc_theme') === null){
       statusEl.className = 'tx-status';
       majBoutonEnvoyer();
       return false;
+    }
+    if(enVox){
+      // Mémorisé pour que le séquenceur puisse afficher la BONNE raison s'il
+      // doit s'arrêter plus loin.
+      dernierRefusPtt = 'non_engage';
+      // CE QUE LE VOX ENGAGE, ET POURQUOI CES DEUX LIGNES SONT CRITIQUES.
+      // Sans commande CAT, le logiciel ne peut plus faire taire la radio par
+      // CAT : couper le SON devient la SEULE coupure réelle.
+      //   - pttDemande = true : c'est lui qui rend le bouton STOP visible
+      //     (majBoutonStop). L'ancien chemin le mettait à FALSE — la radio
+      //     aurait émis avec le bouton d'arrêt caché.
+      //   - le chien de garde reste ARMÉ : l'ancien chemin le désarmait.
+      // La coupure elle-même existe déjà et n'a pas eu à être écrite :
+      // jouerForme() inscrit sa source dans sourcesTxVivantes, couperAudioTx()
+      // l'arrête, et le VOX du poste retombe faute de signal.
+      pttDemande = true;
+      majBoutonStop();
+      statusEl.textContent = '🔊 VOX (sans pilotage radio) — ' + text
+        + ' · STOP ou Échap coupe le son, donc l\'émission';
+      statusEl.className = 'tx-status';
     }
     // DERNIER CONTRÔLE AVANT DE MODULER. Entre la demande de PTT et le départ
     // de la trame il s'écoule le temps d'un aller-retour vers le serveur, et

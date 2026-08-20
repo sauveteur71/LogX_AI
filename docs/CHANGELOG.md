@@ -15,6 +15,29 @@ poussé.
 
 ### Corrigé
 
+- **VOACAP échouait EN SILENCE si LogX AI est installé trop profond.** Au-delà
+  de **128 caractères** de chemin, `voacapl.exe` rend une erreur vide et toute
+  la propagation s'arrête, avec un message qui n'explique rien. Un OneDrive
+  redirigé, un dossier Documents, un nom d'utilisateur long suffisaient. Le
+  seuil est mesuré (128 passe, 129 échoue) ; le logiciel raccourcit désormais
+  le chemin tout seul — le plus souvent sans déplacer un seul fichier — et,
+  s'il échoue quand même, il **dit** que le chemin est trop long.
+- **FT8 — émettre en VOX quand aucune radio n'est pilotée.** Sans CAT, la page
+  ne fabriquait aucune forme d'onde : elle conseillait pourtant « passe en
+  émission au micro ou en VOX », un conseil impossible à suivre. Le son part
+  maintenant dans la carte son et c'est le VOX du poste qui déclenche
+  l'émission. **Ce qu'il faut savoir** : sans CAT, le logiciel ne peut plus
+  faire taire la radio par une commande — c'est **couper le son** qui arrête
+  l'émission, donc le bouton STOP et Échap. Ils restent visibles et actifs
+  pendant toute l'émission, et le chien de garde aussi.
+- **Sécurité d'émission — Échap pouvait libérer le verrou du séquenceur FT8.**
+  Échap est le coupe-circuit CW ; il envoie un arrêt dès qu'un manipulateur
+  existe. Or cet arrêt levait le verrou d'exclusivité d'émission **sans
+  regarder qui le détenait** : pendant que le FT8 émettait, un Échap réflexe
+  pour fermer une popup rouvrait la porte à une émission de la seconde radio.
+  Deux porteuses en même temps. Le verrou retient maintenant qui l'a pris, et
+  un arrêt CW ne lève plus qu'un verrou CW — le coupe-circuit, lui, reste
+  entier.
 - **FT8 — le décodage quitte le fil principal.** Il y tournait en entier :
   l'interface gelait pendant tout le décodage d'un créneau, et la réponse ne
   pouvait pas partir dans le créneau suivant — elle laissait passer un tour.

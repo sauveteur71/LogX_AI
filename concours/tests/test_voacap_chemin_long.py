@@ -50,6 +50,32 @@ def test_le_seuil_est_celui_qui_a_ete_mesure():
     assert v._LONGUEUR_MAX_RUN == 128
 
 
+def test_le_garde_fou_est_reellement_branche_sur_la_racine():
+    """Assertion de STRUCTURE, et elle est indispensable.
+
+    Le test suivant (« la racine livrée tient sous le seuil ») ne DISCRIMINE
+    pas : sur une installation déjà courte — 121 caractères ici — il passe avec
+    ou sans garde-fou. Découvert par la contre-épreuve par mutation, qui a
+    débranché `_racine_assez_courte()` sans faire rougir quoi que ce soit.
+    C'est le même piège que la mesure non discriminante du matin : un test qui
+    ne peut pas échouer ne protège rien.
+
+    On vérifie donc que le câblage EXISTE, en dépouillant les commentaires — un
+    pavé qui explique le garde-fou satisferait sinon la recherche sans qu'une
+    seule ligne ne l'applique.
+    """
+    import re
+    chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          'logx_voacap.py')
+    with open(chemin, encoding='utf-8') as f:
+        src = f.read()
+    code = '\n'.join(re.sub(r'#.*$', '', li) for li in src.splitlines())
+    assert '_VOACAP_ROOT = _racine_assez_courte(_resolve_voacap_root())' in code, (
+        'la racine VOACAP doit passer par _racine_assez_courte() : sans ce '
+        "câblage, un utilisateur installé trop profond perd la propagation "
+        'sans le moindre message')
+
+
 def test_la_racine_livree_tient_sous_le_seuil():
     """Garde-fou sur l'installation elle-même : si le dépôt (ou le dossier de
     données) est déjà trop profond, tout le reste est inutile."""
