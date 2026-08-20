@@ -843,7 +843,13 @@ def test_cat_settings_lit_la_config():
                           'cat_port': 'COM5', 'cat_baudrate': '38400'})
     assert s == {'enabled': True, 'mode': 'native', 'brand': 'yaesu',
                 'model': 'FT-991A', 'port': 'COM5', 'baudrate': 38400,
-                'civ_addr': 0x94}   # modèle non-CI-V -> repli générique
+                'civ_addr': 0x94,   # modèle non-CI-V -> repli générique
+                # Config sans champ PTT : la commande CAT reste la méthode,
+                # et la ligne série n'est pilotée sur AUCUN port. Cette
+                # égalité stricte est volontaire — c'est elle qui ferait
+                # échouer l'ajout d'un futur champ dont le défaut ferait
+                # émettre quelque chose sans que personne l'ait demandé.
+                'ptt_method': 'cat', 'ptt_port': ''}
 
 
 def test_cat_settings_baudrate_par_defaut_selon_marque():

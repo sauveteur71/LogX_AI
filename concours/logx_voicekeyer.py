@@ -1090,9 +1090,36 @@ def play_wav(path, device_index=None):
 
 
 # ─── PTT (dispatch selon le mode CAT actif, même mécanisme que le CW) ────────
-def _set_ptt(cfg, on):
+def _set_ptt(cfg, on, duree_max_s=None):
     import logx_cat as cat
     cat_settings = cat.cat_settings(cfg)
+    # PTT MATÉRIEL (ligne RTS/DTR d'un boîtier d'interface) : testé AVANT le
+    # dispatch par mode CAT, et volontairement sans exiger cat_enabled.
+    #
+    # Ce n'est pas un raccourci, c'est le cœur de l'affaire. Un boîtier comme
+    # le XGGComms Digimode-4 porte trois choses sur un seul câble USB :
+    # l'audio, le CAT et la ligne PTT. Quand le CAT ne fonctionne pas (câble
+    # CAT absent, branché sur la mauvaise prise, ou poste dont le CAT est
+    # désactivé), l'audio et la ligne PTT, eux, fonctionnent toujours. Exiger
+    # un CAT valide pour lever une ligne série reviendrait à refuser d'émettre
+    # pour une raison sans aucun rapport avec l'émission — et priverait de
+    # FT8 exactement les opérateurs que ce mode existe pour dépanner.
+    #
+    # La notice du Digimode-4 va plus loin : elle recommande RTS PLUTÔT que
+    # la commande CAT, parce que certains postes n'activent l'entrée audio de
+    # leur prise DATA que si le PTT matériel est actionné. Piloté par
+    # commande CAT, un tel poste passe en émission sans sortir un watt.
+    #
+    # `.get` et non `[…]` : ce dispatch est aussi le chemin du RELÂCHEMENT.
+    # Une KeyError ici ferait échouer /rig/ptt {on:false} par une exception,
+    # c'est-à-dire laisserait le poste EN ÉMISSION pour une clé de
+    # dictionnaire manquante. Le repli (méthode absente -> commande CAT) est
+    # exactement le comportement d'avant ce chantier, donc sûr. Le risque
+    # inverse — une faute de frappe sur le nom de clé qui désactiverait la
+    # fonction en silence — est couvert par un test de bout en bout qui
+    # passe par le VRAI cat_settings (test_ptt_ligne_serie.py).
+    if cat_settings.get('ptt_method') in ('rts', 'dtr'):
+        return cat.set_ptt_ligne(cfg, on, duree_max_s=duree_max_s)
     if cat_settings['enabled'] and cat_settings['mode'] == 'native':
         return cat.set_ptt(cfg, on)
     if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
@@ -1130,14 +1157,19 @@ def _set_ptt(cfg, on):
             'error': 'Pilotage radio désactivé (CONFIG)'}
 
 
-def set_ptt(cfg, on):
+def set_ptt(cfg, on, duree_max_s=None):
     """PTT explicite pour un appelant externe au keyer vocal (ex. le
     décodeur FT8 natif, logx_ft8.html : la radio ignore tout du protocole
     FT8, seul le ton audio compte, donc PTT doit être commandé autour de la
     lecture, comme pour un micro externe). Simple alias public de _set_ptt :
     même dispatch natif/TCI/flrig/rigctld, rien d'autre — évite d'exposer
-    (ou de dupliquer) un symbole préfixé _ hors de ce module."""
-    return _set_ptt(cfg, on)
+    (ou de dupliquer) un symbole préfixé _ hors de ce module.
+
+    `duree_max_s` : voir logx_cat.set_ptt_ligne(). N'a d'effet que sur le PTT
+    par ligne série, seul chemin où un oubli laisse physiquement une porteuse
+    en l'air ; les autres backends coupent par commande, et une commande non
+    envoyée n'émet rien."""
+    return _set_ptt(cfg, on, duree_max_s=duree_max_s)
 
 
 def _synthese_indisponible_message(settings):

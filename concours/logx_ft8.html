@@ -2512,10 +2512,25 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   async function pttOn(on){
+    // Une trame FT8 dure 12,64 s (79 symboles à 6,25 baud). On l'annonce au
+    // serveur : ça n'écourte AUCUNE émission, ça resserre le chien de garde
+    // du PTT par ligne série (logx_cat.set_ptt_ligne) de 360 s — le plafond
+    // générique, calibré sur la plus longue image SSTV — à ~18 s. C'est la
+    // durée maximale pendant laquelle une porteuse pourrait rester sur l'air
+    // si cet onglet disparaissait entre le PTT ON et le PTT OFF. La marge
+    // couvre le démarrage de l'AudioContext et la latence de la carte son.
+    //
+    // Déclarée DANS la fonction, pas à côté : tests/test_ft8_surete_emission
+    // .py extrait pttOn() SEULE du fichier et l'exécute telle quelle. Une
+    // constante laissée à l'extérieur y devient une ReferenceError — donc
+    // zéro appel PTT, y compris le PTT OFF — et c'est exactement ce que ce
+    // banc existe pour interdire. Une fonction de sûreté ne doit dépendre
+    // d'aucune liaison définie ailleurs.
+    const dureeAnnonceeS = 18;
     if(on){ pttDemande = true; majBoutonStop(); }
     try{
       const r = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({on})});
+        body: JSON.stringify({on, duree_max: dureeAnnonceeS})});
       const d = await r.json();
       return {ok: !!d.ok, atteint: true, verrou: r.status === 409,
               nonEngage: !!d.non_engage};

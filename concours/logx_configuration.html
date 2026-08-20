@@ -1323,6 +1323,26 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="cat_civ_addr" placeholder="AA">
             <div class="input-note">Laisse vide pour l'adresse usine du modèle — à remplir seulement si tu l'as changée dans le menu SET de la radio (multi-poste/SO2R).</div>
           </div>
+          <!-- Méthode de PTT. DÉLIBÉRÉMENT PAS expert-only : c'est le réglage
+               qui sépare « FT8 fonctionne » de « le poste émet sans sortir un
+               watt » pour quiconque passe par un boîtier d'interface. Le
+               masquer réserverait la solution à ceux qui savent déjà qu'elle
+               existe, c'est-à-dire à personne parmi ceux qui en ont besoin. -->
+          <div class="form-group">
+            <label>COMMENT PASSER EN ÉMISSION (PTT)</label>
+            <select id="cat_ptt_method" onchange="majPttMethode()">
+              <option value="cat">Commande CAT — LogX AI dit au poste d'émettre (par défaut)</option>
+              <option value="rts">Ligne RTS du port série — boîtier d'interface</option>
+              <option value="dtr">Ligne DTR du port série — boîtier d'interface</option>
+            </select>
+            <div class="input-note">Laisse « Commande CAT » si ton poste est relié directement au PC. Choisis une ligne série si tu passes par un boîtier d'interface (XGGComms Digimode, RIGblaster, microHAM…) : sur beaucoup de postes, l'entrée audio de la prise DATA ne s'active que si le PTT matériel est actionné — commandé en CAT, le poste passe en émission mais ne sort aucune puissance. RTS est le cas le plus courant.</div>
+          </div>
+          <div class="form-group" id="catPttPortField" style="display:none">
+            <label>PORT DE LA LIGNE PTT</label>
+            <select id="cat_ptt_port"></select>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPttPorts()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a6 6 0 0 1 10.5-4"/><polyline points="13.5,1.5 13.5,5 10,5"/><path d="M15 9a6 6 0 0 1-10.5 4"/><polyline points="4.5,16.5 4.5,13 8,13"/></svg> Rafraîchir la liste</button>
+            <div class="input-note">Laisse « le même que le port CAT » dans le cas courant : un boîtier d'interface ne présente qu'un seul port série, qui porte à la fois le CAT et la ligne PTT. Ne choisis un port différent que si ton PTT arrive par un second câble.</div>
+          </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
           <button type="button" class="btn btn-secondary" onclick="testCatConnection()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester la connexion</button>

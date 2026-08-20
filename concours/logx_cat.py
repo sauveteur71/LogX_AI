@@ -20,6 +20,7 @@ module est le choix par défaut pour les marques couvertes nativement
 (Icom/Xiegu/Yaesu/Kenwood/Elecraft), rigctld reste l'option "avancé" pour
 tout le reste (Ten-Tec, RGO, modèles anciens...).
 """
+import atexit
 import threading
 import time
 
@@ -1388,7 +1389,73 @@ class SerialPort:
             self._ser.timeout = timeout
             return self._ser.read_until(terminator)
 
+    def regler_ligne(self, ligne, actif, attente=1.0):
+        """Lève ou baisse RTS/DTR — c'est le PTT MATÉRIEL des boîtiers
+        d'interface (voir set_ptt_ligne() plus bas pour le pourquoi).
+
+        Sous le MÊME verrou d'instance que les échanges CAT quand c'est
+        possible : sur une interface comme le Digimode-4, la ligne PTT et
+        les trames CAT empruntent le même FTDI, et `regler_ligne` peut donc
+        être appelée (séquenceur FT8) pendant qu'un autre thread tient une
+        transaction CAT (polling /rig/state toutes les 4 s par page
+        ouverte). Sans verrou, l'ordre entre « je lève RTS » et « j'écris
+        FA; » ne serait plus garanti.
+
+        🚨 MAIS LE VERROU NE DOIT JAMAIS EMPÊCHER DE COUPER. transceive_
+        listen() garde ce même verrou pendant TOUTE une fenêtre d'écoute
+        (jusqu'à plusieurs secondes pour une ligne de spectre CI-V).
+        Attendre inconditionnellement, c'est accepter que la commande
+        « repose RTS » patiente pendant que l'émetteur reste sur l'air.
+        Passé `attente`, on pose donc la ligne SANS le verrou : poser une
+        ligne de contrôle est un appel unique au pilote, la seule
+        conséquence d'une course est un ordre indéterminé vis-à-vis d'un
+        octet en transit — infiniment préférable à une porteuse qui dure.
+
+        Retourne True si la ligne a bien été posée. Ne lève jamais : un
+        appelant qui coupe l'émission doit pouvoir enchaîner ses tentatives
+        de repli sans se faire interrompre par une exception."""
+        pris = False
+        try:
+            if attente and attente > 0:
+                pris = self._lock.acquire(timeout=attente)
+            try:
+                if ligne == 'dtr':
+                    self._ser.dtr = bool(actif)
+                else:
+                    self._ser.rts = bool(actif)
+            finally:
+                if pris:
+                    self._lock.release()
+            return True
+        except Exception:
+            if pris:
+                try:
+                    self._lock.release()
+                except Exception:
+                    pass
+            return False
+
+    def baisser_lignes(self, attente=0.3):
+        """Repose RTS ET DTR, sans savoir laquelle sert de PTT.
+
+        Volontairement les DEUX : ce chemin est celui des coupures d'urgence
+        et des fermetures, où l'on ne peut pas se permettre de dépendre
+        d'une configuration qu'on lirait au pire moment.
+
+        `attente` court par défaut : ici on COUPE, on n'ordonnance pas."""
+        ok_rts = self.regler_ligne('rts', False, attente=attente)
+        ok_dtr = self.regler_ligne('dtr', False, attente=attente)
+        return ok_rts and ok_dtr
+
     def close(self):
+        # Reposer les lignes AVANT de fermer. En pratique le pilote les
+        # relâche à la fermeture, mais « en pratique » ne vaut pas pour un
+        # émetteur : si le PTT matériel est câblé sur RTS, une ligne restée
+        # haute, c'est une porteuse sur l'air sans personne pour la couper.
+        # La notice du boîtier XGGComms USB Digimode-4 documente d'ailleurs
+        # ce sinistre comme un cas de panne courant (radio bloquée en
+        # émission au lancement du logiciel).
+        self.baisser_lignes()
         try:
             self._ser.close()
         except Exception:
@@ -1401,6 +1468,22 @@ class SerialPort:
 
 CAT_DEFAULT_BAUD = {'icom': 19200, 'xiegu': 19200, 'yaesu': 4800,
                     'kenwood': 9600, 'elecraft': 38400}
+
+# Comment LogX AI fait passer le poste en émission.
+#   'cat' : commande logicielle (TX1; en ASCII, 1C 00 01 en CI-V). Seule
+#           méthode disponible jusqu'au 20/08/2026, et défaut permanent.
+#   'rts' / 'dtr' : on lève la ligne de contrôle du port série, qui pilote
+#           le PTT MATÉRIEL d'un boîtier d'interface par opto-coupleur.
+#
+# Pourquoi ajouter les deux dernières. La notice du boîtier XGGComms USB
+# Digimode-4 recommande explicitement RTS plutôt que la commande CAT, parce
+# que certains postes n'activent l'entrée audio de leur prise DATA que si le
+# PTT matériel est actionné — piloté par commande CAT, le poste passe bien en
+# émission mais ne sort AUCUNE puissance. Ce mode de panne est silencieux :
+# tout a l'air de fonctionner. C'est aussi la seule façon d'émettre quand le
+# CAT ne marche pas du tout (câble CAT absent ou muet) alors que l'audio et
+# la ligne PTT du même boîtier, elles, fonctionnent.
+PTT_METHODES = ('cat', 'rts', 'dtr')
 
 
 def _friendly_open_error(port, exc):
@@ -1528,6 +1611,27 @@ def _parse_civ_addr(value):
     return None
 
 
+def _texte(valeur):
+    """Un champ de config texte, quoi qu'il contienne réellement.
+
+    POURQUOI CE DURCISSEMENT (20/08/2026). `(cfg.get(x) or '').strip()`
+    plantait en AttributeError sur toute valeur non-textuelle — un entier,
+    une liste, un booléen. Ça n'arrive pas par une saisie normale, mais bien
+    par un fichier de config édité à la main, un profil importé d'une
+    version antérieure, ou un client qui poste du JSON malformé.
+
+    Ce n'était qu'un défaut de robustesse tant que le PTT passait par une
+    commande. Ça ne l'est plus : cat_settings() est désormais appelée par
+    logx_voicekeyer._set_ptt() AVANT de relâcher l'émission. Une exception
+    ici ferait échouer /rig/ptt {on:false} par une 500 — c'est-à-dire
+    laisserait le poste EN ÉMISSION à cause d'un champ mal typé."""
+    if valeur is None or valeur is False:
+        return ''
+    if isinstance(valeur, str):
+        return valeur.strip()
+    return str(valeur).strip()
+
+
 def cat_settings(cfg):
     """Réglages du pilotage natif depuis la config CLIENT. `mode` distingue
     'native' (ce module) de 'rigctld' (logx_rig, inchangé) — une
@@ -1540,22 +1644,46 @@ def cat_settings(cfg):
     bus CI-V. Sans repli manuel, une radio reconfigurée en Set mode restait
     injoignable : LogX AI interrogeait toujours l'adresse usine du modèle."""
     cfg = cfg or {}
-    brand = (cfg.get('cat_brand') or '').strip().lower()
+    brand = _texte(cfg.get('cat_brand')).lower()
     try:
         baudrate = int(cfg.get('cat_baudrate') or 0)
     except (TypeError, ValueError):
         baudrate = 0
-    model = (cfg.get('cat_model') or '').strip() or None
+    model = _texte(cfg.get('cat_model')) or None
     civ_addr = _parse_civ_addr(cfg.get('cat_civ_addr')) or CIV_ADDRESSES.get(model, 0x94)
+    methode_ptt = _texte(cfg.get('cat_ptt_method')).lower()
+    if methode_ptt not in PTT_METHODES:
+        methode_ptt = 'cat'
+    port_ptt = _texte(cfg.get('cat_ptt_port'))
     return {
         'enabled': bool(cfg.get('cat_enabled')),
         'mode': cfg.get('cat_mode') or 'native',
         'brand': brand,
         'model': model,
-        'port': (cfg.get('cat_port') or '').strip(),
+        'port': _texte(cfg.get('cat_port')),
         'baudrate': baudrate or CAT_DEFAULT_BAUD.get(brand, 19200),
         'civ_addr': civ_addr,
+        # PTT matériel (ligne RTS/DTR d'un boîtier d'interface) — voir
+        # set_ptt_ligne(). 'cat' = commande logicielle, seul comportement
+        # possible jusqu'ici et donc le seul défaut acceptable : une config
+        # existante, sans ces deux champs, doit se comporter exactement
+        # comme avant. C'est d'autant plus vital que /config/save REMPLACE
+        # toute la config (jamais de patch partiel) : une valeur par défaut
+        # qui déciderait d'émettre par une ligne série serait poussée à
+        # tout le parc au premier enregistrement.
+        'ptt_method': methode_ptt,
+        # Vide = la ligne est sur le port CAT lui-même (cas du boîtier
+        # unique type Digimode-4 : un seul FTDI porte le CAT et le PTT).
+        'ptt_port': port_ptt,
     }
+
+
+def port_ptt_effectif(settings):
+    """Sur QUEL port la ligne PTT est pilotée. Un champ « port PTT » laissé
+    vide veut dire « le même que le CAT » — c'est le montage le plus
+    répandu (un seul câble USB, un seul FTDI) et ce serait un piège de
+    demander à l'opérateur de recopier le même numéro deux fois."""
+    return settings.get('ptt_port') or settings.get('port') or ''
 
 
 # Connexion persistante unique (poste principal) — rouverte automatiquement
@@ -1574,6 +1702,14 @@ def _ensure_connected(settings):
         if entry and entry['key'] == key:
             return entry['driver'], None
         if entry:
+            # Ce transport portait peut-être une ligne PTT levée (montage à
+            # un seul câble). close() la repose ; il faut aussi que l'état
+            # interne cesse de désigner un transport mort, sinon un
+            # relâchement ultérieur viserait un objet fermé et croirait
+            # avoir coupé. Constat de cartographie du 20/08/2026 : ce
+            # chemin-ci se déclenche sur une sauvegarde CONFIG comme sur une
+            # simple bascule de focus SO2R, donc en pleine exploitation.
+            _oublier_ptt_si_transport(entry['transport'])
             entry['transport'].close()
             _persistent.pop('default', None)
         if not settings['port']:
@@ -1584,6 +1720,13 @@ def _ensure_connected(settings):
         refus = modele_non_pilotable(settings['model'])
         if refus:
             return None, refus
+        # Si un PTT par ligne série tient DÉJÀ ce port (montage à un seul
+        # câble : le CAT et le PTT partagent le même FTDI), il faut le lui
+        # rendre — un port série ne s'ouvre pas deux fois. Sans ça, LogX AI
+        # se serait bloqué lui-même en affichant « COM4 déjà utilisé », en
+        # accusant un autre logiciel. Le PTT retrouvera ce même port par la
+        # connexion CAT au prochain appel (voir _transport_ptt).
+        liberer_port_pour_cat(settings['port'])
         try:
             transport = _open_serial_retry(settings['port'], settings['baudrate'])
         except Exception as e:
@@ -1601,7 +1744,283 @@ def disconnect_persistent():
     with _persistent_lock:
         entry = _persistent.pop('default', None)
     if entry:
+        # baisser_lignes() est déjà appelé par close(), mais l'ordre compte :
+        # si cette connexion portait AUSSI le PTT matériel, l'état interne
+        # doit cesser de prétendre qu'on émet avant que le transport
+        # disparaisse, sinon plus personne ne saurait quoi relâcher.
+        _oublier_ptt_si_transport(entry['transport'])
         entry['transport'].close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PTT MATÉRIEL par ligne série (RTS/DTR)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Ce que ça fait : au lieu d'envoyer « TX1; » au poste, on lève la ligne RTS
+# (ou DTR) du port série. Dans un boîtier d'interface (XGGComms Digimode-4,
+# RIGblaster, microHAM...), cette ligne attaque un opto-coupleur câblé sur la
+# broche PTT de la prise DATA du poste.
+#
+# 🚨 CE MODULE PEUT LAISSER UN ÉMETTEUR EN L'AIR. Une commande CAT ratée ne
+# fait rien ; une ligne RTS restée haute, c'est une porteuse permanente que
+# le poste lui-même ne sait pas annuler — il ne fait qu'obéir à une broche.
+# La notice du Digimode-4 documente précisément ce sinistre. D'où trois
+# garde-fous cumulés, à ne jamais retirer isolément :
+#   1. la ligne est reposée AVANT toute fermeture de transport (SerialPort.
+#      close) et à la déconnexion (disconnect_persistent) ;
+#   2. un chien de garde la repose toute seule si personne ne l'a relâchée
+#      (page fermée en cours d'émission, navigateur tué, coupure réseau) ;
+#   3. atexit la repose à l'arrêt du serveur.
+# Aucun de ces trois ne suffit seul : (1) ne couvre pas la page fermée, (2)
+# ne couvre pas un arrêt brutal, (3) ne couvre pas un serveur qui tourne
+# toujours.
+
+# Plafond de sécurité, quand l'appelant ne dit pas combien de temps il émet.
+#
+# 🚨 CALIBRAGE MESURÉ, PAS ESTIMÉ. Un premier jet à 180 s aurait fait du chien
+# de garde la panne : les durées d'émission RÉELLES des modes SSTV proposés
+# par LogX AI, obtenues en faisant tourner l'encodeur du dépôt
+# (sstvEncodeSamples, logx_sstvdecoder.js) sur une image de chaque format à
+# 44 100 Hz, sont :
+#     PD290 289,7 s · Scottie DX 269,9 s · PD240 249,0 s · PD180 188,0 s
+#     PD160 161,9 s · PD120 127,1 s · Martin M1 115,3 s · Scottie S1 110,6 s
+# Une coupure à 180 s aurait tronché une PD290 à 62 % et une Scottie DX à
+# 67 %, en plein trafic, sans que personne comprenne pourquoi.
+#
+# 360 s couvre donc le pire usage légitime mesuré, avec de la marge pour une
+# machine lente. C'est long pour une porteuse oubliée — d'où le paramètre
+# `duree_max_s` : chaque appelant qui CONNAÎT sa durée l'annonce, et le
+# minuteur se resserre d'autant (FT8 : ~20 s au lieu de 360). Ce plafond
+# n'est plus alors que le repli des appelants muets.
+PTT_LIGNE_DUREE_MAX_S = 360
+
+# Plancher : en dessous, un minuteur couperait avant même que l'audio ait
+# commencé (démarrage AudioContext, latence de la carte son).
+PTT_LIGNE_DUREE_MIN_S = 5
+
+_ptt_ligne_lock = threading.RLock()
+# Ce qui est RÉELLEMENT levé en ce moment, ou None. Contient le transport
+# exact utilisé pour lever la ligne : relâcher sur un AUTRE transport (port
+# rouvert entre-temps, config changée) ne couperait rien du tout.
+_ptt_ligne_active = None
+_ptt_dedie = None       # {'port':…, 'transport':…} quand la ligne n'est PAS
+                        # sur le port CAT (ou que le CAT n'est pas ouvert)
+_ptt_chien = None       # threading.Timer armé pendant l'émission
+
+
+def _annuler_chien_locked():
+    global _ptt_chien
+    if _ptt_chien is not None:
+        try:
+            _ptt_chien.cancel()
+        except Exception:
+            pass
+        _ptt_chien = None
+
+
+def _duree_chien(duree_max_s):
+    """Borne la durée annoncée par l'appelant. Une valeur absurde (négative,
+    non numérique, ou plus longue que le pire mode SSTV) ne doit pas pouvoir
+    désarmer le chien de garde — c'est justement le seul garde-fou qui reste
+    quand la page qui émettait a disparu."""
+    try:
+        demande = float(duree_max_s)
+    except (TypeError, ValueError):
+        return PTT_LIGNE_DUREE_MAX_S
+    if demande <= 0:
+        return PTT_LIGNE_DUREE_MAX_S
+    return max(PTT_LIGNE_DUREE_MIN_S, min(PTT_LIGNE_DUREE_MAX_S, demande))
+
+
+def _chien_de_garde(duree):
+    """Repose la ligne que personne n'a relâchée. Volontairement sans
+    condition : si ce minuteur se déclenche, c'est déjà que le chemin normal
+    a échoué, et un test supplémentaire ne ferait qu'ajouter une façon de ne
+    pas couper."""
+    relacher_ptt_ligne(motif='chien de garde (%.0f s)' % duree)
+
+
+def _transport_ptt(settings):
+    """Le transport sur lequel piloter la ligne, et comment il a été obtenu.
+
+    Règle : si la connexion CAT persistante est DÉJÀ ouverte sur ce port, on
+    la réutilise — un port série ne peut pas être ouvert deux fois sous
+    Windows, et le montage le plus courant (Digimode-4) fait justement passer
+    CAT et PTT par le même FTDI. Sinon on ouvre un transport dédié, et on le
+    garde ouvert : c'est ce qui permet d'émettre quand le CAT ne répond pas
+    du tout — exactement le cas d'un boîtier dont l'audio et le PTT
+    fonctionnent mais dont le câble CAT est muet.
+
+    On n'ouvre JAMAIS de connexion CAT juste pour lever une ligne : ça
+    enverrait des trames à un poste qui n'a peut-être rien demandé, et ça
+    ferait échouer le PTT pour une raison sans rapport avec le PTT."""
+    global _ptt_dedie
+    port = port_ptt_effectif(settings)
+    if not port:
+        return None, 'Aucun port série indiqué pour le PTT (CONFIG > RADIO)'
+    with _persistent_lock:
+        entry = _persistent.get('default')
+        if entry and (entry['key'][0] or '').upper() == port.upper():
+            return entry['transport'], None
+    with _ptt_ligne_lock:
+        if _ptt_dedie and _ptt_dedie['port'].upper() == port.upper():
+            return _ptt_dedie['transport'], None
+        _fermer_dedie_locked()
+        try:
+            # La vitesse n'a aucune importance pour piloter une ligne de
+            # contrôle : aucun octet n'est transmis. On prend celle du CAT
+            # pour que, si le port se trouve être le même, rien ne change
+            # pour d'éventuelles trames.
+            transport = _open_serial_retry(port, settings.get('baudrate') or 19200)
+        except Exception as e:
+            return None, _friendly_open_error(port, e)
+        _ptt_dedie = {'port': port, 'transport': transport}
+        return transport, None
+
+
+def _fermer_dedie_locked():
+    global _ptt_dedie
+    if _ptt_dedie:
+        try:
+            _ptt_dedie['transport'].close()   # close() repose déjà les lignes
+        except Exception:
+            pass
+        _ptt_dedie = None
+
+
+def _oublier_ptt_si_transport(transport):
+    """Le transport qui portait la ligne disparaît : on cesse de croire
+    qu'on émet, et on annule le chien de garde qui viserait un objet mort."""
+    global _ptt_ligne_active
+    with _ptt_ligne_lock:
+        if _ptt_ligne_active and _ptt_ligne_active['transport'] is transport:
+            _ptt_ligne_active = None
+            _annuler_chien_locked()
+
+
+def liberer_port_pour_cat(port):
+    """Rend le port à la connexion CAT qui veut l'ouvrir.
+
+    Sans ça, un PTT dédié ouvert sur COM4 ferait échouer l'ouverture CAT du
+    même COM4 avec « déjà utilisé » — et l'opérateur lirait un message
+    accusant un autre logiciel alors que le coupable serait LogX AI lui-même.
+    Reposer la ligne en le faisant est le sens SÛR : au pire on retombe en
+    réception."""
+    with _ptt_ligne_lock:
+        if _ptt_dedie and _ptt_dedie['port'].upper() == (port or '').upper():
+            _oublier_ptt_si_transport(_ptt_dedie['transport'])
+            _fermer_dedie_locked()
+
+
+def etat_ptt_ligne():
+    """État courant, pour le diagnostic et les tests — lecture seule."""
+    with _ptt_ligne_lock:
+        if not _ptt_ligne_active:
+            return {'actif': False}
+        return {'actif': True,
+                'ligne': _ptt_ligne_active['ligne'],
+                'port': _ptt_ligne_active['port'],
+                'depuis_s': round(time.monotonic() - _ptt_ligne_active['depuis'], 1)}
+
+
+def set_ptt_ligne(cfg, on, duree_max_s=None):
+    """Passe en émission (ou revient en réception) par la ligne RTS/DTR.
+
+    Même signature et même forme de retour que set_ptt() : le dispatch du
+    keyer vocal (logx_voicekeyer._set_ptt) choisit entre les deux sans que
+    ses appelants — séquenceur FT8, keyer vocal, LOGBOOK — aient à savoir
+    lequel est actif.
+
+    `duree_max_s` : durée d'émission annoncée par l'appelant, quand il la
+    connaît (un créneau FT8 dure 12,64 s, une image SSTV a une durée calculée
+    avant l'envoi). Elle ne LIMITE pas l'émission demandée — elle resserre le
+    chien de garde, donc la fenêtre pendant laquelle une porteuse pourrait
+    rester en l'air si la page disparaissait. Absente : plafond générique."""
+    global _ptt_ligne_active, _ptt_chien
+    settings = cat_settings(cfg)
+    ligne = settings['ptt_method']
+    if ligne not in ('rts', 'dtr'):
+        return {'ok': False, 'error': 'PTT par ligne série non configuré'}
+    if not on:
+        return relacher_ptt_ligne(motif='demande normale')
+    transport, err = _transport_ptt(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    with _ptt_ligne_lock:
+        if not transport.regler_ligne(ligne, True):
+            return {'ok': False,
+                    'error': "La ligne %s n'a pas pu être levée sur %s — port "
+                             'perdu ?' % (ligne.upper(), port_ptt_effectif(settings))}
+        _ptt_ligne_active = {'transport': transport, 'ligne': ligne,
+                             'port': port_ptt_effectif(settings),
+                             'depuis': time.monotonic()}
+        _annuler_chien_locked()
+        duree = _duree_chien(duree_max_s)
+        _ptt_chien = threading.Timer(duree, _chien_de_garde, args=(duree,))
+        _ptt_chien.daemon = True
+        _ptt_chien.start()
+    return {'ok': True, 'ptt': True, 'methode': ligne, 'chien_de_garde_s': duree}
+
+
+def relacher_ptt_ligne(motif=''):
+    """Repose la ligne, quoi qu'il arrive. Appelable sans rien savoir de la
+    config — c'est le chemin des coupures d'urgence (Échap, STOP, arrêt du
+    serveur, chien de garde), et il ne doit dépendre d'aucune lecture qui
+    pourrait elle-même échouer au pire moment.
+
+    Repose les DEUX lignes plutôt que la seule qui est censée servir : si
+    l'état interne s'est désynchronisé de la réalité, c'est précisément ici
+    qu'il ne faut pas lui faire confiance."""
+    global _ptt_ligne_active
+    # 🚨 ORDRE DES VERROUS. _ensure_connected() tient _persistent_lock et
+    # appelle liberer_port_pour_cat(), qui prend _ptt_ligne_lock : l'ordre
+    # imposé est donc _persistent_lock PUIS _ptt_ligne_lock. Prendre
+    # _persistent_lock ici, à l'intérieur de _ptt_ligne_lock, inverserait cet
+    # ordre et suffirait à interbloquer le serveur — un thread HTTP relâchant
+    # le PTT contre un autre ouvrant le CAT, et plus rien ne répond, PTT
+    # compris. La connexion persistante est donc lue AVANT, hors du verrou.
+    with _persistent_lock:
+        entry = _persistent.get('default')
+    with _ptt_ligne_lock:
+        _annuler_chien_locked()
+        actif = _ptt_ligne_active
+        _ptt_ligne_active = None
+        cibles = []
+        if actif:
+            cibles.append(actif['transport'])
+        if _ptt_dedie and _ptt_dedie['transport'] not in cibles:
+            cibles.append(_ptt_dedie['transport'])
+        if entry and entry['transport'] not in cibles:
+            cibles.append(entry['transport'])
+        if not cibles:
+            # Rien d'ouvert : il n'y a par construction aucune ligne levée.
+            return {'ok': True, 'ptt': False, 'rien_a_relacher': True}
+        ok = False
+        for transport in cibles:
+            if transport.baisser_lignes():
+                ok = True
+        if not ok:
+            return {'ok': False, 'ptt': None,
+                    'error': "Impossible de reposer la ligne PTT — LA RADIO EST "
+                             'PEUT-ÊTRE ENCORE EN ÉMISSION, coupe-la à la main'}
+    return {'ok': True, 'ptt': False, 'motif': motif}
+
+
+def _relacher_a_l_arret():
+    """Dernier filet, à l'arrêt du processus. Un serveur qu'on ferme pendant
+    une émission ne doit pas laisser la porteuse derrière lui."""
+    try:
+        relacher_ptt_ligne(motif='arrêt du serveur')
+    except Exception:
+        pass
+    try:
+        with _ptt_ligne_lock:
+            _fermer_dedie_locked()
+    except Exception:
+        pass
+
+
+atexit.register(_relacher_a_l_arret)
 
 
 def get_state(cfg):
