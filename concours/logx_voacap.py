@@ -12,6 +12,7 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -43,7 +44,99 @@ def _resolve_voacap_root():
     return dst_root if os.path.isdir(dst_root) else src_root
 
 
-_VOACAP_ROOT = _resolve_voacap_root()
+# ─── LONGUEUR DE CHEMIN : voacapl.exe casse au-dela de 128 caracteres ───────
+#
+# DEFAUT REEL, mesure le 20/08/2026. voacapl.exe rend le code 1 avec une
+# sortie d'erreur VIDE des que le chemin de son dossier run/ depasse une
+# certaine longueur. Cote logiciel ca devenait « Echec du calcul VOACAP
+# (code 1): » — un message qui n'explique rien, pour une fonction qui ne
+# marche tout simplement plus.
+#
+# LE SEUIL EST MESURE, PAS DEVINE. Meme calcul Paris -> New York, memes
+# donnees, seule la longueur du chemin change (dichotomie entre 120 et 136) :
+#
+#     longueur du dossier run/     resultat
+#     120                          OK
+#     128                          OK      <- derniere qui passe
+#     129                          ECHEC   <- premiere qui echoue
+#     132, 136                     ECHEC
+#
+# 128 tout rond : c'est un tampon de chemin de longueur fixe, classique d'un
+# binaire Fortran. Rien a esperer du cote de voacapl, il faut lui donner un
+# chemin court.
+#
+# POURQUOI CA TOUCHE DE VRAIS UTILISATEURS. La racine resolue ci-dessus est
+# soit le dossier d'installation, soit le dossier de donnees utilisateur. Les
+# deux peuvent etre profonds : un OneDrive redirige, un dossier Documents, un
+# nom d'utilisateur long, et on depasse 128 sans rien avoir fait d'anormal.
+_LONGUEUR_MAX_RUN = 128
+
+
+def _chemin_court_windows(chemin):
+    """Nom court 8.3 du chemin (C:\\PROGRA~1\\...), ou None.
+
+    Raccourcir SANS RIEN DEPLACER quand c'est possible : Windows expose le nom
+    8.3 de n'importe quel chemin existant. Peut echouer legitimement — la
+    generation 8.3 se desactive par volume (fsutil 8dot3name) et n'existe pas
+    hors Windows : on rend None et l'appelant recopie.
+    """
+    if os.name != 'nt':
+        return None
+    try:
+        import ctypes
+        tampon = ctypes.create_unicode_buffer(1024)
+        n = ctypes.windll.kernel32.GetShortPathNameW(chemin, tampon, 1024)
+        court = tampon.value if n else ''
+        # Un volume sans 8.3 rend le chemin INCHANGE : ce n'est pas une erreur,
+        # mais ca ne raccourcit rien, donc ca ne nous sert a rien.
+        return court if court and len(court) < len(chemin) else None
+    except Exception:
+        return None
+
+
+def _run_de(racine):
+    return os.path.join(racine, 'itshfbc', 'run')
+
+
+def _racine_assez_courte(racine):
+    """Rend une racine dont le dossier run/ tient sous _LONGUEUR_MAX_RUN.
+
+    Trois tentatives, de la moins invasive a la plus lourde :
+      1. la racine telle quelle, si elle tient deja (cas de loin le plus
+         frequent — on ne touche a rien) ;
+      2. son nom court 8.3, qui ne DEPLACE aucun fichier ;
+      3. une recopie sous une base courte (%LOCALAPPDATA%, sinon le dossier
+         temporaire). Meme mecanisme que la recopie « lecture seule » de
+         _resolve_voacap_root() ci-dessus, pour une autre raison.
+    Si rien ne tient, on rend la racine d'origine : mieux vaut echouer avec le
+    message explicite de predict() que planter ici.
+    """
+    if len(_run_de(racine)) <= _LONGUEUR_MAX_RUN:
+        return racine
+
+    court = _chemin_court_windows(racine)
+    if court and len(_run_de(court)) <= _LONGUEUR_MAX_RUN:
+        return court
+
+    base = os.environ.get('LOCALAPPDATA') or tempfile.gettempdir()
+    # Nom de dossier deliberement court : chaque caractere gagne ici est un
+    # caractere de marge sur les 128.
+    dst = os.path.join(base, 'LogXvc')
+    if len(_run_de(dst)) > _LONGUEUR_MAX_RUN:
+        court_base = _chemin_court_windows(base)
+        if court_base:
+            dst = os.path.join(court_base, 'LogXvc')
+    if len(_run_de(dst)) > _LONGUEUR_MAX_RUN:
+        return racine          # meme le repli est trop long : on abandonne
+    try:
+        if not os.path.isdir(dst):
+            shutil.copytree(racine, dst)
+        return dst if os.path.isdir(dst) else racine
+    except OSError:
+        return racine
+
+
+_VOACAP_ROOT = _racine_assez_courte(_resolve_voacap_root())
 _VOACAP_EXE = os.path.join(_VOACAP_ROOT, 'voacapl.exe')
 _ITSHFBC = os.path.join(_VOACAP_ROOT, 'itshfbc')
 _RUN_DIR = os.path.join(_ITSHFBC, 'run')
@@ -324,7 +417,19 @@ def predict(tx_lat, tx_lon, rx_lat, rx_lon, month=None, year=None, ssn=None,
                 capture_output=True, text=True, cwd=_RUN_DIR, timeout=timeout,
             )
             if r.returncode != 0 or not os.path.isfile(out_path):
-                return {'ok': False, 'error': f"Echec du calcul VOACAP (code {r.returncode}): {r.stderr.strip()[:300]}"}
+                # voacapl rend le code 1 avec une sortie d'erreur VIDE quand son
+                # chemin depasse 128 caracteres (mesure, voir _LONGUEUR_MAX_RUN).
+                # Sans ce complement, l'operateur lisait « code 1: » et n'avait
+                # aucun moyen de deviner que son dossier d'installation est en
+                # cause. _racine_assez_courte() essaie de l'eviter en amont ; si
+                # on arrive quand meme ici, il faut le DIRE.
+                detail = r.stderr.strip()[:300]
+                if len(_RUN_DIR) > _LONGUEUR_MAX_RUN:
+                    detail = (detail + ' — ' if detail else '') + (
+                        "chemin trop long pour le moteur VOACAP "
+                        f"({len(_RUN_DIR)} caracteres, maximum {_LONGUEUR_MAX_RUN}) : "
+                        "installe LogX AI dans un dossier moins profond")
+                return {'ok': False, 'error': f"Echec du calcul VOACAP (code {r.returncode}): {detail}"}
             with open(out_path, "r", errors="replace") as f:
                 out_content = f.read()
         finally:
