@@ -408,6 +408,19 @@ Champ texte libre (exemple affiché : 144.300). Deux intelligences :
 
 Même principe bouton + grille que la bande. Les modes proposés sont ceux du concours (ex. CQ WW SSB → SSB seul ; ARRL Field Day → SSB/CW/FT8/FT4/RTTY), filtrés par vos réglages de CONFIG. Passer en CW affiche le panneau des macros et le décodeur ; passer en phonie affiche le keyer vocal (voir §6.4).
 
+#### SOURCE DU QSO — noter un contact fait sur un autre poste
+
+Ce bouton n'apparaît **que si une radio est pilotée en CAT**. Il répond à une question simple : le QSO que vous êtes en train de noter, vous l'avez fait sur cette radio, ou sur une autre ?
+
+- **RADIO PILOTÉE** (par défaut) : tout se comporte comme d'habitude. Choisir une bande ou un mode envoie la radio dessus, et la radio ramène de son côté la bande et le mode de saisie quand vous la tournez à la main. C'est ce qu'on veut quand on note ce qu'on vient de faire.
+- **AUTRE POSTE** : la saisie est **découplée**. Choisir une bande ou un mode ne touche plus la radio, la radio ne change plus votre bande ni votre mode, et elle n'écrase plus la fréquence que vous tapez.
+
+À quoi ça sert concrètement : faire tourner le FT8 en automatique sur une radio pilotée, et pendant ce temps noter à la main les QSO en CW ou en phonie faits sur un **second poste non connecté au PC**. Sans ce bouton, choisir « 40 m / CW » pour préparer la fiche déplacerait la radio du FT8 sur 40 m en CW, en pleine séquence.
+
+Le réglage est retenu même si vous rafraîchissez la page — une séquence FT8 peut durer des heures. Il reste aussi en mémoire si le CAT se coupe puis revient : le bouton disparaît le temps qu'il n'y a plus de radio à piloter, mais votre choix n'est pas remis à zéro dans votre dos.
+
+> **Ce que le logiciel ne peut pas faire pour vous.** Il ne voit rien de ce second poste : ni sa fréquence, ni son mode, ni le fait qu'il émet. Il ne vous en empêchera donc pas — mais il ne vous protègera pas non plus. Ne pas émettre sur deux postes en même temps reste **votre** responsabilité, comme le respect du règlement du concours si vous en faites un.
+
 #### INDICATIF CORRESPONDANT
 
 Le champ le plus assisté du logiciel. La saisie est forcée en majuscules, et dès 2 caractères plusieurs aides se déclenchent :
@@ -906,6 +919,8 @@ Si vous préférez votre logiciel FT8 habituel, gardez-le : le pont décrit à l
 Choisissez le périphérique d'entrée, cliquez **▶ Écouter**. Vous obtenez une chute d'eau et le tableau des décodages : heure UTC, fréquence en Hz, **DT** (le décalage temporel de la station d'en face — le seul moyen de voir d'un coup d'œil si c'est son horloge ou la vôtre qui dérive), **SNR en dB**, et le message.
 
 Un cycle FT8 dure 15 secondes ; le calcul peut mettre une à trois secondes à s'afficher après la fin du cycle, c'est normal. Un clic sur une ligne prépare la réponse, un double-clic la prépare **et** l'envoie.
+
+**Une limite à connaître, parce qu'elle est invisible.** Deux stations séparées de moins d'une vingtaine de hertz sur la chute d'eau ne ressortent pas toutes les deux : la plus forte est décodée, l'autre est perdue sans qu'aucun message ne le signale. Si vous voyez deux traces quasiment collées et qu'une seule ligne apparaît, c'est cela — pas un défaut de réglage de votre part. En pratique cela se produit sur les bandes très encombrées ; le remède habituel est d'attendre le cycle suivant, où les stations se répartissent autrement. (Cette limite valait 50 Hz jusqu'à la version précédente.)
 
 #### Émettre : le geste qui arme, et lui seul
 

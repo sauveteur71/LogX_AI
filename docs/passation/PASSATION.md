@@ -142,24 +142,152 @@ Un build de release est resté cassé deux jours sans que personne le sache
 
 ### Ce qui reste ouvert
 
-1. **Web Worker pour le décodage FT8** — c'est LE correctif du gel de cascade.
-   La décimation a divisé le blocage par 4, mais il reste **2 576 ms mesurés
-   contre un seuil de resynchronisation à 400 ms** : le compteur « N resynchro.
-   audio » continuera de monter. Sortir `ft8DecodeAudioAll` du thread principal
-   est le seul changement qui rende le trou nul. L'entrée est un `Float32Array`
-   transférable, la sortie un petit tableau d'objets ; l'émission n'est pas
-   concernée. **Aucun Worker n'existe aujourd'hui dans `concours/`.**
+1. ✅ **FAIT ET FUSIONNÉ — Web Worker pour le décodage FT8** (PR #138,
+   `b784b6c` sur `main`, fusionnée le 19/08/2026). Premier Web Worker du
+   dépôt. Il reste à l'ÉPROUVER sur l'air réel (voir la fin du point) — mais
+   le code, lui, n'attend plus rien.
+
+   MESURÉ en navigateur réel sur la page elle-même, même fenêtre de 16,5 s à
+   48 kHz et mêmes 3 stations, synthétisées puis décodées :
+
+   | | Synchrone | Worker |
+   |---|---|---|
+   | blocage max du fil principal | 1 942 ms | **12 ms** |
+   | durée du décodage | 2 023 ms | 2 021 ms |
+   | tics de minuteur observés | 51 | 244 |
+   | messages décodés | 3/3 | **3/3, textes identiques** |
+
+   12 ms est SOUS les 400 ms de `DERIVE_MAX_MS` : le trou n'est pas réduit, il
+   est **supprimé**. Le calcul dure toujours autant — mais il ne vole plus
+   l'audio pendant qu'il travaille, donc il cesse de se saboter lui-même.
+
+   ⚠️ **La note qui précédait disait « l'entrée est un Float32Array
+   transférable ». NE PAS LE TRANSFÉRER** : `fenetre.samples` est relu juste
+   après par `surveillerSilenceAnormal`, et `ft8Decimer` rend l'entrée
+   ELLE-MÊME quand le facteur vaut 1. Un transfert viderait le tableau côté
+   page et la surveillance du silence mesurerait « silence » à chaque créneau.
+   Copie par clone structuré, ~3,2 Mo par créneau — négligeable devant les
+   2,5 s économisées.
+
+   ⚠️ **« L'émission n'est pas concernée » était FAUX**, et c'est le piège le
+   plus coûteux du chantier : `hashTable` est lue par le décodage ET par
+   `ft8EncodeMessage`, donc par les messages ÉMIS. Un Worker qui accumulerait
+   ses hachages priverait la page de ceux nécessaires aux indicatifs composés
+   — panne d'émission SILENCIEUSE, visible seulement d'en face. La page envoie
+   sa table, le Worker rend les entrées apparues, la page FUSIONNE.
+
+   Reste à faire, et F4GLD seul peut le faire : **l'essai sur de l'AIR RÉEL**.
+   Ici le signal est synthétisé par la page, donc parfait.
 
 2. **Sans CAT configuré, la page ne peut RIEN émettre** — `envoyerMessage` sort
    avant la synthèse de la forme d'onde — alors que son message conseille de
-   passer en VOX. Le conseil est donc impossible à suivre. Question ouverte
-   pour F4GLD : faut-il faire réellement marcher le VOX en jouant la forme
-   d'onde sans commander de PTT ? C'est un changement du chemin d'émission.
+   passer en VOX. Le conseil est donc impossible à suivre.
 
-3. **Deux stations distantes de moins de 50 Hz : la seconde n'est jamais
-   décodée.** `logx_ft8_dsp.js`, `minFreqSeparationHz = 8 × 6,25 Hz`. Mesuré
-   (0/40 tirages pour une station à 18 Hz d'écart). Préexistant, chantier
-   distinct.
+   ✅ **TRANCHÉ PAR F4GLD LE 20/08/2026 : le VOX doit marcher réellement.** La
+   page doit jouer la forme d'onde dans la carte son sans commander de PTT ;
+   c'est le VOX du poste qui déclenche l'émission. Usage courant en FT8, et
+   c'est déjà ce que le message promet.
+
+   **Ce que cela engage, et qui doit être traité DANS le même lot** : la radio
+   peut alors passer en émission sans qu'aucune commande CAT ne soit envoyée,
+   donc **le logiciel ne peut plus la faire taire par CAT**. Les garde-fous
+   restants sont le bouton STOP et les cinq façons d'arrêter le séquenceur —
+   ils deviennent la SEULE barrière, et doivent être vérifiés comme tels (le
+   bouton STOP a déjà été trouvé « tenu par rien » une fois, PR #136). Le
+   point d'arrêt du son lui-même compte aussi : `logx_ft8.html` documente déjà
+   qu'une onde résiduelle « remet le poste en émission » sur une station en
+   VOX (voir les commentaires autour de la coupure de l'oscillateur), et que
+   « laisser le son partir n'arrête rien sur une station en VOX ». Couper le
+   PTT ne suffira plus : il faudra couper le SON, et le prouver.
+
+   **Où ça se passe, repéré le 20/08/2026** (pour ne pas refaire la fouille) :
+   dans `logx_ft8.html`, `pttOn(true)` est attendu puis, si le serveur répond
+   `non_engage` (aucun pilotage radio), la fonction sort — c'est là que le
+   chemin d'émission s'arrête, avant toute synthèse. Le message affiché juste
+   après est celui qui conseille le VOX.
+
+   Deux points à ne PAS manquer dans ce lot, parce qu'ils ne sautent pas aux
+   yeux : la visibilité du bouton STOP est pilotée par `pttDemande` via
+   `majBoutonStop()`, et la branche `non_engage` remet justement `pttDemande`
+   à `false` — en mode VOX il faudra qu'il passe à VRAI, sinon la radio émet
+   pendant que le bouton d'arrêt est caché. Et le chien de garde
+   (`armerChienDeGarde` / `desarmerChienDeGarde`) est désarmé sur cette même
+   branche : il devra rester armé.
+
+   Chantier non encore ouvert au 20/08/2026.
+
+3. ✅ **TRAITÉ — deux stations distantes de moins de 50 Hz : la seconde
+   n'était jamais décodée.** `logx_ft8_dsp.js`, `minFreqSeparationHz`
+   valait `8 × 6,25 Hz`. La limite passe de 50 Hz à ~19 Hz.
+
+   **Le piège de ce chantier, et il aurait coûté cher** : la première mesure
+   (2 stations proches) donnait « sans la règle, 6/6 au lieu de 3/6 » et
+   invitait donc à la SUPPRIMER. C'était faux. La règle n'écarte pas des
+   stations, elle effondre la JUPE d'un même signal — le balayage grossier
+   avance par pas de 3,125 Hz, donc un signal fort produit plusieurs pics
+   voisins qui mangent les places de `maxCandidates`. Mesuré sur bande
+   chargée, avec des amplitudes inégales (c'est cette inégalité qui révèle
+   le défaut ; à amplitudes égales les deux configurations se valent et la
+   mesure ne discrimine pas) :
+
+   | stations | règle 50 Hz | sans règle |
+   |---|---|---|
+   | 16 | 16/16 | 12/16 |
+   | 22 | 22/22 | 15/22 |
+   | 28 | 28/28 | **14/28** |
+
+   Le mécanisme est donc bon, seule sa LARGEUR était en cause. Balayage du
+   seuil sur les deux scénarios opposés :
+
+   | seuil | 2 stations à 18 Hz | à 31 Hz | 16 stations |
+   |---|---|---|---|
+   | 0 à 12,5 Hz | 6/6 | 6/6 | 12/16 |
+   | **18,75 Hz** | **6/6** | **6/6** | **16/16** |
+   | 25 à 31,25 Hz | 3/6 | 6/6 | 16/16 |
+   | 50 Hz (ancien) | 3/6 | 3/6 | 16/16 |
+
+   18,75 Hz = 3 × l'espacement des tons est la SEULE valeur qui tienne les
+   deux bouts. Mais à ce seuil un signal prend 2 à 3 places au lieu d'une, et
+   la bande à 28 stations retombait à 21/28 — d'où `maxCandidates` porté de
+   30 à 60 (mesuré : 21/28 à 30 places, 23/28 à 45, **28/28 à 60**, et rien
+   de plus à 90 ou 120 pour 1 à 2 s de temps en plus). Le surcoût est faible
+   parce que c'est la recherche de synchro grossière qui domine le décodage,
+   pas les décodages LDPC.
+
+   **MESURÉ SUR LA PLATEFORME CIBLE**, pas seulement sous le moteur des tests —
+   navigateur réel, décodage dans un Worker, signal à 12 kHz (ce que voit
+   `ft8DecodeAudioAll` après `ft8Decimer`) :
+
+   | stations | budget | durée | décodées |
+   |---|---|---|---|
+   | 16 | 30 | 3 458 ms | 16/16 |
+   | 16 | 60 | 4 697 ms | 16/16 |
+   | 28 | 30 | 3 490 ms | 21/28 |
+   | 28 | **60** | **4 057 ms** | **28/28** |
+
+   Sur bande très chargée : **+7 stations pour +567 ms**. Quatre secondes dans
+   un créneau qui en dure quinze, et depuis la PR #138 ce calcul est dans un
+   Worker — il ne bloque donc pas l'écran (12 ms mesurés).
+
+   ⚠️ **Piège du banc lui-même, à ne pas refaire** : la première version
+   synthétisait le signal à 48 kHz puis décimait. Elle ne rendait JAMAIS la
+   main — le noyau gaussien de `ft8SynthesizeGfsk` grandit avec la cadence,
+   donc la fabrication du signal coûtait seize fois plus cher que le décodage
+   qu'on cherchait à mesurer, et gelait le moteur de rendu au point de rendre
+   l'onglet injoignable. Synthétiser directement à 12 kHz est FIDÈLE (c'est
+   exactement ce que le décodeur reçoit) et mesure la bonne chose.
+
+   **Vérifié aussi** : l'estimateur de report (`ft8EstimerSnr`) justifie
+   explicitement l'emploi d'une MÉDIANE pour le plancher de bruit par le fait
+   que « la séparation minimale est de 50 Hz ». Abaisser le seuil change
+   cette prémisse, donc on l'a mesuré au lieu de le supposer — reports
+   strictement identiques avant/après (24,6 puis 22,3 dB avec une voisine à
+   18 Hz ; 17,4 / 16,6 dB sur signal faible). La médiane encaisse.
+
+   **Ce qui reste vrai** : sous ~19 Hz d'écart la seconde station est encore
+   perdue. La limite est DÉPLACÉE, pas supprimée. La lever demanderait la
+   soustraction de signal et un décodage multi-passes, chantier d'un autre
+   ordre.
 
 4. ✅ **FAIT — 25 concours proposés dans l'interface rendaient zéro bande.**
    Corrigé le 19/08/2026 par l'accesseur `bandes_du_concours()` décrit plus
