@@ -254,6 +254,29 @@ Un build de release est resté cassé deux jours sans que personne le sache
    parce que c'est la recherche de synchro grossière qui domine le décodage,
    pas les décodages LDPC.
 
+   **MESURÉ SUR LA PLATEFORME CIBLE**, pas seulement sous le moteur des tests —
+   navigateur réel, décodage dans un Worker, signal à 12 kHz (ce que voit
+   `ft8DecodeAudioAll` après `ft8Decimer`) :
+
+   | stations | budget | durée | décodées |
+   |---|---|---|---|
+   | 16 | 30 | 3 458 ms | 16/16 |
+   | 16 | 60 | 4 697 ms | 16/16 |
+   | 28 | 30 | 3 490 ms | 21/28 |
+   | 28 | **60** | **4 057 ms** | **28/28** |
+
+   Sur bande très chargée : **+7 stations pour +567 ms**. Quatre secondes dans
+   un créneau qui en dure quinze, et depuis la PR #138 ce calcul est dans un
+   Worker — il ne bloque donc pas l'écran (12 ms mesurés).
+
+   ⚠️ **Piège du banc lui-même, à ne pas refaire** : la première version
+   synthétisait le signal à 48 kHz puis décimait. Elle ne rendait JAMAIS la
+   main — le noyau gaussien de `ft8SynthesizeGfsk` grandit avec la cadence,
+   donc la fabrication du signal coûtait seize fois plus cher que le décodage
+   qu'on cherchait à mesurer, et gelait le moteur de rendu au point de rendre
+   l'onglet injoignable. Synthétiser directement à 12 kHz est FIDÈLE (c'est
+   exactement ce que le décodeur reçoit) et mesure la bonne chose.
+
    **Vérifié aussi** : l'estimateur de report (`ft8EstimerSnr`) justifie
    explicitement l'emploi d'une MÉDIANE pour le plancher de bruit par le fait
    que « la séparation minimale est de 50 Hz ». Abaisser le seuil change
