@@ -28,6 +28,19 @@ poussé.
   le comportement d'avant, jamais une panne. Corrige le point « Le décodage
   bloque le fil principal ~2,1 s par créneau » listé en connu/non corrigé
   ci-dessous.
+- **FT8 — deux stations à moins de 50 Hz : la seconde n'était jamais
+  décodée.** Le décodeur écartait tout candidat situé à moins de 50 Hz d'un
+  candidat déjà retenu ; toute station proche d'une autre disparaissait, sans
+  message ni indice. La limite passe à **~19 Hz**. Ce n'est PAS la suppression
+  de la règle : mesuré, la retirer ferait tomber une bande à 28 stations de
+  28/28 à 14/28, parce qu'elle sert en réalité à effondrer les détections
+  multiples d'un même signal fort. Seule sa largeur était en cause (18,75 Hz,
+  soit 3 espacements de tons, est la seule valeur qui recouvre les stations
+  proches sans dégrader la bande chargée), avec le budget de candidats porté
+  de 30 à 60 pour compenser. Le report SNR est inchangé, vérifié par la
+  mesure et non supposé. **Ce qui reste** : sous ~19 Hz d'écart la seconde
+  station est toujours perdue — la limite est déplacée, pas supprimée. Dit
+  tel quel dans le guide utilisateur.
 - **FT8 — « Ignorer » perdait la fiche du correspondant**, et le bouton STOP
   du séquenceur n'était retenu par aucun test malgré son rôle de sécurité
   d'émission.
