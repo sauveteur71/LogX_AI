@@ -460,21 +460,36 @@ def test_reinitialiser_leve_aussi_le_verrou_tx():
 def test_rig_cw_verrouille_avant_denvoyer():
     src = _source_http()
     bloc = src[src.index("if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop')"):]
-    bloc = bloc[:2200]
-    assert 'so2r.verrouiller_tx(radio_active)' in bloc
+    # Fenêtre élargie de 2200 à 3000 le 20/08/2026 : l'étiquetage du verrou a
+    # ajouté des lignes dans ce bloc et repoussait la cible hors du découpage.
+    # 3000 reste DANS le même gestionnaire (/rig/qsy, /rig/cw, /rig/stop sont
+    # traités ensemble) — la fenêtre existe pour ne pas valider sur le code
+    # d'un AUTRE endpoint, pas pour compter des caractères.
+    bloc = bloc[:3000]
+    # Depuis le 20/08/2026 la prise de verrou porte SA SOURCE. Ce test est donc
+    # plus strict qu'avant, pas plus laxiste : il ne se contente plus de voir
+    # un verrou pris, il exige que ce soit celui du CW. Sans l'étiquette,
+    # /rig/stop (donc Échap) ne lèverait plus ce verrou et le coupe-circuit
+    # deviendrait inopérant.
+    assert "so2r.verrouiller_tx(radio_active, 'cw')" in bloc
     # radio_active est réécrit sur la radio VERROUILLÉE (so2r.tx_actif())
     # avant ce point pour /rig/stop -- voir le correctif du 13/08/2026 : le
     # déverrouillage ET cfg_snap (donc la commande matérielle d'arrêt plus
     # bas) doivent cibler la MÊME radio, jamais une relue indépendamment
     # (même motif que /rig/ptt ci-dessous, déjà sur radio_active).
-    assert "so2r.deverrouiller_tx(radio_active)" in bloc
+    # Relâchement RESTREINT au CW : /rig/stop ne doit plus lever le verrou pris
+    # par /rig/ptt (le séquenceur FT8 passe par là) — voir
+    # tests/test_verrou_tx_source.py pour le défaut complet.
+    assert "so2r.deverrouiller_tx(radio_active, 'cw')" in bloc
 
 
 def test_rig_ptt_verrouille_avant_larmement():
     src = _source_http()
     bloc = src[src.index("if self.path == '/rig/ptt':"):]
-    bloc = bloc[:1200]
-    assert 'so2r.verrouiller_tx(radio_active)' in bloc
+    # 2000 : la cible est à ~1400 et l'endpoint SUIVANT commence à 2260 —
+    # la fenêtre couvre donc tout /rig/ptt sans jamais déborder ailleurs.
+    bloc = bloc[:2000]
+    assert "so2r.verrouiller_tx(radio_active, 'ptt')" in bloc
     assert 'so2r.deverrouiller_tx(radio_active)' in bloc
 
 
@@ -482,7 +497,7 @@ def test_rig_voice_verrouille_avant_denvoyer():
     src = _source_http()
     bloc = src[src.index("if self.path == '/rig/voice':"):]
     bloc = bloc[:2600]
-    assert 'so2r.verrouiller_tx(radio_active)' in bloc
+    assert "so2r.verrouiller_tx(radio_active, 'voix')" in bloc
     assert 'so2r.deverrouiller_tx(radio_active)' in bloc
 
 
@@ -490,7 +505,7 @@ def test_voice_play_verrouille_avant_denvoyer():
     src = _source_http()
     bloc = src[src.index("if self.path in ('/voice/save', '/voice/play', '/voice/delete'):"):]
     bloc = bloc[:bloc.index("if self.path == '/rig/voice':")]
-    assert 'so2r.verrouiller_tx(radio_active)' in bloc
+    assert "so2r.verrouiller_tx(radio_active, 'voix')" in bloc
     assert 'so2r.deverrouiller_tx(radio_active)' in bloc
 
 
