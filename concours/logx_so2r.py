@@ -287,16 +287,21 @@ TX_LOCK_TIMEOUT_S = 120
 _tx_lock = threading.Lock()
 _tx_radio = None    # 1 ou 2 : quelle radio est censée émettre, None si aucune
 _tx_armee_a = 0.0    # time.monotonic() au moment de l'armement
+_tx_source = ''      # 'cw' / 'ptt' / 'voix' : QUI l'a pris (voir deverrouiller_tx)
 
 
-def verrouiller_tx(radio):
+def verrouiller_tx(radio, source=''):
     """Arme le verrou d'exclusivité TX pour `radio` (1 ou 2), à appeler AVANT
     tout ordre d'émission (PTT ON, envoi CW, message vocal). Refuse si l'AUTRE
     radio est déjà armée et le verrou n'a pas expiré.
 
     Auto-nettoyant : un verrou périmé (TX_LOCK_TIMEOUT_S dépassé) est traité
-    comme libre, pas besoin d'un déblocage manuel après un incident."""
-    global _tx_radio, _tx_armee_a
+    comme libre, pas besoin d'un déblocage manuel après un incident.
+
+    `source` : QUI prend le verrou ('cw', 'ptt', 'voix'). Sert uniquement à
+    empêcher qu'un chemin d'arrêt libère le verrou d'un AUTRE chemin — voir
+    deverrouiller_tx(). Vide = anonyme, comportement d'avant."""
+    global _tx_radio, _tx_armee_a, _tx_source
     with _tx_lock:
         maintenant = time.monotonic()
         if (_tx_radio is not None and _tx_radio != radio
@@ -307,17 +312,31 @@ def verrouiller_tx(radio):
                     (_tx_radio, TX_LOCK_TIMEOUT_S - (maintenant - _tx_armee_a))}
         _tx_radio = radio
         _tx_armee_a = maintenant
+        _tx_source = source or ''
         return {'ok': True}
 
 
-def deverrouiller_tx(radio):
+def deverrouiller_tx(radio, source=None):
     """Lève le verrou si `radio` le détient encore — jamais celui d'une AUTRE
     radio (un relâchement tardif/en échec de la radio 1 ne doit pas effacer un
-    verrou fraîchement pris par la radio 2)."""
-    global _tx_radio
+    verrou fraîchement pris par la radio 2).
+
+    `source` : si fournie, ne lève le verrou QUE s'il a été pris par cette
+    même source. DÉFAUT RÉEL du 20/08/2026 : Échap envoie /rig/stop dès qu'un
+    pilote CW existe (coupe-circuit voulu, logx_theme_shortcuts.js), et
+    /rig/stop levait le verrou SANS REGARDER qui le détenait. Or /rig/ptt le
+    prend aussi — c'est par là que passe le séquenceur FT8. Un Échap réflexe
+    pour fermer une popup libérait donc le verrou pendant que le FT8 émettait,
+    et la radio 2 pouvait alors prendre la parole en même temps : exactement
+    les deux porteuses simultanées que ce verrou existe pour empêcher.
+
+    None = comportement historique (lève quoi qu'il arrive), conservé pour les
+    chemins qui relâchent LEUR PROPRE verrou dans la même requête."""
+    global _tx_radio, _tx_source
     with _tx_lock:
-        if _tx_radio == radio:
+        if _tx_radio == radio and (source is None or _tx_source == source):
             _tx_radio = None
+            _tx_source = ''
 
 
 def tx_actif():
