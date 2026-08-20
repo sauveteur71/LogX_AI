@@ -342,7 +342,11 @@ def test_le_guide_de_reglage_du_poste_existe_et_reste_visible_en_debutant():
     pas finie. Et c'est le débutant qui en a le plus besoin : jamais
     expert-only."""
     src = _lire_ft8()
-    m = re.search(r'<details class="aide-poste">', src)
+    # Ancre sur la CLASSE, pas sur la balise entière : le panneau a reçu un
+    # `id` le 20/08/2026 pour être rempli avec les réglages du poste déclaré, et
+    # ce test rougissait alors qu'aucune propriété qu'il protège n'avait bougé.
+    # Figer une balise complète, c'est se casser au premier attribut ajouté.
+    m = re.search(r'<details class="aide-poste"', src)
     assert m, 'panneau de réglages du poste absent'
     bloc = src[m.start():src.index('</details>', m.start())]
     assert 'expert-only' not in bloc
@@ -355,5 +359,8 @@ def test_le_guide_renvoie_au_manuel_pour_les_valeurs_chiffrees():
     modèle à l'autre et je n'ai pas de source pour les valider. Le guide doit
     le DIRE au lieu d'avancer des chiffres invérifiables."""
     src = _lire_ft8()
-    bloc = src[src.index('<details class="aide-poste">'):src.index('</details>')]
+    # Même raison qu'au-dessus : on borne sur la classe, pas sur la balise
+    # complète, qui porte désormais un id.
+    debut = src.index('<details class="aide-poste"')
+    bloc = src[debut:src.index('</details>', debut)]
     assert 'manuel du constructeur fait foi' in bloc
