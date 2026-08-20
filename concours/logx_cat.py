@@ -1419,6 +1419,18 @@ class SerialPort:
             if attente and attente > 0:
                 pris = self._lock.acquire(timeout=attente)
             try:
+                # 🚨 UN PORT FERMÉ N'EST PAS UNE COUPURE RÉUSSIE. MESURÉ le
+                # 20/08/2026 sur pyserial 3.5 : le setter est
+                #     self._rts_state = value
+                #     if self.is_open: self._update_rts_state()
+                # Sur un port FERMÉ il mémorise la valeur, ne touche PAS le
+                # pilote, et ne lève rien. Sans ce contrôle, regler_ligne
+                # renvoyait donc True sans avoir rien posé — et le verdict de
+                # relacher_ptt_ligne, qui repose sur ce retour, était désarmé
+                # exactement dans le cas qui compte : le transport fermé sous
+                # nos pieds pendant qu'une ligne est peut-être encore haute.
+                if not getattr(self._ser, 'is_open', True):
+                    return False
                 if ligne == 'dtr':
                     self._ser.dtr = bool(actif)
                 else:
@@ -1426,6 +1438,14 @@ class SerialPort:
             finally:
                 if pris:
                     self._lock.release()
+            # LIMITE ASSUMÉE ET DITE. Sur un port OUVERT sous Windows,
+            # pyserial ignore le code de retour d'EscapeCommFunction : si le
+            # pilote refuse, aucune exception ne remonte et ce True est
+            # optimiste. On ne peut pas non plus relire la ligne — le getter
+            # `rts` rend la valeur MÉMORISÉE, pas l'état matériel. Ce retour
+            # signifie donc « l'ordre est parti sur un port ouvert », jamais
+            # « la broche a bougé ». Le chien de garde reste le seul garde-fou
+            # qui ne dépende d'aucune promesse du pilote.
             return True
         except Exception:
             if pris:

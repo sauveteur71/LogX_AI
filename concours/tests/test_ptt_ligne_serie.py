@@ -101,15 +101,40 @@ def _etat_neuf():
 
 
 class _SerBidon:
-    """L'objet pyserial, et LUI SEUL, remplacé — pas la couche testée."""
+    """L'objet pyserial, et LUI SEUL, remplacé — pas la couche testée.
+
+    Imite FIDÈLEMENT le comportement mesuré de pyserial 3.5 : le setter
+    `rts`/`dtr` mémorise la valeur et ne touche le pilote QUE si le port est
+    ouvert. Un double qui poserait la ligne même port fermé rendrait vert un
+    code qui ne coupe rien — c'est le mannequin qui mentirait."""
 
     def __init__(self):
-        self.rts = True     # volontairement HAUTES au départ : un test qui
-        self.dtr = True     # part de False ne prouverait pas qu'on baisse
+        self._rts = True    # volontairement HAUTES au départ : un test qui
+        self._dtr = True    # part de False ne prouverait pas qu'on baisse
+        self.is_open = True
         self.closed = False
+
+    @property
+    def rts(self):
+        return self._rts
+
+    @rts.setter
+    def rts(self, v):
+        if self.is_open:
+            self._rts = v
+
+    @property
+    def dtr(self):
+        return self._dtr
+
+    @dtr.setter
+    def dtr(self, v):
+        if self.is_open:
+            self._dtr = v
 
     def close(self):
         self.closed = True
+        self.is_open = False
 
 
 def _vrai_port():
@@ -734,3 +759,22 @@ def test_la_relance_de_coupure_est_bornee():
     l'alimentation de l'opto-coupleur."""
     assert 0 < cat.PTT_COUPURE_RETENTE_S <= 30
     assert 1 < cat.PTT_COUPURE_ESSAIS_MAX <= 60
+
+
+def test_poser_une_ligne_sur_un_port_FERME_est_un_ECHEC():
+    """MESURÉ sur pyserial 3.5 le 20/08/2026 : le setter `rts` est
+
+        self._rts_state = value
+        if self.is_open: self._update_rts_state()
+
+    Sur un port FERMÉ il mémorise la valeur, ne touche PAS le pilote et ne
+    lève rien. regler_ligne renvoyait donc True sans avoir rien posé — et
+    tout le verdict de relacher_ptt_ligne, qui repose sur ce retour, était
+    désarmé précisément dans le cas qui compte : le transport fermé sous nos
+    pieds pendant qu'une ligne est peut-être encore haute."""
+    p = _vrai_port()
+    p._ser.is_open = False
+    assert p.regler_ligne('rts', False) is False, (
+        "un port fermé ne peut pas avoir reposé la ligne")
+    assert p.baisser_lignes() is False
+    assert p._ser.rts is True, 'la ligne n\'a effectivement pas bougé'
