@@ -58,7 +58,21 @@ function ElProxy(){
   var cls = {_s:new Set(), add:function(){for(var i=0;i<arguments.length;i++) this._s.add(arguments[i]);},
              remove:function(){for(var i=0;i<arguments.length;i++) this._s.delete(arguments[i]);},
              contains:function(c){return this._s.has(c);},
-             toggle:function(c){ if(this._s.has(c)) this._s.delete(c); else this._s.add(c); return this._s.has(c);}};
+             // toggle(classe, force) : avec un SECOND argument, le vrai DOM
+             // FORCE l'état (ajoute si vrai, retire si faux) au lieu de
+             // basculer. Ce stub l'ignorait, et faisait donc BASCULER une
+             // classe que le code voulait poser ou retirer — un mensonge sur
+             // 12 sites de production chargés par ce banc (day-mode,
+             // expedition-on, usage-simple, sans-concours, single-op-mode,
+             // les .active des sélecteurs bande/mode/opérateur...) et partagé
+             // par 38 fichiers de tests. Trouvé le 20/08/2026 parce qu'un
+             // nouveau test échouait pour une raison fausse.
+             toggle:function(c, force){
+               if(force === undefined){ if(this._s.has(c)) this._s.delete(c); else this._s.add(c); }
+               else if(force){ this._s.add(c); }
+               else { this._s.delete(c); }
+               return this._s.has(c);
+             }};
   var handler = {
     get:function(target, prop){
       if(prop === 'classList') return cls;

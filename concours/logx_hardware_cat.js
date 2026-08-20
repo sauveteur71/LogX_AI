@@ -66,6 +66,7 @@ function applyRigState(d){
       rigState.enabled=false; rigState.mode='';
       if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none';
       if(typeof updateFreqLockIcon==='function') updateFreqLockIcon();   // masque le cadenas : plus de CAT
+      if(typeof majBoutonSaisieDecouplee==='function') majBoutonSaisieDecouplee();  // et le sélecteur de source
       if(typeof updateKeyerPanels==='function') updateKeyerPanels();     // reflète tout de suite le repli sur currentMode
       return;
     }
@@ -79,6 +80,7 @@ function applyRigState(d){
     // seulement dans le bloc d.ok laissait le cadenas périmé tant qu'aucun
     // poll réussi n'arrivait (trouvé par la revue adversariale du 08/08/2026).
     if(typeof updateFreqLockIcon==='function') updateFreqLockIcon();
+    if(typeof majBoutonSaisieDecouplee==='function') majBoutonSaisieDecouplee();
     const dot = document.getElementById('rigDot');
     if(d.ok){
       rigState.mode = d.mode; rigState.freq_khz = d.freq_khz;
@@ -89,8 +91,15 @@ function applyRigState(d){
       syncBandModeFromRig(d.freq_khz, d.mode);
       // La fréquence suit la radio en direct, SAUF si l'opérateur est en train de
       // la saisir ou l'a saisie manuellement (split, annonce) → on ne l'écrase pas.
+      // Troisième exception : la saisie est découplée (QSO fait sur un autre
+      // poste). Sans elle, la fréquence du poste PILOTÉ finirait dans la fiche
+      // d'un QSO fait ailleurs — le cadenas ne protège pas ce cas, il ne tient
+      // que tant que la bande ne change pas (setFreqForBand efface userEdited).
       const fEl = document.getElementById('inputFreq');
-      if(fEl && d.freq_khz > 0 && document.activeElement !== fEl && !fEl.dataset.userEdited)
+      const decouple = (typeof saisieDecoupleeActive === 'function')
+                       && saisieDecoupleeActive();
+      if(fEl && d.freq_khz > 0 && document.activeElement !== fEl
+         && !fEl.dataset.userEdited && !decouple)
         fEl.value = (d.freq_khz / 1000).toFixed(3);
       if(typeof updateKeyerPanels==='function') updateKeyerPanels();
     } else {
@@ -120,6 +129,16 @@ function _rigModeVersLog(rigMode){
 }
 
 function syncBandModeFromRig(freqKhz, mode){
+  // SOURCE DU QSO — voir #posteSourceGroup dans logx_logbook.html. Quand
+  // l'opérateur note un QSO fait sur un poste que le PC ne commande pas, la
+  // radio pilotée n'a rien à dire sur SA bande ni SON mode : ce sondage
+  // écraserait la bande qu'il vient de choisir à la main, et le QSO partirait
+  // au carnet avec la bande de l'AUTRE poste.
+  //
+  // typeof : ce fichier est chargé indépendamment de logx_logbook.js et sert
+  // aussi des pages qui n'ont pas de sélecteur de source. Absent = comportement
+  // historique, jamais une erreur.
+  if(typeof saisieDecoupleeActive === 'function' && saisieDecoupleeActive()) return;
   // Fréquence radio → bande interne (bornes larges pour les segments contest)
   const mhz = freqKhz / 1000;
   const BANDS = [[1.8,2,'1.8'],[3.5,4,'3.5'],[7,7.3,'7'],[14,14.35,'14'],

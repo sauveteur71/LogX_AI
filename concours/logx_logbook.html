@@ -315,6 +315,17 @@ body.sans-concours .compass-pts{display:none}
 .bm-btn.active{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .bm-btn.active::before{content:'\2713\00a0'}
 
+/* SOURCE DU QSO — voir le commentaire du bloc #posteSourceGroup plus bas.
+   Volontairement SANS remplissage plein : une règle background:var(--accent2)
+   portant un texte sombre fixe est exactement le motif qui casse en mode jour
+   (documenté dans CLAUDE.md). Ici seuls la bordure et le texte changent, avec
+   des jetons définis dans les DEUX thèmes (--border/--muted, --yellow). */
+#posteSourceBtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  font-family:var(--font-mono);font-size:14px;font-weight:700;padding:8px 12px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+#posteSourceBtn.decouple{border-color:var(--yellow);color:var(--yellow)}
+#posteSourceBtn svg{width:15px;height:15px;flex-shrink:0}
+
 /* Sélecteur de BANDE et de MODE : un seul bouton (valeur courante) + popup de
    bascule — plutôt qu'une rangée de jusqu'à 17 boutons (1.8 MHz → 47 GHz) ou
    6 boutons mode, illisible dès qu'on active plus de 3-4 valeurs. */
@@ -1479,6 +1490,30 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span class="mode-current-arrow">▼</span>
         </button>
         <div class="mode-picker-popup" id="modePickerPopup" style="display:none"></div>
+      </div>
+
+      <!-- SOURCE DU QSO — d'où vient le contact qu'on est en train de noter.
+           POURQUOI CE RÉGLAGE EXISTE. Choisir une bande ou un mode ci-dessus
+           envoie un QSY à la radio pilotée (_qsyVersRadio, logx_logbook.js), et
+           le sondage CAT ramène en retour la bande de saisie sur celle de la
+           radio (syncBandModeFromRig, logx_hardware_cat.js). C'est le bon
+           comportement — et un correctif demandé — quand on note ce qu'on vient
+           de faire SUR cette radio.
+           Ça cesse de l'être dès qu'on note un QSO fait sur un poste que le PC
+           ne commande pas : préparer la fiche déplacerait alors la radio
+           pilotée, par exemple en pleine séquence FT8 automatique. Demandé par
+           F4GLD le 20/08/2026 (FT8 auto sur un poste en CAT, CW/phonie à la
+           main sur un second poste non connecté).
+           Masqué tant qu'aucune radio n'est pilotée : sans CAT il n'y a rien à
+           découpler, et un bouton sans objet est du bruit — même règle que le
+           cadenas de fréquence juste au-dessus. -->
+      <div class="field-group" id="posteSourceGroup" style="display:none">
+        <label class="field-label" for="posteSourceBtn">SOURCE DU QSO</label>
+        <button type="button" id="posteSourceBtn" onclick="basculerSaisieDecouplee()">
+          <span id="posteSourceIco" style="display:flex"></span>
+          <span id="posteSourceLabel">RADIO PILOTÉE</span>
+        </button>
+        <div id="posteSourceNote" style="margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)"></div>
       </div>
 
       <!-- Indicatif -->
