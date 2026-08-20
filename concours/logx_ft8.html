@@ -196,6 +196,20 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .niveau-ligne{display:flex;align-items:center;gap:8px}
 .tx-status.wait{color:var(--yellow)}
 .tx-status.emit{color:var(--red);font-weight:700}
+/* Réglages du poste déclaré. Aucune couleur codée en dur : tout passe par les
+   variables de thème, donc jour et nuit suivent sans règle supplémentaire.
+   .regl-alerte porte --yellow, couleur SÉMANTIQUE de la charte, réservée aux
+   lignes où le défaut d'usine du poste est FAUX pour le FT8 — c'est là que
+   l'opérateur perd son temps sans comprendre pourquoi rien ne part. */
+.regl-titre{margin:10px 0 4px;font-family:var(--font-mono);font-size:11.5px;
+  letter-spacing:.4px;color:var(--accent);text-transform:uppercase}
+.regl-liste{margin:0 0 10px;padding-left:18px}
+.regl-liste li{margin-bottom:7px;line-height:1.45}
+.regl-alerte{border-left:2px solid var(--yellow);padding-left:8px;margin-left:-10px}
+.regl-detail{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.regl-source{display:block;color:var(--muted);font-family:var(--font-mono);
+  font-size:10.5px;margin-top:3px;opacity:.8}
+.regl-inconnu{color:var(--muted);font-size:12.5px;font-style:italic;margin:6px 0 10px}
 /* .err existe pour les avis de sûreté (protection de puissance refusée) : sans
    cette règle, la classe retombait sur --muted et le message le plus important
    de la rangée s'affichait en gris, moins visible que le statut ordinaire.
@@ -264,6 +278,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_uimode.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_puissance_auto.js"></script>
+<script src="logx_reglages_poste.js"></script>
 <script src="logx_ft8_codec.js"></script>
 <script src="logx_ft8_dsp.js"></script>
 
@@ -284,9 +299,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
        sa radio n'est pas finie, au sens du maître mot du projet.
        PAS expert-only : c'est le débutant qui en a le plus besoin. Replié par
        défaut (<details>) pour ne pas encombrer celui qui a déjà réglé. -->
-  <details class="aide-poste">
-    <summary>Réglages à faire sur le poste (à lire avant le premier essai)</summary>
+  <details class="aide-poste" id="aidePoste">
+    <summary id="aidePosteTitre">Réglages à faire sur le poste (à lire avant le premier essai)</summary>
     <div class="aide-corps">
+      <!-- RÉGLAGES DU POSTE DÉCLARÉ — rempli par majReglagesPoste() à partir de
+           la marque et du modèle enregistrés en CONFIG. Vide et masqué tant
+           qu'aucun poste n'est déclaré : on n'invente pas un poste à qui n'en a
+           pas configuré. Le panneau s'OUVRE tout seul quand on a quelque chose
+           de propre au poste à dire — c'est le sens de la demande : voir la
+           configuration à adopter en arrivant sur la page, sans avoir à
+           déplier quoi que ce soit. -->
+      <div id="reglagesPoste" style="display:none"></div>
       <p><b>Ce que LogX AI exige, et qui se vérifie ici même :</b></p>
       <ul>
         <li><b>Même vitesse des deux côtés.</b> La vitesse CI-V du poste et celle
@@ -314,13 +337,25 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           poignée.</li>
         <li><b>AGC lent coupé, NB / NR / Notch coupés</b> : ces traitements
           abîment les signaux faibles que le décodeur cherche justement.</li>
-        <li><b>ALC à ZÉRO pendant l'émission.</b> Pas « dans la zone », pas « au
-          premier tiers » : à zéro. On règle la puissance par le niveau audio
-          envoyé au poste, jamais en laissant l'ALC écrêter — c'est ce qui
-          produit les élargissements de bande dont se plaignent les voisins de
-          fréquence. Ce niveau audio, c'est le curseur <b>NIVEAU TX</b> du
-          panneau ÉMISSION, plus bas sur cette page : inutile de chercher dans
-          le mixeur de Windows ou dans les menus du poste.</li>
+        <!-- Formulation revue le 20/08/2026 après lecture du guide OFFICIEL de
+             WSJT-X (PDF 2.7.0, 105 pages, extrait et cherché mot à mot) : le
+             mot « ALC » n'y figure NULLE PART. La consigne « ALC à zéro », que
+             cette puce affirmait en gras et opposait explicitement à « dans la
+             zone », ne vient donc pas de là. Le guide donne un critère
+             différent et meilleur — il se lit au wattmètre, donc il vaut aussi
+             quand le poste est commuté par VOX, cas où l'ALC ne permet pas de
+             distinguer un réglage propre d'un poste qui ne se déclenche plus.
+             Les constructeurs disent la même chose autrement : Kenwood « 2 à 3
+             points » d'ALC, Icom « within the ALC zone ». Les trois décrivent
+             le même point de fonctionnement : le SEUIL. -->
+        <li><b>Descends le niveau jusqu'à ce que la puissance HF commence tout
+          juste à baisser.</b> C'est le critère du guide officiel WSJT-X, et
+          c'est le bon niveau d'excitation audio. Ce niveau, c'est le curseur
+          <b>NIVEAU TX</b> du panneau ÉMISSION, plus bas sur cette page :
+          inutile de chercher dans le mixeur de Windows ou dans les menus du
+          poste. <i>Repère :</i> à ce point l'ALC ne doit pratiquement plus
+          dévier. Ne laisse jamais l'ALC écrêter — c'est ce qui produit les
+          élargissements de bande dont se plaignent les voisins de fréquence.</li>
       </ul>
       <p class="aide-note">Les <b>valeurs de menu chiffrées</b> (pourcentages de
         niveau, intitulés exacts des lignes) varient d'un modèle à l'autre :
@@ -2204,6 +2239,89 @@ if(localStorage.getItem('rc_theme') === null){
     }
   }
 
+  // ─── RÉGLAGES À FAIRE SUR LE POSTE DÉCLARÉ ───────────────────────────────
+  //
+  // Demande de F4GLD : en arrivant sur la page FT8, voir la configuration à
+  // adopter sur SA radio. Les données viennent de logx_reglages_poste.js, où
+  // chaque ligne porte sa source et sa citation — rien n'y est écrit de
+  // mémoire, parce qu'un chemin de menu faux s'entend sur l'air.
+  //
+  // La marque et le modèle sont lus dans la configuration locale, même dépôt
+  // et même convention que la protection de puissance. On ne passe pas par
+  // /config : sa liste blanche de lecture n'expose ni cat_brand ni cat_model
+  // (vérifié), et l'élargir pour un affichage serait toucher à une frontière
+  // de sécurité pour une commodité.
+  function _echapper(t){
+    const d = document.createElement('div');
+    d.textContent = String(t == null ? '' : t);
+    return d.innerHTML;
+  }
+
+  function _ligneReglage(l){
+    // Chaque ligne affiche sa SOURCE. Ce n'est pas de la coquetterie : c'est ce
+    // qui permet à l'opérateur d'aller vérifier, et à nous de ne jamais rien
+    // afficher qu'on ne puisse pas justifier.
+    return '<li' + (l.alerte ? ' class="regl-alerte"' : '') + '>'
+      + '<b>' + _echapper(l.intitule) + '</b> — ' + _echapper(l.valeur)
+      + (l.detail ? ' <span class="regl-detail">' + _echapper(l.detail) + '</span>' : '')
+      + '<span class="regl-source">' + _echapper(l.source)
+      + (l.citation ? ' · « ' + _echapper(l.citation) + ' »' : '') + '</span>'
+      + '</li>';
+  }
+
+  function majReglagesPoste(){
+    const zone = document.getElementById('reglagesPoste');
+    if(!zone || typeof reglagesPoste !== 'function') return;
+    let cfg = {};
+    try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
+    const marque = cfg.cat_brand || '';
+    const modele = cfg.cat_model || '';
+    if(!marque && !modele){
+      // Aucun poste déclaré : on n'invente pas de radio. La liste générique
+      // qui suit dans le panneau reste seule, et le panneau reste replié.
+      zone.style.display = 'none';
+      zone.innerHTML = '';
+      return;
+    }
+    const r = reglagesPoste(marque, modele);
+    const nom = modele || marque;
+    let html = '<p class="regl-titre">Ton poste : <b>' + _echapper(nom) + '</b></p>';
+
+    if(r.modeleLignes.length || r.marqueLignes.length){
+      html += '<ul class="regl-liste">';
+      html += r.modeleLignes.map(_ligneReglage).join('');
+      html += r.marqueLignes.map(_ligneReglage).join('');
+      html += '</ul>';
+    }
+    if(!r.couvert){
+      // DIRE CE QU'ON IGNORE. Sans cette phrase, l'opérateur d'un poste non
+      // couvert lirait les consignes universelles en croyant qu'elles sont
+      // propres à sa radio, et chercherait un menu qui n'existe pas chez lui.
+      html += '<p class="regl-inconnu">Aucun réglage propre à ce modèle n\'a été '
+            + 'sourcé pour l\'instant : seules les règles générales ci-dessous '
+            + "s'appliquent. Les chemins de menu varient réellement d'un poste à "
+            + "l'autre — on préfère ne rien affirmer plutôt que de te faire "
+            + 'chercher un menu qui n\'existe pas sur ta radio.</p>';
+    }
+    html += '<p class="regl-titre">Valable sur tous les postes</p><ul class="regl-liste">'
+          + r.universels.map(_ligneReglage).join('') + '</ul>';
+
+    zone.innerHTML = html;
+    zone.style.display = '';
+    const titre = document.getElementById('aidePosteTitre');
+    if(titre && r.couvert){
+      titre.textContent = 'Réglages à faire sur ton ' + nom
+                        + ' (à lire avant le premier essai)';
+    }
+    // OUVERT quand on a quelque chose de propre au poste à dire — c'est le sens
+    // de la demande : la configuration s'AFFICHE en arrivant, sans avoir à
+    // déplier. On ne force pas l'ouverture pour un poste non couvert : ce
+    // serait imposer un pavé générique à chaque visite.
+    const det = document.getElementById('aidePoste');
+    if(det && r.couvert) det.open = true;
+  }
+  window.majReglagesPoste = majReglagesPoste;
+
   // PROTECTION DE PUISSANCE EN NUMÉRIQUE — appliquée ICI, à l'armement.
   //
   // Elle existait déjà (CONFIG > RADIO, décochée par défaut) mais n'était
@@ -2660,6 +2778,10 @@ if(localStorage.getItem('rc_theme') === null){
     // que le contexte d'exécution confonde window et l'objet global.
     window.majNiveauTx();
   })();
+
+  // Les réglages du poste sont rendus AU CHARGEMENT, pas sur un clic : la
+  // demande était de les voir en arrivant sur la page.
+  (function cablerReglagesPoste(){ window.majReglagesPoste(); })();
 
   async function jouerForme(wave, sampleRate){
     const outId = document.getElementById('ft8OutDevice').value;
