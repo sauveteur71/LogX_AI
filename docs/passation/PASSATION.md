@@ -142,9 +142,10 @@ Un build de release est resté cassé deux jours sans que personne le sache
 
 ### Ce qui reste ouvert
 
-1. ✅ **FAIT — Web Worker pour le décodage FT8** (branche
-   `perf/ft8-worker-decodage`, PR ouverte, **non fusionnée : attend la
-   validation de F4GLD**). Premier Web Worker du dépôt.
+1. ✅ **FAIT ET FUSIONNÉ — Web Worker pour le décodage FT8** (PR #138,
+   `b784b6c` sur `main`, fusionnée le 19/08/2026). Premier Web Worker du
+   dépôt. Il reste à l'ÉPROUVER sur l'air réel (voir la fin du point) — mais
+   le code, lui, n'attend plus rien.
 
    MESURÉ en navigateur réel sur la page elle-même, même fenêtre de 16,5 s à
    48 kHz et mêmes 3 stations, synthétisées puis décodées :
