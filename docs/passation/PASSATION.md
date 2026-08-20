@@ -200,6 +200,20 @@ Un build de release est resté cassé deux jours sans que personne le sache
    « laisser le son partir n'arrête rien sur une station en VOX ». Couper le
    PTT ne suffira plus : il faudra couper le SON, et le prouver.
 
+   **Où ça se passe, repéré le 20/08/2026** (pour ne pas refaire la fouille) :
+   dans `logx_ft8.html`, `pttOn(true)` est attendu puis, si le serveur répond
+   `non_engage` (aucun pilotage radio), la fonction sort — c'est là que le
+   chemin d'émission s'arrête, avant toute synthèse. Le message affiché juste
+   après est celui qui conseille le VOX.
+
+   Deux points à ne PAS manquer dans ce lot, parce qu'ils ne sautent pas aux
+   yeux : la visibilité du bouton STOP est pilotée par `pttDemande` via
+   `majBoutonStop()`, et la branche `non_engage` remet justement `pttDemande`
+   à `false` — en mode VOX il faudra qu'il passe à VRAI, sinon la radio émet
+   pendant que le bouton d'arrêt est caché. Et le chien de garde
+   (`armerChienDeGarde` / `desarmerChienDeGarde`) est désarmé sur cette même
+   branche : il devra rester armé.
+
    Chantier non encore ouvert au 20/08/2026.
 
 3. ✅ **TRAITÉ — deux stations distantes de moins de 50 Hz : la seconde
