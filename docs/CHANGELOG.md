@@ -26,6 +26,16 @@ poussé.
   silence en affichant « émission en cours », et on appellerait dans le vide
   sans le savoir. Le bon réglage reste celui de VOTRE station : on descend
   jusqu'à ce que l'ALC du poste ne bouge plus du tout.
+  L'affichage donne aussi **l'équivalent en décibels** (« 40 % · −8,0 dB »),
+  parce que l'échelle est trompeuse sans lui : de 100 à 50 % il n'y a que 6 dB,
+  mais de 10 à 5 % il y en a 6 aussi. Toute la finesse utile est en bas de
+  course, d'où un pas de 1 %.
+  **Si votre poste passe en émission par le VOX** (sans pilotage CAT), le
+  niveau n'est plus seulement la modulation : c'est ce qui DÉCLENCHE
+  l'émission. Trop bas, le poste ne se déclenche plus — et le critère « l'ALC
+  ne bouge plus » ne permet pas de distinguer ce cas d'un réglage propre.
+  L'infobulle et le message d'émission le disent maintenant : vérifiez que le
+  voyant d'émission du poste s'allume encore.
 
 ### Corrigé
 
