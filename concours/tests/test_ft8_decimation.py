@@ -334,5 +334,17 @@ def test_le_dt_est_calcule_avec_la_cadence_reellement_utilisee():
     src = _lire(FT8_HTML)
     i = src.index('calculerDt(fenetre.debutMs')
     appel = src[i:i + 200]
-    assert 'dec.sampleRate' in appel, (
-        'calculerDt doit recevoir la cadence décimée, pas celle de la carte son')
+    # Le 4e argument porte la cadence. Depuis le passage du décodage dans un
+    # Web Worker, ce n'est plus `dec.sampleRate` (variable locale du chemin
+    # synchrone) mais `decSampleRate`, paramètre de conclureCreneau — les DEUX
+    # chemins y passent la cadence DÉCIMÉE. Le test tient donc désormais la
+    # PROPRIÉTÉ (« pas la cadence de la carte son ») au lieu d'un nom, ce qui
+    # le rend plus strict : il refuse explicitement `sr`.
+    args = appel[appel.index('(') + 1:appel.index(')')]
+    cadence = [a.strip() for a in args.split(',')][-1]
+    assert cadence != 'sr', (
+        'calculerDt reçoit la cadence de la CARTE SON : le DT serait divisé '
+        'par le facteur de décimation, silencieusement')
+    assert 'ampleRate' in cadence, (
+        f'calculerDt doit recevoir une cadence décimée explicite, reçoit '
+        f'« {cadence} »')
