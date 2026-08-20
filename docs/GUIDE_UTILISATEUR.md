@@ -907,6 +907,8 @@ Choisissez le périphérique d'entrée, cliquez **▶ Écouter**. Vous obtenez u
 
 Un cycle FT8 dure 15 secondes ; le calcul peut mettre une à trois secondes à s'afficher après la fin du cycle, c'est normal. Un clic sur une ligne prépare la réponse, un double-clic la prépare **et** l'envoie.
 
+**Une limite à connaître, parce qu'elle est invisible.** Deux stations séparées de moins d'une vingtaine de hertz sur la chute d'eau ne ressortent pas toutes les deux : la plus forte est décodée, l'autre est perdue sans qu'aucun message ne le signale. Si vous voyez deux traces quasiment collées et qu'une seule ligne apparaît, c'est cela — pas un défaut de réglage de votre part. En pratique cela se produit sur les bandes très encombrées ; le remède habituel est d'attendre le cycle suivant, où les stations se répartissent autrement. (Cette limite valait 50 Hz jusqu'à la version précédente.)
+
 #### Émettre : le geste qui arme, et lui seul
 
 **Rien ne part sur l'air tant que la case « Activer l'émission » n'est pas cochée.** C'est ce geste qui autorise l'émission, et aucun autre. Un message programmé part toujours calé sur le prochain créneau de 15 s, jamais immédiatement : vous avez toujours quelques secondes pour changer d'avis.

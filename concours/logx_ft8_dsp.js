@@ -418,10 +418,16 @@ function ft8EstimerSnr(samples, startSample, baseFreqHz, sampleRate){
   }
   if(echantillonsBruit.length < 4) return null;        // trop pres du bord
 
-  // MEDIANE, pas moyenne : la separation minimale entre deux stations
-  // decodees est de 50 Hz, donc une station voisine PEUT tomber dans les
-  // sondes. Une moyenne s'en trouverait tiree vers le haut et ferait
-  // sous-estimer le report ; la mediane encaisse quelques sondes polluees.
+  // MEDIANE, pas moyenne : deux stations decodees peuvent n'etre distantes
+  // que de 3 espacements de tons (~19 Hz, voir minFreqSeparationHz), donc
+  // plusieurs voisines PEUVENT tomber dans les sondes. Une moyenne s'en
+  // trouverait tiree vers le haut et ferait sous-estimer le report ; la
+  // mediane encaisse quelques sondes polluees.
+  //
+  // Ce raisonnement citait « 50 Hz » tant que c'etait la separation minimale.
+  // En la ramenant a ~19 Hz on a change SA PREMISSE, donc on a mesure au lieu
+  // de supposer : reports strictement identiques avant/apres (24,6 puis
+  // 22,3 dB avec une voisine a 18 Hz ; 17,4 / 16,6 dB sur signal faible).
   echantillonsBruit.sort((a, b) => a - b);
   const milieu = echantillonsBruit.length >> 1;
   const pBruit = (echantillonsBruit.length % 2)
@@ -528,12 +534,43 @@ function ft8FindSync(samples, sampleRate, opts){
 // une vraie bande FT8 porte des dizaines de signaux simultanés dans les
 // mêmes 15s, pas un seul. Même balayage grossier que ft8FindSync(), mais au
 // lieu de ne garder que le meilleur score, on garde les `maxCandidates`
-// meilleurs pics LOCAUX (suppression des non-maxima : deux candidats trop
-// proches en fréquence sont presque toujours le même signal détecté deux
-// fois, pas deux signaux distincts — voir minFreqSeparationHz, par défaut
-// la largeur d'un banc de 8 tons). Chaque survivant du balayage grossier
-// est ensuite affiné individuellement. Retourne un tableau (triable par
-// score), potentiellement vide si rien ne dépasse le bruit de fond.
+// meilleurs pics LOCAUX (suppression des non-maxima). Chaque survivant du
+// balayage grossier est ensuite affiné individuellement. Retourne un tableau
+// (triable par score), potentiellement vide si rien ne dépasse le bruit.
+//
+// minFreqSeparationHz — CE QUE CETTE RÈGLE FAIT VRAIMENT. Elle n'est pas là
+// pour écarter des stations distinctes, mais pour effondrer la JUPE d'un même
+// signal : le balayage avance par pas de FT8_TONE_SPACING/2 = 3,125 Hz, donc
+// un signal fort produit plusieurs pics voisins qui, sans elle, mangent les
+// places de maxCandidates. Le doublon de RÉSULTAT, lui, est déjà traité en
+// aval par ft8DecodeAudioAll (dédoublonnage par texte décodé).
+//
+// La valeur vaut 3 espacements de tons, et elle est MESURÉE. Elle valait 8
+// (50 Hz, la largeur du banc de tons) : un choix qui paraissait naturel mais
+// qui faisait disparaître TOUTE station située à moins de 50 Hz d'une autre,
+// sans message ni indice. Décodage réel du signal synthétisé, deux scénarios
+// qui tirent en sens opposés :
+//
+//     seuil          2 stations à 18 Hz   à 31 Hz   16 stations réparties
+//     0 à 12,5 Hz           6/6             6/6           12/16
+//     18,75 Hz (3x)         6/6             6/6           16/16
+//     25 à 31,25 Hz         3/6             6/6           16/16
+//     50 Hz (8x, avant)     3/6             3/6           16/16
+//
+// Supprimer la règle serait donc FAUX : sur une bande à 28 stations
+// d'amplitudes inégales elle fait passer de 14/28 à 28/28. 3 espacements est
+// la seule largeur qui tienne les deux bouts.
+//
+// maxCandidates suit : à seuil étroit un signal occupe 2 à 3 places au lieu
+// d'une, et la bande à 28 stations retombait à 21/28. Mesuré : 21/28 à 30
+// places, 23/28 à 45, 28/28 à 60, et rien de plus à 90 ou 120 pour 1 à 2 s de
+// calcul en plus. 60 est le genou de la courbe. Le surcoût reste modeste
+// parce que c'est ce balayage grossier qui domine le décodage, pas les
+// décodages LDPC qui suivent.
+//
+// CE QUI RESTE : sous ~19 Hz d'écart la seconde station est toujours perdue.
+// La limite est déplacée, pas supprimée — la lever demanderait la
+// soustraction de signal et un décodage multi-passes.
 function ft8FindAllSync(samples, sampleRate, opts){
   opts = opts || {};
   const sps = ft8SamplesPerSymbol(sampleRate);
@@ -544,8 +581,8 @@ function ft8FindAllSync(samples, sampleRate, opts){
   const freqMax = opts.freqMax || 2900;
   const freqStepCoarse = FT8_TONE_SPACING / 2;
   const timeSlopSymbols = (opts.timeSlopSymbols === undefined) ? 6 : opts.timeSlopSymbols;
-  const maxCandidates = opts.maxCandidates || 30;
-  const minFreqSeparationHz = (opts.minFreqSeparationHz === undefined) ? 8 * FT8_TONE_SPACING : opts.minFreqSeparationHz;
+  const maxCandidates = opts.maxCandidates || 60;
+  const minFreqSeparationHz = (opts.minFreqSeparationHz === undefined) ? 3 * FT8_TONE_SPACING : opts.minFreqSeparationHz;
   const centerSample = Math.round(opts.centerSample || 0);   // voir ft8FindSync
 
   const all = [];

@@ -185,10 +185,55 @@ Un build de release est resté cassé deux jours sans que personne le sache
    pour F4GLD : faut-il faire réellement marcher le VOX en jouant la forme
    d'onde sans commander de PTT ? C'est un changement du chemin d'émission.
 
-3. **Deux stations distantes de moins de 50 Hz : la seconde n'est jamais
-   décodée.** `logx_ft8_dsp.js`, `minFreqSeparationHz = 8 × 6,25 Hz`. Mesuré
-   (0/40 tirages pour une station à 18 Hz d'écart). Préexistant, chantier
-   distinct.
+3. ✅ **TRAITÉ — deux stations distantes de moins de 50 Hz : la seconde
+   n'était jamais décodée.** `logx_ft8_dsp.js`, `minFreqSeparationHz`
+   valait `8 × 6,25 Hz`. La limite passe de 50 Hz à ~19 Hz.
+
+   **Le piège de ce chantier, et il aurait coûté cher** : la première mesure
+   (2 stations proches) donnait « sans la règle, 6/6 au lieu de 3/6 » et
+   invitait donc à la SUPPRIMER. C'était faux. La règle n'écarte pas des
+   stations, elle effondre la JUPE d'un même signal — le balayage grossier
+   avance par pas de 3,125 Hz, donc un signal fort produit plusieurs pics
+   voisins qui mangent les places de `maxCandidates`. Mesuré sur bande
+   chargée, avec des amplitudes inégales (c'est cette inégalité qui révèle
+   le défaut ; à amplitudes égales les deux configurations se valent et la
+   mesure ne discrimine pas) :
+
+   | stations | règle 50 Hz | sans règle |
+   |---|---|---|
+   | 16 | 16/16 | 12/16 |
+   | 22 | 22/22 | 15/22 |
+   | 28 | 28/28 | **14/28** |
+
+   Le mécanisme est donc bon, seule sa LARGEUR était en cause. Balayage du
+   seuil sur les deux scénarios opposés :
+
+   | seuil | 2 stations à 18 Hz | à 31 Hz | 16 stations |
+   |---|---|---|---|
+   | 0 à 12,5 Hz | 6/6 | 6/6 | 12/16 |
+   | **18,75 Hz** | **6/6** | **6/6** | **16/16** |
+   | 25 à 31,25 Hz | 3/6 | 6/6 | 16/16 |
+   | 50 Hz (ancien) | 3/6 | 3/6 | 16/16 |
+
+   18,75 Hz = 3 × l'espacement des tons est la SEULE valeur qui tienne les
+   deux bouts. Mais à ce seuil un signal prend 2 à 3 places au lieu d'une, et
+   la bande à 28 stations retombait à 21/28 — d'où `maxCandidates` porté de
+   30 à 60 (mesuré : 21/28 à 30 places, 23/28 à 45, **28/28 à 60**, et rien
+   de plus à 90 ou 120 pour 1 à 2 s de temps en plus). Le surcoût est faible
+   parce que c'est la recherche de synchro grossière qui domine le décodage,
+   pas les décodages LDPC.
+
+   **Vérifié aussi** : l'estimateur de report (`ft8EstimerSnr`) justifie
+   explicitement l'emploi d'une MÉDIANE pour le plancher de bruit par le fait
+   que « la séparation minimale est de 50 Hz ». Abaisser le seuil change
+   cette prémisse, donc on l'a mesuré au lieu de le supposer — reports
+   strictement identiques avant/après (24,6 puis 22,3 dB avec une voisine à
+   18 Hz ; 17,4 / 16,6 dB sur signal faible). La médiane encaisse.
+
+   **Ce qui reste vrai** : sous ~19 Hz d'écart la seconde station est encore
+   perdue. La limite est DÉPLACÉE, pas supprimée. La lever demanderait la
+   soustraction de signal et un décodage multi-passes, chantier d'un autre
+   ordre.
 
 4. ✅ **FAIT — 25 concours proposés dans l'interface rendaient zéro bande.**
    Corrigé le 19/08/2026 par l'accesseur `bandes_du_concours()` décrit plus

@@ -249,10 +249,15 @@ def test_les_sondes_de_bruit_sont_TOUTES_hors_de_la_bande_du_signal(moteur):
 
 
 def test_une_station_voisine_ne_fait_pas_seffondrer_le_report(moteur):
-    """La séparation minimale entre deux stations décodées est de 50 Hz : une
-    voisine PEUT tomber dans les sondes. La médiane est là pour ça — avec une
+    """Deux stations décodées peuvent n'être distantes que de ~19 Hz (3
+    espacements de tons, voir `minFreqSeparationHz`) : plusieurs voisines
+    PEUVENT tomber dans les sondes. La médiane est là pour ça — avec une
     moyenne, la porteuse parasite tirerait le plancher vers le haut et le
-    report s'effondrerait."""
+    report s'effondrerait.
+
+    Ce test valait déjà quand la séparation minimale était de 50 Hz ; il vaut
+    davantage depuis qu'elle est descendue à ~19 Hz, puisque le voisinage
+    possible s'est densifié. L'assertion, elle, n'a pas changé."""
     L = _niveau_pour(-5)
     propre = moteur.eval('mesurer(%s,%f,%f,%f,%f,%d,1)'
                          % (json.dumps(TEXTE), FE, TONE0, AMPLITUDE, L, 1))
