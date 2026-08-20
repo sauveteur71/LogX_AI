@@ -196,6 +196,11 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .niveau-ligne{display:flex;align-items:center;gap:8px}
 .tx-status.wait{color:var(--yellow)}
 .tx-status.emit{color:var(--red);font-weight:700}
+/* .err existe pour les avis de sûreté (protection de puissance refusée) : sans
+   cette règle, la classe retombait sur --muted et le message le plus important
+   de la rangée s'affichait en gris, moins visible que le statut ordinaire.
+   --red est une couleur SÉMANTIQUE de la charte, elle suit les deux thèmes. */
+.tx-status.err{color:var(--red)}
 /* Alarme PTT : volontairement la seule chose criarde de la page. Fond plein
    rouge + texte blanc FIXES (pas de token de thème) — l'information « la
    radio est peut-être encore en émission » doit rester lisible à l'identique
@@ -258,6 +263,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      Inclus AVANT les scripts qui rendent l'interface. -->
 <script src="logx_uimode.js"></script>
 <script src="logx_i18n.js"></script>
+<script src="logx_puissance_auto.js"></script>
 <script src="logx_ft8_codec.js"></script>
 <script src="logx_ft8_dsp.js"></script>
 
@@ -431,6 +437,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <label class="toggle-arm" id="armLabel">
           <input type="checkbox" id="armTx" onchange="onArmChange()"> Activer l'émission
         </label>
+        <!-- Compte rendu de la protection de puissance. Vide et masqué tant
+             que l'opérateur n'a pas armé l'émission, et tant qu'il n'a pas
+             coché la protection dans CONFIG : ce lot n'ajoute AUCUN message à
+             qui ne l'a pas demandée. Quand elle est demandée, en revanche, il
+             faut dire si elle a MARCHÉ — un refus silencieux laisse croire à
+             une protection du final qui n'a jamais eu lieu, et c'est le cas le
+             plus courant (Icom/CI-V n'est pas couvert). -->
+        <span id="puissanceAvis" class="tx-status" style="display:none"></span>
       </div>
       <div class="composer">
         <input type="text" id="txText" maxlength="35" placeholder="CQ F4GLD JN18" spellcheck="false" autocomplete="off">
@@ -914,7 +928,10 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   // ─── État radio (bande courante, pour l'auto-log) ────────────────────────
-  let rigFreqKhz = 0, rigMode = '';
+  // rigActif est distinct de « rigFreqKhz vaut 0 » : une radio pilotée mais
+  // qui n'a pas encore répondu donne aussi 0. Confondre les deux ferait dire à
+  // la page « radio non pilotée » à un opérateur qui l'a bien branchée.
+  let rigFreqKhz = 0, rigMode = '', rigActif = false;
   const BAND_EDGES = [   // bornes larges (kHz), IARU R1 — juste pour déduire la bande au log
     ['1.8', 1800, 2000], ['3.5', 3500, 3800], ['7', 7000, 7200], ['10.1', 10100, 10150],
     ['14', 14000, 14350], ['18', 18068, 18168], ['21', 21000, 21450], ['24', 24890, 24990],
@@ -943,10 +960,12 @@ if(localStorage.getItem('rc_theme') === null){
       const d = await r.json();
       const disp = document.getElementById('myBandFreqDisp');
       if(d && d.enabled){
+        rigActif = true;
         rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase();
         const b = bandeDepuisKhz(rigFreqKhz);
         disp.textContent = (b ? b + 'm ' : '') + (rigFreqKhz ? (rigFreqKhz/1000).toFixed(3) + ' MHz' : '—');
       } else {
+        rigActif = false;
         rigFreqKhz = 0; rigMode = '';
         disp.textContent = 'CAT désactivé';
       }
@@ -2185,8 +2204,56 @@ if(localStorage.getItem('rc_theme') === null){
     }
   }
 
+  // PROTECTION DE PUISSANCE EN NUMÉRIQUE — appliquée ICI, à l'armement.
+  //
+  // Elle existait déjà (CONFIG > RADIO, décochée par défaut) mais n'était
+  // poussée vers la radio QUE par le sélecteur de bande/mode du LOGBOOK. Un
+  // opérateur qui ouvre MODE NUMÉRIQUE → FT8 directement — le chemin naturel —
+  // n'en avait donc aucune : son poste restait sur son réglage phonie, et
+  // chaque créneau partait à cette puissance en rapport cyclique 100 % pendant
+  // 12,6 s. C'est exactement ce que ce réglage existe pour éviter.
+  //
+  // À L'ARMEMENT et pas à chaque trame : c'est le geste par lequel l'opérateur
+  // autorise l'émission, donc le moment où l'avertissement a une chance d'être
+  // lu — et une commande CAT par créneau de 15 s encombrerait un port que le
+  // PTT et le QSY partagent déjà.
+  //
+  // ON NE MENT PAS SUR LE RÉSULTAT : le refus est le cas le plus courant
+  // (Icom/CI-V n'est pas couvert, cf. logx_cat.set_power), et un refus
+  // silencieux laisse croire à un final protégé.
+  function _avisPuissance(txt, classe){
+    const el = document.getElementById('puissanceAvis');
+    if(!el) return;
+    if(!txt){ el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = txt;
+    el.className = 'tx-status' + (classe ? ' ' + classe : '');
+    el.style.display = '';
+  }
+
+  function appliquerProtectionPuissance(){
+    // FT8 en dur, et c'est juste : cette page n'émet que du FT8. Le mode reste
+    // un paramètre du module partagé pour que le LOGBOOK, lui, passe le sien.
+    const voulue = (typeof puissanceVoulueW === 'function') ? puissanceVoulueW('FT8') : 0;
+    if(!voulue){ _avisPuissance(''); return; }   // protection non demandée : silence total
+    if(!rigActif){
+      _avisPuissance('Protection de puissance réglée sur ' + voulue + ' W, mais la radio '
+                     + "n'est pas pilotée : règle-la à la main sur le poste.", 'wait');
+      return;
+    }
+    _avisPuissance('Puissance → ' + voulue + ' W…', 'wait');
+    appliquerPuissanceAuto('FT8').then(function(r){
+      if(r.applique){
+        _avisPuissance('Puissance limitée à ' + r.applique + ' W (protection modes numériques).');
+      } else {
+        _avisPuissance('Puissance NON limitée (' + r.erreur + ') — règle-la à la main sur le '
+                       + 'poste avant d\'émettre.', 'err');
+      }
+    });
+  }
+
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
+    if(txArmed) appliquerProtectionPuissance(); else _avisPuissance('');
     // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
     // bouton STOP : ce qui est programmé ne doit plus partir, ET la séquence
     // doit mourir TOUT DE SUITE.
