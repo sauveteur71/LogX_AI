@@ -184,6 +184,16 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   border-radius:6px;padding:7px 9px;font-family:var(--font-mono);font-size:13px}
 .seq-barre .tx-status{flex:1;min-width:200px;padding-bottom:8px}
 .tx-status{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+/* accent-color plutôt qu'un curseur redessiné : le cuivre de la charte suit
+   les deux thèmes tout seul, et on garde le rendu natif — donc le clavier,
+   le focus et le tactile du navigateur, sans les réécrire.
+   Pas de vertical-align ici : le <label> parent est en display:flex, et
+   vertical-align est INERTE sur un enfant de flex (il ne vaut que pour les
+   boîtes en ligne et les cellules de tableau). La valeur tombait donc SOUS le
+   curseur au lieu d'être à côté. C'est .niveau-ligne, une sous-rangée flex,
+   qui les aligne réellement. */
+#ft8Niveau{accent-color:var(--accent);width:110px}
+.niveau-ligne{display:flex;align-items:center;gap:8px}
 .tx-status.wait{color:var(--yellow)}
 .tx-status.emit{color:var(--red);font-weight:700}
 /* Alarme PTT : volontairement la seule chose criarde de la page. Fond plein
@@ -302,7 +312,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           premier tiers » : à zéro. On règle la puissance par le niveau audio
           envoyé au poste, jamais en laissant l'ALC écrêter — c'est ce qui
           produit les élargissements de bande dont se plaignent les voisins de
-          fréquence.</li>
+          fréquence. Ce niveau audio, c'est le curseur <b>NIVEAU TX</b> du
+          panneau ÉMISSION, plus bas sur cette page : inutile de chercher dans
+          le mixeur de Windows ou dans les menus du poste.</li>
       </ul>
       <p class="aide-note">Les <b>valeurs de menu chiffrées</b> (pourcentages de
         niveau, intitulés exacts des lignes) varient d'un modèle à l'autre :
@@ -376,6 +388,34 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              par un geste resté visible ; ici il l'est. -->
         <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"
                oninput="majTonPropre()" onchange="majTonPropre()"></label>
+        <!-- NIVEAU TX — le réglage qui manquait pour appliquer notre propre
+             consigne. La page dit déjà, dans son aide : « ALC à ZÉRO pendant
+             l'émission [...] on règle la puissance par le niveau audio envoyé
+             au poste ». Or ce niveau était FIXE : la synthèse utilisait
+             l'amplitude par défaut de ft8SynthesizeGfsk (0,9), et l'opérateur
+             n'avait que le mixeur Windows ou le gain d'entrée du poste pour
+             agir. Une consigne sans moyen de l'appliquer ne vaut rien.
+             Pas expert-only : régler son niveau d'émission n'est pas une
+             finesse d'expert, c'est la base de la propreté du signal — et
+             c'est ce qu'on met sur l'air, donc ce qui concerne les voisins de
+             fréquence. Même raisonnement que le décalage de VFO juste en
+             dessous. -->
+        <label title="Niveau audio envoyé au poste. Baisse-le jusqu'à ce que l'ALC de ta radio ne bouge plus du tout — c'est ainsi qu'on règle la puissance en FT8, jamais en laissant l'ALC écrêter. Si ton poste passe en émission par le VOX (sans pilotage CAT), ne descends pas au point qu'il cesse de se déclencher : vérifie que son voyant d'émission s'allume encore.">NIVEAU TX
+          <!-- step="1" et non 5 : l'échelle est linéaire en amplitude alors que
+               l'ALC se règle en décibels. De 100 à 50 % il n'y a que 6 dB, mais
+               de 10 à 5 % il y en a 6 aussi — d'un seul cran si le pas vaut 5.
+               Toute la finesse utile est dans le bas de la course : au pas de 1
+               on y dispose d'environ 1 dB par cran au lieu de 6. Le pourcentage
+               reste l'unité affichée (c'est une fraction de la pleine échelle,
+               ce que règle aussi le curseur Pwr de WSJT-X), mais l'équivalent
+               en dBFS est affiché à côté, sans quoi rien n'explique pourquoi la
+               moitié haute du curseur ne fait presque rien. -->
+          <span class="niveau-ligne">
+            <input type="range" id="ft8Niveau" min="5" max="100" step="1" value="90"
+                   oninput="majNiveauTx()" onchange="majNiveauTx()">
+            <span id="ft8NiveauVal" class="tx-status">90 % · −0,9 dB</span>
+          </span>
+        </label>
         <!-- DÉCALAGE DE VFO — désactivé par défaut, et volontairement.
              Cette case fait COMMANDER LA RADIO : rien ne doit toucher au VFO
              de l'opérateur sans qu'il l'ait demandé. Pas expert-only pour
@@ -2456,6 +2496,104 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){}
   });
 
+  // ─── NIVEAU D'ÉMISSION ─────────────────────────────────────────────────
+  //
+  // Voir le commentaire du contrôle #ft8Niveau plus haut pour le POURQUOI.
+  // Ici, la mécanique.
+  //
+  // 90 % PAR DÉFAUT, et ce n'est pas un choix esthétique : c'est exactement
+  // l'amplitude 0,9 que ft8SynthesizeGfsk applique quand on ne lui passe
+  // rien, donc ce que la page émettait jusqu'ici. Un opérateur qui met à jour
+  // ne verra AUCUN changement sur l'air tant qu'il ne touche pas au curseur —
+  // ajouter un réglage ne doit pas modifier en douce ce qui part de sa station.
+  const CLE_NIVEAU_TX = 'rc_ft8_niveau_tx';
+  const NIVEAU_TX_DEFAUT = 90;
+  // Plancher à 5 % et non 0 : un niveau nul émettrait un silence tout en
+  // affichant « émission en cours ». L'opérateur croirait appeler alors que
+  // rien ne part — un piège pire que l'absence de réglage.
+  // CE QUE CE PLANCHER NE PROTÈGE PAS, et il faut le dire : sur le chemin VOX
+  // sans CAT, le niveau audio n'est plus seulement la modulation, c'est LE
+  // déclencheur de l'émission. Sous le seuil de VOX du poste — un réglage du
+  // poste, que le logiciel ne connaît pas — la radio ne passe plus du tout en
+  // émission, et 5 % ne garantit rien contre ça. D'où l'avertissement ajouté
+  // dans l'infobulle du curseur et dans le message d'émission VOX : le critère
+  // « baisse jusqu'à ce que l'ALC ne bouge plus » est satisfait À L'IDENTIQUE
+  // par « niveau propre » et par « le poste ne se déclenche plus ». Seul le
+  // voyant d'émission du poste sépare les deux.
+  const NIVEAU_TX_MIN = 5;
+
+  function niveauTxPourcent(){
+    let v = NIVEAU_TX_DEFAUT;
+    try{
+      const memo = parseInt(localStorage.getItem(CLE_NIVEAU_TX), 10);
+      if(isFinite(memo)) v = memo;
+    }catch(e){ /* stockage indisponible : on garde le défaut */ }
+    return Math.min(100, Math.max(NIVEAU_TX_MIN, v));
+  }
+
+  // L'amplitude réellement passée à la synthèse. Bornée par niveauTxPourcent(),
+  // donc jamais nulle même si le stockage contient une valeur aberrante.
+  function amplitudeTx(){
+    return niveauTxPourcent() / 100;
+  }
+
+  // Équivalent en dBFS du pourcentage, affiché à côté du chiffre. Sans lui,
+  // l'échelle ment à l'œil : 100→50 % ne retire que 6 dB (0,06 dB par cran au
+  // pas de 1) alors que 10→5 % en retire 6 à lui seul. Un opérateur qui tire
+  // le curseur sur la moitié de sa course et ne voit pas l'ALC bouger conclut
+  // que le réglage ne sert à rien ; le chiffre en dB lui dit pourquoi et où
+  // agir. Une décimale suffit, et la virgule est la séparatrice française.
+  function niveauTxDb(){
+    const db = 20 * Math.log10(amplitudeTx());
+    return (db > -0.05 ? '0' : db.toFixed(1)).replace('.', ',').replace('-', '−');
+  }
+
+  // Sur window, et pas une simple `function` : tout ce bloc <script> vit dans
+  // une IIFE (ouverte tout en haut), alors qu'un gestionnaire inline
+  // oninput="majNiveauTx()" est résolu dans la portée GLOBALE. Déclarée
+  // localement, elle existait bien — mais le curseur ne l'atteignait jamais et
+  // ne changeait donc rien : décoratif, sans la moindre erreur visible. C'est
+  // la convention déjà suivie par les 8 autres fonctions appelées depuis le
+  // HTML de cette page (window.majTonPropre, window.toggleRx…).
+  window.majNiveauTx = function(){
+    const curseur = document.getElementById('ft8Niveau');
+    const affich = document.getElementById('ft8NiveauVal');
+    if(curseur){
+      // isFinite AVANT le bornage, et surtout PAS `parseInt(...) || DÉFAUT` :
+      // parseInt('0') vaut 0, qui est faux au sens de ||, donc un curseur
+      // poussé à fond à gauche repartait à 90 % — à PLEINE ÉCHELLE, l'inverse
+      // exact du plancher qu'on prétend tenir. Mesuré : value='0' donnait 90,
+      // quand value='3' donnait bien 5. Le repli ne doit se faire vers le
+      // défaut que pour une valeur qui n'est PAS un nombre.
+      const lu = parseInt(curseur.value, 10);
+      const v = Math.min(100, Math.max(NIVEAU_TX_MIN,
+                         isFinite(lu) ? lu : NIVEAU_TX_DEFAUT));
+      curseur.value = v;
+      try{ localStorage.setItem(CLE_NIVEAU_TX, String(v)); }catch(e){}
+    }
+    // textContent et non innerHTML : c'est du texte, et l'icône éventuelle
+    // d'à côté n'a pas à être réécrite par ce chemin (piège du bouton QTC).
+    if(affich) affich.textContent = niveauTxPourcent() + ' % · ' + niveauTxDb() + ' dB';
+  };
+  // Le point-virgule ci-dessus n'est PAS cosmétique : c'est une affectation,
+  // pas une déclaration. Sans lui, l'IIFE qui suit — une ligne commençant par
+  // « ( » — est lue comme un APPEL de ce qu'on vient d'affecter, l'insertion
+  // automatique de point-virgule ne coupant jamais devant une parenthèse
+  // ouvrante. La chaîne avale alors tout le reste du bloc et meurt sur le
+  // « })(); » final : plus rien n'est défini après cette ligne, donc l'envoi
+  // de message et le séquenceur entiers. Page morte, pour un caractère.
+
+  // Restauration au chargement, même patron que cablerSequenceur() plus bas.
+  (function cablerNiveauTx(){
+    const curseur = document.getElementById('ft8Niveau');
+    if(curseur) curseur.value = niveauTxPourcent();
+    // window.majNiveauTx() et non majNiveauTx() : la référence nue ne marche
+    // que parce qu'une affectation sur window crée incidemment une liaison
+    // globale. Nommer le porteur rend la dépendance visible et n'exige plus
+    // que le contexte d'exécution confonde window et l'objet global.
+    window.majNiveauTx();
+  })();
+
   async function jouerForme(wave, sampleRate){
     const outId = document.getElementById('ft8OutDevice').value;
     const txCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});
@@ -2779,10 +2917,24 @@ if(localStorage.getItem('rc_theme') === null){
       // decalage vaut 0 (option décochée, pas de CAT, ou ton déjà propre),
       // c'est exactement le comportement d'avant.
       const tone0 = tonVoulu - decalage;
-      const wave = ft8SynthesizeGfsk(enc.symbols, {sampleRate: 12000, toneHz0: tone0});
+      // amplitude : le niveau choisi par l'opérateur (#ft8Niveau). Sans ce
+      // paramètre, ft8SynthesizeGfsk retombe sur 0,9 et le curseur ne servirait
+      // à rien — c'était l'état d'avant.
+      const wave = ft8SynthesizeGfsk(enc.symbols, {sampleRate: 12000, toneHz0: tone0,
+                                                   amplitude: amplitudeTx()});
+      // Le rappel « la coupure passe par le son » SURVIT à ce message, au lieu
+      // d'être écrasé par lui. L'ancien code posait le message VOX plus haut
+      // puis le remplaçait ici, inconditionnellement, par le message générique
+      // — identique à celui d'une station pilotée en CAT. Le seul avertissement
+      // propre au mode VOX n'était donc lisible qu'une fraction de seconde,
+      // avant les 12,6 s d'émission pendant lesquelles il sert. Or sans CAT le
+      // logiciel ne peut PAS faire taire le poste par commande : passer la
+      // radio en réception à la main ne suffit pas, le VOX la remet en
+      // émission tant que la page module.
       statusEl.textContent = '🔊 ' + text
         + (decalage ? ' (VFO ' + (decalage > 0 ? '+' : '') + decalage
-                      + ' Hz, ton ' + tone0 + ' Hz)' : '');
+                      + ' Hz, ton ' + tone0 + ' Hz)' : '')
+        + (enVox ? ' · VOX : STOP ou Échap coupe le son, donc l\'émission' : '');
       await jouerForme(wave, 12000);
     } finally {
       // RESTAURER LA FRÉQUENCE, TOUJOURS — même sur exception, même si la
