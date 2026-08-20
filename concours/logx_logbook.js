@@ -1897,9 +1897,80 @@ const MODES_NUMERIQUES_PUISSANCE = new Set([
   'MSK144', 'Q65', 'JT65', 'JT9', 'MFSK', 'OLIVIA', 'DIGI', 'DATA', 'DIGITAL',
 ]);
 
+// ─── SOURCE DU QSO : radio pilotée, ou poste que le PC ne commande pas ─────
+//
+// Voir le commentaire du bloc #posteSourceGroup dans logx_logbook.html pour le
+// POURQUOI. Ici, la mécanique.
+//
+// L'état est dans localStorage et non dans une variable de page : il doit
+// survivre à un rechargement (une séquence FT8 dure des heures, et perdre le
+// découplage en rafraîchissant la page enverrait un QSY inattendu au premier
+// changement de bande).
+//
+// Nommage : « découplée » et non le mot interdit dans ce dépôt pour désigner
+// une mise en marche (voir la fiche de vocabulaire radioamateur).
+const CLE_SAISIE_DECOUPLEE = 'rc_saisie_decouplee';
+
+// Lecture DÉFENSIVE : localStorage peut lever (navigation privée, quota,
+// stockage bloqué par la politique du navigateur). En cas de doute on rend
+// false, c'est-à-dire le comportement historique — jamais un découplage
+// silencieux que l'opérateur n'aurait pas demandé.
+function saisieDecoupleeActive(){
+  try { return localStorage.getItem(CLE_SAISIE_DECOUPLEE) === '1'; }
+  catch(e){ return false; }
+}
+
+function basculerSaisieDecouplee(){
+  const neuf = !saisieDecoupleeActive();
+  try { localStorage.setItem(CLE_SAISIE_DECOUPLEE, neuf ? '1' : '0'); }
+  catch(e){ /* stockage indisponible : la bascule ne tiendra pas, tant pis —
+               mieux vaut un bouton sans effet qu'une exception qui casse le
+               reste du gestionnaire de clic. */ }
+  majBoutonSaisieDecouplee();
+}
+
+const _ICO_RADIO_LIEE = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/></svg>';
+const _ICO_RADIO_LIBRE = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/><line x1="2" y1="16" x2="16" y2="2"/></svg>';
+
+// Le groupe entier est masqué sans CAT : sans radio pilotée il n'y a rien à
+// découpler. L'ÉTAT, lui, est conservé — masquer n'est pas remettre à zéro.
+function majBoutonSaisieDecouplee(){
+  const grp = document.getElementById('posteSourceGroup');
+  const btn = document.getElementById('posteSourceBtn');
+  const ico = document.getElementById('posteSourceIco');
+  const lab = document.getElementById('posteSourceLabel');
+  const note = document.getElementById('posteSourceNote');
+  if(!grp || !btn || !ico || !lab || !note) return;
+  const catOn = (typeof rigState !== 'undefined') && rigState && rigState.enabled;
+  grp.style.display = catOn ? '' : 'none';
+  if(!catOn) return;
+  const libre = saisieDecoupleeActive();
+  btn.classList.toggle('decouple', libre);
+  btn.setAttribute('aria-pressed', libre ? 'true' : 'false');
+  // Icône par innerHTML (du SVG), libellé par textContent : mélanger les deux
+  // sur le MÊME élément est le piège qui a effacé une icône en silence sur le
+  // bouton QTC (voir CLAUDE.md). Ici l'icône a son span, le texte le sien.
+  ico.innerHTML = libre ? _ICO_RADIO_LIBRE : _ICO_RADIO_LIEE;
+  lab.textContent = libre ? 'AUTRE POSTE' : 'RADIO PILOTÉE';
+  note.textContent = libre
+    ? 'Ce que tu saisis ne touche plus la radio pilotée, et elle ne change '
+      + 'plus ta bande ni ton mode. Pour noter un QSO fait sur un poste que '
+      + 'le PC ne commande pas.'
+    : 'La bande et le mode suivent la radio, et la pilotent quand tu les '
+      + 'changes. Clique si ce QSO a été fait sur un autre poste.';
+  btn.title = libre
+    ? 'Saisie découplée de la radio — clique pour la relier à nouveau'
+    : 'Saisie reliée à la radio — clique si ce QSO vient d\'un autre poste';
+}
+
 function _qsyVersRadio(){
   const rig = (typeof rigState !== 'undefined') ? rigState : {};
   if(!rig.enabled) return;
+  // Le QSO en cours vient d'un poste que le PC ne commande pas : la saisie ne
+  // doit RIEN envoyer à la radio pilotée. Placé avant tout calcul, et avant
+  // _puissanceAutoVersRadio() en fin de fonction — qui écrirait sinon la
+  // puissance TX de la radio pilotée d'après le mode d'un QSO fait ailleurs.
+  if(saisieDecoupleeActive()) return;
   // Fréquence : celle déjà affichée dans le champ FRÉQUENCE (fréquence radio en
   // direct, saisie manuelle, ou valeur par défaut de la bande posée par
   // setFreqForBand() juste avant cet appel) — jamais une fréquence "magique"
