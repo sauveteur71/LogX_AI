@@ -11,6 +11,49 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [Non publié]
+
+### Corrigé
+
+- **FT8 — le décodage quitte le fil principal.** Il y tournait en entier :
+  l'interface gelait pendant tout le décodage d'un créneau, et la réponse ne
+  pouvait pas partir dans le créneau suivant — elle laissait passer un tour.
+  Le décodage part maintenant dans un Web Worker (`logx_ft8_worker.js`, le
+  premier du dépôt). Mesuré en navigateur sur la machine de F4GLD : blocage du
+  fil principal **1 942 ms → 12 ms**, durée du décodage inchangée (2 023 →
+  2 021 ms — le travail n'a pas été réduit, il a été déplacé), et 51 → 244
+  battements d'horloge pendant le décodage. Les 3 messages décodés sont
+  identiques avant et après. Si `new Worker` échoue (fichier absent, contexte
+  restreint), la page retombe sur le décodage en ligne : le mode dégradé reste
+  le comportement d'avant, jamais une panne. Corrige le point « Le décodage
+  bloque le fil principal ~2,1 s par créneau » listé en connu/non corrigé
+  ci-dessous.
+- **FT8 — deux stations à moins de 50 Hz : la seconde n'était jamais
+  décodée.** Le décodeur écartait tout candidat situé à moins de 50 Hz d'un
+  candidat déjà retenu ; toute station proche d'une autre disparaissait, sans
+  message ni indice. La limite passe à **~19 Hz**. Ce n'est PAS la suppression
+  de la règle : mesuré, la retirer ferait tomber une bande à 28 stations de
+  28/28 à 14/28, parce qu'elle sert en réalité à effondrer les détections
+  multiples d'un même signal fort. Seule sa largeur était en cause (18,75 Hz,
+  soit 3 espacements de tons, est la seule valeur qui recouvre les stations
+  proches sans dégrader la bande chargée), avec le budget de candidats porté
+  de 30 à 60 pour compenser. Le report SNR est inchangé, vérifié par la
+  mesure et non supposé. **Ce qui reste** : sous ~19 Hz d'écart la seconde
+  station est toujours perdue — la limite est déplacée, pas supprimée. Dit
+  tel quel dans le guide utilisateur.
+- **FT8 — « Ignorer » perdait la fiche du correspondant**, et le bouton STOP
+  du séquenceur n'était retenu par aucun test malgré son rôle de sécurité
+  d'émission.
+- **Barre de statut — la sauvegarde affichée était celle du navigateur**, pas
+  celle réellement écrite sur le disque : l'indicateur pouvait annoncer une
+  sauvegarde à jour alors que rien n'était écrit. `/log/status` remonte
+  désormais l'horodatage du fichier de sauvegarde lui-même.
+
+### Documentation
+
+- **PASSATION : les 5 constats FT8 donnés pour « restants » ne l'étaient
+  pas.** Vérification faite un par un, le document est corrigé.
+
 ## [1.1-beta5] - 2026-08-19
 
 Deux chantiers dans cette version, dont un qui n'était pas prévu.
