@@ -57,9 +57,26 @@ function __init(){
 """
 
 
+def _module_puissance():
+    """concours/logx_puissance_auto.js — la règle elle-même, sortie de
+    logx_logbook.js pour servir AUSSI à la page FT8 (qui est celle qui émet
+    réellement en FT8 et n'appliquait donc aucune protection).
+
+    Le banc le charge parce que la PAGE le charge : logx_logbook.html a une
+    balise <script> pour chacun des deux, dans cet ordre. Un banc qui ne
+    monterait que logx_logbook.js éprouverait une page qui n'existe pas.
+    """
+    import os
+    ici = os.path.dirname(os.path.abspath(__file__))
+    chemin = os.path.join(os.path.dirname(ici), 'logx_puissance_auto.js')
+    with open(chemin, encoding='utf-8') as f:
+        return f.read()
+
+
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    ctx.eval(_module_puissance())
     ctx.eval(_real_source())
     ctx.eval(_NET_STUB)   # après la source : remplace le fetch du préambule
     ctx.eval(_INIT)
