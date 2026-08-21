@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://f6kqj.local/contest_schema.json",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "$comment": "Contrat public versionné (semver) — voir docs/CONTRATS_DONNEES.md pour la politique de migration. $id reste STABLE d'une version mineure/patch à l'autre ; seul un changement majeur (retrait/renommage d'un champ requis) justifierait un nouveau $id.",
   "title": "Définition d'un concours LogX AI",
   "description": "Schéma formel d'une entrée de CONTEST_DEFINITIONS (contest_definitions.py). C'est le contrat que devra respecter toute nouvelle définition de concours, qu'elle soit écrite à la main, importée du calendrier WA7BNM (Phase 4) ou extraite d'un règlement par l'IA (Phase 3). Le vocabulaire de date_rule est implémenté dans rules.py:calc_contest_date ; les types de scoring dans scoring.py:calc_qso_value.",
@@ -17,6 +17,18 @@
     "log_format"
   ],
   "additionalProperties": false,
+  "if": {
+    "properties": {
+      "log_format": {
+        "const": "CABRILLO"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "cabrillo_name"
+    ]
+  },
   "properties": {
     "name": {
       "type": "string",

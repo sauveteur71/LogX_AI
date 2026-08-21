@@ -114,7 +114,10 @@ def server():
 
 
 def _get(base, path):
-    with urllib.request.urlopen(base + path, timeout=5) as r:
+    # A09 (docs/FEUILLE_DE_ROUTE.md) : /log/list exige désormais le jeton de
+    # session, comme les autres routes de lecture protégées.
+    req = urllib.request.Request(base + path, headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=5) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
@@ -452,3 +455,35 @@ def test_log_update_changement_de_portee_force_un_resync_complet(server, monkeyp
     # cache du pair inchangé -> il faut un repli explicite sur liste complète.
     assert 'delta' not in after
     assert after['qsos'] == []
+
+
+# ─── A09 (docs/FEUILLE_DE_ROUTE.md) : /log/list exige le jeton de session ────
+# Avant ce correctif, cette route renvoyait le carnet ENTIER (indicatifs,
+# RST, commentaires...) à quiconque atteignait le port, sans le jeton de
+# session que presque toutes les autres routes de lecture exigent déjà (ex.
+# /debug/errors). Sans danger pour l'usage navigateur normal : chaque page
+# HTML pose déjà le cookie rc_token à son chargement (do_GET, Set-Cookie sur
+# les .html quand aucun mot de passe d'accès n'est configuré).
+
+def test_log_list_sans_jeton_est_refuse(server, monkeypatch):
+    monkeypatch.setattr(httpmod, 'shared_log', [_qso()])
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(server + '/log/list', timeout=5)
+    assert exc.value.code == 403
+
+
+def test_log_list_avec_jeton_fonctionne_normalement(server, monkeypatch):
+    monkeypatch.setattr(httpmod, 'shared_log', [_qso()])
+    data = _get(server, '/log/list')
+    assert data['qsos'] == [_qso()]
+
+
+def test_log_list_avec_cookie_de_session_fonctionne(server, monkeypatch):
+    """L'usage navigateur réel : pas de X-RC-Token en en-tête, mais le
+    cookie rc_token posé au chargement de n'importe quelle page HTML."""
+    monkeypatch.setattr(httpmod, 'shared_log', [_qso()])
+    req = urllib.request.Request(server + '/log/list',
+                                 headers={'Cookie': f'rc_token={httpmod.AUTH_TOKEN}'})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        data = json.loads(r.read().decode('utf-8'))
+    assert data['qsos'] == [_qso()]

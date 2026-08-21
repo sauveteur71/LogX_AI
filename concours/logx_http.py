@@ -2232,6 +2232,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Log partagé — liste tous les QSO
         if path == '/log/list':
+            # A09 (docs/FEUILLE_DE_ROUTE.md) : cet endpoint renvoyait le carnet
+            # ENTIER (indicatifs, RST, commentaires...) à quiconque atteignait
+            # le port, sans le jeton de session que presque toutes les autres
+            # routes de lecture exigent déjà (ex. /debug/errors juste
+            # au-dessus). Sans danger pour l'usage navigateur normal : chaque
+            # page HTML pose déjà le cookie rc_token à son chargement (voir
+            # do_GET, Set-Cookie sur les .html quand aucun mot de passe
+            # d'accès n'est configuré) — /log/list n'est jamais appelée avant
+            # qu'une page ait fini de charger.
+            if not self._require_auth():
+                return
             client_ip = self.client_address[0]
             with connected_peers_lock:
                 connected_peers[client_ip] = time.time()

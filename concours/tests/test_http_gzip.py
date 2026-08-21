@@ -42,7 +42,9 @@ def _raw_get(base, path, accept_encoding=None):
     masquerait le header Content-Encoding qu'on veut justement vérifier."""
     u = urlparse(base)
     conn = http.client.HTTPConnection(u.hostname, u.port, timeout=5)
-    headers = {}
+    # A09 (docs/FEUILLE_DE_ROUTE.md) : /log/list exige désormais le jeton de
+    # session, comme les autres routes de lecture protégées.
+    headers = {'X-RC-Token': httpmod.AUTH_TOKEN}
     if accept_encoding is not None:
         headers['Accept-Encoding'] = accept_encoding
     conn.request('GET', path, headers=headers)

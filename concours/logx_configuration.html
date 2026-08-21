@@ -2452,7 +2452,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span class="toggle-btn on" data-key="src_dxsummit" onclick="toggle(this)">DXSummit</span>
           <span class="toggle-btn on" data-key="src_dxwatch" onclick="toggle(this)">DXWatch</span>
           <span class="toggle-btn on" data-key="src_dxheat" onclick="toggle(this)">DXHeat</span>
-          <span class="toggle-btn on" data-key="src_tropo_f5len" onclick="toggle(this)">Tropo F5LEN</span>
           <span class="toggle-btn on" data-key="src_dxmaps" onclick="toggle(this)">DXMaps</span>
           <span class="toggle-btn on" data-key="src_hamqth_spots" onclick="toggle(this)">HamQTH spots (VHF)</span>
           <span class="toggle-btn on" data-key="src_hamspirit" onclick="toggle(this)">HamSpirit (VHF)</span>
@@ -2468,15 +2467,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           manuelle nécessaire : la redondance est automatique.
         </div>
       </div>
-      <div class="section">
-        <h3 class="section-title">SOURCES DE PROPAGATION</h3>
-        <div class="toggle-grid">
-          <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
-          <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
-          <span class="toggle-btn" data-key="src_solarcycle" onclick="toggle(this)">Cycle solaire</span>
-          <span class="toggle-btn" data-key="src_noaa" onclick="toggle(this)">NOAA K-index</span>
-        </div>
-      </div>
+      <!-- A08 (docs/FEUILLE_DE_ROUTE.md) : section "SOURCES DE PROPAGATION"
+           (VOACAP/PSK Reporter/Cycle solaire/NOAA K-index) retirée le
+           21/08/2026 — les 4 data-key correspondants (src_voacap,
+           src_pskreporter, src_solarcycle, src_noaa) n'étaient lus nulle part
+           ailleurs dans le code (grep exhaustif JS+Python+HTML) : cases à
+           cocher mortes qui laissaient croire à un réglage sans effet réel.
+           VOACAP et PSK Reporter existent bien comme fonctionnalités (bouton
+           VÉRIFIER VOACAP à la demande, logx_psk.py) mais ne dépendaient déjà
+           d'aucun de ces interrupteurs — les rebrancher aurait été une
+           fonctionnalité neuve, pas un correctif proportionné à ce point. -->
       <div class="section">
         <h3 class="section-title">COMPTE ON4KST CHAT (optionnel)</h3>
         <div class="form-grid">
