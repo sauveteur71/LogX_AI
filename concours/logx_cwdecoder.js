@@ -174,11 +174,152 @@ function goertzelMagnitude(samples, sampleRate, targetFreq){
   return Math.sqrt(real*real + imag*imag) / n;
 }
 
+// ─── Détection automatique du ton CW (retour F4GLD 21/08/2026) ──────────────
+// « c'est compliqué pour un novice, on peut pas faciliter ce réglage ? » --
+// jusqu'ici, faire correspondre le ton écouté (#cwFreq) au ton RÉEL émis par
+// la radio exigeait de connaître/aller lire le réglage CW Pitch du poste.
+// Ici : on écoute sur TOUTES les fréquences plausibles à la fois pendant
+// quelques secondes, et on retient celle qui montre un vrai RYTHME de
+// signal ON/OFF -- ni un bruit large bande (aucune fréquence ne se détache),
+// ni un ronflement/porteuse continue à une fréquence étrangère (present en
+// permanence, jamais "OFF", donc jamais assez de transitions).
+// Pas de 100 Hz : goertzelMagnitude() ARRONDIT la fréquence demandée au bin
+// Goertzel le plus proche (k = round(n*freq/sampleRate)) -- à blockSize=512
+// (comme CwAudioDecoder), la résolution réelle entre deux bins DISTINCTS est
+// sampleRate/blockSize, soit ≈86 Hz à 44.1kHz. Des candidates à 50 Hz
+// d'écart (essayé, constaté par test) tombent alors régulièrement sur le
+// MÊME bin -- pas une fuite spectrale approximative, une collision EXACTE
+// (magnitude rigoureusement identique). Aucune conséquence sur la qualité du
+// décodage ensuite (deux candidates qui collisionnent sont interchangeables
+// pour goertzelMagnitude), mais rend le résultat de detectFreq() imprévisible
+// à l'oeil. 100 Hz espace suffisamment les candidates pour rester distinctes
+// aux fréquences d'échantillonnage usuelles (44.1/48 kHz), tout en couvrant
+// finement la plage utile d'un réglage CW Pitch (300-900 Hz).
+const CW_FREQ_CANDIDATES = (() => {
+  const out = [];
+  for (let f = 300; f <= 900; f += 100) out.push(f);
+  return out;
+})();
+
+// Sous le nombre minimal de transitions ON/OFF observées pendant la fenêtre
+// de détection, une fréquence n'est JAMAIS retenue -- un unique pic isolé
+// (parasite, craquement statique) ne doit pas suffire à désigner un ton.
+const CW_DETECT_MIN_TRANSITIONS = 4;
+
+// Sous cette proportion de caractères VALIDES (présents dans MORSE_TABLE,
+// ni '�' ni uniquement des espaces) parmi ceux décodés pendant la fenêtre,
+// une fréquence n'est jamais retenue même si elle a franchi le seuil de
+// transitions -- un ronflement grave/souffle de micro peut très bien
+// produire assez d'allers-retours ON/OFF pour passer CW_DETECT_MIN_
+// TRANSITIONS SANS jamais respecter les proportions point/trait/espace
+// d'un vrai Morse, et se décode donc presque uniquement en caractères
+// inconnus. Constaté en usage réel (F4GLD, 21/08/2026) : un premier essai
+// sans cette vérification avait verrouillé sur 300 Hz (limite basse de la
+// plage), résultat que l'opérateur a jugé « pas concluant » -- exactement
+// le symptôme qu'un simple rapport pic/plancher ne peut pas distinguer
+// d'un vrai ton, mais qu'un VRAI DÉCODAGE Morse peut.
+const CW_DETECT_MIN_VALID_RATIO = 0.5;
+
+class CwFreqDetector {
+  constructor(){
+    this.stats = new Map(CW_FREQ_CANDIDATES.map(f => {
+      const s = {
+        on: false, transitions: 0, noiseFloor: 0.001, agcPeak: 0.001,
+        edgeStartMs: 0, validChars: 0, totalChars: 0,
+      };
+      // Décodeur Morse DÉDIÉ à cette candidate : reçoit UNIQUEMENT ses
+      // propres transitions ON/OFF, jamais celles des autres candidates --
+      // sa capacité à produire du texte reconnaissable est la preuve la
+      // plus directe qu'on ait qu'un rythme est du VRAI Morse et pas un
+      // simple bruit modulé qui franchit le seuil par coïncidence.
+      s.decoder = new MorseTimingDecoder(ch => {
+        s.totalChars++;
+        if (ch !== '�' && ch !== ' ') s.validChars++;
+      });
+      return [f, s];
+    }));
+    this._elapsedMs = 0;
+  }
+
+  // Un bloc = mêmes samples bruts que CwAudioDecoder._onBlock, passés à
+  // TOUTES les fréquences candidates (même AGC seuil-relatif que le
+  // décodage réel, voir _onBlock -- la logique de séparation signal/bruit
+  // ne doit pas diverger entre détection et décodage).
+  feed(samples, sampleRate){
+    const blockMs = samples.length / sampleRate * 1000;
+    for (const f of CW_FREQ_CANDIDATES) {
+      const s = this.stats.get(f);
+      const mag = goertzelMagnitude(samples, sampleRate, f);
+      if (mag < s.noiseFloor) s.noiseFloor = s.noiseFloor * 0.98 + mag * 0.02;
+      else s.noiseFloor = s.noiseFloor * 0.999 + mag * 0.001;
+      if (mag > s.agcPeak) s.agcPeak = s.agcPeak * 0.7 + mag * 0.3;
+      else s.agcPeak = s.agcPeak * 0.999 + mag * 0.001;
+      const span = Math.max(s.agcPeak - s.noiseFloor, 0);
+      const threshold = s.noiseFloor * 2.0 + span * 0.35;
+      const isOn = mag > threshold;
+      if (isOn !== s.on) {
+        s.transitions++;
+        const durationMs = Math.max(1, this._elapsedMs - s.edgeStartMs);
+        s.decoder.pushEdge(s.on, durationMs);   // rapporte le segment qui vient de finir
+        s.edgeStartMs = this._elapsedMs;
+        s.on = isOn;
+      }
+    }
+    this._elapsedMs += blockMs;
+  }
+
+  // Meilleure fréquence candidate : d'abord celles qui produisent du VRAI
+  // Morse décodable (proportion de caractères valides >= CW_DETECT_MIN_
+  // VALID_RATIO), puis parmi elles le NOMBRE de caractères valides
+  // accumulés (pas le rapport pic/plancher en premier critère -- constaté
+  // en le testant : deux candidates voisines d'une même vraie source
+  // peuvent quasiment se partager la même fuite spectrale et donc un
+  // rapport pic/plancher très proche, tandis qu'une candidate "fantôme"
+  // à mi-chemin entre deux sources différentes peut cumuler assez
+  // d'énergie des DEUX pour un rapport ARTIFICIELLEMENT plus élevé que
+  // chacune des vraies sources prise isolément, tout en ne décodant qu'une
+  // poignée de caractères par chance sur un petit échantillon -- un nombre
+  // de caractères valides accumulés est une statistique autrement plus
+  // robuste qu'un ratio instantané pour ce départage). Le rapport
+  // pic/plancher ne sert qu'à départager une ÉGALITÉ de caractères valides
+  // (ex. deux candidates qui décodent le même signal réel avec une
+  // amplitude différente). null si rien d'assez net/décodable n'a été
+  // observé -- mieux vaut le dire honnêtement que renvoyer un résultat au
+  // hasard sur du silence, du bruit pur, ou un ronflement qui imite un
+  // rythme sans être du Morse.
+  best(){
+    let bestFreq = null, bestValidChars = -1, bestRatio = 0;
+    for (const [f, s] of this.stats) {
+      if (s.transitions < CW_DETECT_MIN_TRANSITIONS) continue;
+      // Caractère en cours jamais refermé par une transition suivante (la
+      // fenêtre de détection s'arrête pendant une marque/un silence) :
+      // flushIfIdle() le compte quand même plutôt que de le perdre --
+      // mêmes règles que le décodage réel en fin de session.
+      s.decoder.flushIfIdle(this._elapsedMs - s.edgeStartMs);
+      if (s.totalChars === 0) continue;
+      const validRatio = s.validChars / s.totalChars;
+      if (validRatio < CW_DETECT_MIN_VALID_RATIO) continue;
+      const ratio = s.agcPeak / Math.max(s.noiseFloor, 1e-6);
+      if (s.validChars > bestValidChars
+          || (s.validChars === bestValidChars && ratio > bestRatio)) {
+        bestValidChars = s.validChars; bestRatio = ratio; bestFreq = f;
+      }
+    }
+    return bestFreq;
+  }
+}
+
 // ─── Pipeline audio temps réel (getUserMedia -> Goertzel -> décodeur) ───────
 class CwAudioDecoder {
-  constructor({freq=650, onChar, onLevel} = {}){
+  constructor({freq=650, onChar, onLevel, onBlock} = {}){
     this.freq = freq;
     this.onLevel = onLevel || (()=>{});
+    // Point d'extension pour CwFreqDetector (voir CwPanel.detectFreq()) :
+    // remplace ENTIÈREMENT le traitement par bloc habituel (Goertzel mono-
+    // fréquence + MorseTimingDecoder) par un simple relais des échantillons
+    // bruts -- le pipeline getUserMedia/AudioContext/ScriptProcessor reste
+    // identique et partagé, seul ce qu'on FAIT de chaque bloc change.
+    this._onBlockOverride = onBlock || null;
     this.decoder = new MorseTimingDecoder(onChar);
     this.decoder.wpm = 0;   // 0 tant qu'aucune marque réelle n'a été mesurée — voir onLevel plus bas
     this.ctx = null; this.stream = null; this.source = null; this.proc = null;
@@ -223,7 +364,11 @@ class CwAudioDecoder {
     this.proc = this.ctx.createScriptProcessor(this.blockSize, 1, 1);
     this.edgeStartMs = performance.now();
     this.lastSampleMs = this.edgeStartMs;
-    this.proc.onaudioprocess = (e) => this._onBlock(e.inputBuffer.getChannelData(0));
+    this.proc.onaudioprocess = (e) => {
+      const samples = e.inputBuffer.getChannelData(0);
+      if (this._onBlockOverride) this._onBlockOverride(samples, this.ctx.sampleRate);
+      else this._onBlock(samples);
+    };
     this.source.connect(this.proc);
     // Le graphe Web Audio n'avance que si le node est connecté à une
     // destination — un GainNode à 0 évite de faire sortir le son des
@@ -299,4 +444,4 @@ class CwAudioDecoder {
   }
 }
 
-if(typeof module !== 'undefined') module.exports = {MORSE_TABLE, MorseTimingDecoder, goertzelMagnitude, CwAudioDecoder};
+if(typeof module !== 'undefined') module.exports = {MORSE_TABLE, MorseTimingDecoder, goertzelMagnitude, CwAudioDecoder, CwFreqDetector, CW_FREQ_CANDIDATES, CW_DETECT_MIN_TRANSITIONS};
