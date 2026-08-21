@@ -22,8 +22,17 @@
 // `finally` : même si la lecture audio plante en cours de route, la radio ne
 // doit jamais rester bloquée en émission.
 async function txAudioPtt(wave, sampleRate, outDeviceId){
+  // duree_max : on CONNAÎT exactement la durée de ce qu'on va émettre, donc
+  // on l'annonce. Elle ne limite rien — elle resserre le chien de garde du
+  // PTT par ligne série (logx_cat.set_ptt_ligne), donc la durée pendant
+  // laquelle une porteuse resterait sur l'air si cette page disparaissait en
+  // pleine émission. Sans cette annonce, une image SSTV de 20 s serait
+  // couverte par le plafond générique de 360 s, calibré lui sur la PD290
+  // (289,7 s mesurées). +5 s de marge : démarrage de l'AudioContext et
+  // latence de la carte son.
+  const dureeMax = Math.ceil(wave.length / sampleRate) + 5;
   const pttOk = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({on:true})}).then(r=>r.json()).then(d=>!!d.ok).catch(()=>false);
+    body: JSON.stringify({on:true, duree_max: dureeMax})}).then(r=>r.json()).then(d=>!!d.ok).catch(()=>false);
   if(!pttOk) return {ok:false, error:"PTT refusé — vérifie le pilotage radio (CONFIG)"};
   try{
     const ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});

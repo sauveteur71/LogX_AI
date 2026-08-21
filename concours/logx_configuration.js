@@ -62,6 +62,8 @@ const CONFIG_HELP = {
   cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
   cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows. Interface multi-radio (microHAM, 4O3A Signature...) : c'est le port COM VIRTUEL que le logiciel de l'interface (ex. microHAM Router / USB Device Router) crée pour LogX AI — il ne fonctionne que si ce logiciel tourne, avec la bonne radio sélectionnée dedans. Ce port peut être différent de celui utilisé par WSJT-X ou un autre logiciel, et il change parfois après un redémarrage : rafraîchis la liste si besoin.",
   cat_baudrate: "La vitesse de communication série (bauds) réglée sur ta radio elle-même — doit correspondre EXACTEMENT au réglage du menu de la radio.",
+  cat_ptt_method: "Comment LogX AI fait passer ton poste en émission. « Commande CAT » envoie l'ordre au poste par le câble CAT : c'est le cas normal d'un poste relié directement au PC. « Ligne RTS » (ou DTR) lève une ligne du port série, qui commande le PTT MATÉRIEL d'un boîtier d'interface (XGGComms Digimode, RIGblaster, microHAM…) à travers un opto-coupleur. Pourquoi c'est important : beaucoup de postes n'activent l'entrée audio de leur prise DATA que si le PTT matériel est actionné — piloté par commande CAT, un tel poste passe bien en émission mais ne sort AUCUNE puissance, et rien à l'écran ne le signale. C'est aussi le seul moyen d'émettre quand le câble CAT ne fonctionne pas alors que l'audio et le PTT du même boîtier, eux, fonctionnent. RTS est le câblage le plus répandu ; essaie DTR si RTS ne déclenche rien.",
+  cat_ptt_port: "Sur quel port série se trouve la ligne PTT. Laisse « le même que le port CAT » dans le cas courant : un boîtier d'interface n'expose qu'un seul port série, qui porte à la fois les trames CAT et la ligne PTT. Ne choisis un port différent que si ton PTT arrive par un second câble (montage à deux boîtiers, ou interface PTT seule sans CAT).",
   cat_civ_addr: "Adresse CI-V (Icom/Xiegu) — laisse vide pour utiliser l'adresse usine du modèle choisi. À remplir seulement si tu as changé cette adresse dans le menu SET de la radio (pratique courante en multi-poste/SO2R pour éviter les collisions sur le bus CI-V) : sans ça, LogX AI continue d'interroger l'ancienne adresse et la radio ne répond jamais.",
   cat_power_auto_enabled: "Réduit automatiquement la puissance radio quand tu choisis un mode numérique (FT8/FT4/RTTY/PSK...) dans LOGBOOK, et quand tu actives l'émission sur la page FT8 — protection du final, ces modes émettent à 100% du temps contrairement à la phonie/CW. Pilotage Natif Yaesu/Kenwood/Elecraft uniquement (Icom/CI-V pas encore couvert — voir la note sous ce réglage). Désactivé par défaut : n'active rien tant que tu ne l'as pas choisi.",
   cat_power_phone_w: "Puissance (en watts) poussée vers la radio en phonie (SSB) et en CW. Laisse vide pour ne jamais toucher à la puissance en dehors des modes numériques.",
@@ -1052,6 +1054,7 @@ async function init() {
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   renderParcStation(); // Parc antennes/rotors/amplis (vide si jamais configuré)
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
+  majPttMethode(); // affiche le port de la ligne PTT si une ligne série est choisie
   updateCat2ModeVisibility(); // Radio 2 (SO2R)
   loadVoiceKeyerDevices();
   loadDxRecord();
@@ -1646,6 +1649,57 @@ async function refreshCatPorts(){
     if (prev && ports.some(p => p.device === prev)) sel.value = prev;
   }catch(e){
     sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+// ─── PTT par ligne série (RTS/DTR d'un boîtier d'interface) ─────────────────
+// Le port de la ligne PTT n'a de sens que si une ligne série est choisie ; le
+// montrer en permanence poserait une question sans objet à l'immense majorité
+// des opérateurs, qui pilotent leur poste en CAT direct.
+function majPttMethode(portVoulu){
+  const methode = (document.getElementById('cat_ptt_method') || {}).value || 'cat';
+  const bloc = document.getElementById('catPttPortField');
+  if (!bloc) return;
+  const serie = (methode === 'rts' || methode === 'dtr');
+  bloc.style.display = serie ? '' : 'none';
+  // On repose le port MÊME quand le bloc est masqué, dès lors qu'une
+  // restauration l'impose (portVoulu fourni). Sinon un profil revenu en
+  // « commande CAT » gardait en mémoire le port du profil précédent : la
+  // valeur restait inerte, mais elle était réenregistrée à la sauvegarde et
+  // ressortait toute seule le jour où l'opérateur rebasculait sur RTS —
+  // avec un numéro de port qu'il n'avait jamais choisi pour ce profil-là.
+  if (serie || portVoulu !== undefined) refreshCatPttPorts(portVoulu);
+}
+
+async function refreshCatPttPorts(portVoulu){
+  // Même patron que refreshCatPorts() (réplique voulue, pas de fonction
+  // générique dans ce dépôt) : le port enregistré sert de REPLI, parce que la
+  // liste arrive du serveur APRÈS la restauration de la config et que poser
+  // `.value` sur un <select> encore vide échoue SANS ERREUR.
+  //
+  // `portVoulu` (chaîne, éventuellement vide) est passé par une RESTAURATION
+  // de config : elle fait alors autorité sur ce que le <select> affiche
+  // encore. Sans ça, charger un profil dont le port PTT est vide gardait le
+  // port du profil précédent — le même défaut de report que pour la méthode
+  // ci-dessus, trouvé en vérification navigateur le 20/08/2026.
+  const sel = document.getElementById('cat_ptt_port');
+  if (!sel) return;
+  const prev = (portVoulu !== undefined)
+    ? portVoulu
+    : (sel.value || (window._cfgRestauree || {}).cat_ptt_port || '');
+  // La première option est le cas COURANT, pas un port : un boîtier
+  // d'interface n'expose qu'un seul port série, qui porte le CAT ET le PTT.
+  const memeQueCat = '<option value="">— le même que le port CAT —</option>';
+  sel.innerHTML = memeQueCat;
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = memeQueCat
+      + ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('');
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = memeQueCat;
   }
 }
 
@@ -5344,6 +5398,14 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cat_port: document.getElementById('cat_port').value,
     cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
     cat_civ_addr: document.getElementById('cat_civ_addr').value.trim(),
+    // Méthode de PTT (commande CAT / ligne RTS / ligne DTR) — voir
+    // cat.set_ptt_ligne() (logx_cat.py). Repli sur 'cat' si le champ manque :
+    // /config/save REMPLACE toute la config, jamais de patch partiel, donc
+    // une valeur absente doit rendre le comportement HISTORIQUE et non une
+    // méthode d'émission que personne n'a demandée.
+    cat_ptt_method: (document.getElementById('cat_ptt_method')?.value) || 'cat',
+    // Vide = le même port que le CAT (cas courant du boîtier unique).
+    cat_ptt_port: (document.getElementById('cat_ptt_port')?.value || '').trim(),
     // Puissance TX auto par mode (protection du final en numérique) — voir
     // cat.set_power() (logx_cat.py) et _qsyVersRadio() (logx_logbook.js).
     // Chaînes vides (pas 0) quand le champ est laissé vide : 0 W serait une
@@ -6163,6 +6225,7 @@ function applyFullConfigToForm(c) {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
+     'cat_ptt_method','cat_ptt_port',
      'cat_power_phone_w','cat_power_digital_w',
      'tci_host','tci_port','flrig_host','flrig_port',
      'omnirig_rig_num','flexradio_host','flexradio_port',
@@ -6220,6 +6283,28 @@ function applyFullConfigToForm(c) {
     applyUsageMode();
     if (c.cat_brand) updateCatModelOptions();
     if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
+    // ─── Méthode de PTT : remise à ZÉRO explicite, pas un simple report ───
+    //
+    // 🚨 DÉFAUT TROUVÉ EN VÉRIFICATION NAVIGATEUR (20/08/2026). La boucle
+    // ci-dessus applique `if(c[k]!==undefined)` : une config qui ne PORTE PAS
+    // la clé laisse donc en place la valeur du profil précédemment chargé.
+    // Anodin pour un mot de passe ou un nom d'hôte — pas du tout ici. Charger
+    // un profil « DXpédition » réglé sur la ligne DTR, puis un profil plus
+    // ancien qui ignore ce champ, laissait le second en DTR : le logiciel
+    // aurait levé une ligne série que personne n'avait demandée pour CE
+    // profil-là. Mesuré en navigateur, pas déduit.
+    //
+    // Toute valeur absente ou non reconnue vaut donc « commande CAT », le
+    // comportement historique — la même règle que côté serveur
+    // (logx_cat.cat_settings).
+    const selPtt = document.getElementById('cat_ptt_method');
+    if (selPtt) {
+      selPtt.value = (c.cat_ptt_method === 'rts' || c.cat_ptt_method === 'dtr')
+        ? c.cat_ptt_method : 'cat';
+    }
+    // Même raisonnement pour le port : la valeur du profil chargé fait foi,
+    // y compris quand elle est vide (= le même port que le CAT).
+    majPttMethode(c.cat_ptt_port || '');
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
     if(c.op_call) document.getElementById('op_call').value = c.op_call;
     if(c.club) document.getElementById('club').value = c.club;

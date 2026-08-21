@@ -542,7 +542,7 @@ def test_send_voice_message_skip_ptt_erreur_lecture_pas_de_ptt_release(monkeypat
 
 def test_set_ptt_dispatch_natif(monkeypatch):
     import logx_cat as cat
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'native'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'native', 'ptt_method': 'cat'})
     monkeypatch.setattr(cat, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'native', 'on': on})
     r = vk._set_ptt({}, True)
     assert r == {'ok': True, 'via': 'native', 'on': True}
@@ -551,7 +551,7 @@ def test_set_ptt_dispatch_natif(monkeypatch):
 def test_set_ptt_dispatch_tci(monkeypatch):
     import logx_cat as cat
     import logx_tci as tci
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'tci'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'tci', 'ptt_method': 'cat'})
     monkeypatch.setattr(tci, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'tci', 'on': on})
     r = vk._set_ptt({}, False)
     assert r == {'ok': True, 'via': 'tci', 'on': False}
@@ -560,7 +560,7 @@ def test_set_ptt_dispatch_tci(monkeypatch):
 def test_set_ptt_dispatch_flrig(monkeypatch):
     import logx_cat as cat
     import logx_flrig as flrig
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flrig'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flrig', 'ptt_method': 'cat'})
     monkeypatch.setattr(flrig, 'flrig_settings', lambda cfg: {'host': 'h', 'port': 12345})
     monkeypatch.setattr(flrig, 'set_ptt', lambda host, port, on: {'ok': True, 'via': 'flrig', 'host': host})
     r = vk._set_ptt({}, True)
@@ -570,7 +570,7 @@ def test_set_ptt_dispatch_flrig(monkeypatch):
 def test_set_ptt_dispatch_rigctld(monkeypatch):
     import logx_cat as cat
     import logx_rig as rig
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native', 'ptt_method': 'cat'})
     monkeypatch.setattr(rig, 'rig_settings', lambda cfg: {'enabled': True, 'host': 'h', 'port': 1})
     monkeypatch.setattr(rig, 'set_ptt', lambda host, port, on: {'ok': True, 'via': 'rigctld', 'host': host})
     r = vk._set_ptt({}, True)
@@ -580,7 +580,7 @@ def test_set_ptt_dispatch_rigctld(monkeypatch):
 def test_set_ptt_dispatch_omnirig(monkeypatch):
     import logx_cat as cat
     import logx_omnirig as omnirig
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'omnirig'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'omnirig', 'ptt_method': 'cat'})
     monkeypatch.setattr(omnirig, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'omnirig', 'on': on})
     r = vk._set_ptt({}, True)
     assert r == {'ok': True, 'via': 'omnirig', 'on': True}
@@ -589,7 +589,7 @@ def test_set_ptt_dispatch_omnirig(monkeypatch):
 def test_set_ptt_dispatch_flex(monkeypatch):
     import logx_cat as cat
     import logx_flexradio as flexradio
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flex'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flex', 'ptt_method': 'cat'})
     monkeypatch.setattr(flexradio, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'flex', 'on': on})
     r = vk._set_ptt({}, False)
     assert r == {'ok': True, 'via': 'flex', 'on': False}
@@ -598,7 +598,7 @@ def test_set_ptt_dispatch_flex(monkeypatch):
 def test_set_ptt_dispatch_icom_remote(monkeypatch):
     import logx_cat as cat
     import logx_icomremote as icomremote
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'icom_remote'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'icom_remote', 'ptt_method': 'cat'})
     monkeypatch.setattr(icomremote, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'icom_remote', 'on': on})
     r = vk._set_ptt({}, True)
     assert r == {'ok': True, 'via': 'icom_remote', 'on': True}
@@ -612,10 +612,18 @@ def test_set_ptt_public_delegue_au_meme_dispatch(monkeypatch):
     autour de la lecture) doit être un simple alias de _set_ptt, pas une
     logique parallèle qui pourrait diverger."""
     appels = []
-    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: appels.append(on) or {'ok': True, 'on': on})
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on, duree_max_s=None:
+                        appels.append((on, duree_max_s)) or {'ok': True, 'on': on})
     r = vk.set_ptt({'x': 1}, True)
     assert r == {'ok': True, 'on': True}
-    assert appels == [True]
+    assert appels == [(True, None)]
+    # La durée annoncée doit traverser l'alias : c'est elle qui resserre le
+    # chien de garde du PTT par ligne série. Un alias qui la laisserait
+    # tomber en silence ramènerait toute émission au plafond générique de
+    # 360 s, sans que rien ne le signale.
+    appels.clear()
+    vk.set_ptt({'x': 1}, True, duree_max_s=18)
+    assert appels == [(True, 18)]
 
 
 # ─── voicekeyer_settings() : sous-dict 'ai' ───────────────────────────────────
@@ -784,7 +792,7 @@ def test_synthesize_to_wav_repli_local_silencieux_si_lia_echoue(monkeypatch, cap
 def test_set_ptt_dispatch_rien_active(monkeypatch):
     import logx_cat as cat
     import logx_rig as rig
-    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native'})
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native', 'ptt_method': 'cat'})
     monkeypatch.setattr(rig, 'rig_settings', lambda cfg: {'enabled': False, 'host': '', 'port': 0})
     r = vk._set_ptt({}, True)
     assert not r['ok'] and 'désactivé' in r['error'].lower()

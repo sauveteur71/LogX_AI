@@ -1,0 +1,910 @@
+# -*- coding: utf-8 -*-
+"""PTT MATÉRIEL par ligne série (RTS/DTR) — et ses garde-fous.
+
+CE QUE ÇA AJOUTE. Jusqu'au 20/08/2026, LogX AI ne savait faire passer un poste
+en émission que par COMMANDE (TX1; en ASCII, 1C 00 01 en CI-V). La notice du
+boîtier XGGComms USB Digimode-4 recommande explicitement l'inverse : lever la
+ligne RTS du port série, qui commande le PTT matériel du boîtier par
+opto-coupleur — parce que beaucoup de postes n'activent l'entrée audio de leur
+prise DATA QUE si le PTT matériel est actionné. Piloté par commande CAT, un tel
+poste passe en émission et ne sort AUCUNE puissance : la panne est silencieuse,
+tout a l'air de marcher.
+
+🚨 POURQUOI CES TESTS SONT PLUS SÉVÈRES QUE LA MOYENNE. Une commande CAT ratée
+ne fait rien. Une ligne RTS restée haute, c'est une porteuse permanente que le
+poste lui-même ne sait pas annuler — il ne fait qu'obéir à une broche. La
+notice du Digimode-4 documente ce sinistre comme un cas de panne courant.
+Chaque chemin de sortie est donc testé séparément : relâchement normal, chien
+de garde, fermeture de transport, reprise du port par le CAT, arrêt du serveur.
+
+CE QUE CES TESTS NE PROUVENT PAS : qu'un opto-coupleur réel commute. Seul
+F4GLD, sur son matériel, peut l'établir. Ils prouvent que LogX AI pose et
+repose les bonnes lignes aux bons moments.
+"""
+import os
+import re
+import sys
+import threading
+import time
+
+CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, CONCOURS)
+
+import pytest  # noqa: E402
+
+import logx_cat as cat  # noqa: E402
+
+
+# ─── Double de port série : enregistre l'état RÉEL des lignes ──────────────
+
+class FauxPort:
+    """Imite SerialPort en gardant l'HISTORIQUE des lignes.
+
+    L'historique compte autant que l'état final : lever puis baisser aussitôt
+    et ne jamais lever du tout donnent le même état final, et ce ne sont pas
+    du tout les mêmes comportements sur l'air."""
+
+    ouverts = []
+
+    def __init__(self, device, baudrate=19200, timeout=1.0):
+        self.device = device
+        self.baudrate = baudrate
+        self.rts = False
+        self.dtr = False
+        self.ferme = False
+        self.journal = []          # [('rts', True), ('dtr', False), ('close',)]
+        self._lock = threading.Lock()
+        FauxPort.ouverts.append(self)
+
+    def regler_ligne(self, ligne, actif, attente=1.0):
+        if self.ferme:
+            return False
+        setattr(self, ligne, bool(actif))
+        self.journal.append((ligne, bool(actif)))
+        return True
+
+    def baisser_lignes(self, attente=0.3):
+        a = self.regler_ligne('rts', False, attente)
+        b = self.regler_ligne('dtr', False, attente)
+        return a and b
+
+    def close(self):
+        self.baisser_lignes()
+        self.ferme = True
+        self.journal.append(('close',))
+
+    # Suffisant pour les chemins CAT touchés ici
+    def transceive(self, *a, **k):
+        return b''
+
+    def write(self, *a, **k):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _etat_neuf():
+    """Aucun test ne doit hériter d'une ligne levée par le précédent."""
+    o_open, o_sleep = cat._open_serial, cat._retry_sleep
+    cat._open_serial = FauxPort
+    cat._retry_sleep = lambda s: None
+    FauxPort.ouverts = []
+    cat.relacher_ptt_ligne()
+    with cat._ptt_ligne_lock:
+        cat._fermer_dedie_locked()
+    cat.disconnect_persistent()
+    yield
+    cat.relacher_ptt_ligne()
+    with cat._ptt_ligne_lock:
+        cat._fermer_dedie_locked()
+    cat.disconnect_persistent()
+    cat._open_serial, cat._retry_sleep = o_open, o_sleep
+
+
+class _SerBidon:
+    """L'objet pyserial, et LUI SEUL, remplacé — pas la couche testée.
+
+    Imite FIDÈLEMENT le comportement mesuré de pyserial 3.5 : le setter
+    `rts`/`dtr` mémorise la valeur et ne touche le pilote QUE si le port est
+    ouvert. Un double qui poserait la ligne même port fermé rendrait vert un
+    code qui ne coupe rien — c'est le mannequin qui mentirait."""
+
+    def __init__(self):
+        self._rts = True    # volontairement HAUTES au départ : un test qui
+        self._dtr = True    # part de False ne prouverait pas qu'on baisse
+        self.is_open = True
+        self.closed = False
+
+    @property
+    def rts(self):
+        return self._rts
+
+    @rts.setter
+    def rts(self, v):
+        if self.is_open:
+            self._rts = v
+
+    @property
+    def dtr(self):
+        return self._dtr
+
+    @dtr.setter
+    def dtr(self, v):
+        if self.is_open:
+            self._dtr = v
+
+    def close(self):
+        self.closed = True
+        self.is_open = False
+
+
+def _vrai_port():
+    """Un VRAI cat.SerialPort, sans ouvrir de port physique.
+
+    🚨 POURQUOI CE DÉTOUR PLUTÔT QUE FauxPort. Quatre tests de ce fichier
+    ont été trouvés VACANTS par contre-épreuve le 20/08/2026 : écrits contre
+    FauxPort, ils vérifiaient la réimplémentation du banc et pas le code de
+    production. On pouvait casser SerialPort.baisser_lignes(), SerialPort.
+    close() et l'aiguillage RTS/DTR de SerialPort.regler_ligne() sans qu'un
+    seul test ne bronche. « Un test de comportement écrit contre un
+    mannequin ne contraint que le mannequin » — c'est écrit dans le CLAUDE.md
+    de ce dépôt, et c'est arrivé encore une fois.
+
+    Ici on instancie la VRAIE classe (sans __init__, qui ouvrirait un port)
+    et on ne remplace que l'objet pyserial sous-jacent."""
+    p = cat.SerialPort.__new__(cat.SerialPort)
+    p._lock = threading.Lock()
+    p._ser = _SerBidon()
+    return p
+
+
+def _cfg(**extra):
+    base = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'yaesu',
+            'cat_model': 'FT-991A', 'cat_port': 'COM4', 'cat_baudrate': 38400}
+    base.update(extra)
+    return base
+
+
+# ─── LE DÉFAUT QUE CE LOT COMBLE ───────────────────────────────────────────
+
+def test_une_config_existante_ne_change_PAS_de_methode_d_emission():
+    """LA PROPRIÉTÉ LA PLUS IMPORTANTE DU LOT. /config/save REMPLACE toute la
+    config, jamais de patch partiel : si l'absence des nouveaux champs ne
+    valait pas « commande CAT », le premier enregistrement de n'importe quel
+    utilisateur basculerait sa station sur une méthode d'émission que
+    personne n'a demandée."""
+    s = cat.cat_settings({'cat_enabled': True, 'cat_port': 'COM4'})
+    assert s['ptt_method'] == 'cat'
+    assert s['ptt_port'] == ''
+
+
+def test_une_valeur_inconnue_retombe_sur_la_commande_CAT():
+    """Config corrompue, faute de frappe, champ d'une version future : le
+    repli doit être la méthode HISTORIQUE, jamais une ligne série."""
+    for valeur in ('vox', '', None, 'cts', 'ptt', 'serie'):
+        s = cat.cat_settings({'cat_ptt_method': valeur})
+        assert s['ptt_method'] == 'cat', valeur
+
+
+def test_rts_et_dtr_sont_acceptees_et_normalisees():
+    """Casse et espaces parasites viennent d'un fichier édité à la main ou
+    d'un profil importé — les refuser pour ça serait gratuit."""
+    assert cat.cat_settings({'cat_ptt_method': 'rts'})['ptt_method'] == 'rts'
+    assert cat.cat_settings({'cat_ptt_method': 'DTR'})['ptt_method'] == 'dtr'
+    assert cat.cat_settings({'cat_ptt_method': ' RTS '})['ptt_method'] == 'rts'
+
+
+def test_un_champ_mal_type_ne_fait_pas_PLANTER_la_lecture_de_config():
+    """DÉFAUT RÉEL TROUVÉ PAR CE TEST (20/08/2026). `(x or '').strip()`
+    levait une AttributeError sur un entier, une liste ou un booléen.
+
+    Anodin tant que le PTT passait par une commande. Plus du tout depuis :
+    cat_settings() est appelée par le dispatch AVANT de relâcher l'émission.
+    Une exception ici fait échouer /rig/ptt {on:false} par une erreur 500,
+    c'est-à-dire laisse le poste EN ÉMISSION à cause d'un champ mal typé."""
+    for valeur in (42, ['rts'], {'a': 1}, True, 3.5):
+        s = cat.cat_settings({'cat_ptt_method': valeur, 'cat_port': valeur,
+                              'cat_brand': valeur, 'cat_model': valeur})
+        assert s['ptt_method'] == 'cat', valeur
+        assert isinstance(s['port'], str)
+
+
+# ─── Lever et reposer la ligne ─────────────────────────────────────────────
+
+def test_le_ptt_rts_leve_reellement_la_ligne_RTS():
+    r = cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True)
+    assert r['ok'] and r['methode'] == 'rts'
+    port = FauxPort.ouverts[-1]
+    assert port.rts is True, 'RTS doit être haut pendant l\'émission'
+    assert port.dtr is False, 'DTR ne doit pas bouger quand RTS est la ligne choisie'
+
+
+def test_le_ptt_dtr_leve_DTR_et_pas_RTS():
+    cat.set_ptt_ligne(_cfg(cat_ptt_method='dtr'), True)
+    port = FauxPort.ouverts[-1]
+    assert port.dtr is True and port.rts is False
+
+
+def test_le_relachement_repose_la_ligne():
+    cfg = _cfg(cat_ptt_method='rts')
+    cat.set_ptt_ligne(cfg, True)
+    port = FauxPort.ouverts[-1]
+    assert port.rts is True
+    r = cat.set_ptt_ligne(cfg, False)
+    assert r['ok'] and r['ptt'] is False
+    assert port.rts is False
+
+
+def test_le_relachement_repose_les_DEUX_lignes():
+    """On ne relit pas la config au moment de couper : si l'état interne
+    s'est désynchronisé de la réalité, c'est précisément là qu'il ne faut pas
+    lui faire confiance."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat.set_ptt_ligne(cfg, True)
+    port = FauxPort.ouverts[-1]
+    port.dtr = True          # simule une ligne haute dont on ignore l'origine
+    cat.relacher_ptt_ligne()
+    assert port.rts is False and port.dtr is False
+
+
+def test_l_etat_est_lisible_pendant_l_emission():
+    cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True)
+    etat = cat.etat_ptt_ligne()
+    assert etat['actif'] is True and etat['ligne'] == 'rts' and etat['port'] == 'COM4'
+    cat.relacher_ptt_ligne()
+    assert cat.etat_ptt_ligne() == {'actif': False}
+
+
+# ─── Le cas qui justifie tout le lot ───────────────────────────────────────
+
+def test_on_peut_emettre_meme_si_le_CAT_est_DESACTIVE():
+    """LE CAS RÉEL DU 20/08/2026. Un boîtier d'interface porte trois choses
+    sur un seul câble USB : l'audio, le CAT et la ligne PTT. Quand le câble
+    CAT ne fonctionne pas, l'audio et la ligne PTT, eux, fonctionnent
+    toujours. Exiger un CAT valide pour lever une ligne série reviendrait à
+    refuser d'émettre pour une raison sans rapport avec l'émission — et
+    priverait de FT8 exactement les opérateurs que ce mode existe pour
+    dépanner."""
+    import logx_voicekeyer as vk
+    cfg = {'cat_enabled': False, 'cat_port': 'COM4', 'cat_ptt_method': 'rts'}
+    r = vk.set_ptt(cfg, True)
+    assert r['ok'] is True, (
+        "le PTT matériel ne doit pas dépendre d'un CAT actif : %r" % r)
+    assert FauxPort.ouverts[-1].rts is True
+    vk.set_ptt(cfg, False)
+
+
+def test_le_dispatch_du_keyer_vocal_passe_par_la_ligne_serie():
+    """Bout en bout par le VRAI cat_settings : une faute de frappe sur le nom
+    de la clé désactiverait la fonction en silence, et `.get()` dans le
+    dispatch (volontaire, pour ne jamais lever d'exception sur le chemin de
+    RELÂCHEMENT) empêcherait de le voir autrement."""
+    import logx_voicekeyer as vk
+    r = vk.set_ptt(_cfg(cat_ptt_method='rts'), True)
+    assert r.get('methode') == 'rts', (
+        'le dispatch doit atteindre set_ptt_ligne, pas la commande CAT : %r' % r)
+    vk.set_ptt(_cfg(cat_ptt_method='rts'), False)
+
+
+def test_sans_methode_serie_le_dispatch_ne_touche_AUCUNE_ligne():
+    """Non-régression : le chemin historique ne doit pas se mettre à piloter
+    des lignes de contrôle au passage."""
+    import logx_voicekeyer as vk
+    vk.set_ptt(_cfg(), True)
+    assert all(p.rts is False for p in FauxPort.ouverts), (
+        'aucune ligne ne doit être levée par la commande CAT'
+    )
+
+
+# ─── Partage du port : un port série ne s'ouvre pas deux fois ──────────────
+
+def test_meme_port_que_le_CAT_le_transport_est_REUTILISE():
+    """Sous Windows, ouvrir COM4 une seconde fois échoue. Le montage le plus
+    courant (un seul boîtier) fait justement passer CAT et PTT par le même
+    FTDI : ouvrir un second handle serait une panne garantie."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat._ensure_connected(cat.cat_settings(cfg))
+    avant = len(FauxPort.ouverts)
+    cat.set_ptt_ligne(cfg, True)
+    assert len(FauxPort.ouverts) == avant, (
+        'un second port a été ouvert sur le même device'
+    )
+    assert FauxPort.ouverts[-1].rts is True
+
+
+def test_port_PTT_distinct_un_transport_dedie_est_ouvert():
+    cfg = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    cat.set_ptt_ligne(cfg, True)
+    dedie = FauxPort.ouverts[-1]
+    assert dedie.device == 'COM9' and dedie.rts is True
+
+
+def test_le_port_PTT_vide_signifie_le_meme_que_le_CAT():
+    """Demander à l'opérateur de recopier le même numéro de port deux fois
+    serait un piège : il oublierait, et le PTT viserait le vide."""
+    s = cat.cat_settings(_cfg(cat_ptt_method='rts'))
+    assert cat.port_ptt_effectif(s) == 'COM4'
+
+
+def test_le_CAT_recupere_un_port_tenu_par_le_PTT():
+    """Sans ça, LogX AI se bloquerait LUI-MÊME : le PTT dédié tiendrait COM4,
+    l'ouverture CAT échouerait en « déjà utilisé », et le message accuserait
+    un autre logiciel."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat.set_ptt_ligne(cfg, True)
+    dedie = FauxPort.ouverts[-1]
+    assert dedie.ferme is False
+    driver, err = cat._ensure_connected(cat.cat_settings(cfg))
+    assert err is None, err
+    assert dedie.ferme is True, 'le port PTT dédié devait être rendu au CAT'
+    assert dedie.rts is False, 'et la ligne reposée en le rendant'
+
+
+# ─── Les garde-fous, un par un ─────────────────────────────────────────────
+
+def test_le_VRAI_SerialPort_aiguille_bien_RTS_et_DTR():
+    """Contre une inversion des deux lignes : lever DTR quand on demande RTS
+    ferait émettre un boîtier câblé sur DTR pendant qu'on croit piloter
+    l'autre — et surtout, la ligne qu'on croit reposer ne serait pas la
+    bonne. Testé sur la VRAIE classe (voir _vrai_port)."""
+    p = _vrai_port()
+    p._ser.rts = p._ser.dtr = False
+    assert p.regler_ligne('dtr', True) is True
+    assert p._ser.dtr is True and p._ser.rts is False
+    p._ser.dtr = False
+    assert p.regler_ligne('rts', True) is True
+    assert p._ser.rts is True and p._ser.dtr is False
+
+
+def test_le_VRAI_SerialPort_repose_les_DEUX_lignes():
+    """baisser_lignes() est le chemin des coupures d'urgence : il ne doit
+    dépendre d'aucune configuration lue au pire moment."""
+    p = _vrai_port()
+    assert p.baisser_lignes() is True
+    assert p._ser.rts is False and p._ser.dtr is False
+
+
+def test_fermer_un_VRAI_transport_repose_les_lignes_AVANT_de_fermer():
+    """En pratique le pilote relâche les lignes à la fermeture — mais « en
+    pratique » ne vaut pas pour un émetteur. Si le PTT matériel est câblé sur
+    RTS, une ligne restée haute est une porteuse sur l'air que plus personne
+    ne surveille."""
+    p = _vrai_port()
+    p.close()
+    assert p._ser.rts is False and p._ser.dtr is False, (
+        'les lignes doivent être reposées à la fermeture'
+    )
+    assert p._ser.closed is True
+
+
+def test_une_reconnexion_CAT_oublie_l_emission_en_cours():
+    """Le transport qui portait la ligne disparaît (sauvegarde CONFIG,
+    bascule de focus SO2R, port tombé) : l'état interne doit cesser de
+    désigner un objet mort, sinon un relâchement ultérieur viserait un
+    transport fermé et croirait avoir coupé."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat._ensure_connected(cat.cat_settings(cfg))
+    cat.set_ptt_ligne(cfg, True)
+    assert cat.etat_ptt_ligne()['actif'] is True
+    cat.disconnect_persistent()
+    assert cat.etat_ptt_ligne()['actif'] is False, (
+        "l'état doit refléter que plus rien ne peut émettre"
+    )
+
+
+def test_un_CHANGEMENT_DE_CONFIG_oublie_aussi_l_emission_en_cours():
+    """Deuxième chemin de destruction du transport, distinct du précédent et
+    NON couvert par lui : _ensure_connected() ferme et rouvre dès que la clé
+    (port, marque, modèle, vitesse, adresse CI-V) change.
+
+    Ce n'est pas un cas de laboratoire — la cartographie du 20/08/2026 l'a
+    établi : une sauvegarde CONFIG le déclenche, et une simple bascule de
+    focus SO2R aussi, puisque config_radio_active() remappe cat2_* en cat_*.
+    Donc en pleine exploitation.
+
+    ⚠️ Ce test a été ajouté APRÈS contre-épreuve : la mutation « ne pas
+    oublier l'émission dans _ensure_connected » restait VERTE, le seul test
+    existant passant par disconnect_persistent()."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat._ensure_connected(cat.cat_settings(cfg))
+    cat.set_ptt_ligne(cfg, True)
+    assert cat.etat_ptt_ligne()['actif'] is True
+    # Même port, vitesse différente : la clé change, le transport est recréé.
+    cat._ensure_connected(cat.cat_settings(_cfg(cat_ptt_method='rts',
+                                                cat_baudrate=9600)))
+    assert cat.etat_ptt_ligne()['actif'] is False, (
+        "l'état interne désigne un transport fermé : un relâchement viserait "
+        'un objet mort et croirait avoir coupé'
+    )
+
+
+def test_le_chien_de_garde_repose_la_ligne_que_personne_n_a_relachee(monkeypatch):
+    """Page fermée en pleine émission, navigateur tué, coupure réseau : plus
+    personne n'enverra le PTT OFF. C'est le seul garde-fou qui reste."""
+    monkeypatch.setattr(cat, 'PTT_LIGNE_DUREE_MIN_S', 0.05)
+    monkeypatch.setattr(cat, 'PTT_LIGNE_DUREE_MAX_S', 0.05)
+    cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True, duree_max_s=0.05)
+    port = FauxPort.ouverts[-1]
+    assert port.rts is True
+    deadline = time.monotonic() + 3.0
+    while port.rts and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert port.rts is False, "le chien de garde n'a pas reposé la ligne"
+    assert cat.etat_ptt_ligne()['actif'] is False
+
+
+def test_le_relachement_normal_desarme_le_chien_de_garde():
+    """Un minuteur laissé courir reposerait une ligne relevée entre-temps par
+    l'émission SUIVANTE — il couperait un opérateur en plein trafic."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat.set_ptt_ligne(cfg, True, duree_max_s=10)
+    cat.set_ptt_ligne(cfg, False)
+    with cat._ptt_ligne_lock:
+        assert cat._ptt_chien is None
+
+
+def test_la_duree_annoncee_est_bornee():
+    """Une valeur absurde ne doit pas pouvoir désarmer le chien de garde."""
+    assert cat._duree_chien(None) == cat.PTT_LIGNE_DUREE_MAX_S
+    assert cat._duree_chien('bavardage') == cat.PTT_LIGNE_DUREE_MAX_S
+    assert cat._duree_chien(-5) == cat.PTT_LIGNE_DUREE_MAX_S
+    assert cat._duree_chien(0) == cat.PTT_LIGNE_DUREE_MAX_S
+    assert cat._duree_chien(10_000) == cat.PTT_LIGNE_DUREE_MAX_S
+    assert cat._duree_chien(0.1) == cat.PTT_LIGNE_DUREE_MIN_S
+    assert cat._duree_chien(18) == 18
+
+
+def test_le_plafond_couvre_la_plus_longue_image_SSTV():
+    """CALIBRAGE MESURÉ, pas estimé. Les durées d'émission réelles des modes
+    SSTV proposés par LogX AI ont été obtenues en faisant tourner l'encodeur
+    du dépôt (sstvEncodeSamples) : PD290 = 289,7 s, Scottie DX = 269,9 s. Un
+    plafond en dessous ferait du chien de garde LA panne — il trancherait une
+    image en cours, en plein trafic, sans que personne comprenne pourquoi."""
+    assert cat.PTT_LIGNE_DUREE_MAX_S >= 290, (
+        'le plafond doit couvrir la PD290 (289,7 s mesurées)'
+    )
+
+
+def test_le_relachement_sans_rien_d_ouvert_ne_ment_pas():
+    """Répondre « je n'ai pas pu couper » quand il n'y avait rien à couper
+    déclencherait une alarme rouge pour rien — et une alarme qui crie pour
+    rien finit par ne plus être lue."""
+    r = cat.relacher_ptt_ligne()
+    assert r['ok'] is True and r.get('rien_a_relacher') is True
+
+
+def test_l_arret_du_serveur_repose_la_ligne_du_transport_CAT():
+    """Dernier filet : un serveur qu'on ferme pendant une émission ne doit
+    pas laisser la porteuse derrière lui.
+
+    ⚠️ PREMIÈRE VERSION DE CE TEST : VACANTE, trouvée par contre-épreuve.
+    Elle utilisait un port PTT DÉDIÉ : supprimer l'appel à
+    relacher_ptt_ligne() dans _relacher_a_l_arret() ne changeait alors rien,
+    parce que la fermeture du port dédié (juste après) reposait les lignes de
+    toute façon. Le test réussissait sur le défaut qu'il visait.
+
+    On place donc la ligne sur le transport CAT PARTAGÉ, que _relacher_a_l_
+    arret() ne ferme pas : seul le relâchement explicite peut alors la
+    reposer."""
+    cfg = _cfg(cat_ptt_method='rts')
+    driver, err = cat._ensure_connected(cat.cat_settings(cfg))
+    assert err is None, err
+    partage = FauxPort.ouverts[-1]
+    cat.set_ptt_ligne(cfg, True)
+    assert partage.rts is True, 'le transport CAT devait porter la ligne'
+    cat._relacher_a_l_arret()
+    assert partage.rts is False, (
+        "l'arrêt du serveur doit reposer la ligne, pas compter sur une "
+        'fermeture qui ne viendra pas'
+    )
+
+
+# ─── Ordre des verrous : l'interblocage serait total ───────────────────────
+
+def test_relachement_et_connexion_concurrents_ne_s_interbloquent_pas():
+    """_ensure_connected tient _persistent_lock et prend _ptt_ligne_lock.
+    Si relacher_ptt_ligne prenait les deux dans l'autre sens, deux threads
+    HTTP suffiraient à figer le serveur — PTT compris, donc émetteur en
+    l'air. Ce test échouerait par TIMEOUT, pas par assertion."""
+    cfg = _cfg(cat_ptt_method='rts')
+    cat.set_ptt_ligne(cfg, True)
+    fini = threading.Event()
+
+    def _tourne():
+        for _ in range(60):
+            cat._ensure_connected(cat.cat_settings(cfg))
+            cat.relacher_ptt_ligne()
+            cat.set_ptt_ligne(cfg, True)
+        fini.set()
+
+    t = threading.Thread(target=_tourne, daemon=True)
+    t.start()
+    for _ in range(60):
+        cat.relacher_ptt_ligne()
+        cat.etat_ptt_ligne()
+    assert fini.wait(20), 'interblocage : ordre des verrous inversé'
+
+
+def test_couper_n_attend_pas_indefiniment_un_verrou_de_port_occupe():
+    """transceive_listen() garde le verrou d'instance pendant TOUTE une
+    fenêtre d'écoute (plusieurs secondes pour une ligne de spectre CI-V).
+    Attendre ce verrou pour reposer RTS, c'est accepter que l'ordre de
+    couper patiente pendant que l'émetteur reste sur l'air."""
+    if not cat.HAS_PYSERIAL:
+        pytest.skip('pyserial absent')
+    port = cat.SerialPort.__new__(cat.SerialPort)
+    port._lock = threading.Lock()
+
+    class _Ser:
+        rts = True
+        dtr = True
+    port._ser = _Ser()
+    port._lock.acquire()          # simule une écoute longue en cours
+
+    # ⚠️ POURQUOI UN THREAD ET PAS UN APPEL DIRECT. Écrit en appel direct, ce
+    # test ne FAILLIT pas quand la propriété est violée : il PEND, pour
+    # toujours, verrou tenu. Mesuré le 20/08/2026 en contre-épreuve — la
+    # mutation « attendre le verrou indéfiniment » a figé la suite au lieu de
+    # la faire rougir, et le harnais a été tué au bout de 10 minutes en
+    # laissant la mutation dans le fichier. Un test de non-blocage doit
+    # lui-même être incapable de bloquer.
+    resultat = {}
+
+    def _essaie():
+        resultat['debut'] = time.monotonic()
+        resultat['ok'] = port.regler_ligne('rts', False, attente=0.05)
+        resultat['fin'] = time.monotonic()
+
+    t = threading.Thread(target=_essaie, daemon=True)
+    t.start()
+    t.join(timeout=5.0)
+    try:
+        assert not t.is_alive(), (
+            'la coupure attend le verrou indéfiniment : sur un port occupé par '
+            "une écoute longue (scope CI-V), l'ordre de reposer RTS ne "
+            "partirait jamais et l'émetteur resterait sur l'air"
+        )
+        assert resultat.get('ok') is True
+        assert resultat['fin'] - resultat['debut'] < 2.0
+        assert port._ser.rts is False
+    finally:
+        port._lock.release()
+
+
+# ─── CONFIG : un profil ne doit pas heriter de la methode d'un autre ────────
+
+def _sans_commentaires_js(src):
+    """Dépouilleur JS. Sans lui, un test qui cherche un identifiant est
+    satisfait par le pavé de commentaire qui l'EXPLIQUE — piège documenté
+    dans le CLAUDE.md de ce dépôt, et payé plusieurs fois.
+
+    🚨 PAS DE `re.sub(r'/\\*.*?\\*/', '', src, flags=re.S)` ICI. Mesuré le
+    20/08/2026 sur logx_configuration.js : un chemin cité dans un
+    commentaire (« GET/POST /shifts/* dans logx_http.py ») joue le rôle de
+    faux ouvrant de bloc, et avec re.S il avale **23 671 caractères** —
+    dont `function applyFullConfigToForm` elle-même. Le même piège avait
+    déjà coûté 19 927 caractères sur logx_http.py avec « /debug/* ».
+
+    Le danger n'est pas l'échec, il est l'inverse : une assertion
+    d'ABSENCE appliquée à un fichier ainsi charcuté réussirait toujours.
+
+    On ne retire donc que les lignes ENTIÈREMENT commentées — suffisant
+    pour empêcher un commentaire d'imiter du code, sans risque de couper
+    à l'intérieur d'une chaîne."""
+    return '\n'.join(li for li in src.splitlines()
+                     if not li.lstrip().startswith('//'))
+
+
+def test_la_methode_de_PTT_est_REMISE_A_ZERO_a_chaque_profil_charge():
+    """DÉFAUT RÉEL TROUVÉ EN NAVIGATEUR (20/08/2026), pas déduit.
+
+    applyFullConfigToForm() restaure ~90 champs par une boucle
+    `if(c[k]!==undefined) ...` : une config qui ne PORTE PAS la clé laisse
+    donc en place la valeur du profil précédemment chargé. Inerte pour un
+    mot de passe. Pas pour ce champ-ci : charger un profil réglé sur la
+    ligne DTR puis un profil plus ancien qui ignore le champ laissait le
+    second en DTR, et le logiciel aurait levé une ligne série que personne
+    n'avait demandée pour CE profil-là.
+
+    Mesuré en navigateur avant correctif : {methode:'dtr'} au lieu de 'cat'.
+
+    Ce test est STRUCTUREL et exige un ORDRE : la remise à zéro doit venir
+    APRÈS la boucle, sinon la boucle la réécrase — ce qui a été observé, là
+    aussi en navigateur, avant de trouver le bon emplacement."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.js')
+    with open(chemin, encoding='utf-8') as f:
+        src = _sans_commentaires_js(f.read())
+    i_apply = src.index('function applyFullConfigToForm')
+    corps = src[i_apply:i_apply + 12000]
+    i_boucle = corps.index("'cat_ptt_method','cat_ptt_port'")
+    m = re.search(r"cat_ptt_method['\"]\)\s*;?[\s\S]{0,400}?===\s*'rts'[\s\S]{0,120}?'cat'", corps)
+    assert m, ('aucune remise à zéro explicite de cat_ptt_method : un profil '
+               "hériterait de la méthode d'émission du précédent")
+    assert m.start() > i_boucle, (
+        'la remise à zéro doit venir APRÈS la boucle de restauration, sinon '
+        'la boucle la réécrase')
+
+
+def test_la_valeur_par_defaut_du_select_est_la_commande_CAT():
+    """Le premier <option> fait foi tant que rien n'est charge : il ne doit
+    jamais s'agir d'une ligne serie."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.html')
+    with open(chemin, encoding='utf-8') as f:
+        html = f.read()
+    i = html.index("id=\"cat_ptt_method\"")
+    zone = html[i:i + 900]
+    premiere = re.search(r'<option value="([a-z]+)"', zone)
+    assert premiere and premiere.group(1) == 'cat', (
+        'la première option doit être la commande CAT : %r' % zone[:200])
+
+
+def test_le_choix_de_methode_PTT_n_est_PAS_reserve_au_mode_expert():
+    """Decision assumee : c'est le reglage qui separe « FT8 marche » de « le
+    poste emet sans sortir un watt » pour quiconque passe par un boitier
+    d'interface. Le masquer le reserverait a ceux qui savent deja qu'il
+    existe -- c'est-a-dire a personne parmi ceux qui en ont besoin."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.html')
+    with open(chemin, encoding='utf-8') as f:
+        html = f.read()
+    i = html.index('id="cat_ptt_method"')
+    debut = html.rfind('<div class="form-group', 0, i)
+    ouverture = html[debut:html.index('>', debut) + 1]
+    assert 'expert-only' not in ouverture, (
+        'le choix de méthode PTT ne doit pas être expert-only : %r' % ouverture)
+
+
+def test_toutes_les_chaines_visibles_du_champ_PTT_sont_traduites():
+    """i18n : 7 langues, sans en oublier une seule.
+
+    Le moteur (logx_i18n.js) traduit par correspondance EXACTE du texte
+    français. Une chaîne absente d'UN dictionnaire ne provoque aucune
+    erreur : elle reste simplement affichée en français au milieu d'une
+    page traduite. C'est invisible pour qui ne parle pas la langue — d'où
+    ce test, et d'où le test de parité déjà présent dans le dépôt.
+
+    ⚠️ LES CHAÎNES SONT EXTRAITES DU HTML, jamais retapées ici. Les
+    retaper ferait porter le test sur ma transcription (accents, tirets
+    cadratins, guillemets français) et non sur ce que la page affiche
+    vraiment — et c'est précisément la clé que le moteur compare."""
+    html = open(os.path.join(CONCOURS, 'logx_configuration.html'),
+                encoding='utf-8').read()
+    i18n = open(os.path.join(CONCOURS, 'logx_i18n.js'), encoding='utf-8').read()
+
+    i = html.index('id="cat_ptt_method"')
+    debut = html.rfind('<div class="form-group', 0, i)
+    fin = html.index('</div>', html.index('input-note',
+                                          html.index('catPttPortField')))
+    zone = html[debut:fin]
+
+    textes = (re.findall(r'<label>([^<]+)</label>', zone)
+              + re.findall(r'<option value="[a-z]*">([^<]+)</option>', zone)
+              + re.findall(r'<div class="input-note">([^<]+)</div>', zone))
+    textes = [t.strip() for t in textes if t.strip()]
+    assert len(textes) >= 6, (
+        'extraction du HTML cassée : %d chaînes seulement' % len(textes))
+
+    import json as _json
+    manquantes = [t for t in textes
+                  if i18n.count(_json.dumps(t, ensure_ascii=False) + ':') != 7]
+    assert not manquantes, (
+        'chaînes absentes d\'au moins une des 7 langues : %r' % manquantes)
+
+
+# ─── Les deux CRITIQUES trouvés par revue adversariale (20/08/2026) ─────────
+
+class _PortQuiRefuseDeCouper(FauxPort):
+    """Un port qui lève la ligne mais REFUSE de la reposer.
+
+    C'est le sinistre : la porteuse reste sur l'air et l'ordre de couper
+    n'aboutit pas. Le logiciel n'a pas le droit d'annoncer que c'est réglé."""
+
+    def baisser_lignes(self, attente=0.3):
+        return False
+
+
+def test_un_echec_de_coupure_sur_le_PORTEUR_n_est_PAS_rattrape_par_un_autre_port():
+    """CRITIQUE 1a. La version d'origine faisait
+    `for t in cibles: if t.baisser_lignes(): ok = True` — le succès était
+    déclaré dès qu'UN transport quelconque répondait. Si le port qui PORTE
+    la ligne échouait et qu'un autre, sans aucun rapport, réussissait, la
+    fonction annonçait « PTT relâché » pendant que la porteuse continuait.
+
+    Ici : la ligne est sur un port dédié qui refuse de couper, tandis qu'un
+    transport CAT parfaitement sain existe à côté. Le verdict doit suivre le
+    PORTEUR."""
+    cfg = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    # Un transport CAT sain sur COM4, qui répondra « oui » à la coupure.
+    cat._ensure_connected(cat.cat_settings(cfg))
+    o_open = cat._open_serial
+    cat._open_serial = _PortQuiRefuseDeCouper
+    try:
+        cat.set_ptt_ligne(cfg, True)          # ligne sur COM9, port récalcitrant
+        r = cat.relacher_ptt_ligne()
+    finally:
+        cat._open_serial = o_open
+    assert r['ok'] is False, (
+        "le succès d'un port SANS RAPPORT ne doit pas valoir coupure : %r" % r)
+    assert 'ENCORE EN ÉMISSION' in (r.get('error') or '')
+
+
+def test_un_echec_de_coupure_GARDE_l_etat_et_REARME_un_essai():
+    """CRITIQUE 1b. La version d'origine annulait le chien de garde et
+    effaçait l'état AVANT de tenter la coupure. Si la coupure échouait, plus
+    rien ne réessayait jamais, et `etat_ptt_ligne()` affirmait « on n'émet
+    plus » pendant que la ligne restait haute.
+
+    Abandonner après un seul essai, sur un émetteur, n'est pas une option."""
+    cfg = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    o_open = cat._open_serial
+    cat._open_serial = _PortQuiRefuseDeCouper
+    try:
+        cat.set_ptt_ligne(cfg, True)
+        r = cat.relacher_ptt_ligne()
+        assert r['ok'] is False
+        assert cat.etat_ptt_ligne()['actif'] is True, (
+            "l'état doit continuer de dire qu'une ligne est peut-être haute")
+        with cat._ptt_ligne_lock:
+            assert cat._ptt_chien is not None, (
+                'un nouvel essai de coupure doit être réarmé')
+            cat._annuler_chien_locked()      # on ne laisse pas courir en test
+    finally:
+        cat._open_serial = o_open
+        with cat._ptt_ligne_lock:
+            cat._ptt_ligne_active = None
+            cat._fermer_dedie_locked()
+
+
+def test_la_relance_de_coupure_est_bornee():
+    """Un port physiquement disparu ne doit pas engendrer un minuteur
+    éternel — et dans ce cas la ligne est de toute façon retombée avec
+    l'alimentation de l'opto-coupleur."""
+    assert 0 < cat.PTT_COUPURE_RETENTE_S <= 30
+    assert 1 < cat.PTT_COUPURE_ESSAIS_MAX <= 60
+
+
+def test_poser_une_ligne_sur_un_port_FERME_est_un_ECHEC():
+    """MESURÉ sur pyserial 3.5 le 20/08/2026 : le setter `rts` est
+
+        self._rts_state = value
+        if self.is_open: self._update_rts_state()
+
+    Sur un port FERMÉ il mémorise la valeur, ne touche PAS le pilote et ne
+    lève rien. regler_ligne renvoyait donc True sans avoir rien posé — et
+    tout le verdict de relacher_ptt_ligne, qui repose sur ce retour, était
+    désarmé précisément dans le cas qui compte : le transport fermé sous nos
+    pieds pendant qu'une ligne est peut-être encore haute."""
+    p = _vrai_port()
+    p._ser.is_open = False
+    assert p.regler_ligne('rts', False) is False, (
+        "un port fermé ne peut pas avoir reposé la ligne")
+    assert p.baisser_lignes() is False
+    assert p._ser.rts is True, 'la ligne n\'a effectivement pas bougé'
+
+
+# ─── SO2R : le PTT matériel ne s'hérite pas d'une radio à l'autre ──────────
+
+def test_SO2R_le_PTT_serie_de_la_radio_1_ne_suit_PAS_le_focus_vers_la_radio_2():
+    """CRITIQUE trouvé en revue adversariale (20/08/2026), vérifié sur le code.
+
+    config_radio_active() ne recopie une clé que si sa jumelle cat2_* EXISTE ;
+    sinon la valeur de la radio 1 RESTE en place. Pour un débit ou une adresse
+    CI-V, hériter est au pire inutile. Pour le PTT, c'est un sinistre : avec
+    le focus sur la radio 2 et un cat_ptt_port réglé pour la radio 1,
+    port_ptt_effectif() rendait le port de la RADIO 1 — LogX AI levait donc la
+    ligne d'émission sur un poste pendant que l'écran en montrait un autre.
+
+    C'est précisément la double porteuse que le verrou TX de logx_so2r existe
+    pour empêcher, contournée par en dessous."""
+    import logx_so2r as so2r
+    brut = {'cat_enabled': True, 'cat_mode': 'native',
+            'cat_port': 'COM4', 'cat_ptt_method': 'rts', 'cat_ptt_port': 'COM9',
+            'cat2_enabled': True, 'cat2_mode': 'native', 'cat2_port': 'COM5'}
+
+    vue1 = so2r.config_radio_active(brut, radio=1)
+    assert cat.cat_settings(vue1)['ptt_method'] == 'rts'
+    assert cat.port_ptt_effectif(cat.cat_settings(vue1)) == 'COM9'
+
+    vue2 = so2r.config_radio_active(brut, radio=2)
+    s2 = cat.cat_settings(vue2)
+    assert s2['ptt_method'] == 'cat', (
+        'la radio 2 ne doit PAS hériter du PTT série de la radio 1 : %r' % s2)
+    assert s2['ptt_port'] == '', (
+        'le port PTT de la radio 1 ne doit pas suivre le focus : %r' % s2)
+
+
+def test_SO2R_la_radio_2_garde_SON_PROPRE_PTT_serie_quand_il_est_configure():
+    """Le garde-fou ci-dessus ne doit pas devenir une interdiction : une
+    station qui câble un boîtier d'interface sur CHAQUE poste doit pouvoir
+    s'en servir sur les deux."""
+    import logx_so2r as so2r
+    brut = {'cat_port': 'COM4', 'cat_ptt_method': 'rts', 'cat_ptt_port': 'COM9',
+            'cat2_port': 'COM5', 'cat2_ptt_method': 'dtr', 'cat2_ptt_port': 'COM6'}
+    s2 = cat.cat_settings(so2r.config_radio_active(brut, radio=2))
+    assert s2['ptt_method'] == 'dtr'
+    assert cat.port_ptt_effectif(s2) == 'COM6'
+
+
+# ─── set_ptt_ligne : l'ordre des étapes EST le garde-fou ───────────────────
+
+def test_une_ligne_deja_haute_sur_un_AUTRE_port_est_reposee_avant_la_reprise():
+    """Deux porteuses, dont une ORPHELINE. Si la config change entre deux
+    PTT ON sans relâchement intermédiaire, `_ptt_ligne_active` était écrasé
+    sans que la ligne précédente soit reposée : elle restait haute ET
+    devenait inatteignable — plus aucun code ne savait la couper, chien de
+    garde compris, puisqu'il ne vise que le transport courant.
+
+    ⚠️ PREMIÈRE VERSION VACANTE, trouvée par contre-épreuve. Elle enchaînait
+    deux ports DÉDIÉS (COM9 puis COM8) : la première ligne retombait alors
+    par la FERMETURE du transport dédié remplacé (_fermer_dedie_locked ->
+    close -> baisser_lignes), pas par le correctif visé. L'assertion était
+    satisfaite par un autre mécanisme — exactement le motif qui a déjà rendu
+    quatre tests vacants dans ce fichier.
+
+    Le scénario qui DISCRIMINE fait porter la première ligne par le transport
+    CAT PARTAGÉ, que rien ne ferme quand on ouvre ensuite un port dédié."""
+    # 1. Ligne sur le transport CAT partagé (port PTT vide = port du CAT).
+    cfg1 = _cfg(cat_ptt_method='rts')
+    cat._ensure_connected(cat.cat_settings(cfg1))
+    partage = FauxPort.ouverts[-1]
+    cat.set_ptt_ligne(cfg1, True)
+    assert partage.rts is True and partage.device == 'COM4'
+
+    # 2. Le port PTT change : un transport DÉDIÉ est ouvert sur COM9. Rien ne
+    #    ferme le transport CAT — seul le correctif peut reposer sa ligne.
+    cfg2 = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    cat.set_ptt_ligne(cfg2, True)
+    dedie = FauxPort.ouverts[-1]
+    assert dedie.device == 'COM9' and dedie.rts is True
+    assert partage.ferme is False, (
+        'le banc ne discrimine plus : le transport CAT a été fermé, sa ligne '
+        'retomberait toute seule')
+    assert partage.rts is False, (
+        'la première ligne est restée haute et personne ne peut plus la '
+        'couper : deux porteuses simultanées, dont une orpheline'
+    )
+    cat.relacher_ptt_ligne()
+
+
+def test_une_duree_annoncee_aberrante_ne_laisse_PAS_une_porteuse_sans_chien():
+    """/rig/ptt accepte `duree_max` tel qu'il vient du JSON. Un entier trop
+    grand pour un float faisait lever _duree_chien APRÈS que la ligne ait été
+    levée : porteuse haute, aucun minuteur armé, et l'exception remontait en
+    500 — donc pas de PTT OFF non plus.
+
+    La durée est maintenant calculée AVANT de lever, et bornée."""
+    enorme = 10 ** 400          # int too large to convert to float
+    r = cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True, duree_max_s=enorme)
+    assert r['ok'] is True, r
+    assert r['chien_de_garde_s'] == cat.PTT_LIGNE_DUREE_MAX_S
+    with cat._ptt_ligne_lock:
+        assert cat._ptt_chien is not None, 'aucun chien de garde armé'
+    cat.relacher_ptt_ligne()
+
+
+def test_un_chien_de_garde_impossible_a_armer_REFUSE_l_emission():
+    """Émettre sans surveillance est pire que ne pas émettre. Si le minuteur
+    ne démarre pas (plus de thread disponible), on repose la ligne au lieu de
+    publier un état qui laisserait croire à une protection inexistante."""
+    o_timer = cat.threading.Timer
+
+    class _TimerMort(o_timer):
+        def start(self):
+            raise RuntimeError("can't start new thread")
+
+    cat.threading.Timer = _TimerMort
+    try:
+        r = cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True)
+    finally:
+        cat.threading.Timer = o_timer
+    assert r['ok'] is False, r
+    assert FauxPort.ouverts[-1].rts is False, (
+        'la ligne devait être reposée puisque rien ne la surveille')
+    assert cat.etat_ptt_ligne()['actif'] is False
+    # ⚠️ CETTE ASSERTION EST CELLE QUI DISCRIMINE, et elle manquait à la
+    # première version du test (trouvée vacante par contre-épreuve). Publier
+    # `_ptt_chien` AVANT `.start()` laisse un minuteur FANTÔME : le global est
+    # non-None alors que rien ne tourne, et tout code qui testerait « chien
+    # armé ? » conclurait que oui. Le reste du test passait malgré la
+    # mutation, puisque la branche d'échec reposait la ligne de toute façon.
+    with cat._ptt_ligne_lock:
+        assert cat._ptt_chien is None, (
+            'minuteur fantôme : non-None alors qu\'il n\'a jamais démarré')

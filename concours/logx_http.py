@@ -6183,7 +6183,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not verrou['ok']:
                     self._json(verrou, 409)
                     return
-            res = vk.set_ptt(cfg_snap, on)
+            # duree_max : durée d'émission ANNONCÉE par l'appelant quand il
+            # la connaît (créneau FT8, image SSTV dont la durée est calculée
+            # avant l'envoi). Ne limite pas l'émission — resserre le chien de
+            # garde du PTT par ligne série, donc la fenêtre pendant laquelle
+            # une porteuse resterait en l'air si la page disparaissait en
+            # cours d'émission. Ignorée par les autres backends PTT.
+            res = vk.set_ptt(cfg_snap, on, duree_max_s=payload.get('duree_max'))
             if not on or not res.get('ok'):
                 # PTT relâché (demande normale), ou PTT ON refusé par la radio :
                 # dans les deux cas, le verrou pris pour CETTE radio doit retomber.
