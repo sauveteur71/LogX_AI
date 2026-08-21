@@ -17,6 +17,12 @@ import os
 import json
 import re
 from logx_utils import utcnow, safe_filename
+# A10 (docs/FEUILLE_DE_ROUTE.md) : calc_total_score() applique le compte de
+# multiplicateurs au "score à battre" — sans quoi une édition archivée d'un
+# concours à multiplicateur (CQ WW, WPX, ARRL DX...) affichait juste la
+# somme des points par QSO, jamais multipliée.
+from logx_definitions import CONTEST_DEFINITIONS
+from logx_scoring import calc_total_score
 
 ARCHIVE_DIR = 'archives'
 
@@ -25,7 +31,7 @@ def _safe(s):
     return safe_filename(s, 40)
 
 
-def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
+def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared_score=None):
     """Écrit une archive permanente du log d'un concours. Retourne un dict
     {ok, folder, qso_count, files} ou {ok: False, error}.
     qtc_series : séries QTC (WAE, voir logx_storage.qtc_log) déjà filtrées par
@@ -35,7 +41,15 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
     retournés par list_archives()) — par défaut l'instant présent (archivage
     normal, juste après un concours tenu en direct). import_external_log()
     passe ici la VRAIE date du log importé, sans quoi une édition de 2019
-    importée aujourd'hui se ferait passer pour un record de cette année."""
+    importée aujourd'hui se ferait passer pour un record de cette année.
+    declared_score : score total DÉCLARÉ de cette édition (import_external_log
+    : CLAIMED-SCORE du fichier importé, ou score saisi à la main) — écrit
+    dans meta.json et utilisé tel quel (Cabrillo archivé, resume.txt,
+    best_for_contest()) plutôt que recalculé depuis des QSO reconstruits sans
+    toutes leurs données d'origine (pas de locator, échange minimal — voir
+    logx_scoring.calc_total_score, qui suppose un log natif complet). None
+    pour un archivage natif (juste après un concours tenu en direct dans
+    LogX AI) : le score est alors calculé normalement depuis les QSO."""
     qsos = list(qsos or [])
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à archiver pour ce concours'}
@@ -60,6 +74,13 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
            json.dumps(qsos, ensure_ascii=False, indent=1))
     files.append('log.json')
 
+    # 1b. Score déclaré (import d'un log externe) : préservé tel quel plutôt
+    # que recalculé — voir docstring declared_score ci-dessus.
+    if declared_score is not None:
+        _write(os.path.join(folder, 'meta.json'),
+               json.dumps({'declared_score': declared_score}, ensure_ascii=False))
+        files.append('meta.json')
+
     # 2. Cabrillo + ADIF (réutilise le moteur d'export)
     try:
         import logx_export as export
@@ -67,7 +88,7 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
         cdef = CONTEST_DEFINITIONS.get(contest_id, {})
         base = f"{_safe(call)}_{_safe(contest_id or 'ALL')}"
         _write(os.path.join(folder, base + '.cbr'),
-               export.build_cabrillo(qsos, cdef, cfg, qtc_series))
+               export.build_cabrillo(qsos, cdef, cfg, qtc_series, claimed_override=declared_score))
         _write(os.path.join(folder, base + '.adi'),
                export.build_adif(qsos, cfg))
         files += [base + '.cbr', base + '.adi']
@@ -75,7 +96,8 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
         print(f"[ARCHIVE] Exports non générés : {e}")
 
     # 3. Résumé lisible
-    _write(os.path.join(folder, 'resume.txt'), _summary(qsos, contest_id, call, now))
+    _write(os.path.join(folder, 'resume.txt'),
+           _summary(qsos, contest_id, call, now, declared_score=declared_score))
     files.append('resume.txt')
 
     print(f"[ARCHIVE] {len(qsos)} QSO archives dans {folder}")
@@ -88,13 +110,16 @@ def _write(path, text):
         f.write(text)
 
 
-def _summary(qsos, contest_id, call, now):
+def _summary(qsos, contest_id, call, now, declared_score=None):
     by_band = {}
-    score = 0
     for q in qsos:
         b = str(q.get('band', '?'))
         by_band[b] = by_band.get(b, 0) + 1
-        score += q.get('points', 0) or 0
+    if declared_score is not None:
+        score = declared_score
+    else:
+        cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+        score = calc_total_score(qsos, cdef)
     dates = sorted({str(q.get('date', '')) for q in qsos if q.get('date')})
     lines = [
         "LogX AI — archive de concours",
@@ -129,6 +154,21 @@ def load_archive_qsos(folder):
         return None
 
 
+def _load_meta(folder):
+    """meta.json d'une archive (voir archive_log:declared_score), ou None si
+    absent/illisible — absent pour toute archive NATIVE (juste après un
+    concours tenu en direct dans LogX AI), présent seulement pour un log
+    externe importé avec un score déclaré."""
+    metap = os.path.join(folder, 'meta.json')
+    if not os.path.exists(metap):
+        return None
+    try:
+        with open(metap, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def best_for_contest(contest_id):
     """Meilleur nombre de QSO et meilleur score déjà réalisés pour CE concours,
     toutes éditions archivées confondues (pas forcément la même année pour les
@@ -139,6 +179,7 @@ def best_for_contest(contest_id):
     best_qso, best_qso_year = 0, None
     best_points, best_points_year = 0, None
     editions = 0
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
     for info in list_archives():
         if info.get('contest') != contest_id:
             continue
@@ -146,7 +187,14 @@ def best_for_contest(contest_id):
         if qsos is None:
             continue
         editions += 1
-        points = sum(q.get('points', 0) or 0 for q in qsos)
+        # Score déclaré (import d'un log externe) préservé tel quel, jamais
+        # recalculé depuis des QSO reconstruits sans toutes leurs données
+        # d'origine — voir docstring declared_score de archive_log().
+        meta = _load_meta(info['folder'])
+        if meta and meta.get('declared_score') is not None:
+            points = meta['declared_score']
+        else:
+            points = calc_total_score(qsos, cdef)
         year = (info.get('date') or '')[:4] or None
         if len(qsos) > best_qso:
             best_qso, best_qso_year = len(qsos), year
@@ -294,12 +342,14 @@ def import_external_log(text, fmt, contest_id=None, cfg=None, manual_score=None)
         contest_id, detected = guessed, True
 
     score = manual_score if manual_score is not None else (claimed or 0)
-    # best_for_contest() ne fait que SOMMER q['points'] par archive : le
-    # détail par-QSO du score réel de l'époque est perdu (ADIF n'en a jamais
-    # eu, Cabrillo ne donne qu'un total) -- tout le score connu est posé sur
-    # le premier QSO, les autres à 0, pour que la somme retombe juste.
-    qsos[0]['points'] = score
-    for q in qsos[1:]:
+    # Le détail par-QSO du score réel de l'époque est perdu (ADIF n'en a
+    # jamais eu, Cabrillo ne donne qu'un total) : `score` est le seul total
+    # connu et fiable pour cette édition -- transmis tel quel à archive_log()
+    # (declared_score), jamais reconstitué en points par QSO puis re-multiplié
+    # par calc_total_score() (qui suppose un log natif complet, avec locator
+    # et échange réels -- absents ici). q['points'] reste à 0 partout : ces
+    # QSO n'ont individuellement aucun score connu, seul le TOTAL l'est.
+    for q in qsos:
         q.setdefault('points', 0)
 
     dates = sorted({str(q.get('date', '')) for q in qsos if q.get('date')})
@@ -309,7 +359,7 @@ def import_external_log(text, fmt, contest_id=None, cfg=None, manual_score=None)
             when = datetime.datetime.strptime(dates[0][:8], '%Y%m%d')
         except ValueError:
             when = None
-    res = archive_log(qsos, contest_id, cfg or {}, when=when)
+    res = archive_log(qsos, contest_id, cfg or {}, when=when, declared_score=score)
     if res.get('ok'):
         res['contest'] = contest_id
         res['detected'] = detected

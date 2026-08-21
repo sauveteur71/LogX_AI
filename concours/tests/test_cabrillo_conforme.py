@@ -216,8 +216,22 @@ def test_debut_et_fin_de_log():
     assert txt.rstrip().endswith('END-OF-LOG:')
 
 
-def test_le_score_declare_est_la_somme_des_points():
-    txt = _construire('CQ_WW_SSB', [_qso(points=3), _qso(points=2)])
+def test_le_score_declare_applique_le_multiplicateur():
+    """A10 (docs/FEUILLE_DE_ROUTE.md) : CLAIMED-SCORE n'était QUE la somme des
+    points par QSO, jamais multipliée par le compte de multiplicateurs —
+    alors que le barème le documente lui-même ('QSO_pts × (zones_CQ + DXCC)',
+    logx_definitions.CQ_WW_SSB). K1ABC (USA, zone 5) et DL1ABC (Allemagne,
+    zone 14) : 2 zones CQ distinctes + 2 pays DXCC distincts = 4
+    multiplicateurs ; (3+2) pts × 4 = 20 (valeur vérifiée indépendamment via
+    logx_scoring.calc_total_score)."""
+    txt = _construire('CQ_WW_SSB', [_qso(call='K1ABC', points=3), _qso(call='DL1ABC', points=2)])
+    assert _entete(txt, 'CLAIMED-SCORE') == '20'
+
+
+def test_le_score_declare_reste_la_somme_sans_multiplicateur():
+    """Non-régression : un concours SANS multiplicateur (ex. REF_RPH, km)
+    garde le comportement historique — simple somme des points."""
+    txt = _construire('REF_RPH', [_qso(points=3), _qso(points=2)])
     assert _entete(txt, 'CLAIMED-SCORE') == '5'
 
 

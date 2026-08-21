@@ -25,6 +25,13 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logx_archive as arch
 import logx_http as httpmod
+# A10 : réchauffe le cache cty.dat (chargement paresseux, chemin RELATIF au
+# cwd) tant que le cwd est encore concours/ -- plusieurs tests ci-dessous
+# font monkeypatch.chdir(tmp_path) pour isoler leurs archives, ce qui ferait
+# sinon retomber best_for_contest()/calc_total_score() sur le repli
+# heuristique (cty.dat "absent") au lieu de la vraie base DXCC.
+import logx_dxcc
+logx_dxcc.lookup('F5ABC')
 
 CFG = {'callsign': 'F6KQJ', 'locator': 'JN15XC'}
 

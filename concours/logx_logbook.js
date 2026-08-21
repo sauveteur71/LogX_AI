@@ -2898,6 +2898,14 @@ let _logVersion = null;
 // l'accepte. Si le serveur a redémarré entretemps le jeton ne correspond
 // plus : le serveur se replie alors de lui-même sur la liste complète.
 let _serverBoot = null;
+// A10 (docs/FEUILLE_DE_ROUTE.md) : score AUTORITAIRE (points × multiplicateurs
+// distincts, logx_scoring.calc_total_score) reçu au dernier /log/list — le
+// calcul LOCAL de updateStats() (somme des points par QSO, ci-dessous) ne
+// tient jamais compte du multiplicateur, exactement le défaut qu'A05 avait
+// déjà corrigé PAR QSO mais qui restait faux pour le TOTAL affiché. null
+// tant qu'aucune réponse serveur n'est arrivée (page tout juste ouverte,
+// hors-ligne) : repli sur le calcul local dans ce seul cas.
+let _lastServerScore = null;
 
 // ── Version logicielle de CE poste (vérification multi-op / DXpédition) ─────
 // Figée UNE SEULE FOIS au chargement de cette page (voir initShareLink(),
@@ -3043,6 +3051,11 @@ async function fetchLog(){
       return;
     }
     if(data.version != null) _logVersion = data.version;
+    // A10 : score autoritaire du serveur (points × multiplicateurs) —
+    // toujours capturé, même sur une réponse 'delta', puisque le champ
+    // 'score'/'total' du serveur porte déjà le LOG COMPLET, pas le delta
+    // seul (voir commentaire logx_http.py:/log/list).
+    if(data.score != null) _lastServerScore = data.score;
     if(data.qsos){
       // Recalculer les sériaux — toujours le plus grand N° envoyé déjà utilisé,
       // jamais un simple comptage (sinon une suppression ou un trou fait reculer le compteur)
@@ -3525,7 +3538,13 @@ function updateStats(){
   // synchro multi-poste), sans devoir traquer chaque point d'appel.
   applyContestActifToLogbook();
   document.getElementById('sbQsoLbl').textContent  = qsoLbl;
-  document.getElementById('sbTotal').textContent   = total.toLocaleString() + ' pts';
+  // A10 : préférer le score AUTORITAIRE du serveur (points × multiplicateurs)
+  // dès qu'il est connu — `total` (somme locale par QSO, ci-dessus) sous-
+  // compte tout concours à multiplicateur (CQ WW, WPX, ARRL DX, REF...),
+  // n'étant jamais mis à jour au-delà du 1er poll (page tout juste ouverte
+  // ou hors-ligne).
+  const scoreAffiche = _lastServerScore != null ? _lastServerScore : total;
+  document.getElementById('sbTotal').textContent   = scoreAffiche.toLocaleString() + ' pts';
   document.getElementById('sbQso').textContent     = qsoVal;
   document.getElementById('sbBestDX').textContent  = bestDXstr;
   document.getElementById('sbMults').textContent   = multsVal;

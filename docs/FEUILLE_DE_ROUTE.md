@@ -120,7 +120,7 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** fonctionnellement le point le plus important du document — mais nécessite que le socle (A01-A09, structure carnet) soit stable avant d'y toucher sans casser autre chose.
 > **Effort :** M-L (le seul de cette ampleur du lot) — **Risque :** élevé (cœur du moteur, tout le monde en dépend).
 > **Critère d'acceptation :** test d'or sur un corpus de concours réels avec score de référence connu, zéro écart toléré.
-> **CARTOGRAPHIÉ le 21/08/2026, PAS CORRIGÉ — décision volontaire, à valider avant de coder.**
+> **CORRIGÉ le 21/08/2026** (F4GLD, en retour d'absence : « pourquoi ce n'est pas corrigé il faut le faire ! »). Cartographié d'abord, puis codé.
 >
 > Constat confirmé et PIRE que ce que le résumé d'audit laissait supposer.
 > Cinq points trouvés qui exposent un score comme `sum(q['points'] for q in qsos)`
@@ -158,20 +158,46 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > actuel est déjà correct, pas concerné par ce défaut. Le reste (contests
 > DX à multiplicateur) l'est.
 >
-> **Pourquoi je ne corrige pas seul ici** : c'est le seul point de la
-> feuille de route classé M-L (les autres étaient S), et le seul qui touche
-> un calcul consommé par 5 chemins différents + potentiellement l'affichage
-> client (`logx_logbook.js`, à vérifier aussi) — un correctif bâclé pourrait
-> rendre un score FAUX D'UNE AUTRE FAÇON plutôt que de corriger l'existant,
-> sur la donnée la plus visible et la plus citée en cas d'erreur (un score
-> de concours faux se voit immédiatement). Le document lui-même l'anticipait :
-> « nécessite que le socle soit stable » (fait, A01-A09 clos) et « cœur du
-> moteur, tout le monde en dépend ». Décisions qui restent à prendre avec
-> F4GLD avant de coder : une fonction serveur UNIQUE consommée par les 5
-> chemins (recommandé, évite une 4e/5e/6e divergence future) vs correctifs
-> ponctuels par chemin ; portée du 1er passage (tous les `bricks.multiplier.kind`
-> d'un coup, ou les plus utilisés d'abord) ; comment obtenir un corpus de
-> scores de référence pour le test d'or (aucun trouvé dans le dépôt à ce jour).
+> **Correctif livré : `logx_scoring.calc_total_score(qsos, cdef, extra_points=0)`**,
+> fonction serveur UNIQUE (l'option recommandée par la cartographie, pour
+> éviter une 4e/5e/6e implémentation divergente), consommée par les 4 chemins
+> serveur identifiés (Cabrillo `logx_export.py`, score live et MQTT
+> `logx_http.py`, archive `logx_archive.py`) + le score client
+> (`logx_logbook.js:updateStats()`, qui recomputait aussi une simple somme —
+> 6e chemin trouvé en vérifiant, comme anticipé). Le client ne réimplémente
+> PAS le moteur de multiplicateur : il affiche désormais le score
+> AUTORITAIRE reçu du serveur (`_lastServerScore`, alimenté à chaque
+> `/log/list`) plutôt qu'un recalcul local, avec repli sur le calcul local
+> UNIQUEMENT avant la toute première réponse serveur (page tout juste
+> ouverte, hors-ligne).
+>
+> Formule : `(Σ points_QSO + extra_points) × Σ_bandes(nb_multiplicateurs_distincts × poids_bande)`,
+> couvrant les 8 natures de multiplicateur réellement utilisées (dept_dxcc,
+> dxcc_only, exchange_distinct, itu_zone, locator, na_section/na_state,
+> prefix, zone_dxcc — `zone_dxcc` compte zone CQ ET pays DXCC comme deux
+> multiplicateurs indépendants, `prefix`/`locator`/`large_square` restent
+> globaux toutes bandes confondues, les autres par bande, `mult_weight_by_band`
+> honoré quand déclaré — ex. WAE). Contrairement au moteur de coaching
+> (`calc_qso_value`, qui ESTIME au stade du spot, avant contact, donc limité
+> à des proxys), cette fonction utilise la vraie donnée REÇUE du QSO déjà
+> loggué (échange, locator) — voir `_mult_entries()`.
+>
+> **Piège trouvé en câblant `logx_archive.py`** : `import_external_log()`
+> (import d'un vieux log externe) concentrait tout le score déclaré sur le
+> 1er QSO importé (`qsos[0]['points'] = score`) pour qu'une simple somme
+> retombe juste — technique incompatible avec la multiplication, qui
+> aurait re-multiplié un score déjà complet. Corrigé à la racine : le score
+> déclaré/manuel d'un import externe est maintenant transmis tel quel
+> (`declared_score`, stocké dans `meta.json` de l'archive) et jamais
+> recalculé — un log importé sans locator ni échange complet n'a de toute
+> façon pas assez de données pour une recomputation fiable.
+>
+> Témoin vert + contre-épreuves par mutation faites (2 : `calc_total_score`
+> côté serveur, `updateStats()` côté client). `tests/test_calc_total_score.py`
+> : test d'or demandé par le critère d'acceptation — 8 natures de
+> multiplicateur sur des concours réels (CQ WW, CQ WPX, WAE, IARU HF, ARRL
+> DX, ARRL 160m, EUHFC, ARRL EME, REF), chaque valeur attendue vérifiée à la
+> main. Suite complète (~10 000 tests) revérifiée verte à chaque étape.
 
 ---
 
