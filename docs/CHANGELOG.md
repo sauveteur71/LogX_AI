@@ -13,8 +13,22 @@ poussé.
 
 ## [Non publié]
 
+## [1.1-beta6] - 2026-08-21
+
 ### Ajouté
 
+- **FT8 — afficher les réglages à adopter sur LE poste déclaré.** Le panneau de
+  conseils restait générique et replié, sans savoir quelle radio l'opérateur
+  avait déclarée en CONFIG. Il s'ouvre désormais au chargement, se titre du
+  poste choisi, et donne les chemins de menu exacts pour dix modèles
+  (IC-7300, IC-705, IC-9700, IC-7610, FT-991A, FT-991, FT-891, TS-590S,
+  TS-590SG, TS-890S) — chaque ligne sourcée et citée depuis les manuels
+  officiels, jamais écrite de mémoire. Un modèle non documenté ne reçoit que
+  le socle universel, avec la mention explicite qu'aucune source propre n'a
+  été trouvée. Corrige au passage une consigne erronée reprise du panneau :
+  l'« ALC à zéro » attribué à WSJT-X ne figure dans aucun des deux manuels —
+  le critère retenu est de descendre jusqu'à ce que la puissance HF commence
+  tout juste à baisser, qui reste valable aussi en VOX.
 - **FT8 — un curseur NIVEAU TX, parce que la consigne était inapplicable.** La
   page demande, en gras, de régler la puissance par le niveau audio et de
   garder **l'ALC à zéro**. Or ce niveau était figé à 90 % de la pleine échelle,
@@ -36,6 +50,15 @@ poussé.
   ne bouge plus » ne permet pas de distinguer ce cas d'un réglage propre.
   L'infobulle et le message d'émission le disent maintenant : vérifiez que le
   voyant d'émission du poste s'allume encore.
+- **LOGBOOK — noter un QSO fait sur un poste que le PC ne commande pas.** En
+  FT8 piloté par CAT sur une radio, noter à la main un QSO CW/phonie fait sur
+  un second poste non connecté déplaçait la radio pilotée : sélectionner la
+  bande/mode du second poste lui envoyait un QSY, et le sondage CAT ramenait
+  ensuite bande/mode/fréquence sur ceux du poste piloté. Un bouton SOURCE DU
+  QSO (RADIO PILOTÉE / AUTRE POSTE) sous le sélecteur de mode découple les
+  deux — masqué sans CAT, l'état survit au rechargement. Le logiciel ne
+  bloque ni ne protège le second poste : la règle « une seule porteuse »
+  reste à la charge de l'opérateur.
 
 ### Corrigé
 
@@ -68,6 +91,13 @@ poussé.
   trois : la puissance appliquée, « radio non pilotée, règle-la à la main », ou
   le motif exact du refus. Un opérateur d'IC-7300 sait donc qu'il doit régler
   son poste lui-même, au lieu de croire son final protégé.
+- **Un QSO sans identifiant était impossible à supprimer.** Une entrée du
+  carnet réel de F4GLD sans `id` (ADIF mal formé, import partiel — pas un cas
+  d'école) ne pouvait être visée par aucun chemin de suppression ou
+  d'édition : aucun moyen de l'effacer depuis le logiciel. Tout QSO sans
+  identifiant en reçoit désormais un au chargement, calé au-dessus du plus
+  grand déjà pris, sur les deux chemins de chargement (base SQLite et
+  migration JSON).
 - **VOACAP échouait EN SILENCE si LogX AI est installé trop profond.** Au-delà
   de **128 caractères** de chemin, `voacapl.exe` rend une erreur vide et toute
   la propagation s'arrête, avec un message qui n'explique rien. Un OneDrive
