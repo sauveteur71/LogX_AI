@@ -13,7 +13,7 @@ Avant d'écrire quoi que ce soit de nouveau, inventaire réel du dépôt : **la 
 | `README.md` | Complet, publié sur `main` — mais **`Version courante : 1.1-beta4`** affiché alors qu'on vient de publier la **1.1-beta6** ; lien HelloAsso encore au placeholder `LIEN_HELLOASSO_A_COMPLETER` ; compteur de tests (10 004) proche de la réalité mesurée aujourd'hui (**10 144**, recompté par `pytest --collect-only`), à rafraîchir quand même. |
 | `docs/LogX_AI_Promotion.md` | Page de présentation complète et bien écrite — mais son tableau de chiffres est **fortement périmé** (« 470 tests automatiques » contre 10 144 réels aujourd'hui, un facteur 20). À corriger avant toute diffusion : un chiffre faux dans un document qui vante la rigueur du projet se retournerait contre lui. |
 | `docs/COMPARATIF_CONCURRENTS.md` | Comparatif honnête et sourcé face à N1MM+/Win-Test/DXLog.net/Log4OM, méthodologie déjà rigoureuse (sources citées, vérifié avant publication). Document de positionnement INTERNE — pas à publier tel quel (voir note plus bas). |
-| `docs/GROUPSIO_LOGX_AI.md` | Contenu **prêt à copier-coller** (paramètres de création, description, message d'accueil, post d'introduction) — seule la création du compte reste à faire par F4GLD (email + CGU, ~5 min). **Statut de création non vérifiable par moi** — à confirmer. |
+| `docs/GROUPSIO_LOGX_AI.md` | **Groupe créé et actif** : `LogXAI@groups.io`, lancé le 07/08/2026, description reprenant mot pour mot le texte préparé (confirmé par capture d'écran F4GLD le 21/08/2026 — corrige le statut « non vérifiable » d'une version antérieure de ce document). **1 seul membre (F4GLD, propriétaire)** au 21/08 — le groupe existe mais n'a pas encore été relayé publiquement ; le message d'accueil et le post d'introduction (sections 3-4 de `docs/GROUPSIO_LOGX_AI.md`) restent à vérifier/publier avant toute annonce externe. |
 | `docs/STORYBOARD_VIDEO_PROMO.md` + `_EN.md` | Storyboard complet en FR et EN (556 lignes à eux deux). Pas de moyen de savoir si la vidéo a été tournée — à confirmer. |
 | `docs/helloasso_texte_campagne.md` | Texte de campagne prêt (24 lignes) — mais la campagne HelloAsso elle-même n'est manifestement pas créée (lien placeholder dans le README). |
 | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/{bug,feature,config}.yml` | Présents, structurés — base saine pour accueillir des contributeurs externes. |
@@ -40,7 +40,8 @@ Ne pas réécrire ce qui existe déjà et fonctionne. Ce document se concentre s
 
 Rien ci-dessous ne peut être fait à ma place — création de comptes, décisions de calendrier public, présence humaine sur les forums. Mon rôle s'arrête à préparer le contenu, déjà fait pour l'essentiel.
 
-- [ ] Créer le groupe groups.io (contenu prêt dans `docs/GROUPSIO_LOGX_AI.md`, ~5 minutes)
+- [x] Créer le groupe groups.io — **fait le 07/08/2026** (`LogXAI@groups.io`)
+- [ ] Publier le message d'accueil et le post d'introduction (sections 3-4 de `docs/GROUPSIO_LOGX_AI.md`) si pas déjà fait — le groupe n'a qu'1 membre au 21/08/2026, signe qu'il n'a pas encore été relayé
 - [ ] Enregistrer et publier la vidéo courte (storyboard prêt en FR/EN)
 - [ ] Créer la campagne HelloAsso (texte prêt), me transmettre l'URL pour le README
 - [ ] Publier une présentation honnête sur le réflecteur CQ-Contest et eHam.net (déjà recommandé dans `docs/GROUPSIO_LOGX_AI.md` section 6) — **ne jamais y publier `docs/COMPARATIF_CONCURRENTS.md` tel quel** : c'est un document de travail interne, pas une brochure ; un post public doit rester dans le ton "je partage un projet, curieux d'avoir vos retours", pas un tableau comparatif chiffré face à des logiciels établis dans leur propre communauté — mauvais accueil quasi garanti.
