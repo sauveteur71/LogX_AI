@@ -39,6 +39,15 @@ poussé.
 
 ### Corrigé
 
+- **« NOUVEAU LOG » annonçait le nombre de QSO AFFICHÉS, pas celui du carnet.**
+  Filtré sur un concours à 50 QSO, le dialogue écrivait « Supprime 50 QSO »
+  alors que le carnet entier — 9 870 QSO sur la station de F4GLD — était
+  archivé puis vidé. Rien n'était perdu, l'archivage précède l'effacement,
+  mais c'est ce chiffre-là que l'on lit pour décider. Le dialogue affiche
+  désormais le total réel et **dit l'écart** quand un filtre est actif. Si le
+  serveur ne répond pas, il n'affiche pas le compte de la vue — ce serait
+  reproduire le défaut au pire moment — il écrit « TOUS les QSO ».
+
 - **La protection de puissance en numérique ne s'appliquait pas là où on
   émet.** Le réglage « puissance TX automatique par mode » (CONFIG > RADIO,
   décoché par défaut) sert à protéger le final : un mode numérique émet à

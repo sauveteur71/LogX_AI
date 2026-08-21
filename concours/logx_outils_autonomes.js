@@ -162,9 +162,42 @@ async function archiveLog(){
   }catch(e){ notify('Serveur injoignable — archivage impossible.'); }
 }
 
+// Total RÉEL du carnet, demandé au serveur — et pas qsoLog.length.
+//
+// LE DÉFAUT CORRIGÉ ICI : le dialogue annonçait le nombre de QSO AFFICHÉS,
+// alors que /log/reset porte sur shared_log ENTIER (logx_http.py, 'qso_count':
+// len(shared_log)). Filtré sur un concours à 50 QSO, il écrivait « Supprime 50
+// QSO » en en archivant et vidant 9 870. Rien n'est perdu — l'archivage
+// précède — mais un compte faux dans une confirmation de suppression est
+// exactement ce qu'un opérateur lit pour décider, et il décidait sur un
+// chiffre qui n'était pas le bon.
+//
+// Ce préalable est payé AVANT le chantier « activité » : aujourd'hui l'écart
+// entre la vue et le carnet est l'exception, une vue par activité en ferait la
+// norme.
+async function _totalCarnetReel(){
+  try{
+    const r = await fetch('/log/status');
+    if(!r.ok) return null;
+    const d = await r.json();
+    return (typeof d.qso_count === 'number') ? d.qso_count : null;
+  }catch(e){ return null; }
+}
+
 async function resetLog(){
-  const n = qsoLog.length;
-  if(!(await _confirmDupBanner(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.', {n}), 'Nouveau log', 'Annuler'))) return;
+  const affiches = qsoLog.length;
+  const total = await _totalCarnetReel();
+  // Serveur injoignable : on ne remplace PAS par le compte affiché, qui serait
+  // faux dès qu'un filtre est actif. On dit qu'on ne sait pas — un opérateur
+  // averti peut renoncer, là où un chiffre faux l'aurait rassuré à tort.
+  const combien = (total === null) ? trT('TOUS les') : String(total);
+  // Quand la vue ne montre pas tout le carnet, on le DIT. C'est le cœur du
+  // correctif : ce n'est pas le total qui trompait, c'est l'écart silencieux
+  // entre ce que l'écran montre et ce que le bouton détruit.
+  const ecart = (total !== null && total !== affiches)
+    ? trF('\n\n⚠️ Tu vois {affiches} QSO à l\'écran (filtre actif), mais c\'est le carnet ENTIER qui est concerné.', {affiches})
+    : '';
+  if(!(await _confirmDupBanner(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.{ecart}\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.', {n: combien, ecart}), 'Nouveau log', 'Annuler'))) return;
   const confirmation = prompt(trT('Tape RESET pour confirmer la suppression complète du log :'));
   if(confirmation !== 'RESET'){
     notify('Annulé — le log est inchangé.');
