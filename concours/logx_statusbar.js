@@ -402,6 +402,10 @@
     <div class="rcsb-item" id="rcsbReportItem" style="cursor:pointer"
          title="Ouvre une Issue GitHub pré-remplie (version + plateforme) pour signaler un problème">
       🐛 <span class="rcsb-val">signaler un problème</span>
+    </div>
+    <div class="rcsb-item" id="rcsbDonateItem">
+      <a href="https://www.helloasso.com/associations/radioclub-du-velay/formulaires/2" target="_blank" rel="noopener noreferrer"
+         title="Don libre au Radio-Club du Velay (F6KQJ) via HelloAsso — entièrement facultatif, aucune fonctionnalité n'en dépend">💛 <span class="rcsb-val">soutenir</span></a>
     </div>`;
 
   // ── Rate meter (A3) : QSO/h 10 min extrapolé + 60 min, objectif cliquable ──
