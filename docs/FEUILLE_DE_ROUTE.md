@@ -105,6 +105,58 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** fonctionnellement le point le plus important du document — mais nécessite que le socle (A01-A09, structure carnet) soit stable avant d'y toucher sans casser autre chose.
 > **Effort :** M-L (le seul de cette ampleur du lot) — **Risque :** élevé (cœur du moteur, tout le monde en dépend).
 > **Critère d'acceptation :** test d'or sur un corpus de concours réels avec score de référence connu, zéro écart toléré.
+> **CARTOGRAPHIÉ le 21/08/2026, PAS CORRIGÉ — décision volontaire, à valider avant de coder.**
+>
+> Constat confirmé et PIRE que ce que le résumé d'audit laissait supposer.
+> Cinq points trouvés qui exposent un score comme `sum(q['points'] for q in qsos)`
+> — la somme brute des points par QSO, **sans jamais multiplier par le nombre
+> de multiplicateurs travaillés** — alors que le format de barème le documente
+> lui-même explicitement (ex. `CQ_WW_SSB` : `'unit': 'QSO_pts × (zones_CQ + DXCC)'`,
+> `logx_definitions.py`) :
+> - `logx_export.py:170` — **`CLAIMED-SCORE` du fichier Cabrillo envoyé au
+>   comité du concours.** Le point le plus grave : le score réellement
+>   soumis à l'extérieur est faux pour tout concours à multiplicateur
+>   (CQ WW, CQ WPX, ARRL DX, IARU HF, REF...).
+> - `logx_http.py:2313` et `:2322` — le champ `score` de `/log/list`, qui
+>   alimente le score affiché EN DIRECT dans l'appli pendant le concours.
+> - `logx_http.py:1108` — le score publié en MQTT (écran mural / intégrations
+>   tierces).
+> - `logx_archive.py:149` — les points d'un concours archivé (stats
+>   long-terme, historique par édition).
+>
+> **Ce qui existe déjà et pourrait servir de brique** : `logx_scoring.py`
+> a un moteur de calcul de multiplicateur PAR QSO (`calc_qso_value()`,
+> `bricks.multiplier.kind` — 8 natures réellement utilisées : `dept_dxcc`,
+> `dxcc_only`, `exchange_distinct`, `itu_zone`, `locator`, `na_section`,
+> `prefix`, `zone_dxcc`, plus les types legacy `zone_country_per_band`/
+> `prefix_multiplier`/`power_state`/`wwa_sprint`), mais il sert au COACH
+> (estimer la valeur d'un futur contact, `total_impact`) — **jamais utilisé
+> pour calculer un score final agrégé sur tout le log**. `rank_stations_by_value()`
+> (même fichier), qui semblait un candidat, s'est révélé être du code mort
+> (aucun appelant trouvé par grep dans tout le dépôt). Il n'existe donc
+> **aucune fonction unique aujourd'hui qui fasse "somme des points × compte
+> des multiplicateurs distincts par bande"** sur un log entier — à écrire,
+> pas à réutiliser telle quelle.
+>
+> Sur les 43 concours définis, ~5 (VHF/THF à la distance, SOTA/POTA/Field
+> Day) n'ont structurellement AUCUN multiplicateur — leur `sum(points)`
+> actuel est déjà correct, pas concerné par ce défaut. Le reste (contests
+> DX à multiplicateur) l'est.
+>
+> **Pourquoi je ne corrige pas seul ici** : c'est le seul point de la
+> feuille de route classé M-L (les autres étaient S), et le seul qui touche
+> un calcul consommé par 5 chemins différents + potentiellement l'affichage
+> client (`logx_logbook.js`, à vérifier aussi) — un correctif bâclé pourrait
+> rendre un score FAUX D'UNE AUTRE FAÇON plutôt que de corriger l'existant,
+> sur la donnée la plus visible et la plus citée en cas d'erreur (un score
+> de concours faux se voit immédiatement). Le document lui-même l'anticipait :
+> « nécessite que le socle soit stable » (fait, A01-A09 clos) et « cœur du
+> moteur, tout le monde en dépend ». Décisions qui restent à prendre avec
+> F4GLD avant de coder : une fonction serveur UNIQUE consommée par les 5
+> chemins (recommandé, évite une 4e/5e/6e divergence future) vs correctifs
+> ponctuels par chemin ; portée du 1er passage (tous les `bricks.multiplier.kind`
+> d'un coup, ou les plus utilisés d'abord) ; comment obtenir un corpus de
+> scores de référence pour le test d'or (aucun trouvé dans le dépôt à ce jour).
 
 ---
 
