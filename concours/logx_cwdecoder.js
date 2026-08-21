@@ -69,25 +69,40 @@ class MorseTimingDecoder {
     this.wpm = 27;
   }
 
-  // Réestime l'unité de temps (durée d'un point) via le MINIMUM d'une fenêtre
-  // glissante de marques récentes — PAS une moyenne sur tout ce qui est
-  // classé "court". Une moyenne se laisse entraîner vers le haut dès qu'un
-  // TRAIT est classé par erreur comme un point (ça arrive : bruit, fist
-  // irrégulier) : ce point mesuré "trop long" pousse l'unité vers le haut,
-  // ce qui rend le PROCHAIN trait encore plus susceptible d'être mal classé
-  // -> boucle de rétroaction qui fait dériver l'unité indéfiniment (vérifié
-  // par test : un signal propre finissait par ne plus reconnaître aucun
-  // espace de mot après quelques lettres). Un minimum est immunisé contre
-  // ça : un trait mal classé ne peut JAMAIS tirer un minimum vers le haut,
-  // seul un vrai point plus court peut le faire descendre. Limite connue et
-  // acceptée : une longue série de traits consécutifs sans aucun point (rare
-  // en trafic réel — même RST/n° de série ont presque toujours un point
-  // quelque part) peut temporairement fausser l'estimation jusqu'au
-  // prochain point.
+  // Réestime l'unité de temps (durée d'un point) via la 2E PLUS PETITE
+  // valeur d'une fenêtre glissante de marques récentes — PAS le minimum
+  // strict (utilisé jusqu'au 21/08/2026, voir plus bas pourquoi), PAS une
+  // moyenne sur tout ce qui est classé "court". Une moyenne se laisse
+  // entraîner vers le haut dès qu'un TRAIT est classé par erreur comme un
+  // point (ça arrive : bruit, fist irrégulier) : ce point mesuré "trop
+  // long" pousse l'unité vers le haut, ce qui rend le PROCHAIN trait
+  // encore plus susceptible d'être mal classé -> boucle de rétroaction qui
+  // fait dériver l'unité indéfiniment (vérifié par test : un signal propre
+  // finissait par ne plus reconnaître aucun espace de mot après quelques
+  // lettres).
+  //
+  // POURQUOI PAS LE MINIMUM STRICT (régression trouvée le 21/08/2026, sur
+  // un enregistrement réel, pas une supposition) : un minimum protège bien
+  // contre une durée trop LONGUE (un trait mal classé ne peut jamais tirer
+  // un minimum vers le HAUT), mais n'offre AUCUNE protection dans l'autre
+  // sens -- un unique blip de bruit isolé, plus COURT qu'un vrai point,
+  // suffit à lui seul à faire chuter l'estimation. Le seuil de rejet des
+  // impulsions trop courtes (pushEdge, plus bas) dépend lui-même de
+  // unitMs : une fois l'estimation tirée vers le bas par ce premier blip,
+  // le seuil de rejet baisse aussi, ce qui laisse passer un DEUXIÈME blip
+  // encore plus court -- spirale descendante qui a fini par corrompre tout
+  // le décodage sur un vrai enregistrement (dépôt à ~43ms de point réel,
+  // effondré à ~22ms, proche du plancher de 20ms, en une douzaine de
+  // marques). La 2e plus petite valeur exige qu'AU MOINS DEUX marques
+  // courtes apparaissent dans la fenêtre avant de faire bouger
+  // l'estimation : un blip isolé ne suffit plus plus à l'entraîner, un
+  // vrai point rapide RÉPÉTÉ (donc légitime, à vitesse réellement élevée)
+  // continue d'être suivi normalement.
   _adaptUnit(markMs){
     this.recentMarks.push(markMs);
     if(this.recentMarks.length > 12) this.recentMarks.shift();
-    const minRecent = Math.min(...this.recentMarks);
+    const sorted = [...this.recentMarks].sort((a, b) => a - b);
+    const minRecent = sorted[1];
     this.unitMs = this.unitMs * 0.6 + minRecent * 0.4;
     this.unitMs = Math.max(20, Math.min(300, this.unitMs));  // 4-60 mots/min plausible
     this.wpm = Math.round(1200 / this.unitMs);
@@ -290,25 +305,27 @@ class CwFreqDetector {
 
   // Meilleure fréquence candidate : d'abord celles qui produisent du VRAI
   // Morse décodable (proportion de caractères valides >= CW_DETECT_MIN_
-  // VALID_RATIO), puis parmi elles le NOMBRE de caractères valides
-  // accumulés (pas le rapport pic/plancher en premier critère -- constaté
-  // en le testant : deux candidates voisines d'une même vraie source
-  // peuvent quasiment se partager la même fuite spectrale et donc un
-  // rapport pic/plancher très proche, tandis qu'une candidate "fantôme"
-  // à mi-chemin entre deux sources différentes peut cumuler assez
-  // d'énergie des DEUX pour un rapport ARTIFICIELLEMENT plus élevé que
-  // chacune des vraies sources prise isolément, tout en ne décodant qu'une
-  // poignée de caractères par chance sur un petit échantillon -- un nombre
-  // de caractères valides accumulés est une statistique autrement plus
-  // robuste qu'un ratio instantané pour ce départage). Le rapport
-  // pic/plancher ne sert qu'à départager une ÉGALITÉ de caractères valides
-  // (ex. deux candidates qui décodent le même signal réel avec une
-  // amplitude différente). null si rien d'assez net/décodable n'a été
-  // observé -- mieux vaut le dire honnêtement que renvoyer un résultat au
-  // hasard sur du silence, du bruit pur, ou un ronflement qui imite un
-  // rythme sans être du Morse.
+  // VALID_RATIO), puis parmi elles CETTE PROPORTION elle-même (la
+  // QUALITÉ), le rapport pic/plancher ne servant qu'à départager une
+  // ÉGALITÉ de proportion.
+  //
+  // PAS le nombre de caractères valides ACCUMULÉS (essayé, puis corrigé le
+  // 21/08/2026 sur un enregistrement réel) : une candidate qui capte une
+  // fuite spectrale/du bruit large bande peut accumuler BEAUCOUP de
+  // transitions et donc BEAUCOUP de caractères valides en volume tout en
+  // n'étant correcte qu'une fois sur trois (ex. mesuré : 53 caractères
+  // valides à 77 % de proportion, contre 21 à 95 % pour le vrai ton) --
+  // compter le nombre brut faisait gagner la candidate la plus BRUYANTE,
+  // pas la plus PROPRE. La proportion, elle, n'est pas influencée par le
+  // volume d'activité : un candidat qui décode presque tout juste (même
+  // peu) l'emporte légitimement sur un candidat qui décode beaucoup mais
+  // approximativement.
+  //
+  // null si rien d'assez net/décodable n'a été observé -- mieux vaut le
+  // dire honnêtement que renvoyer un résultat au hasard sur du silence, du
+  // bruit pur, ou un ronflement qui imite un rythme sans être du Morse.
   best(){
-    let bestFreq = null, bestValidChars = -1, bestRatio = 0;
+    let bestFreq = null, bestValidRatio = -1, bestRatio = 0;
     for (const [f, s] of this.stats) {
       if (s.transitions < CW_DETECT_MIN_TRANSITIONS) continue;
       // Caractère en cours jamais refermé par une transition suivante (la
@@ -321,9 +338,9 @@ class CwFreqDetector {
       if (validRatio < CW_DETECT_MIN_VALID_RATIO) continue;
       if (s.decoder.wpm > CW_DETECT_MAX_WPM) continue;
       const ratio = s.agcPeak / Math.max(s.noiseFloor, 1e-6);
-      if (s.validChars > bestValidChars
-          || (s.validChars === bestValidChars && ratio > bestRatio)) {
-        bestValidChars = s.validChars; bestRatio = ratio; bestFreq = f;
+      if (validRatio > bestValidRatio
+          || (validRatio === bestValidRatio && ratio > bestRatio)) {
+        bestValidRatio = validRatio; bestRatio = ratio; bestFreq = f;
       }
     }
     return bestFreq;
