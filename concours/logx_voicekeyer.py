@@ -677,17 +677,57 @@ def voicekeyer_settings(cfg):
     }
 
 
+# MME (Windows) tronque les noms de périphérique à 31 caractères
+# (MAXPNAMELEN=32 avec le terminateur nul) — observé en direct le 21/08/2026
+# sur un vrai poste : « Haut-parleurs (2- USB Audio COD » (MME, 31 car.) pour
+# le même périphérique que « Haut-parleurs (2- USB Audio CODEC ) » (WASAPI,
+# nom complet). _DEDUP_MIN_PREFIX borne le rapprochement à des noms proches
+# de cette longueur précise, pour ne jamais fusionner deux périphériques
+# différents dont le nom commencerait, par coïncidence, de la même façon.
+_DEDUP_MIN_PREFIX = 30
+
+
+def _memes_peripheriques(nom_a, nom_b):
+    a, b = nom_a.strip(), nom_b.strip()
+    if a == b:
+        return True
+    court, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    return len(court) >= _DEDUP_MIN_PREFIX and long_.lower().startswith(court.lower())
+
+
 def list_output_devices():
     """[{index, name}] périphériques de sortie audio disponibles (pour le
-    select CONFIG) — liste vide si sounddevice/PortAudio indisponible,
-    jamais d'exception."""
+    select CONFIG), DÉDUPLIQUÉS. PortAudio interroge Windows via jusqu'à 4
+    sous-systèmes distincts (MME/DirectSound/WASAPI/WDM-KS) et rapporte donc
+    CHAQUE périphérique physique ou virtuel jusqu'à 4 fois — une interface
+    USB radio comme un simple câble virtuel s'y noyait au milieu d'une
+    vingtaine d'entrées pour moitié identiques, rendant le bon choix illisible
+    (retour F4GLD 21/08/2026). Entre doublons, l'entrée WASAPI (sous-système
+    moderne, noms jamais tronqués) est préférée ; à égalité, la plus longue
+    (donc la plus complète) l'emporte. Liste vide si sounddevice/PortAudio
+    indisponible, jamais d'exception."""
     try:
         import sounddevice as sd
-        out = []
+        hostapis = sd.query_hostapis()
+        wasapi_idx = next((i for i, a in enumerate(hostapis)
+                           if a.get('name') == 'Windows WASAPI'), None)
+        groupes = []   # [{'index','name','hostapi'}] — un par périphérique distinct
         for i, d in enumerate(sd.query_devices()):
-            if d.get('max_output_channels', 0) > 0:
-                out.append({'index': i, 'name': d.get('name') or f'Périphérique {i}'})
-        return out
+            if d.get('max_output_channels', 0) <= 0:
+                continue
+            cand = {'index': i, 'name': d.get('name') or f'Périphérique {i}',
+                    'hostapi': d.get('hostapi')}
+            g = next((g for g in groupes if _memes_peripheriques(cand['name'], g['name'])), None)
+            if g is None:
+                groupes.append(cand)
+                continue
+            cand_wasapi = wasapi_idx is not None and cand['hostapi'] == wasapi_idx
+            g_wasapi = wasapi_idx is not None and g['hostapi'] == wasapi_idx
+            remplace = cand_wasapi and not g_wasapi if cand_wasapi != g_wasapi \
+                else len(cand['name'].strip()) > len(g['name'].strip())
+            if remplace:
+                g.update(cand)
+        return [{'index': g['index'], 'name': g['name']} for g in groupes]
     except Exception:
         return []
 
