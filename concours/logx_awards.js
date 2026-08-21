@@ -209,6 +209,7 @@ async function showAwards(){
         <button class="export-btn" onclick="qslAction('upload','clublog',this)" ${q.clublog?'':'disabled title="Configure ClubLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ ClubLog</button>
         <button class="export-btn" onclick="qslAction('upload','qrzcq',this)" ${q.qrzcq?'':'disabled title="Configure QRZCQ dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ QRZCQ</button>
         <button class="export-btn" onclick="qslAction('upload','hrdlog',this)" ${q.hrdlog?'':'disabled title="Configure HRDLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ HRDLog</button>
+        <button class="export-btn" onclick="qslAction('upload','cloudlog',this)" ${q.cloudlog?'':'disabled title="Configure Cloudlog/Wavelog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ Cloudlog/Wavelog</button>
         <button class="export-btn" onclick="qslAction('upload','lotw',this)" ${q.lotw_upload?'':'disabled title="Configure la Station Location TQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ LoTW</button>
         <button class="export-btn" onclick="qslAction('sync','lotw',this)" ${q.lotw?'':'disabled title="Configure LoTW dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations LoTW</button>
       </div>
@@ -224,6 +225,7 @@ function qslLastSync(q){
   if(l.clublog_upload) bits.push('ClubLog envoyé le ' + l.clublog_upload);
   if(l.qrzcq_upload) bits.push('QRZCQ envoyé le ' + l.qrzcq_upload);
   if(l.hrdlog_upload) bits.push('HRDLog envoyé le ' + l.hrdlog_upload);
+  if(l.cloudlog_upload) bits.push('Cloudlog/Wavelog envoyé le ' + l.cloudlog_upload);
   if(l.lotw_upload) bits.push('LoTW envoyé le ' + l.lotw_upload);
   if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
   return bits.length ? bits.join(' · ') : 'aucune synchro encore';

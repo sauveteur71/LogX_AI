@@ -135,7 +135,7 @@ def _real_source(rev=None):
     return out.stdout
 
 
-def _make_ctx(clublog_realtime_blocked, rev=None):
+def _make_ctx(clublog_realtime_blocked, rev=None, cloudlog=False):
     """Contexte V8 avec fetch() mocké : 5 endpoints attendus par showAwards()
     (Promise.all), données minimales mais suffisantes pour ne rien faire
     planter dans renderWorkedMatrix/renderDxRecords/renderActivityChart
@@ -149,6 +149,7 @@ def _make_ctx(clublog_realtime_blocked, rev=None):
                               has_confirmations:false, confirmed_total:0,
                               dxcc:{{worked:0, confirmed:0}}}},
         '/qsl/status': {{eqsl:false, clublog:true, lotw:false, qrzcq:false, hrdlog:false,
+                          cloudlog: {str(bool(cloudlog)).lower()},
                           last:{{}}, confirmations:0,
                           clublog_realtime_blocked: {str(bool(clublog_realtime_blocked)).lower()}}},
         '/awards/matrix': {{}},
@@ -192,6 +193,19 @@ def test_pas_davertissement_quand_disjoncteur_non_declenche():
     ctx = _make_ctx(clublog_realtime_blocked=False)
     html = _run_show_awards(ctx)
     assert '403' not in html and 'suspendu' not in html.lower()
+
+
+def test_bouton_cloudlog_actif_quand_configure():
+    ctx = _make_ctx(clublog_realtime_blocked=False, cloudlog=True)
+    html = _run_show_awards(ctx)
+    assert "qslAction('upload','cloudlog'" in html
+    assert 'disabled' not in html.split("qslAction('upload','cloudlog'", 1)[1].split('>', 1)[0]
+
+
+def test_bouton_cloudlog_desactive_quand_non_configure():
+    ctx = _make_ctx(clublog_realtime_blocked=False, cloudlog=False)
+    html = _run_show_awards(ctx)
+    assert 'disabled' in html.split("qslAction('upload','cloudlog'", 1)[1].split('>', 1)[0]
 
 
 def test_reproduction_avant_fix_commit_1720e6b_najoute_aucun_avertissement():

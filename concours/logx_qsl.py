@@ -25,6 +25,7 @@ import time
 import threading
 import urllib.request
 import urllib.parse
+import urllib.error
 import concurrent.futures as _cf
 from logx_utils import utcnow
 
@@ -71,6 +72,9 @@ def qsl_settings(cfg):
         'qrzcq_api_key': (cfg.get('qrzcq_api_key') or '').strip(),
         'hrdlog_callsign': (cfg.get('hrdlog_callsign') or '').strip().upper(),
         'hrdlog_code': (cfg.get('hrdlog_code') or '').strip(),
+        'cloudlog_url': (cfg.get('cloudlog_url') or '').strip().rstrip('/'),
+        'cloudlog_api_key': (cfg.get('cloudlog_api_key') or '').strip(),
+        'cloudlog_station_id': (cfg.get('cloudlog_station_id') or '').strip(),
     }
     if not any(s.values()):
         try:
@@ -94,6 +98,8 @@ def qsl_settings(cfg):
     s['lotw_upload_enabled'] = bool(s['lotw_station_location'])
     s['qrzcq_enabled'] = bool(s['qrzcq_callsign'] and s['qrzcq_api_key'])
     s['hrdlog_enabled'] = bool(s['hrdlog_callsign'] and s['hrdlog_code'])
+    s['cloudlog_enabled'] = bool(s['cloudlog_url'] and s['cloudlog_api_key']
+                                 and s['cloudlog_station_id'])
     return s
 
 
@@ -605,6 +611,75 @@ def upload_hrdlog(cfg, qsos):
             'error': None if sent else (last_error or 'Aucun QSO accepté')}
 
 
+# ─── Cloudlog / Wavelog : upload du log (auto-hébergé) ───────────────────────
+# Contrat d'API vérifié le 21/08/2026 directement dans le CODE SOURCE des deux
+# projets (Wavelog est un fork de Cloudlog qui a conservé le même contrôleur) :
+#   github.com/magicbug/Cloudlog application/controllers/Api.php, fonction qso()
+#   github.com/wavelog/Wavelog   application/controllers/Api.php, fonction qso()
+# POST JSON {key, station_profile_id, type:"adif", string:"<ADIF complet>"}
+# — accepte PLUSIEURS enregistrements dans `string` (le contrôleur boucle sur
+# adif_parser->get_record()), donc un seul appel comme eQSL/ClubLog/QRZCQ, pas
+# un POST par QSO comme HRDLog.
+# Chemin fixé à /index.php/api/qso (jamais /api/qso) : garanti quelle que soit
+# la configuration de réécriture d'URL du serveur auto-hébergé de l'opérateur
+# — /api/qso suppose un mod_rewrite actif, non garanti sur toute instance.
+# Réponse JSON : status "created" (HTTP 201, succès) ; "abort" (HTTP 400,
+# Wavelog seulement — QSO rejeté après parsing, ex. indicatif de station
+# incohérent) ; "failed" (HTTP 401/403, échec d'authentification, message
+# dans 'reason'). Le compte d'enregistrements importés change de nom selon le
+# fork — 'imported_count' (Cloudlog) ou 'adif_count' (Wavelog) — les deux
+# sont lus pour ne pas dépendre du fork réellement en face.
+
+CLOUDLOG_API_PATH = '/index.php/api/qso'
+
+
+def upload_cloudlog(cfg, adif):
+    s = qsl_settings(cfg)
+    if not s['cloudlog_enabled']:
+        return {'ok': False, 'error': 'Cloudlog/Wavelog non configuré (URL + clé API + '
+                                       'ID de profil de station dans CONFIG → QSL)'}
+    url = s['cloudlog_url'] + CLOUDLOG_API_PATH
+    payload = json.dumps({
+        'key': s['cloudlog_api_key'],
+        'station_profile_id': s['cloudlog_station_id'],
+        'type': 'adif',
+        'string': adif,
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=payload, headers={
+        'Content-Type': 'application/json', 'User-Agent': 'LogXAI'})
+
+    def _do():
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx()) as r:
+                return r.read().decode('utf-8', 'replace')
+        except urllib.error.HTTPError as e:
+            # Cloudlog/Wavelog renvoient un corps JSON exploitable ('reason')
+            # même sur 400/401/403 — le lire plutôt que de le traiter comme
+            # une simple erreur réseau.
+            return e.read().decode('utf-8', 'replace')
+
+    try:
+        resp_text = _NET_EXECUTOR.submit(_do).result(timeout=33)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': 'Cloudlog/Wavelog injoignable : délai dépassé'}
+    except Exception as e:
+        return {'ok': False, 'error': f'Cloudlog/Wavelog injoignable : {e}'}
+    try:
+        resp = json.loads(resp_text)
+    except ValueError:
+        return {'ok': False, 'service': 'Cloudlog/Wavelog',
+                'error': re.sub(r'<[^>]+>', ' ', resp_text)[:200].strip() or 'réponse illisible'}
+    status = str(resp.get('status', '')).lower()
+    if status == 'created':
+        _stamp('cloudlog_upload')
+        count = resp.get('adif_count', resp.get('imported_count'))
+        return {'ok': True, 'service': 'Cloudlog/Wavelog', 'imported_count': count,
+                'messages': [m for m in (resp.get('messages') or []) if m]}
+    return {'ok': False, 'service': 'Cloudlog/Wavelog',
+            'error': resp.get('reason') or '; '.join(m for m in (resp.get('messages') or []) if m)
+                     or f'statut inattendu ({status or "vide"})'}
+
+
 # ─── Point d'entrée unifié — un service de plus = une entrée ici, pas une ────
 # ─── nouvelle branche if/elif dans logx_http.py ──────────────────────
 
@@ -612,6 +687,7 @@ _ADIF_UPLOAD_HANDLERS = {
     'eqsl': upload_eqsl,
     'clublog': upload_clublog,
     'qrzcq': upload_qrzcq,
+    'cloudlog': upload_cloudlog,
 }
 
 
@@ -768,6 +844,7 @@ def qsl_status(cfg=None):
         'lotw_upload': bool(s.get('lotw_upload_enabled')),
         'qrzcq': bool(s.get('qrzcq_enabled')),
         'hrdlog': bool(s.get('hrdlog_enabled')),
+        'cloudlog': bool(s.get('cloudlog_enabled')),
         'last': stamps,
         'confirmations': confirmations,
         'clublog_realtime_blocked': clublog_rt_blocked,

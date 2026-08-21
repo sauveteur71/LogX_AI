@@ -2743,6 +2743,21 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
           </div>
           <div class="form-group">
+            <label>CLOUDLOG / WAVELOG — URL DE L'INSTANCE</label>
+            <input type="text" id="cloudlog_url" placeholder="https://logs.tastation.fr" autocomplete="off">
+            <div class="input-note">Adresse de ton instance Cloudlog ou Wavelog auto-hébergée (sans chemin ni / final)</div>
+          </div>
+          <div class="form-group">
+            <label>CLOUDLOG / WAVELOG — CLÉ API <span class="secret-dot" id="cloudlog_api_key_dot" title="Renseigné ou non"></span></label>
+            <input type="text" id="cloudlog_api_key" placeholder="clé API" autocomplete="off">
+            <div class="input-note">Générée dans ton instance (Accès utilisateur → API)</div>
+          </div>
+          <div class="form-group">
+            <label>CLOUDLOG / WAVELOG — ID PROFIL STATION</label>
+            <input type="text" id="cloudlog_station_id" placeholder="ex. 1" autocomplete="off">
+            <div class="input-note">Visible dans l'URL en modifiant un profil de station sur ton instance</div>
+          </div>
+          <div class="form-group">
             <label>QRZ LOGBOOK — CLÉ API <span class="secret-dot" id="qrz_logbook_key_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="qrz_logbook_key" placeholder="clé API QRZ Logbook" autocomplete="off">
             <div class="input-note">Nécessite un abonnement QRZ XML actif (qrz.com → Mon compte → Logbook Data → API Key)</div>

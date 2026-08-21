@@ -76,6 +76,118 @@ def test_qrzcq_injoignable(monkeypatch):
     assert not r['ok'] and 'injoignable' in r['error']
 
 
+# ─── Cloudlog / Wavelog ─────────────────────────────────────────────────────
+# Contrat vérifié dans le code source réel des deux forks (Api.php, fonction
+# qso()) : POST JSON {key, station_profile_id, type, string} vers
+# <url>/index.php/api/qso. Réponse {status:"created"} (succès) ou
+# {status:"failed"|"abort", reason/messages} (échec) -- voir logx_qsl.py.
+
+CLOUDLOG_CFG = {'cloudlog_url': 'https://logs.example.com', 'cloudlog_api_key': 'KEY123',
+                'cloudlog_station_id': '4'}
+
+
+def _http_error(text, code=401):
+    """Vraie urllib.error.HTTPError avec un corps lisible via .read() — comme
+    ce que renvoie réellement urlopen() sur un 4xx (voir upload_cloudlog, qui
+    lit spécifiquement ce corps plutôt que de traiter le 4xx comme une simple
+    panne réseau)."""
+    import io
+    return qsl.urllib.error.HTTPError(
+        'https://logs.example.com/index.php/api/qso', code, 'error', {},
+        io.BytesIO(text.encode('utf-8')))
+
+
+def test_cloudlog_non_configure():
+    r = qsl.upload_cloudlog({}, 'adif')
+    assert not r['ok'] and 'non configuré' in r['error']
+
+
+def test_cloudlog_url_normalisee_sans_slash_final():
+    s = qsl.qsl_settings({'cloudlog_url': 'https://logs.example.com/', 'cloudlog_api_key': 'K',
+                          'cloudlog_station_id': '4'})
+    assert s['cloudlog_url'] == 'https://logs.example.com'
+
+
+def test_cloudlog_upload_ok(monkeypatch):
+    captured = {}
+    def fake_urlopen(req, timeout=30, context=None):
+        captured['url'] = req.full_url
+        captured['body'] = json.loads(req.data.decode('utf-8'))
+        captured['content_type'] = req.get_header('Content-type')
+        return _FakeResp('{"status":"created","adif_count":2,"adif_errors":0,"messages":[""]}')
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen', fake_urlopen)
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'ADIF-CONTENT')
+    assert r['ok'] and r['service'] == 'Cloudlog/Wavelog' and r['imported_count'] == 2
+    assert captured['url'] == 'https://logs.example.com/index.php/api/qso'
+    assert captured['content_type'] == 'application/json'
+    assert captured['body'] == {'key': 'KEY123', 'station_profile_id': '4',
+                                'type': 'adif', 'string': 'ADIF-CONTENT'}
+
+
+def test_cloudlog_upload_ok_compte_ancien_format_cloudlog(monkeypatch):
+    """Le fork Cloudlog d'origine nomme le compte 'imported_count', pas
+    'adif_count' (introduit par Wavelog) -- les deux doivent être lus."""
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen',
+                        lambda req, timeout=30, context=None:
+                        _FakeResp('{"status":"created","imported_count":3,"messages":[]}'))
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'adif')
+    assert r['ok'] and r['imported_count'] == 3
+
+
+def test_cloudlog_upload_echec_authentification_401(monkeypatch):
+    """401 avec status:failed + reason -- le corps JSON de l'erreur doit être
+    lu (pas traité comme une simple erreur réseau opaque)."""
+    def fake_urlopen(req, timeout=30, context=None):
+        raise _http_error('{"status":"failed","reason":"missing or wrong api key"}', 401)
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen', fake_urlopen)
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'adif')
+    assert not r['ok'] and r['error'] == 'missing or wrong api key'
+
+
+def test_cloudlog_upload_abort_qso_rejete(monkeypatch):
+    """status:'abort' (Wavelog) : HTTP 400, QSO analysé mais rejeté -- pas
+    une simple erreur réseau, message exploitable dans 'messages'."""
+    def fake_urlopen(req, timeout=30, context=None):
+        raise _http_error('{"status":"abort","adif_count":1,"adif_errors":1,'
+                          '"messages":["station callsign mismatch"]}', 400)
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen', fake_urlopen)
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'adif')
+    assert not r['ok'] and 'station callsign mismatch' in r['error']
+
+
+def test_cloudlog_reponse_illisible(monkeypatch):
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen',
+                        lambda req, timeout=30, context=None: _FakeResp('pas du json'))
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'adif')
+    assert not r['ok'] and r['service'] == 'Cloudlog/Wavelog'
+
+
+def test_cloudlog_injoignable(monkeypatch):
+    def boom(req, timeout=30, context=None):
+        raise OSError('timeout')
+    monkeypatch.setattr(qsl.urllib.request, 'urlopen', boom)
+    r = qsl.upload_cloudlog(CLOUDLOG_CFG, 'adif')
+    assert not r['ok'] and 'injoignable' in r['error']
+
+
+def test_qsl_settings_cloudlog():
+    s = qsl.qsl_settings(CLOUDLOG_CFG)
+    assert s['cloudlog_enabled'] is True
+    assert qsl.qsl_settings({'cloudlog_url': 'https://x.example.com'})['cloudlog_enabled'] is False
+
+
+def test_qsl_status_expose_cloudlog():
+    assert qsl.qsl_status(CLOUDLOG_CFG)['cloudlog'] is True
+    assert qsl.qsl_status({})['cloudlog'] is False
+
+
+def test_upload_log_dispatch_cloudlog_construit_adif():
+    """cloudlog est enregistré dans _ADIF_UPLOAD_HANDLERS (upload d'un fichier
+    complet, comme eQSL/ClubLog/QRZCQ) -- pas dans le chemin QSO-par-QSO de
+    HRDLog/LoTW."""
+    assert 'cloudlog' in qsl._ADIF_UPLOAD_HANDLERS
+
+
 # ─── HRDLog ─────────────────────────────────────────────────────────────────
 
 def test_hrdlog_non_configure():
