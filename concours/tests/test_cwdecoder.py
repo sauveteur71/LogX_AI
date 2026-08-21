@@ -588,6 +588,30 @@ def test_detector_departage_a_egalite_de_caracteres_valides_par_le_ratio(moteur)
     assert found == 800
 
 
+def test_detector_ecarte_une_vitesse_implausible_meme_a_bon_ratio(moteur):
+    """Test unitaire ciblé du second garde-fou (CW_DETECT_MAX_WPM), isolé
+    du ratio de validité -- même technique d'état posé directement qu'au
+    test précédent : une candidate à vitesse implausible (50 MPM, au-delà
+    de tout trafic CW manuel réaliste) ne doit jamais l'emporter sur une
+    candidate à vitesse plausible, même si son ratio de validité et son
+    rapport pic/plancher sont MEILLEURS."""
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      var rapide = d.stats.get(300), plausible = d.stats.get(700);
+      rapide.transitions = plausible.transitions = 20;
+      rapide.totalChars = 10; rapide.validChars = 10;       // 100% valides
+      rapide.decoder.wpm = 50;                              // implausible
+      plausible.totalChars = 8; plausible.validChars = 6;   // 75% valides, sous rapide
+      plausible.decoder.wpm = 22;                           // plausible
+      rapide.agcPeak = 0.5; rapide.noiseFloor = 0.001;       // rapport meilleur aussi
+      plausible.agcPeak = 0.05; plausible.noiseFloor = 0.001;
+      return d.best();
+    })()
+    """)
+    assert found == 700
+
+
 def test_detector_prefere_du_vrai_morse_a_un_rythme_non_decodable(moteur):
     """Reproduction du cas réel (F4GLD, 21/08/2026) : une première version de
     ce détecteur, qui ne se fiait qu'au rapport pic/plancher, avait
@@ -617,6 +641,38 @@ def test_detector_prefere_du_vrai_morse_a_un_rythme_non_decodable(moteur):
     })()
     """)
     assert found == 700
+
+
+def test_detector_ecarte_un_bruit_hache_qui_passe_le_ratio_de_validite(moteur):
+    """Reproduction EXACTE du symptôme observé en direct chez F4GLD le
+    21/08/2026 (contre-épreuve du correctif ci-dessus, insuffisant seul) :
+    des impulsions COURTES (15-24 ms) et irrégulières, avec un long silence
+    forçant la fermeture de chaque caractère, franchissent bel et bien
+    CW_DETECT_MIN_VALID_RATIO -- en Morse, TOUTE combinaison de 1 à 3
+    symboles est une lettre valide par construction du code (E/T à 1
+    symbole, I/A/N/M à 2, les 8 combinaisons de 3 couvrent D/U/S/W/G/R/O/K
+    en entier), donc un bruit haché en impulsions courtes produit surtout
+    des caractères "valides" sans être du Morse. Mesuré : ~51 % de
+    caractères valides (au-dessus du seuil 50 %) ET ~52 MPM -- calibré à
+    la main pour reproduire ce cas précis, pas une coïncidence de vitesse
+    de test. Seul le second garde-fou (vitesse plausible) l'écarte : SANS
+    lui, ce candidat gagnerait par défaut (rien d'autre en lice) au lieu
+    du null honnête attendu ici."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      var bruit = [];
+      for(var i=0; i<30; i++){
+        bruit.push([true, 15 + (i%4)*3]);
+        bruit.push([false, 10 + (i%3)*2]);
+        bruit.push([false, 200]);   // force la fermeture de chaque caractere
+      }
+      feedDetectorEdges(d, 44100, 512, 300, bruit, 1.0);
+      return d.best();
+    })()
+    """)
+    assert found is None
 
 
 def test_detector_exige_une_proportion_minimale_de_caracteres_valides(moteur):
