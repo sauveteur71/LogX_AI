@@ -2317,10 +2317,35 @@ if(localStorage.getItem('rc_theme') === null){
     // de la demande : la configuration s'AFFICHE en arrivant, sans avoir à
     // déplier. On ne force pas l'ouverture pour un poste non couvert : ce
     // serait imposer un pavé générique à chaque visite.
+    //
+    // SAUF si l'opérateur a déjà refermé ce même panneau pour CE poste
+    // précis (retour F4GLD, 21/08/2026 : « si mes réglages sont déjà faits
+    // je n'ai pas besoin de ça » — le panneau se rouvrait à CHAQUE visite de
+    // la page, y compris après que l'opérateur l'ait explicitement refermé
+    // une fois ses réglages appliqués). La clé retient marque+modèle : un
+    // changement de poste redonne une bonne raison de le rouvrir, la simple
+    // revisite de la page n'en est plus une.
     const det = document.getElementById('aidePoste');
-    if(det && r.couvert) det.open = true;
+    const cleVu = marque + '|' + modele;
+    if(det && r.couvert && localStorage.getItem('logx_aide_poste_vue') !== cleVu){
+      det.open = true;
+    }
   }
   window.majReglagesPoste = majReglagesPoste;
+
+  // Mémorise la fermeture manuelle du panneau pour CE poste — voir le
+  // commentaire ci-dessus. Un ré-ouverture manuelle ne réinitialise rien :
+  // seule une fermeture est un signal de « j'ai fini de lire ».
+  (function cablerFermetureReglagesPoste(){
+    const det = document.getElementById('aidePoste');
+    if(!det) return;
+    det.addEventListener('toggle', function(){
+      if(det.open) return;
+      let cfg = {};
+      try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
+      localStorage.setItem('logx_aide_poste_vue', (cfg.cat_brand || '') + '|' + (cfg.cat_model || ''));
+    });
+  })();
 
   // PROTECTION DE PUISSANCE EN NUMÉRIQUE — appliquée ICI, à l'armement.
   //

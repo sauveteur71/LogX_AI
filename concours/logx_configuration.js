@@ -156,6 +156,9 @@ const CONFIG_HELP = {
   qrzcq_api_key: "Ta clé API QRZCQ.com.",
   hrdlog_callsign: "Ton indicatif enregistré sur HRDLog.net.",
   hrdlog_code: "Ton code d'upload personnel HRDLog.net (trouvable dans les réglages de ton compte HRDLog).",
+  cloudlog_url: "L'adresse de ton instance Cloudlog ou Wavelog auto-hébergée (ex. https://logs.tastation.fr), sans chemin ni / final.",
+  cloudlog_api_key: "Ta clé API Cloudlog/Wavelog, générée dans ton instance (Accès utilisateur → API).",
+  cloudlog_station_id: "L'ID numérique du profil de station à utiliser sur ton instance Cloudlog/Wavelog — visible dans l'URL en modifiant ce profil.",
   qrz_logbook_key: "Ta clé API QRZ Logbook (nécessite un abonnement QRZ XML actif — qrz.com → Mon compte → Logbook Data → API Key). Vide = fonctionnalité inactive.",
   qrz_logbook_push: "Insère automatiquement chaque QSO ajouté dans ton carnet QRZ Logbook (ACTION=INSERT), en plus du log local. Nécessite la clé API ci-dessus.",
   sota_client_id: "Identifiant OAuth personnel délivré par l'équipe SOTA (SOTA Reflector, groupe « API-consumers ») pour publier tes spots directement sur SOTAwatch3. Vide = fonctionnalité inactive. Les CGU de l'API SOTA exigent en plus un accord préalable explicite pour tout logiciel assisté par IA (voir la case à cocher juste en dessous) — demande les deux en même temps à l'équipe SOTA.",
@@ -844,7 +847,7 @@ const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
   'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
   'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password',
-  'relay_password', 'icomremote_password'];
+  'relay_password', 'icomremote_password', 'cloudlog_api_key'];
 
 // Retour F4GLD (16/08/2026, capture d'écran QSL & DIPLÔMES) : « difficile de
 // voir ce qui a été rempli ou pas ». Un point coloré à côté du label (même
@@ -5278,6 +5281,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     qrzcq_api_key: document.getElementById('qrzcq_api_key').value.trim(),
     hrdlog_callsign: document.getElementById('hrdlog_callsign').value.trim(),
     hrdlog_code: document.getElementById('hrdlog_code').value.trim(),
+    cloudlog_url: document.getElementById('cloudlog_url').value.trim(),
+    cloudlog_api_key: document.getElementById('cloudlog_api_key').value.trim(),
+    cloudlog_station_id: document.getElementById('cloudlog_station_id').value.trim(),
     qrz_logbook_key: document.getElementById('qrz_logbook_key').value.trim(),
     qrz_logbook_push: document.getElementById('qrz_logbook_push').value,
     sota_client_id: document.getElementById('sota_client_id').value.trim(),
@@ -6148,6 +6154,7 @@ function applyFullConfigToForm(c) {
     ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','lotw_station_location','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
+     'cloudlog_url','cloudlog_api_key','cloudlog_station_id',
      'qrz_logbook_key','qrz_logbook_push','sota_client_id',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval','cloudsync_secret',

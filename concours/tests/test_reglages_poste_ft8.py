@@ -195,8 +195,39 @@ def test_le_panneau_ne_s_ouvre_QUE_si_on_a_de_quoi_le_remplir():
     code = _sans_commentaires(_lire(PAGE))
     i = code.index('function majReglagesPoste()')
     corps = code[i:code.index('\n  window.majReglagesPoste', i)]
-    assert re.search(r'if\s*\(\s*det\s*&&\s*r\.couvert\s*\)', corps), (
-        "l'ouverture doit être conditionnée à r.couvert :\n" + corps)
+    assert re.search(r'if\s*\(\s*det\s*&&\s*r\.couvert', corps), (
+        "l'ouverture doit rester conditionnée à r.couvert :\n" + corps)
+
+
+def test_le_panneau_ne_se_rouvre_pas_si_deja_ferme_pour_ce_poste():
+    """Retour F4GLD (21/08/2026) : « si mes réglages sont déjà faits je n'ai
+    pas besoin de ça » — le panneau se rouvrait de force à CHAQUE visite,
+    même après que l'opérateur l'ait explicitement refermé une fois ses
+    réglages appliqués. L'ouverture forcée doit désormais être également
+    conditionnée à l'ABSENCE d'une fermeture déjà mémorisée pour CE poste
+    précis (marque+modèle) — un changement de poste redonnant une bonne
+    raison de la revoir."""
+    code = _sans_commentaires(_lire(PAGE))
+    i = code.index('function majReglagesPoste()')
+    corps = code[i:code.index('\n  window.majReglagesPoste', i)]
+    assert "localStorage.getItem('logx_aide_poste_vue') !== cleVu" in corps, corps
+    assert "cleVu = marque + '|' + modele" in corps, corps
+
+
+def test_la_fermeture_du_panneau_est_memorisee_par_poste():
+    """Le pendant de l'ouverture conditionnelle ci-dessus : sans écriture au
+    moment de la fermeture, la condition de non-réouverture ne trouverait
+    jamais de clé mémorisée et le panneau se rouvrirait quand même à chaque
+    visite — le bug resterait entier malgré la garde ajoutée dans
+    majReglagesPoste()."""
+    code = _sans_commentaires(_lire(PAGE))
+    i = code.index('function cablerFermetureReglagesPoste')
+    corps = code[i:code.index('})();', i) + len('})();')]
+    assert "addEventListener('toggle'" in corps, corps
+    assert 'if(det.open) return' in corps, (
+        "seule une FERMETURE (det.open devenu false) doit écrire la mémoire, "
+        "pas une réouverture manuelle :\n" + corps)
+    assert "localStorage.setItem('logx_aide_poste_vue'" in corps, corps
 
 
 def test_le_rendu_echappe_ce_qu_il_injecte():
