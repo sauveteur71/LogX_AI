@@ -48,14 +48,14 @@ Diplômes à vie (DXCC, départements, zones, Worked Matrix bande × mode), reco
 | | |
 |---|---|
 | **Références embarquées** | 415 000+ (181 045 sommets SOTA · 93 676 parcs POTA · 68 446 réf. WWFF · 71 362 châteaux WCA · 1 178 groupes IOTA) |
-| **Concours suivis avec scoring exact** | 36 + calendrier mondial + analyse IA de tout règlement |
+| **Concours suivis avec scoring exact** | 41 + calendrier mondial + analyse IA de tout règlement |
 | **Bandes** | 17, de 1.8 MHz à 47 GHz |
 | **Modes ADIF reconnus** | 49 |
 | **Langues de l'interface** | 8 (français, anglais, allemand, espagnol, italien, portugais, néerlandais, polonais) |
 | **Fournisseurs IA au choix** | 6 (Anthropic, OpenAI, Google Gemini, Mistral AI, xAI, DeepSeek) |
 | **Fonctionnement sans IA configurée** | 100 % — journal, scoring, export : rien ne dépend d'une clé IA |
 | **Abonnement, compte, cloud obligatoire** | 0 |
-| **Tests automatiques validant chaque version** | 470 |
+| **Tests automatiques validant chaque version** | plus de 10 000 |
 
 ---
 

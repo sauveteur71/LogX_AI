@@ -27,7 +27,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 
 ## Fonctionnalités
 
-- **43 concours prêts à l’emploi** (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **le calendrier mondial WA7BNM au complet** (≈360 épreuves pour 2026), préparables en un clic.
+- **41 concours prêts à l’emploi** (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **le calendrier mondial WA7BNM au complet** (≈360 épreuves pour 2026), préparables en un clic.
 - **Page FOCUS BANDE** : tout ce que le logiciel sait d'une bande sur un seul écran — cluster filtré bande **et** mode, carrés, ouvertures par région, concours actifs à cet instant, suggestions de l'IA, et le classement de toutes les bandes avec la raison écrite en clair. La bande se choisit à la main ou **suit la radio**.
 - Radio CAT via Hamlib/rigctld, TCI, pont WSJT-X ; pilotage ampli et rotor.
 - **Wait & Pounce** en FT8/FT4 : appel automatique sur ce que LogX sait déjà — entité jamais travaillée, entité non confirmée LoTW sur ce créneau bande × mode, carré neuf, nouveau multiplicateur. Quatre niveaux activables séparément, du simple signalement à l'appel sans personne devant la radio, avec durée maximale, plafonds et coupe-circuit.
@@ -53,9 +53,9 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **1.1-beta4** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 apporte le FT8 natif et la protection du carnet ; elle est utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
+Version courante : **1.1-beta6** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 apporte le FT8 natif et la protection du carnet ; elle est utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
 
-Couverture : **10 004 tests automatiques** rejoués à chaque modification par l'intégration continue. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Couverture : **plus de 10 000 tests automatiques** rejoués à chaque modification par l'intégration continue. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 
