@@ -18,7 +18,6 @@ Le correctif existe déjà dans le code (_adopterIdServeur(), logx_logbook.js)
 : ce test l'exécute réellement (V8 via py_mini_racer), pas une réimplémentation
 du mécanisme -- sinon on ne testerait que le mannequin, pas le produit."""
 import os
-import sys
 
 import pytest
 

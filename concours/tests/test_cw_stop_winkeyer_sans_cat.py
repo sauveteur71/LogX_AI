@@ -11,7 +11,6 @@ et reste un test MANUEL -- ce module ne prétend pas le remplacer, il
 verrouille seulement la logique qui décide QUAND le coupe-circuit doit
 apparaître, pour qu'une régression future s'y heurte."""
 import os
-import sys
 
 import pytest
 
