@@ -116,6 +116,26 @@ def test_paths_context_block_et_regions():
     assert all('best_band' in r for r in regs)
 
 
+def test_paths_context_block_sert_l_indice_a_a_l_ia():
+    """Constat de l'audit du 18/08/2026 : l'indice A était calculé et stocké
+    (all_regions()['a_index']) mais context_block() -- le texte RÉELLEMENT
+    envoyé à l'agent IA -- ne le mentionnait jamais, malgré deux commentaires
+    de logx_paths.py qui affirmaient à tort qu'il était « servi à l'IA »."""
+    import logx_paths as p
+    txt = p.context_block(48.8, 2.3, datetime.datetime(2026, 7, 17, 20, 0),
+                          {'muf': {'muf_mhz': 18}, 'solar': {'sfi': 130, 'a_index': 12}})
+    assert 'Indice A' in txt and '12' in txt
+
+
+def test_paths_context_block_sans_indice_a_ne_plante_pas():
+    """Repli explicite : aucune valeur A remontée par la source solaire (NOAA
+    injoignable, champ absent) -- pas de ligne fantôme ni de plantage."""
+    import logx_paths as p
+    txt = p.context_block(48.8, 2.3, datetime.datetime(2026, 7, 17, 20, 0),
+                          {'muf': {'muf_mhz': 18}, 'solar': {'sfi': 130}})
+    assert 'Indice A' not in txt
+
+
 # ─── Tropo (physique de réfractivité) ────────────────────────────────────────
 
 def test_tropo_refractivite_decroit_avec_altitude():
