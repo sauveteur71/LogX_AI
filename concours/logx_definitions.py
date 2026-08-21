@@ -1097,6 +1097,13 @@ CONTEST_DEFINITIONS = {
         'modes': ['CW'],
         'exchange': "RST (pas d'échange contest formel — trafic normal/rondes/skeds comptabilisé ; "
                     "l'UFT recoupe le statut membre/non-membre sur le log soumis, pas via un code transmis)",
+        # Aucun tag Cabrillo publié sur la page de règlement (vérifié le 21/08/2026). Trouvé en
+        # clair dans le binaire du logiciel officiel distribué par l'UFT pour ce challenge
+        # (Challenge_F5CED.exe, C:\Challenge_F5CED sur le poste de F4GLD) : chaîne unique et
+        # inconditionnelle `CONTEST: CHALLENGE F5CED` écrite dans l'en-tête Cabrillo, valable pour
+        # été ET hiver (même logiciel, le fichier cfg\Challenge_dates.ini ne change que la
+        # fenêtre de dates, pas ce tag) — vérifié par extraction de chaînes du binaire.
+        'cabrillo_name': 'CHALLENGE F5CED',
         'scoring': {
             'bricks': {
                 'points': [
@@ -1135,6 +1142,11 @@ CONTEST_DEFINITIONS = {
         'modes': ['CW'],
         'exchange': "RST (pas d'échange contest formel — trafic normal/rondes/skeds comptabilisé ; "
                     "l'UFT recoupe le statut membre/non-membre sur le log soumis, pas via un code transmis)",
+        # Aucun tag Cabrillo publié sur la page de règlement (vérifié le 21/08/2026). Même source
+        # et même tag que UFT_CHALLENGE_ETE ci-dessus — un seul logiciel officiel UFT
+        # (Challenge_F5CED.exe) gère les deux challenges, avec une chaîne unique et
+        # inconditionnelle `CONTEST: CHALLENGE F5CED` trouvée dans le binaire.
+        'cabrillo_name': 'CHALLENGE F5CED',
         'scoring': {
             'bricks': {
                 'points': [
