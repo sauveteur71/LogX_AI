@@ -131,3 +131,32 @@ def test_50mhz_actif_par_defaut(monkeypatch):
     monkeypatch.setattr(http, 'fetch_cluster_f5len', lambda *a, **k: called.update(n=called['n']+1) or [])
     http._fetch_spots_50_src(False, {})
     assert called['n'] == 1
+
+
+# ─── A08 (docs/FEUILLE_DE_ROUTE.md) : garde-fou contre une future case morte ─
+# Trouvé le 21/08/2026 : src_voacap/src_pskreporter/src_solarcycle/src_noaa/
+# src_tropo_f5len s'étaient ajoutés à l'UI (section "SOURCES DE PROPAGATION"
+# + un doublon dans "SOURCES DE SPOTS") SANS jamais être lus nulle part —
+# exactement le défaut que ce fichier de test corrigeait déjà une première
+# fois pour src_f5len/dxsummit/dxwatch/dxmaps (voir docstring du module).
+# Retirés de l'UI (pas de fonctionnalité proportionnée à brancher derrière).
+# Ce test verrouille qu'un futur data-key="src_*" ajouté à CONFIG sera
+# TOUJOURS référencé côté serveur -- sinon la case est ajoutée mais inerte,
+# invisible tant que personne ne grep chaque nom un par un.
+
+def test_tout_futur_toggle_src_est_lu_cote_serveur():
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, 'logx_configuration.html'), encoding='utf-8') as f:
+        html = f.read()
+    import re
+    keys = set(re.findall(r'data-key="(src_[a-zA-Z0-9_]+)"', html))
+    assert keys, "aucun toggle src_* trouvé -- le motif de recherche a-t-il changé ?"
+    with open(os.path.join(here, 'logx_clusters.py'), encoding='utf-8') as f:
+        clusters_src = f.read()
+    with open(os.path.join(here, 'logx_http.py'), encoding='utf-8') as f:
+        http_src = f.read()
+    orphelins = [k for k in sorted(keys) if k not in clusters_src and k not in http_src]
+    assert orphelins == [], (
+        f"toggle(s) CONFIG jamais lus côté serveur (case à cocher morte) : {orphelins} — "
+        "soit les brancher (logx_clusters.py/logx_http.py), soit retirer l'entrée "
+        "correspondante de logx_configuration.html")
