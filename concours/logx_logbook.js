@@ -773,11 +773,52 @@ function _brickCtx(callDX){
   const dxInfo = lookupDXCC(dxBase), myInfo = lookupDXCC(myBase);
   return {
     dxBase,
+    myBase,
     dxCountry: dxInfo ? dxInfo.c : (dxBase.slice(0,2) || '??'),
     myCountry: myInfo ? myInfo.c : (myBase.slice(0,2) || 'F'),
     dxCont: (dxInfo && dxInfo.ct) || 'EU',
     myCont: (myInfo && myInfo.ct) || 'EU',
+    // Miroir de logx_scoring.py:calc_qso_value dx_maritime_mobile — suffixe
+    // '/MM' de l'indicatif BRUT (pas dxBase, qui l'a déjà retiré au même
+    // titre que /P ou /QRP).
+    dxMaritimeMobile: (callDX || '').trim().toUpperCase().endsWith('/MM'),
   };
+}
+
+// A05 (docs/FEUILLE_DE_ROUTE.md) : signale bruyamment un prédicat de barème
+// inconnu du miroir JS au lieu de retomber en silence sur 'always' (= QSO
+// toujours valide/plein pot) -- un score client faux EN DIRECT pendant un
+// concours, sans rien pour le signaler, était le vrai défaut. `_predicatsInconnusVus`
+// évite de spammer la console à chaque QSO pour le MÊME prédicat manquant.
+const _predicatsInconnusVus = new Set();
+function _signalerPredicatInconnu(nom){
+  if (_predicatsInconnusVus.has(nom)) return;
+  _predicatsInconnusVus.add(nom);
+  console.error(`[SCORING] Prédicat de barème inconnu du miroir JS : '${nom}' — ` +
+    'le score CLIENT peut être faux pour ce concours (le serveur, ' +
+    'autoritaire, reste correct). Voir BRICK_PREDICATES (logx_logbook.js) ' +
+    'et son équivalent PREDICATES (logx_scoring.py).');
+  try{ _bandeauPredicatInconnu(nom); }catch(e){}
+}
+// Bandeau visuel, même mécanisme que _confirmDupBanner (pas de dépendance à
+// une zone d'affichage du score précise, qui varie selon la page/le layout) :
+// un texte discret mais visible tant qu'au moins un prédicat inconnu a été
+// rencontré cette session, plutôt qu'un score qui a l'air normal.
+// Drapeau dédié (pas un test getElementById()) : dans un DOM minimal/stub,
+// getElementById() peut créer l'élément à la lecture -- un test sur son
+// existence ne détecterait alors jamais "pas encore affiché".
+let _bandeauPredicatInconnuAffiche = false;
+function _bandeauPredicatInconnu(nom){
+  if (_bandeauPredicatInconnuAffiche) return;   // déjà affiché, un seul suffit
+  _bandeauPredicatInconnuAffiche = true;
+  const el = document.createElement('div');
+  el.id = 'scoringPredicatInconnuBanner';
+  el.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:9999;' +
+    'background:var(--red,#FF2D55);color:#fff;font-family:var(--font-mono,monospace);' +
+    'font-size:11px;padding:6px 10px;border-radius:6px;max-width:320px;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  el.textContent = `⚠ Score affiché possiblement faux (barème '${nom}' non reconnu) — le score serveur reste correct`;
+  (document.body || document.documentElement).appendChild(el);
 }
 
 const BRICK_PREDICATES = {
@@ -792,6 +833,21 @@ const BRICK_PREDICATES = {
   // n'est pas dans cette table encore incomplète (voir finding dédié table
   // DXCC client) : repli explicite sur le préfixe pour ce seul cas.
   is_french:           x => x.dxCountry === 'France' || /^TK/.test(x.dxBase),
+  // France métropolitaine + DOM-TOM (contrairement à is_french ci-dessus,
+  // strictement métropole) — miroir de logx_scoring.py PREDICATES.
+  // is_french_all/my_is_french_all (mêmes 13 entités DXCC : F/TK/FG/FM/FJ/
+  // FS/FP/FY/FO/FK/FW/FH/FR). 9 des 13 sont dans CTY_PREFIX (logx_dxcc_lookup.js)
+  // sous leur nom français (Martinique, Guadeloupe, Guyane fr....) ; TK/FJ/FS/FW
+  // en sont absents (même lacune déjà documentée pour is_french/TK ci-dessus,
+  // pas une régression de ce correctif) : repli explicite sur le préfixe,
+  // même motif que TK dans is_french.
+  is_french_all:       x => ['France','Martinique','Guadeloupe','Guyane fr.','La Réunion',
+                             'Nvl-Calédonie','Polynésie fr.','St-Pierre-Miquelon','Mayotte']
+                             .includes(x.dxCountry) || /^(TK|FJ|FS|FW)/.test(x.dxBase),
+  my_is_french_all:    x => ['France','Martinique','Guadeloupe','Guyane fr.','La Réunion',
+                             'Nvl-Calédonie','Polynésie fr.','St-Pierre-Miquelon','Mayotte']
+                             .includes(x.myCountry) || /^(TK|FJ|FS|FW)/.test(x.myBase),
+  is_maritime_mobile:  x => x.dxMaritimeMobile,
   is_na:               x => _NA_CALL_RE.test(x.dxBase),
   na_w_ve:             x => /^(W|K|N|VE|XE)/.test(x.dxBase),
   is_asia:             x => x.dxCont === 'AS',
@@ -816,6 +872,7 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX, myLoc){
     } else if (typeof v === 'object' && v.roster_check){
       ok = true;
     } else {
+      if (!BRICK_PREDICATES[v]) _signalerPredicatInconnu(v);
       ok = (BRICK_PREDICATES[v] || BRICK_PREDICATES.always)(ctx);
     }
     if (!ok) return 0;
@@ -838,7 +895,19 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX, myLoc){
     if (rule.bands && !rule.bands.includes(bandNorm)) continue;
     if (rule.modes && !rule.modes.map(m => m.toUpperCase()).includes(modeNorm)) continue;
     if (rule.prefix_in && !rule.prefix_in.some(p => ctx.dxBase.startsWith(p.toUpperCase()))) continue;
-    if (!(BRICK_PREDICATES[rule.when || 'always'] || BRICK_PREDICATES.always)(ctx)) continue;
+    // 'when' : un nom de prédicat, OU une liste combinée en ET logique (ex.
+    // REF : ['my_is_french_all','is_french_all','same_continent']) — miroir
+    // de logx_scoring.py:calc_qso_value. Le simple `BRICK_PREDICATES[rule.when]`
+    // d'avant ce correctif indexait avec un TABLEAU converti en chaîne
+    // ("a,b,c"), toujours absent de la table -> repli 'always' silencieux :
+    // TOUTE règle à when combiné (le format des barèmes REF) était donc déjà
+    // acquise sans condition, dès que bande/mode/prefix_in passaient.
+    const whenList = Array.isArray(rule.when) ? rule.when : [rule.when || 'always'];
+    const whenOk = whenList.every(w => {
+      if (!BRICK_PREDICATES[w]) _signalerPredicatInconnu(w);
+      return (BRICK_PREDICATES[w] || BRICK_PREDICATES.always)(ctx);
+    });
+    if (!whenOk) continue;
     let val = rule.points;
     if (val && typeof val === 'object') val = scoring[val.param] ?? val.default ?? 0;
     if (val === 'per_km') return dist;
