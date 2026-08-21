@@ -1108,25 +1108,86 @@ def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None)
         return None
 
 
+_ARRAY_TYPECODE = {1: 'b', 2: 'h', 4: 'i'}   # sampwidth (octets) -> code array stdlib
+
+
+def _resample_pcm(raw, channels, typecode, src_rate, dst_rate):
+    """Rééchantillonnage linéaire minimal, stdlib pur (module array, PAS
+    numpy — même contrainte que play_wav ci-dessous : un message TTS de
+    quelques secondes ne justifie pas la dépendance, et l'interpolation
+    linéaire est largement suffisante pour de la voix synthétique, pas
+    pour de l'audio hi-fi)."""
+    import array
+    samples = array.array(typecode)
+    samples.frombytes(raw)
+    n_frames = len(samples) // channels
+    if n_frames < 2 or src_rate == dst_rate:
+        return raw
+    ratio = src_rate / dst_rate
+    out_frames = max(1, int(n_frames / ratio))
+    out = array.array(typecode)
+    for i in range(out_frames):
+        src_pos = i * ratio
+        idx0 = int(src_pos)
+        idx1 = min(idx0 + 1, n_frames - 1)
+        frac = src_pos - idx0
+        for ch in range(channels):
+            v0 = samples[idx0 * channels + ch]
+            v1 = samples[idx1 * channels + ch]
+            out.append(int(v0 + (v1 - v0) * frac))
+    return out.tobytes()
+
+
+def _play_pcm(raw, samplerate, channels, dtype, device_idx):
+    import sounddevice as sd
+    stream = sd.RawOutputStream(samplerate=samplerate, channels=channels, dtype=dtype, device=device_idx)
+    stream.start()
+    try:
+        stream.write(raw)
+    finally:
+        stream.stop()
+        stream.close()
+
+
 def play_wav(path, device_index=None):
     """Joue un WAV vers le périphérique choisi (bloquant jusqu'à la fin —
     messages courts, quelques secondes). N'utilise PAS numpy (RawOutputStream
-    + octets bruts) pour rester une dépendance légère."""
+    + octets bruts) pour rester une dépendance légère.
+
+    Rééchantillonne et réessaie UNE fois si le périphérique refuse la
+    fréquence native du WAV (PortAudioError, ex. code -9997 « Invalid
+    sample rate ») -- constaté en usage réel (F4GLD, 21/08/2026) : le
+    fichier TTS et le périphérique de sortie choisi n'ont pas forcément la
+    même fréquence, et RawOutputStream ne rééchantillonne pas tout seul
+    contrairement à ce qu'on pourrait supposer d'un flux audio partagé
+    Windows. Le repli utilise la fréquence par défaut DU MÊME périphérique
+    (jamais un autre périphérique/le système par défaut) : le keyer vocal
+    doit rester câblé vers l'entrée micro de la radio, pas vers les
+    haut-parleurs de suivi -- changer de périphérique en repli silencieux
+    romprait cette garantie sans que l'opérateur ne le sache."""
     import sounddevice as sd
     with wave.open(path, 'rb') as wf:
-        dtype = {1: 'int8', 2: 'int16', 4: 'int32'}.get(wf.getsampwidth(), 'int16')
-        stream = sd.RawOutputStream(
-            samplerate=wf.getframerate(), channels=wf.getnchannels(), dtype=dtype,
-            device=int(device_index) if device_index not in (None, '') else None)
-        stream.start()
-        try:
-            chunk = wf.readframes(4096)
-            while chunk:
-                stream.write(chunk)
-                chunk = wf.readframes(4096)
-        finally:
-            stream.stop()
-            stream.close()
+        sampwidth = wf.getsampwidth()
+        dtype = {1: 'int8', 2: 'int16', 4: 'int32'}.get(sampwidth, 'int16')
+        channels = wf.getnchannels()
+        native_rate = wf.getframerate()
+        raw = wf.readframes(wf.getnframes())
+    device_idx = int(device_index) if device_index not in (None, '') else None
+
+    try:
+        _play_pcm(raw, native_rate, channels, dtype, device_idx)
+        return
+    except sd.PortAudioError:
+        if device_idx is None:
+            raise   # rien d'autre à essayer sur le périphérique par défaut
+        dev_rate = sd.query_devices(device_idx).get('default_samplerate')
+        if not dev_rate or round(dev_rate) == native_rate:
+            raise   # même fréquence ou introuvable : ce n'était pas le problème
+        typecode = _ARRAY_TYPECODE.get(sampwidth)
+        if not typecode:
+            raise   # largeur d'échantillon exotique, pas de rééchantillonnage possible
+        resampled = _resample_pcm(raw, channels, typecode, native_rate, round(dev_rate))
+        _play_pcm(resampled, round(dev_rate), channels, dtype, device_idx)
 
 
 # ─── PTT (dispatch selon le mode CAT actif, même mécanisme que le CW) ────────
