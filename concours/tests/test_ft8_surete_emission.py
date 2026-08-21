@@ -76,8 +76,10 @@ def _ctx(reponses):
       function setTimeout(fn, ms){ fn(); return 0; }
       function clearTimeout(){}
       var console = { warn: function(){}, error: function(){} };
+      var __corps = [];         // le corps ENTIER, pas seulement le on/off
       function fetch(url, opt){
         var corps = JSON.parse((opt && opt.body) || '{}');
+        __corps.push(corps);
         __appels.push(corps.on);
         var rep = __reponses.shift();
         if(rep === 'reseau_ko') return Promise.reject(new Error('reseau'));
@@ -209,3 +211,31 @@ def test_echap_est_bien_cable_sur_la_coupure():
     i = src.index("addEventListener('keydown'")
     zone = src[i:i + 700]
     assert 'Escape' in zone and 'stopEmission' in zone
+
+
+def test_la_duree_d_emission_est_ANNONCEE_au_serveur():
+    """Ajouté le 20/08/2026 avec le PTT par ligne série (RTS/DTR).
+
+    POURQUOI ÇA COMPTE. Quand le PTT passe par une ligne série, le seul
+    garde-fou qui reste si cet onglet disparaît en pleine émission est le
+    chien de garde côté serveur — la ligne resterait haute, et le poste
+    n'a aucun moyen de s'en apercevoir : il obéit à une broche. Ce chien de
+    garde retombe sur un plafond générique de 360 s, calibré sur la plus
+    longue image SSTV (PD290, 289,7 s mesurées). En annonçant les 12,64 s
+    d'une trame FT8, on ramène cette fenêtre à ~18 s : vingt fois moins de
+    porteuse possible sur l'air.
+
+    Sans ce test, la disparition de `duree_max` ne se verrait NULLE PART —
+    tout continuerait de fonctionner, simplement avec vingt fois plus
+    d'exposition en cas d'incident."""
+    ctx = _ctx([{'ok': True}])
+    ctx.eval('pttOn(true);')
+    ctx.eval('0;')
+    corps = json.loads(ctx.eval('JSON.stringify(__corps)'))
+    assert corps, 'aucune requête PTT partie'
+    assert corps[0].get('on') is True
+    duree = corps[0].get('duree_max')
+    assert duree, 'la durée d\'émission doit être annoncée : %r' % corps[0]
+    assert 13 <= duree <= 60, (
+        'une trame FT8 dure 12,64 s : la durée annoncée doit la couvrir sans '
+        'ouvrir une fenêtre inutilement large — %r' % duree)
