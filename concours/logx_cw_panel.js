@@ -90,10 +90,11 @@ class CwPanel {
 
   toggleDecoder(){
     // Un décodage réel qui démarre prend la main sur le vumètre — annule
-    // d'abord tout test de périphérique en cours (sinon deux flux
-    // getUserMedia concurrents sur la même entrée, l'un des deux navigateurs
-    // testés refusant carrément le second).
+    // d'abord tout test de périphérique OU détection de ton en cours (sinon
+    // plusieurs flux getUserMedia concurrents sur la même entrée, l'un des
+    // navigateurs testés refusant carrément le second).
     this._stopTest();
+    this._stopDetect();
     const btn = this.el('cwStartBtn');
     if(this.decoder){
       this.decoder.stop();
@@ -161,6 +162,7 @@ class CwPanel {
   // la sortie texte ni le compteur MPM d'une vraie session d'écoute.
   async testDevice(){
     this._stopTest();
+    this._stopDetect();
     // Un décodage réel est déjà en cours : le vumètre lui appartient déjà, ne
     // pas lui couper l'herbe sous le pied avec un second flux audio.
     if(this.decoder) return;
@@ -212,5 +214,67 @@ class CwPanel {
     this._testToken = (this._testToken || 0) + 1;
     if(this.testTimer){ clearTimeout(this.testTimer); this.testTimer = null; }
     if(this.testDecoder){ this.testDecoder.stop(); this.testDecoder = null; }
+  }
+
+  // ─── Détection automatique du ton CW (retour F4GLD 21/08/2026) ───────────
+  // « c'est compliqué pour un novice, on peut pas faciliter ce réglage ? »
+  // -- jusqu'ici, #cwFreq exigeait de connaître le réglage CW Pitch du
+  // poste. Ici : écoute quelques secondes sur toutes les fréquences
+  // plausibles à la fois (CwFreqDetector, logx_cwdecoder.js) et retient
+  // celle qui montre un vrai rythme de signal -- remplit #cwFreq tout seul.
+  // Nécessite un VRAI signal CW pendant la fenêtre d'écoute : sur du
+  // silence ou du bruit pur, dit honnêtement qu'aucun ton net n'a été
+  // trouvé plutôt que de deviner.
+  async detectFreq(){
+    this._stopTest();
+    this._stopDetect();
+    // Un décodage réel est déjà en cours : ne pas lui couper l'herbe sous
+    // le pied avec un second flux audio sur la même entrée (même garde que
+    // testDevice()).
+    if(this.decoder){ notify(trF('Arrête le décodage avant de lancer la détection.')); return; }
+    const status = this.el('cwDeviceTestStatus');
+    const btn = this.el('cwDetectBtn');
+    const deviceId = this.el('cwDevice').value;
+    if(status){ status.textContent = 'Détection du ton CW… une VRAIE station doit transmettre pendant ces quelques secondes.'; status.className = 'cw-device-test'; }
+    if(btn){ btn.disabled = true; }
+    const detector = new CwFreqDetector();
+    // Même mécanique de jeton de course que testDevice() ci-dessus : start()
+    // est async (attente getUserMedia), un second appel peut résoudre avant.
+    const token = (this._detectToken = (this._detectToken || 0) + 1);
+    const dec = new CwAudioDecoder({
+      onBlock: (samples, sampleRate) => detector.feed(samples, sampleRate),
+    });
+    try{
+      await dec.start(deviceId || undefined);
+    }catch(e){
+      if(token === this._detectToken){
+        if(status){ status.textContent = 'Micro indisponible : ' + e.message; status.className = 'cw-device-test bad'; }
+        if(btn) btn.disabled = false;
+      }
+      return;
+    }
+    if(token !== this._detectToken || this.decoder){ dec.stop(); return; }
+    this.detectDecoder = dec;
+    this.detectTimer = setTimeout(() => {
+      this._stopDetect();
+      if(btn) btn.disabled = false;
+      const found = detector.best();
+      if(found){
+        const freqInput = this.el('cwFreq');
+        if(freqInput) freqInput.value = found;
+        this.setFreq(found);
+        if(status){ status.textContent = `Ton détecté : ${found} Hz — champ mis à jour.`; status.className = 'cw-device-test good'; }
+        notify(trF('✅ Ton CW détecté : {hz} Hz', {hz: found}));
+      }else if(status){
+        status.textContent = "Aucun ton CW net détecté — vérifie qu'une station transmet vraiment, puis réessaie.";
+        status.className = 'cw-device-test bad';
+      }
+    }, 4000);
+  }
+
+  _stopDetect(){
+    this._detectToken = (this._detectToken || 0) + 1;
+    if(this.detectTimer){ clearTimeout(this.detectTimer); this.detectTimer = null; }
+    if(this.detectDecoder){ this.detectDecoder.stop(); this.detectDecoder = null; }
   }
 }

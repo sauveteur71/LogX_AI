@@ -69,6 +69,10 @@ function setCwFreq2(freq){ _cwPanel('2').setFreq(freq); }
 // logx_cw_panel.js) : appelée par onchange sur #cwDevice/#cwDevice2.
 function cwTestDevice(){ return _cwPanel('').testDevice(); }
 function cwTestDevice2(){ return _cwPanel('2').testDevice(); }
+// Détection automatique du ton CW (voir CwPanel.detectFreq() dans
+// logx_cw_panel.js) : appelée par le bouton #cwDetectBtn/#cwDetectBtn2.
+function cwDetectFreq(){ return _cwPanel('').detectFreq(); }
+function cwDetectFreq2(){ return _cwPanel('2').detectFreq(); }
 
 // _cwOutText/_cwOutText2 : accesseurs de compatibilité vers l'état interne de
 // CwPanel — tests/test_cw_panel_consolidation.py lit/écrit _cwOutText

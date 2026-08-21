@@ -446,6 +446,203 @@ def test_un_point_authentique_juste_au_dessus_du_seuil_de_rejet_reste_valide(mot
     assert out == 'E'
 
 
+# ─── CwFreqDetector : détection automatique du ton CW (retour F4GLD 21/08/2026) ─
+# « c'est compliqué pour un novice, on peut pas faciliter ce réglage ? » --
+# CwFreqDetector écoute plusieurs fréquences candidates À LA FOIS et retient
+# celle qui montre un vrai RYTHME de signal (plusieurs transitions ON/OFF),
+# jamais une simple porteuse continue (hum/DC offset à une fréquence
+# étrangère) ni du bruit large bande sans fréquence dominante. Ces tests
+# poussent des blocs synthétiques directement dans detector.feed() --
+# CwFreqDetector ne dépend d'aucune API navigateur (comme goertzelMagnitude),
+# testable en pur DSP.
+
+def _detector_helpers(moteur):
+    # Réutilise morseEncodeEdges() déjà défini dans le fixture `moteur`
+    # (préambule ci-dessus) -- génère de VRAIES séquences d'édges Morse
+    # depuis MORSE_TABLE réelle, pas un motif point/trait inventé à la
+    # main qui ne correspondrait à aucune lettre (piège trouvé en le
+    # faisant : la 1re version de ces tests utilisait un tel motif, qui ne
+    # produisait plus AUCUN caractère valide une fois la validation par
+    # décodage réel ajoutée à best() -- tous les tests en dessous
+    # échouaient, pas seulement le nouveau).
+    moteur.eval("""
+    // Pousse `durationMs` de ton (amplitude=0 -> silence) à `freq` Hz dans
+    // detector.feed() -- même granularité de bloc que le vrai pipeline
+    // (blockSize=512, comme CwAudioDecoder).
+    function feedDetector(detector, sr, blockSize, amplitude, freq, durationMs){
+      var blockMs = blockSize / sr * 1000;
+      var nBlocks = Math.max(1, Math.round(durationMs / blockMs));
+      for(var b=0; b<nBlocks; b++){
+        var samples = new Float64Array(blockSize);
+        if(amplitude > 0){
+          for(var i=0;i<blockSize;i++) samples[i] = amplitude * Math.sin(2*Math.PI*freq*i/sr);
+        }
+        detector.feed(samples, sr);
+      }
+    }
+    // Pousse une liste d'edges [isMark, durationMs] (format morseEncodeEdges)
+    // dans le détecteur, à `freq` Hz et `amplitude` donnée.
+    function feedDetectorEdges(detector, sr, blockSize, freq, edges, amplitude){
+      amplitude = (amplitude === undefined) ? 1.0 : amplitude;
+      edges.forEach(function(e){
+        feedDetector(detector, sr, blockSize, e[0] ? amplitude : 0, freq, e[1]);
+      });
+    }
+    // Encode un VRAI texte en Morse (morseEncodeEdges, table réelle) et le
+    // pousse dans le détecteur à `freq` Hz -- ce que produit ce signal DOIT
+    // être décodable, contrairement à un motif point/trait/silence arbitraire.
+    function feedDetectorText(detector, sr, blockSize, freq, texte, unitMs, amplitude){
+      feedDetectorEdges(detector, sr, blockSize, freq, morseEncodeEdges(texte, unitMs), amplitude);
+    }
+    """)
+
+
+def test_detector_trouve_la_frequence_dun_signal_module(moteur):
+    """Cas nominal : un vrai texte encodé en Morse (donc décodable) à une
+    fréquence précise -- doit être identifié, et RIEN d'autre. Fréquence
+    choisie EXACTEMENT sur une candidate de la grille (pas de 100 Hz) : la
+    fuite spectrale entre candidates voisines (résolution Goertzel ~86 Hz
+    pour blockSize=512@44.1kHz) n'est pas ce que ce test cherche à isoler."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      feedDetectorText(d, 44100, 512, 700, 'CQ TEST DE F4GLD', 60);
+      return d.best();
+    })()
+    """)
+    assert found == 700
+
+
+def test_detector_ignore_une_porteuse_continue_a_frequence_etrangere(moteur):
+    """Un ton CONSTANT (jamais OFF) à une fréquence étrangère -- ronflement
+    secteur, offset DC, porteuse parasite -- ne doit JAMAIS être retenu :
+    il ne franchit jamais assez de transitions ON/OFF (reste "on" en
+    continu), contrairement à un vrai signal Morse rythmé."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      feedDetector(d, 44100, 512, 0.8, 500, 3000);   // 500 Hz en continu, 3s
+      return d.best();
+    })()
+    """)
+    assert found is None
+
+
+def test_detector_ignore_le_silence_pur(moteur):
+    """Rien n'est émis nulle part -- aucune fréquence ne doit gagner par
+    défaut, mieux vaut le dire honnêtement qu'inventer un résultat."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      feedDetector(d, 44100, 512, 0, 650, 2000);   // amplitude 0 = silence
+      return d.best();
+    })()
+    """)
+    assert found is None
+
+
+def test_detector_exige_un_minimum_de_transitions(moteur):
+    """Un unique blip isolé (une seule marque, une seule transition ON puis
+    OFF) ne doit PAS suffire à désigner une fréquence -- un parasite ou un
+    craquement statique produirait sinon un faux résultat convaincant."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      feedDetector(d, 44100, 512, 1.0, 700, 60);   // UN SEUL point, rien d'autre
+      feedDetector(d, 44100, 512, 0, 700, 200);
+      return d.best();
+    })()
+    """)
+    assert found is None
+
+
+def test_detector_departage_a_egalite_de_caracteres_valides_par_le_ratio(moteur):
+    """Deux candidates arrivent à ÉGALITÉ de caractères valides décodés --
+    le rapport pic/plancher (agcPeak/noiseFloor) doit alors départager,
+    pas la première rencontrée dans la liste. État interne posé DIRECTEMENT
+    plutôt que rejoué via feed() avec deux tons audio réels : le filtre
+    Goertzel n'est pas fenêtré (fenêtre rectangulaire, lobes secondaires
+    larges) -- un ton assez fort et assez long finit par fuir de façon
+    quasi identique dans TOUS les candidats sur plusieurs secondes de
+    calibration (constaté en le testant), ce qui n'isole plus du tout le
+    départage lui-même. Ce n'est de toute façon pas le scénario réel : un
+    novice n'a qu'UN signal à la fois, pas deux textes complets simultanés
+    à des fréquences différentes -- la sélectivité fréquentielle sur un
+    signal réel est déjà couverte par les tests ci-dessus."""
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      var a = d.stats.get(600), b = d.stats.get(800);
+      a.transitions = b.transitions = 10;
+      a.totalChars = b.totalChars = 5;
+      a.validChars = b.validChars = 4;    // égalité de caractères valides
+      a.agcPeak = 0.02; a.noiseFloor = 0.001;   // rapport faible
+      b.agcPeak = 0.20; b.noiseFloor = 0.001;   // rapport net -> doit gagner
+      return d.best();
+    })()
+    """)
+    assert found == 800
+
+
+def test_detector_prefere_du_vrai_morse_a_un_rythme_non_decodable(moteur):
+    """Reproduction du cas réel (F4GLD, 21/08/2026) : une première version de
+    ce détecteur, qui ne se fiait qu'au rapport pic/plancher, avait
+    verrouillé sur 300 Hz (la limite basse de la plage de candidates) au
+    lieu du vrai ton CW -- résultat jugé « pas concluant » par l'opérateur
+    (texte décodé toujours illisible ensuite). Ici : un rythme ON/OFF
+    IRRÉGULIER à 300 Hz (assez de transitions pour franchir CW_DETECT_MIN_
+    TRANSITIONS, silences trop courts pour jamais fermer un caractère --
+    un bourdonnement/souffle de micro modulé produit exactement ce genre de
+    rythme sans respecter aucune proportion point/trait/espace) doit être
+    écarté au profit d'un texte RÉELLEMENT décodable à 700 Hz, même si le
+    rythme à 300 Hz a un rapport pic/plancher plus élevé."""
+    _detector_helpers(moteur)
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      // 300 Hz : rythme irrégulier, amplitude PLUS FORTE que le vrai signal,
+      // mais silences de 20 ms -- jamais assez pour clore un caractère
+      // (loin sous le seuil inter-lettre ~2 unités) -- s'accumule en UN seul
+      // buffer géant qui ne correspond à aucune entrée de MORSE_TABLE.
+      var bruit = [];
+      for(var i=0; i<10; i++){ bruit.push([true, 35 + (i%3)*15]); bruit.push([false, 20]); }
+      feedDetectorEdges(d, 44100, 512, 300, bruit, 1.0);
+      // 700 Hz : vrai texte, amplitude plus faible -- doit quand même gagner.
+      feedDetectorText(d, 44100, 512, 700, 'CQ TEST DE F4GLD', 60, 0.4);
+      return d.best();
+    })()
+    """)
+    assert found == 700
+
+
+def test_detector_exige_une_proportion_minimale_de_caracteres_valides(moteur):
+    """Une candidate qui accumule BEAUCOUP de caractères mais MAJORITAIREMENT
+    invalides (proportion sous CW_DETECT_MIN_VALID_RATIO) ne doit jamais
+    l'emporter sur une candidate avec MOINS de caractères mais TOUS valides
+    -- sans ce garde-fou, le classement par NOMBRE de caractères valides
+    (voir test précédent) laisserait gagner un flux bruyant qui décode
+    beaucoup mais mal, simplement parce qu'il a eu plus de temps/de
+    transitions pour accumuler du volume. État interne posé directement
+    (même raison que le test de départage ci-dessus)."""
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      var bruyant = d.stats.get(300), reel = d.stats.get(700);
+      bruyant.transitions = reel.transitions = 20;
+      bruyant.totalChars = 20; bruyant.validChars = 8;    // 40% -- sous le seuil
+      reel.totalChars = 5; reel.validChars = 5;           // 100% -- au-dessus, mais MOINS nombreux
+      bruyant.agcPeak = 0.5; bruyant.noiseFloor = 0.001;  // rapport élevé en plus, ne doit pas suffire
+      reel.agcPeak = 0.05; reel.noiseFloor = 0.001;
+      return d.best();
+    })()
+    """)
+    assert found == 700
+
+
 # ─── Table Morse : sanité de base ───────────────────────────────────────────
 
 def test_table_morse_sanite():
