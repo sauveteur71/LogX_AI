@@ -42,6 +42,7 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** une panne invisible en pleine expédition, sans message, est le pire scénario pour le positionnement « terrain exigeant ».
 > **Effort :** S — **Risque :** faible.
 > **Critère d'acceptation :** provoquer une exception volontaire dans un handler de test, vérifier qu'un message exploitable apparaît côté client et dans les logs serveur.
+> **VÉRIFIÉ le 21/08/2026 : déjà corrigé, avant même l'audit du 18/08.** `LogXHTTPServer.handle_error()` (`logx_singleton.py`) journalise toute exception qui échappe aux handlers ; `_journaliser_et_500()` (`logx_http.py`) journalise ET renvoie un 500 JSON lisible au client, avec un traitement soigné du cas où la réponse est déjà partiellement écrite et du piège RST/FIN (drainer le corps avant de répondre). Couvert par `tests/test_lot1_deploiement_club.py` ("Lot 1", PR #108, antérieure à l'audit) : exception en GET, en POST, filtrage des incidents réseau (pas confondus avec un vrai bug), présence de la surcharge. 12/12 tests verts. Rien à coder — le constat de l'audit ne tenait déjà plus au moment où il a été écrit.
 
 > **[A06] Clavier du run CW incomplet — impossible de couper une émission WinKeyer sans CAT** — *Profils : concours, expert*
 > **Constat :** en configuration WinKeyer sans pilotage CAT, aucun raccourci ne permet de couper une émission CW en cours.
@@ -49,6 +50,7 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** sécurité d'émission — un CW qui continue sans qu'on puisse l'arrêter est un vrai risque, pas un confort.
 > **Effort :** S — **Risque :** moyen (sécurité d'émission, à tester avec la même rigueur que le séquenceur FT8 — essai réel avant diffusion).
 > **Critère d'acceptation :** déclencher une émission WinKeyer sans CAT, vérifier que le nouveau raccourci l'arrête réellement (test matériel, pas seulement logique).
+> **VÉRIFIÉ le 21/08/2026 : déjà corrigé, même Lot 1 que A02/A03 (PR #108, revue adversariale du 18/08).** Bouton STOP CW sorti de `#rigPanel` (jamais masqué, jamais expert-only, `logx_logbook.html`), Échap branché dessus via `cwPiloteDisponible()` (`logx_theme_shortcuts.js`), `copyMacro()` corrigée pour router vers la clé plutôt que le presse-papier. `cwPiloteDisponible()` teste délibérément CAT OU WinKeyer, indépendamment du MODE courant (piège identifié en revue : un message déjà parti continue de se vider du tampon même après un changement de mode). Couverture avant cette session : `/hardware/state` expose `winkeyer` (`tests/test_lot1_deploiement_club.py`). Ajouté dans cette session : `tests/test_cw_stop_winkeyer_sans_cat.py`, qui exécute la VRAIE logique JS (`cwPiloteDisponible`/`updateCwStopBtn`/`rigStopCW`) — contre-épreuve par mutation faite. Le test MATÉRIEL réel (WinKeyer physique) reste, comme demandé, hors de portée d'un test automatisé — à faire à la main si besoin. Rien à coder.
 
 > **[A07] `extra_fields` absents de l'export ADIF serveur** — *Profils : club, généraliste*
 > **Constat :** des champs supplémentaires saisis par l'opérateur n'apparaissent pas dans l'export ADIF produit côté serveur.
