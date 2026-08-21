@@ -236,3 +236,40 @@ def test_il_ne_reste_qu_un_seul_generateur_cabrillo():
         "une seconde implémentation Cabrillo est réapparue côté navigateur"
     assert '/log/export/cabrillo' in corps, \
         "le navigateur doit demander le fichier au serveur"
+
+
+# ─── Garde-fou A04 : cabrillo_name requis en CABRILLO ─────────────────────────
+
+def test_definition_cabrillo_sans_cabrillo_name_est_rejetee():
+    """A04 : 12 concours natifs + 2 concours personnalisés importés par IA
+    (WAEDC_CW, ARRL_EME) sont passés inaperçus sans cabrillo_name — leur
+    export aurait porté l'identifiant interne au lieu du tag officiel. Ce
+    garde-fou s'exerce à l'import IA (logx_rules_ai.py appelle
+    validate_definition() avant relecture humaine) et en CI (logx_validate.py
+    valide CONTEST_DEFINITIONS, custom_contests.json inclus)."""
+    from logx_validate import validate_definition
+    definition_incomplete = {
+        'name': 'Concours Test', 'organizer': 'TEST', 'date_rule': 'permanent',
+        'bands': ['14'], 'modes': ['SSB'], 'exchange': 'RS',
+        'scoring': {'type': 'km'}, 'log_format': 'CABRILLO',
+    }
+    erreurs = validate_definition(definition_incomplete, 'TEST_SANS_TAG')
+    assert any('cabrillo_name' in e for e in erreurs), \
+        "une définition CABRILLO sans cabrillo_name doit être rejetée"
+
+    definition_complete = dict(definition_incomplete, cabrillo_name='TEST-TAG')
+    erreurs2 = validate_definition(definition_complete, 'TEST_AVEC_TAG')
+    assert not any('cabrillo_name' in e for e in erreurs2), \
+        "avec cabrillo_name renseigné, plus d'erreur sur ce champ"
+
+
+def test_aucun_concours_charge_ne_declenche_le_garde_fou():
+    """Contre-épreuve grandeur nature : la base réellement chargée (natifs +
+    custom_contests.json) doit être 100% conforme après A04 — pas seulement
+    le cas synthétique du test ci-dessus."""
+    from logx_definitions import CONTEST_DEFINITIONS
+    from logx_validate import validate_definition
+    manquants = [cid for cid, cdef in CONTEST_DEFINITIONS.items()
+                 if cdef.get('log_format') == 'CABRILLO'
+                 and any('cabrillo_name' in e for e in validate_definition(cdef, cid))]
+    assert manquants == [], f"concours CABRILLO sans cabrillo_name : {manquants}"

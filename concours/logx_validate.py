@@ -130,6 +130,10 @@ def validate_definition(cdef, cid='?'):
     lf = cdef.get('log_format')
     if lf is not None and lf not in props['log_format']['enum']:
         errors.append(f"{cid}: log_format '{lf}' absent de l'enum du schema")
+    if lf == 'CABRILLO' and not cdef.get('cabrillo_name'):
+        errors.append(f"{cid}: log_format='CABRILLO' mais 'cabrillo_name' absent — "
+                       "le CONTEST: du fichier exporté portera l'identifiant interne "
+                       "et risque d'être rejeté par le robot de dépôt (voir A04)")
     sc = cdef.get('scoring')
     if not isinstance(sc, dict):
         errors.append(f"{cid}: scoring doit être un objet")
