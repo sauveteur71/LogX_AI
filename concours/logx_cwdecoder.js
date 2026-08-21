@@ -213,12 +213,32 @@ const CW_DETECT_MIN_TRANSITIONS = 4;
 // produire assez d'allers-retours ON/OFF pour passer CW_DETECT_MIN_
 // TRANSITIONS SANS jamais respecter les proportions point/trait/espace
 // d'un vrai Morse, et se décode donc presque uniquement en caractères
-// inconnus. Constaté en usage réel (F4GLD, 21/08/2026) : un premier essai
-// sans cette vérification avait verrouillé sur 300 Hz (limite basse de la
-// plage), résultat que l'opérateur a jugé « pas concluant » -- exactement
-// le symptôme qu'un simple rapport pic/plancher ne peut pas distinguer
-// d'un vrai ton, mais qu'un VRAI DÉCODAGE Morse peut.
+// inconnus.
+//
+// INSUFFISANT SEUL, corrigé le 21/08/2026 en le regardant tourner sur un
+// vrai signal (F4GLD) : ce ratio ne protège PAS contre un bruit haché qui
+// produit des impulsions COURTES. Le code Morse international assigne une
+// lettre à absolument TOUTES les combinaisons de 1 à 3 symboles (E/T sur 1,
+// I/A/N/M sur 2, les 8 combinaisons de 3 symboles couvrent D/U/S/W/G/R/O/K
+// en entier) -- un caractère de 1-3 symboles est donc TOUJOURS "valide" par
+// construction du code, qu'il vienne d'un vrai opérateur ou d'un
+// bourdonnement modulé par hasard. Sur le poste de F4GLD, un tel bruit à
+// 300 Hz passait ce filtre haut la main (beaucoup de courts caractères
+// "valides") tout en affichant un charabia illisible -- constaté en
+// direct, pas supposé.
 const CW_DETECT_MIN_VALID_RATIO = 0.5;
+
+// Deuxième garde-fou, complémentaire : la VITESSE estimée doit rester dans
+// une plage humainement plausible. MorseTimingDecoder borne unitMs à
+// [20,300]ms (voir son constructeur), soit 4 à 60 MPM -- un bruit haché en
+// impulsions très courtes et irrégulières fait typiquement CHUTER unitMs
+// jusqu'à son plancher, ce qui donne 60 MPM tout rond : pas une mesure,
+// LE PLAFOND du calcul lui-même. Confirmé en direct sur le même signal :
+// le candidat piégé par le premier garde-fou affichait exactement 60 MPM.
+// Aucun trafic CW à la main (même un concours rapide) n'approche cette
+// vitesse -- 45 MPM laisse une marge large au-dessus du rythme humain le
+// plus rapide réaliste, tout en excluant nettement le plafond du calcul.
+const CW_DETECT_MAX_WPM = 45;
 
 class CwFreqDetector {
   constructor(){
@@ -299,6 +319,7 @@ class CwFreqDetector {
       if (s.totalChars === 0) continue;
       const validRatio = s.validChars / s.totalChars;
       if (validRatio < CW_DETECT_MIN_VALID_RATIO) continue;
+      if (s.decoder.wpm > CW_DETECT_MAX_WPM) continue;
       const ratio = s.agcPeak / Math.max(s.noiseFloor, 1e-6);
       if (s.validChars > bestValidChars
           || (s.validChars === bestValidChars && ratio > bestRatio)) {
