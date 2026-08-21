@@ -220,23 +220,56 @@ def test_adaptunit_resiste_a_une_serie_de_traits(moteur):
         "le fichier source")
 
 
-def test_adaptunit_redescend_des_qu_un_vrai_point_arrive(moteur):
-    """Un point authentique (même isolé au milieu de traits) doit pouvoir
-    faire redescendre le minimum -- contrairement aux traits, qui ne
-    peuvent jamais le faire remonter à tort."""
+def test_adaptunit_redescend_des_que_deux_vrais_points_arrivent(moteur):
+    """Des points authentiques (même au milieu de traits) doivent pouvoir
+    faire redescendre l'estimation -- contrairement aux traits, qui ne
+    peuvent jamais la faire remonter à tort. DEUX points, pas un seul
+    (changement du 21/08/2026, voir _adaptUnit) : un blip de bruit isolé,
+    plus court qu'un vrai point, ne doit plus suffire à lui seul à faire
+    dévisser l'estimation -- constaté sur un enregistrement réel où un
+    unique blip avait déclenché une spirale descendante jusqu'au plancher.
+    Une répétition (deux points identiques) reste le signal qu'exige la
+    2e-plus-petite-valeur retenue par _adaptUnit."""
     result = moteur.eval("""
     JSON.stringify((function(){
       var dec = new MorseTimingDecoder(function(){});
       dec.unitMs = 60; dec.recentMarks = new Array(12).fill(90);  // fenêtre "polluée"
       for(var i=0;i<5;i++){ dec.pushEdge(true, 180); dec.pushEdge(false, 60); }
       var apres_traits = dec.unitMs;
-      dec.pushEdge(true, 60);   // un vrai point à l'unité d'origine
-      var apres_point = dec.unitMs;
-      return [apres_traits, apres_point];
+      dec.pushEdge(true, 60); dec.pushEdge(false, 60);   // DEUX vrais points à l'unité d'origine
+      dec.pushEdge(true, 60);
+      var apres_points = dec.unitMs;
+      return [apres_traits, apres_points];
     })())
     """)
-    unit_after_dashes, unit_after_dot = json.loads(result)
-    assert unit_after_dot < unit_after_dashes
+    unit_after_dashes, unit_after_dots = json.loads(result)
+    assert unit_after_dots < unit_after_dashes
+
+
+def test_adaptunit_resiste_a_un_blip_de_bruit_isole(moteur):
+    """Contre-épreuve DIRECTE du bug trouvé le 21/08/2026 sur un vrai
+    enregistrement (F4GLD) : un unique blip de bruit plus court qu'un vrai
+    point (ici 25ms, contre des points réels de 45ms) glissé au milieu
+    d'une série de points réguliers ne doit PAS faire chuter l'estimation
+    en dessous du point réel -- sans la 2e-plus-petite-valeur, ce blip
+    isolé aurait immédiatement tiré unitMs vers le bas (comportement de
+    l'ancien minimum strict), abaissant du même coup le seuil de rejet de
+    pushEdge pour le blip suivant -- la spirale observée en direct."""
+    result = moteur.eval("""
+    JSON.stringify((function(){
+      var dec = new MorseTimingDecoder(function(){});
+      dec.unitMs = 45; dec.recentMarks = new Array(12).fill(45);
+      for(var i=0;i<4;i++){ dec.pushEdge(true, 45); dec.pushEdge(false, 45); }
+      dec.pushEdge(true, 25);   // UN SEUL blip de bruit isolé, plus court
+      dec.pushEdge(false, 45);
+      for(var i=0;i<4;i++){ dec.pushEdge(true, 45); dec.pushEdge(false, 45); }
+      return dec.unitMs;
+    })())
+    """)
+    unit_after = json.loads(result)
+    assert unit_after >= 40, (
+        f'un blip isolé de 25ms a fait chuter unitMs à {unit_after} '
+        '(devrait rester proche des 45ms des vrais points)')
 
 
 # ─── Démarrage à froid (constructeur, sans override manuel de unitMs) ───────
@@ -693,6 +726,34 @@ def test_detector_exige_une_proportion_minimale_de_caracteres_valides(moteur):
       reel.totalChars = 5; reel.validChars = 5;           // 100% -- au-dessus, mais MOINS nombreux
       bruyant.agcPeak = 0.5; bruyant.noiseFloor = 0.001;  // rapport élevé en plus, ne doit pas suffire
       reel.agcPeak = 0.05; reel.noiseFloor = 0.001;
+      return d.best();
+    })()
+    """)
+    assert found == 700
+
+
+def test_detector_prefere_la_proportion_au_volume_brut(moteur):
+    """Reproduction du second bug réel trouvé le 21/08/2026, sur un
+    enregistrement F4GLD analysé hors-ligne (pas une supposition) : une
+    candidate BRUYANTE (fuite spectrale/harmoniques d'un vrai ton voisin)
+    peut accumuler beaucoup plus de TRANSITIONS qu'une candidate propre, et
+    donc BEAUCOUP plus de caractères valides EN VOLUME, tout en étant
+    nettement moins fiable EN PROPORTION -- valeurs mesurées : 53
+    caractères valides à 77 % pour la candidate bruyante, contre seulement
+    21 à 95 % pour le vrai ton. Classer par NOMBRE de caractères valides
+    (comportement d'avant ce correctif) faisait gagner la candidate
+    bruyante. La PROPORTION, elle, ignore le volume d'activité et doit
+    donner la victoire au ton réellement plus fiable, même avec moins de
+    caractères décodés au total."""
+    found = moteur.eval("""
+    (function(){
+      var d = new CwFreqDetector();
+      var bruyant = d.stats.get(300), reel = d.stats.get(700);
+      bruyant.transitions = reel.transitions = 200;
+      bruyant.totalChars = 69; bruyant.validChars = 53;   // 77% -- au-dessus du seuil, mais moins net
+      reel.totalChars = 22; reel.validChars = 21;         // 95% -- bien moins nombreux, bien plus net
+      bruyant.agcPeak = 16.8; bruyant.noiseFloor = 1.0;   // rapport pic/plancher comparable des deux cotes
+      reel.agcPeak = 16.8; reel.noiseFloor = 1.0;
       return d.best();
     })()
     """)
