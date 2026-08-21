@@ -23,12 +23,10 @@ Conséquence directe sur la priorisation ci-dessous : tout ce qui empêche un mi
 
 Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vérifiés une 2e fois le 21/08 sur 3 des 10 points (A09 par lecture directe, A02 par grep de structure — voir note sous chaque item pour le niveau de vérification réel).
 
-> **[A01] VOACAP — colonne de prédiction décalée** — *Profils : DXeur, expédition*
-> **Constat :** la table de prédiction VOACAP affiche ses valeurs sous la mauvaise en-tête de colonne (constat de l'audit du 18/08, non re-vérifié le 21/08).
-> **Proposition :** corriger l'alignement colonne/valeur dans le rendu du tableau (`logx_voacap.js` ou équivalent, à localiser).
-> **Valeur :** une prédiction VOACAP mal alignée peut faire choisir la mauvaise bande — directement trompeur pour l'usage revendiqué (expédition).
-> **Effort :** S — **Risque :** faible.
-> **Critère d'acceptation :** comparer manuellement 3 lignes de la table affichée aux sorties brutes de `voacapl.exe` pour les mêmes paramètres.
+> **[A01] VOACAP — colonne de prédiction décalée — NE SE REPRODUIT PAS (vérifié le 21/08/2026)**
+> **Constat d'origine :** la table de prédiction VOACAP afficherait ses valeurs sous la mauvaise en-tête de colonne (audit du 18/08).
+> **Vérification faite :** critère d'acceptation exécuté tel quel — `voacapl.exe` réel lancé sur ce poste (Paris→New York, août 2026, SSN 100, 8 bandes), sortie brute conservée, colonnes REL de 3 heures consécutives comparées une à une à `logx_voacap.py:_parse_out()` et au rendu HTML (`logx_carte.html:voacapTableHtml`, `logx_logbook.js:runVoacapCheck`) : correspondance exacte sur les 24 valeurs (8 bandes × 3 heures), aucun décalage. Le piège réel de ce genre (colonne MODE avec espace interne, `"4 E"`) est documenté et déjà corrigé dans le code (extraction par position, pas par split naïf) — couvert par `tests/test_voacap.py::test_parse_out_mode_avec_espace_interne_pas_decale`.
+> **Conclusion :** pas de correctif à faire — le constat de l'audit du 18/08 ne tient pas sur re-vérification (comme pour A04, dont le chiffre était aussi surestimé). Retiré des quick wins à traiter.
 
 > **[A02] `/log/add` ne renvoie pas l'id attribué au QSO** — *Profils : tous*
 > **Constat :** l'endpoint qui enregistre un QSO ne renvoie pas l'identifiant qu'il vient de lui attribuer côté serveur. Conséquence signalée par l'audit : la fonction « annuler le dernier QSO » peut viser le mauvais QSO et effacer une entrée historique plutôt que celle qu'on vient de saisir.
@@ -114,4 +112,4 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 
 - Le **livrable C** (spec de l'agent IA) et le **livrable D** (plan d'adoption) sont cadrés par les décisions 1 et 2 ci-dessus mais pas encore rédigés — à produire séparément, chacun est un document à part entière.
 - La **migration du dépôt GitHub**, demandée le 21/08, s'est révélée déjà faite à la vérification — rien à planifier.
-- Les points A01, A03, A06, A08 restent des constats de l'audit du 18/08 **non re-vérifiés individuellement** le 21/08 (seuls A02, A09 et le point QSL papier ont été recroisés avec le code réel dans cette session) — à confirmer avant de les traiter, pas à prendre pour argent comptant sans un dernier grep.
+- Les points A03, A06, A08 restent des constats de l'audit du 18/08 **non re-vérifiés individuellement** (seuls A02, A09, A01 et le point QSL papier ont été recroisés avec le code réel) — à confirmer avant de les traiter, pas à prendre pour argent comptant sans un dernier grep. A01 (VOACAP) a été vérifié le 21/08 et **ne se reproduit pas** — voir sa fiche ci-dessus.
