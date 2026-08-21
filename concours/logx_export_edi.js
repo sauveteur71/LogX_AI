@@ -132,9 +132,19 @@ async function exportEDI(){
       `SRXEq=${ediRadio}`,
       `SAnte=${antBand}`,
       `SAntH=`,
-      `CQSOs=${bandQSOs.length}`,
+      // Spec officielle REG1TEST (IARU Region 1, "Standard Format for
+      // Electronic Contest Log Exchange", Vienna 1998, issue 1.1) : CQSOs
+      // attend DEUX valeurs séparées par ';' (nombre de QSO;multiplicateur
+      // de bande) — le champ ne portait que le nombre de QSO. Multiplicateur
+      // fixé à 1 (pas de multiplicateur de bande distinct dans les concours
+      // REF THF actuels) — valeur vue telle quelle dans les deux exemples
+      // officiels du document ("CQSOs=24;1").
+      // Le champ 'CScor' n'existe PAS dans la spec : le score total
+      // s'appelle 'CToSc' ("Claimed total score"). Un champ inconnu peut
+      // faire échouer un validateur strict côté club/robot de dépôt.
+      `CQSOs=${bandQSOs.length};1`,
       `CQSOP=${bandScore}`,
-      `CScor=${bandScore}`,
+      `CToSc=${bandScore}`,
       `TMore=`,
       `[Remarks]`,
       `Logiciel: LogX AI v3.0 — ${ediCall} ${ediLocator}`,

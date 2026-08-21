@@ -115,6 +115,11 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8'],
         'modes': ['SSB','CW'],
         'exchange': 'RS + N°serie + dept',
+        # Confirmé par contestlogchecker.com (modèles Cabrillo) et une
+        # occurrence indépendante sur la liste WA7BNM des noms Cabrillo,
+        # cohérent avec la convention REF-<bande/mode> déjà utilisée
+        # ci-dessus (REF-SSB, REF-CW) — vérifié le 21/08/2026.
+        'cabrillo_name': 'REF-160M',
         'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
         'log_format': 'CABRILLO', 'log_deadline': '5_days_after',
     },
@@ -745,6 +750,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '13:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['SSB'],
         'exchange': 'RS + N°serie (stations ON : + province)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'UBA-DX-SSB',
         'scoring': {
             'bricks': {
                 'points': [
@@ -769,6 +777,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '13:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['CW'],
         'exchange': 'RST + N°serie (stations ON : + province)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'UBA-DX-CW',
         'scoring': {
             'bricks': {
                 'points': [
@@ -793,6 +804,11 @@ CONTEST_DEFINITIONS = {
         'duration_h': 12, 'start_utc': '12:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + 2 derniers chiffres de l\'année de 1re licence de l\'opérateur',
+        # Confirmé sur la page officielle des concours supportés de N1MM
+        # Logger+ (n1mmwp.hamdocs.com/manual-supported/contests-list/),
+        # qui doit connaître le tag exact pour produire un Cabrillo
+        # accepté par le robot de dépôt — vérifié le 21/08/2026.
+        'cabrillo_name': 'EUHFC',
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
@@ -818,6 +834,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '12:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + N°serie (stations russes : + oblast 2 lettres)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'RDXC',
         'scoring': {
             'bricks': {
                 'points': [
@@ -842,6 +861,11 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '15:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + N°serie (stations SP : + province 1 lettre)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php) : "SPDX", pas "SPDXC" (qui
+        # désigne un concours différent selon d'autres sources croisées)
+        # — vérifié le 21/08/2026.
+        'cabrillo_name': 'SPDX',
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':3}],
@@ -863,6 +887,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '12:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + N°serie (stations HA : + comté 2 lettres)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'HA-DX',
         'scoring': {
             'bricks': {
                 'points': [
@@ -886,6 +913,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['CW'],
         'exchange': 'RST + âge de l\'opérateur (YL : 00)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'AADX-CW',
         'scoring': {
             'bricks': {
                 'points': [
@@ -911,6 +941,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['SSB'],
         'exchange': 'RS + âge de l\'opérateur (YL : 00)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'AADX-SSB',
         'scoring': {
             'bricks': {
                 'points': [
@@ -934,6 +967,9 @@ CONTEST_DEFINITIONS = {
         'duration_h': 24, 'start_utc': '15:00',
         'bands': ['1.8'], 'modes': ['CW'],
         'exchange': 'grand carré locator (4 caractères)',
+        # Confirmé sur la liste officielle des noms Cabrillo WA7BNM
+        # (contestcalendar.com/cabnames.php), vérifié le 21/08/2026.
+        'cabrillo_name': 'STEW-PERRY',
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':'per_km'}],
