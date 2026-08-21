@@ -13,6 +13,72 @@ poussé.
 
 ## [Non publié]
 
+## [1.1-beta7] - 2026-08-21
+
+### Ajouté
+
+- **Upload QSL vers Cloudlog/Wavelog.** Nouveau service d'upload dans
+  `logx_qsl.py`, au même niveau qu'eQSL/ClubLog/QRZCQ/HRDLog (URL de
+  l'instance + clé API + ID de profil station dans CONFIG, bouton dans la
+  popup Diplômes du LOGBOOK). Contrat d'API (`POST /index.php/api/qso`)
+  vérifié directement dans le code source des deux projets — leur doc ne
+  précise pas le format de réponse, qui diffère d'ailleurs entre forks
+  (`imported_count` chez Cloudlog, `adif_count` chez Wavelog, les deux lus).
+- **Détection automatique du ton CW à l'écoute.** Un bouton 🔍 Détecter, à
+  côté du champ « Ton CW à l'écoute » (radio 1 et radio 2 SO2R), écoute
+  quelques secondes une station en train de transmettre et règle le champ
+  tout seul — plus besoin de connaître le réglage CW Pitch de son poste.
+  Écoute plusieurs fréquences candidates en parallèle et ne retient que
+  celle qui produit du VRAI Morse décodable (pas seulement un rythme
+  ON/OFF plausible, qu'un simple ronflement grave peut imiter) ET à une
+  vitesse humainement plausible (≤ 45 MPM) — un bruit haché en impulsions
+  courtes se décode presque toujours en caractères "valides" au sens
+  strict du code Morse (1 à 3 symboles = toujours une lettre existante),
+  d'où ce second filtre, ajouté après l'avoir vu se faire piéger en
+  direct sur un vrai poste avant la sortie de cette beta.
+- **PTT par ligne série (RTS/DTR).** Beaucoup de postes derrière un boîtier
+  d'interface (ex. XGGComms Digimode-4) n'activent l'entrée audio de leur
+  prise DATA que si le PTT matériel est actionné — piloté par la seule
+  commande CAT, un tel poste passe en émission et ne sort aucune
+  puissance, en silence. `cat_ptt_method` (`cat`/`rts`/`dtr`) dans
+  CONFIG → RADIO ; le PTT matériel n'exige pas un CAT actif, ce qui permet
+  de continuer à émettre même quand le câble CAT lui-même ne fonctionne
+  pas. Message « Aucune radio détectée » amélioré au passage : nomme
+  enfin les ports série réellement présents au lieu de renvoyer vérifier
+  vaguement « le câble/port ».
+- **Lien de soutien (don HelloAsso).** Un lien 💛 soutenir dans la barre de
+  statut partagée (les 15 pages de l'app) et un widget de don sur le
+  [site vitrine](https://sauveteur71.github.io/LogX_AI/) — don libre au
+  Radio-Club du Velay (F6KQJ), entièrement facultatif, aucune
+  fonctionnalité n'en dépend.
+
+### Corrigé
+
+- **10 constats de l'audit du 18-19/08/2026 (A01-A10), traités un par un** —
+  détail complet dans `docs/FEUILLE_DE_ROUTE.md`. Les plus significatifs :
+  le score déclaré (export Cabrillo, archivage, affichage live) n'appliquait
+  le multiplicateur sur AUCUN de ses 6 chemins d'exposition (A10) ; `/log/list`
+  n'exigeait aucune authentification et 6 CDN externes chargeaient sans
+  intégrité SRI (A09) ; le miroir JS des barèmes de score ne gérait pas les
+  règles `when` en liste et ignorait des prédicats connus, cassant
+  l'affichage en direct sur le concours REF phare (A05) ; 10 noms de
+  concours Cabrillo non conformes, sourcés et corrigés (A04). Les autres
+  constats (A01, A02, A03, A06) se sont révélés déjà corrigés ou non
+  reproductibles à la vérification — documenté avec preuve plutôt que
+  simplement refermé.
+- **Panneau réglages FT8 qui se rouvrait de force.** Le panneau « Réglages à
+  faire sur ton poste » se réaffichait ouvert à CHAQUE visite de la page
+  FT8, même après une fermeture manuelle une fois les réglages appliqués.
+  Mémorise désormais la fermeture par poste précis (marque+modèle) — un
+  changement de radio redonne une bonne raison de le revoir.
+- **Liste des périphériques audio du keyer vocal, dédupliquée.** PortAudio
+  interroge Windows via jusqu'à 4 sous-systèmes distincts (MME/
+  DirectSound/WASAPI/WDM-KS) : chaque périphérique apparaissait donc
+  jusqu'à 4 fois dans le sélecteur CONFIG, noyant l'interface USB radio au
+  milieu d'une vingtaine d'entrées pour moitié identiques.
+- Balayage cohérence documentaire : 2 chiffres périmés oubliés dans les
+  documents de promotion.
+
 ## [1.1-beta6] - 2026-08-21
 
 ### Ajouté
