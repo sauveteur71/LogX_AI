@@ -15,6 +15,7 @@
         "CW"
       ],
       "exchange": "RST + numéro de série progressif à partir de 001 (000 si l'autre station n'envoie pas de numéro). QTC : série de 1 à 10 QSOs (heure, indicatif, numéro de série).",
+      "cabrillo_name": "DARC-WAEDC-CW",
       "scoring": {
         "bricks": {
           "points": [
@@ -79,6 +80,7 @@
         "all"
       ],
       "exchange": "Locator Maidenhead 4 caractères (optionnellement rapport de signal pour stations analogiques si propagation ne permet pas l'échange du locator)",
+      "cabrillo_name": "ARRL-EME",
       "scoring": {
         "bricks": {
           "points": [
