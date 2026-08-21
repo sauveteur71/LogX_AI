@@ -82,8 +82,8 @@ Temps config→lancement, taux d'extraction IA correcte champ par champ, nombre 
 Inventaire de référence de ce qui est **déjà livré** — sert de baseline de non-régression.
 
 ### 4.1 Moteur & données
-- **Moteur de score générique à briques composables** (`logx_scoring.py`) : prédicats nommés (`same_country`, `different_continent`, `is_na/eu/asia`, `prefix_in`…), 7 familles de multiplicateurs, règles de points filtrables par bande, `mult_weight_by_band`, options transverses (bonus même carré, boost propagation, plafond ON4KST). Preuve de non-régression : **44 064 comparaisons** ancien/nouveau moteur, identiques.
-- **Base intégrée** : **36 concours** prêts à l'emploi (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **358 concours mondiaux** WA7BNM préparables en un clic.
+- **Moteur de score générique à briques composables** (`logx_scoring.py`) : prédicats nommés (`same_country`, `different_continent`, `is_na/eu/asia`, `prefix_in`…), 10 familles de multiplicateurs (`MULT_EVALUATORS` : locator, large_square, zone_dxcc, dxcc_only, itu_zone, prefix, dept_dxcc, na_section, na_state, exchange_distinct), règles de points filtrables par bande, `mult_weight_by_band`, options transverses (bonus même carré, boost propagation, plafond ON4KST). Preuve de non-régression : **44 064 comparaisons** ancien/nouveau moteur, identiques. Score final (points × multiplicateurs) unifié serveur/client sur les 6 chemins qui l'exposent depuis le 21/08/2026 (`calc_total_score`, voir `docs/FEUILLE_DE_ROUTE.md` A10).
+- **Base intégrée** : **41 concours** prêts à l'emploi (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **358 concours mondiaux** WA7BNM préparables en un clic.
 - **Contrat de données** : `contest_schema.json` (JSON Schema 2020-12) + `validate_definitions.py` valide les définitions **contre le moteur lui-même** (désync impossible).
 
 ### 4.2 IA
