@@ -34,6 +34,7 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** évite une vraie perte de données — un carnet qui perd des QSO sur une fausse manœuvre d'annulation est disqualifiant pour l'usage « carnet exigeant ».
 > **Effort :** S — **Risque :** élevé si non corrigé (pas si corrigé).
 > **Critère d'acceptation :** test automatisé — logger 2 QSO rapprochés, appeler « annuler le dernier », vérifier par id que c'est bien le 2e (pas le 1er) qui disparaît.
+> **VÉRIFIÉ le 21/08/2026 : déjà corrigé.** `/log/add` renvoie bien `'id': info.get('id')` (`logx_http.py`), et le client adopte cet id AVANT de pousser le QSO dans `qsoLog` (`_adopterIdServeur()`, `logx_logbook.js`, avec un commentaire qui documente précisément ce défaut et sa correction). `undoLastQSO()` (`logx_edit_qso.js`) consomme bien cet id adopté. Couverture avant cette session : 2 tests serveur (`tests/test_lot1_deploiement_club.py`, section « A02 »). Ajouté dans cette session : `tests/test_undo_last_qso_id_adopte.py`, qui exécute le VRAI `_adopterIdServeur()`+`undoLastQSO()` (V8 réel, py_mini_racer) pour couvrir la boucle CLIENT complète — contre-épreuve par mutation faite (id non adopté → mauvais id ciblé, confirmé). Rien à coder.
 
 > **[A03] `handle_error` jamais surchargé** — *Profils : tous*
 > **Constat :** le serveur HTTP maison n'a pas de gestion d'erreur personnalisée — une exception non prévue peut se traduire par une page cassée ou un silence, sans message utile à l'écran.
