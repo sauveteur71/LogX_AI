@@ -58,6 +58,7 @@ Repris de l'audit du 18/08, tous classés effort **S** par les 32 agents et vér
 > **Valeur :** cohérence avec une promesse déjà écrite dans le code — actuellement non tenue pour ce champ précis.
 > **Effort :** S — **Risque :** faible.
 > **Critère d'acceptation :** saisir un QSO avec un champ `extra_fields` rempli, exporter en ADIF, vérifier sa présence dans le fichier produit.
+> **CORRIGÉ le 21/08/2026.** Constat confirmé exact (contrairement à A01/A02/A03/A06) : le générateur ADIF CLIENT (`logx_export_adif.js`) exportait déjà `q.extra_fields`, mais l'export SERVEUR (`logx_export.py:build_adif`) avait une liste de champs fixe, sans boucle équivalente — deux implémentations qui divergeaient silencieusement. Ajouté : boucle sur `extra_fields`, avec le même garde-fou anti-duplication que le JS (`_ADIF_STD_TAGS`, ici plus complet car le serveur exporte plus de tags que le JS — STATE/NAME/QTH/COMMENT/DISTANCE/PROP_MODE/SAT_NAME/MY_SIG*/SIG*). Témoin vert, contre-épreuve par mutation faite (boucle désactivée → 2 tests rouges confirmés → restaurée → vert reconfirmé, tests/test_export.py 17/17 + suite des autres consommateurs de build_adif).
 
 > **[A08] Cases à cocher CONFIG mortes** — *Profils : tous*
 > **Constat :** au moins une case à cocher de CONFIG n'a aucun effet sur le comportement du logiciel (constat de l'audit du 18/08, cases précises à relocaliser).

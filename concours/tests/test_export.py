@@ -132,6 +132,30 @@ def test_export_vide():
     assert build_adif([], CFG).count('<EOR>') == 0
 
 
+# ─── A07 : extra_fields (champs ADIF personnalisés) de l'export serveur ─────
+
+def test_adif_exporte_les_champs_personnalises():
+    """Sans ce correctif, un champ personnalisé saisi via editQSO (q.extra_fields
+    côté client) était stocké mais absent de CET export serveur (logx_export.py)
+    — alors que le générateur JS (logx_export_adif.js) l'exportait déjà. Les
+    deux prétendent à la même promesse : « même si vous abandonnez LogX AI,
+    votre log reste exploitable »."""
+    qso = dict(QSOS[0], extra_fields={'MY_RIG': 'IC-7300', 'AWARD_GRANTED': 'DXCC'})
+    adi = build_adif([qso], CFG)
+    assert '<my_rig:7>IC-7300' in adi
+    assert '<award_granted:4>DXCC' in adi
+
+
+def test_adif_champ_personnalise_ne_duplique_pas_un_tag_standard():
+    """Un opérateur qui nomme par erreur son champ personnalisé 'CALL' (ou
+    tout autre tag déjà émis) ne doit pas produire un second <CALL:...> qui
+    contredirait le premier — comportement identique à ADIF_STD_TAGS côté JS."""
+    qso = dict(QSOS[0], extra_fields={'CALL': 'FAUX', 'MY_NOTE': 'ok'})
+    adi = build_adif([qso], CFG)
+    assert adi.count('<call:') == 1
+    assert '<my_note:2>ok' in adi
+
+
 # ─── QTC (WAE) : lignes "QTC:" du Cabrillo, format vérifié contre les règles
 # publiques DARC/WAEDC (QRG MODE DATE TIME CALL-RX QTC-GRP CALL-TX TIME-QSO
 # CALL-QSO NR-QSO — une ligne par QTC individuel, pas par série) ────────────

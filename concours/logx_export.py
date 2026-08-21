@@ -271,6 +271,21 @@ def _adif_field(name, value):
     return f"<{name}:{len(value)}>{value}" if value else ''
 
 
+# Tags ADIF déjà émis explicitement par build_adif() ci-dessous — sert à ne
+# pas dupliquer/contredire un tag standard si un champ personnalisé porte
+# malencontreusement le même nom (ex. l'opérateur entre "CALL" comme nom de
+# champ). Jumeau de ADIF_STD_TAGS (logx_export_adif.js) : cette liste-ci est
+# la référence, plus complète (elle couvre STATE/NAME/QTH/COMMENT/DISTANCE/
+# PROP_MODE/SAT_NAME/MY_SIG*/SIG* que le JS n'exporte pas encore) — un
+# correctif de l'une doit se refléter dans l'autre.
+_ADIF_STD_TAGS = {
+    'CALL', 'QSO_DATE', 'TIME_ON', 'BAND', 'FREQ', 'MODE', 'RST_SENT',
+    'RST_RCVD', 'STX_STRING', 'SRX_STRING', 'GRIDSQUARE', 'STATE', 'NAME',
+    'QTH', 'COMMENT', 'MY_GRIDSQUARE', 'CONTEST_ID', 'STATION_CALLSIGN',
+    'OPERATOR', 'DISTANCE', 'PROP_MODE', 'SAT_NAME', 'MY_SIG', 'MY_SIG_INFO',
+    'SIG', 'SIG_INFO', 'ADIF_VER', 'PROGRAMID',
+}
+
 _OP_SLOT_RE = re.compile(r'^OP(\d+)$', re.IGNORECASE | re.ASCII)
 
 
@@ -381,5 +396,17 @@ def build_adif(qsos, cfg=None):
             _adif_field('sig', q.get('sig', '')),
             _adif_field('sig_info', q.get('sig_info', '')),
         ]
+        # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
+        # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
+        # JS (logx_export_adif.js) mais PAS par cet export serveur, alors que
+        # les deux prétendent à la même promesse : « même si vous abandonnez
+        # LogX AI, votre log reste exploitable » (voir commentaire plus haut).
+        extra_fields = q.get('extra_fields')
+        if isinstance(extra_fields, dict):
+            # minuscules : même convention que tous les autres appels
+            # _adif_field() de cette fonction (ADIF est insensible à la casse
+            # des tags, mais un fichier cohérent est plus facile à relire).
+            fields += [_adif_field(str(name).lower(), value) for name, value in extra_fields.items()
+                       if str(name).upper() not in _ADIF_STD_TAGS]
         records.append(''.join(f for f in fields if f) + '<EOR>')
     return header + '\n'.join(records) + '\n'
