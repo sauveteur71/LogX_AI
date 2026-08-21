@@ -342,6 +342,79 @@ def test_list_output_devices_ne_plante_pas():
     assert isinstance(vk.list_output_devices(), list)
 
 
+# ─── Déduplication cross-API (retour F4GLD 21/08/2026) ───────────────────────
+# PortAudio interroge Windows via MME/DirectSound/WASAPI/WDM-KS -- chaque
+# périphérique physique ou virtuel y apparaît donc jusqu'à 4 fois, noyant le
+# bon choix dans une liste illisible. MME tronque en plus les noms à 31
+# caractères (constaté en direct sur un vrai poste). Ces tests pilotent
+# sounddevice.query_devices()/query_hostapis() avec des doubles fidèles au
+# cas réel observé, sans toucher au vrai matériel.
+
+def _patch_sd(monkeypatch, devices, hostapis):
+    import sounddevice as sd
+    monkeypatch.setattr(sd, 'query_devices', lambda: devices)
+    monkeypatch.setattr(sd, 'query_hostapis', lambda: hostapis)
+
+
+def test_list_output_devices_deduplique_troncature_mme_vers_wasapi(monkeypatch):
+    """Reproduction exacte du cas réel : MME tronque à 31 caractères, WASAPI
+    rapporte le nom complet -- un seul périphérique doit survivre, avec le
+    nom COMPLET et l'index WASAPI (jamais l'index MME tronqué)."""
+    hostapis = [{'name': 'MME'}, {'name': 'Windows WASAPI'}]
+    devices = [
+        {'name': 'Haut-parleurs (2- USB Audio COD', 'max_output_channels': 2, 'hostapi': 0},
+        {'name': 'Haut-parleurs (2- USB Audio CODEC )', 'max_output_channels': 2, 'hostapi': 1},
+    ]
+    _patch_sd(monkeypatch, devices, hostapis)
+    out = vk.list_output_devices()
+    assert len(out) == 1
+    assert out[0]['name'] == 'Haut-parleurs (2- USB Audio CODEC )'
+    assert out[0]['index'] == 1
+
+
+def test_list_output_devices_prefere_wasapi_a_nom_pleinement_identique(monkeypatch):
+    """Même nom complet des deux côtés (pas de troncature à départager) :
+    WASAPI doit quand même l'emporter sur DirectSound -- sous-système
+    moderne, préféré par convention plutôt qu'un choix arbitraire."""
+    hostapis = [{'name': 'Windows DirectSound'}, {'name': 'Windows WASAPI'}]
+    devices = [
+        {'name': 'Haut-parleurs (Realtek(R) Audio)', 'max_output_channels': 2, 'hostapi': 0},
+        {'name': 'Haut-parleurs (Realtek(R) Audio)', 'max_output_channels': 2, 'hostapi': 1},
+    ]
+    _patch_sd(monkeypatch, devices, hostapis)
+    out = vk.list_output_devices()
+    assert len(out) == 1
+    assert out[0]['index'] == 1
+
+
+def test_list_output_devices_garde_les_peripheriques_reellement_distincts(monkeypatch):
+    """Deux SORTIES DIFFÉRENTES d'un même pilote multicanal (numérotées 1/2)
+    ne doivent JAMAIS fusionner entre elles, même sous le même hostapi."""
+    hostapis = [{'name': 'Windows WDM-KS'}]
+    devices = [
+        {'name': 'Speakers 1 (Realtek HD Audio output with SST)', 'max_output_channels': 2, 'hostapi': 0},
+        {'name': 'Speakers 2 (Realtek HD Audio output with SST)', 'max_output_channels': 2, 'hostapi': 0},
+    ]
+    _patch_sd(monkeypatch, devices, hostapis)
+    out = vk.list_output_devices()
+    assert len(out) == 2
+
+
+def test_list_output_devices_ne_fusionne_pas_un_prefixe_court(monkeypatch):
+    """Un nom court qui se trouve être un préfixe d'un autre ne doit PAS être
+    fusionné : le rapprochement est borné aux noms proches de la troncature
+    MME réelle (31 caractères), pas un simple test de préfixe généralisé qui
+    fusionnerait à tort des périphériques réellement différents."""
+    hostapis = [{'name': 'MME'}, {'name': 'Windows WASAPI'}]
+    devices = [
+        {'name': 'Line Out 1', 'max_output_channels': 2, 'hostapi': 0},
+        {'name': 'Line Out 1 (Intelligo VAC (W))', 'max_output_channels': 2, 'hostapi': 1},
+    ]
+    _patch_sd(monkeypatch, devices, hostapis)
+    out = vk.list_output_devices()
+    assert len(out) == 2
+
+
 def test_list_tts_voices_ne_plante_pas():
     assert isinstance(vk.list_tts_voices(), list)
 
