@@ -346,6 +346,29 @@ def test_gabarit_reg1test_15_champs_mode_en_champ_4():
         assert 'SSB' not in r and 'CW' not in r and 'FM' not in r
 
 
+def _entete(edi_text, cle):
+    """Valeur d'un champ d'en-tête REG1TEST (avant [QSOrecords]), ex. 'CQSOs'."""
+    lignes = edi_text.split('\r\n')
+    ligne = next(l for l in lignes if l.startswith(cle + '='))
+    return ligne.split('=', 1)[1]
+
+
+def test_entete_reg1test_conforme_a_la_spec_officielle():
+    """Spec REG1TEST officielle (IARU Region 1, "Standard Format for
+    Electronic Contest Log Exchange", Vienna 1998, issue 1.1) :
+    - CQSOs porte DEUX valeurs séparées par ';' — nombre de QSO puis
+      multiplicateur de bande — jamais un seul nombre.
+    - le score total s'appelle CToSc ("Claimed total score") ; 'CScor'
+      n'existe nulle part dans la spec et peut faire échouer un
+      validateur strict côté club/robot de dépôt."""
+    qsos = [_qso('DL1AAA', '001', time='12:00'),
+            _qso('ON4BBB', '002', time='12:01')]
+    edi = _export_edi(qsos)[0]
+    assert _entete(edi, 'CQSOs') == '2;1'
+    assert _entete(edi, 'CToSc') == '200'   # 2 QSO x 100 pts (voir _qso())
+    assert 'CScor=' not in edi
+
+
 def test_pas_de_qso_director():
     """Interdiction absolue (nom d'un concurrent) — jamais dans le code."""
     with open(JS_PATH, encoding='utf-8') as f:
