@@ -146,7 +146,10 @@ def server():
 
 
 def _get(base, path):
-    with urllib.request.urlopen(base + path, timeout=5) as r:
+    # A09 (docs/FEUILLE_DE_ROUTE.md) : /log/list exige désormais le jeton de
+    # session, comme les autres routes de lecture protégées.
+    req = urllib.request.Request(base + path, headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=5) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
