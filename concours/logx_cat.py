@@ -1436,10 +1436,15 @@ def _friendly_open_error(port, exc):
                  "fréquent avec microHAM), choisis-en un autre.")
     elif ('filenotfounderror' in low or 'cannot find the file' in low
           or 'no such file' in low or 'errno 2' in low):
+        # « re-choisis le port dans la liste » supposait que l'opérateur
+        # aille lire cette liste ailleurs (Gestionnaire de périphériques) —
+        # alors que le serveur la connaît déjà. On la DIT, pour que le port
+        # à choisir se lise dans le message lui-même.
         cause = (f"{port} n'existe pas ou n'est plus branché — vérifie le "
                  "câble USB et que le pilote/routeur de l'interface (ex. "
                  "microHAM Router) tourne bien, puis re-choisis le port dans "
-                 "la liste (elle a pu changer).")
+                 "la liste (elle a pu changer)."
+                 + _phrase_autres_ports(etat_des_ports(port)[1]))
     else:
         cause = f"Impossible d'ouvrir {port}."
     return f"{cause} (détail technique : {msg})"
@@ -1964,6 +1969,60 @@ def autodetect(transport):
 _AUTODETECT_BAUDS = (19200, 9600, 4800, 38400)
 
 
+def libelle_port(p):
+    """« COM4 « USB Serial Port » » — le port désigné comme l'opérateur le
+    lit dans le Gestionnaire de périphériques Windows, enrichi de l'indice
+    PASSIF VID:PID quand il y en a un (aucun octet CAT envoyé, voir
+    guess_from_usb_signature). `p` est un dict de list_ports()."""
+    device = p.get('device') or '?'
+    desc = (p.get('description') or '').strip()
+    indice = guess_from_usb_signature(p)
+    if indice and indice.get('kind') == 'interface':
+        desc = indice['label']
+    elif indice and indice.get('kind') == 'radio':
+        desc = '%s, port USB du poste' % indice['model']
+    return '%s « %s »' % (device, desc) if desc else device
+
+
+def etat_des_ports(port):
+    """Ce que la machine voit RÉELLEMENT, pour un message d'échec.
+
+    POURQUOI. « COM Port number mismatch » est la deuxième cause de panne
+    listée par la notice du boîtier XGGComms USB Digimode-4, et c'est
+    exactement celle qu'un message d'erreur peut écarter tout seul : le
+    logiciel connaît déjà la liste des ports et leur identité USB
+    (list_ports/guess_from_usb_signature), mais ne la disait nulle part —
+    l'opérateur devait aller la lire dans le Gestionnaire de périphériques
+    pour vérifier une chose que le serveur savait déjà. Cas mesuré le
+    20/08/2026 : « Aucune radio détectée sur COM4 » sans aucune indication
+    de ce qu'était COM4 ni de ce qui existait à côté.
+
+    Retourne (libellé du port visé ou None s'il est absent de la machine,
+    libellé des AUTRES ports, joints par des virgules). Jamais d'exception :
+    ce diagnostic ne doit pas pouvoir remplacer une erreur par une autre."""
+    try:
+        ports = list_ports()
+    except Exception:
+        return None, ''
+    cible = (port or '').strip().upper()
+    vise = None
+    autres = []
+    for p in ports:
+        if (p.get('device') or '').upper() == cible and vise is None:
+            vise = p
+        else:
+            autres.append(libelle_port(p))
+    return (libelle_port(vise) if vise else None), ', '.join(autres)
+
+
+def _phrase_autres_ports(autres):
+    """Complément commun aux messages d'échec — factorisé pour que les deux
+    chemins (port qui refuse de s'ouvrir, port muet) disent la même chose."""
+    if autres:
+        return ' Autres ports vus par le PC : %s.' % autres
+    return " Le PC ne voit aucun autre port série."
+
+
 def autodetect_scan(port, bauds=None):
     """Bouton CONFIG « auto-détecter » quand marque/modèle sont encore
     inconnus (contrairement à test_connection(), qui les exige déjà) :
@@ -1989,8 +2048,24 @@ def autodetect_scan(port, bauds=None):
         if result.get('ok'):
             result['baudrate'] = baud
             return result
+    vitesses = ', '.join(str(b) for b in tried)
+    vise, autres = etat_des_ports(port)
+    if vise:
+        # Le port s'est OUVERT (sinon on serait déjà sorti par
+        # _friendly_open_error ci-dessus). C'est une information de
+        # diagnostic à part entière, et l'ancien message la passait sous
+        # silence en renvoyant l'opérateur vérifier « le câble/port » —
+        # c'est-à-dire précisément la seule partie de la chaîne dont on
+        # vient de prouver qu'elle fonctionne.
+        cause = (f"Aucune radio n'a répondu sur {vise} — essayé {vitesses} "
+                 "bauds. Le port s'OUVRE : côté PC tout va bien (câble USB, "
+                 "pilote, numéro de port). Le silence vient donc d'après : "
+                 "poste éteint, câble CAT absent ou branché sur une autre "
+                 "prise que la prise CAT du poste, ou CAT désactivé dans les "
+                 "menus du poste.")
+    else:
+        cause = (f"{port} n'est plus présent sur cette machine — essayé "
+                 f"{vitesses} bauds sans réponse.")
     return {'ok': False,
-            'error': f"Aucune radio détectée sur {port} (essayé "
-                     f"{', '.join(str(b) for b in tried)} bauds) — vérifie "
-                     "le câble/port, que la radio est allumée et le CAT "
-                     "activé, ou choisis marque/modèle/vitesse manuellement"}
+            'error': cause + _phrase_autres_ports(autres)
+            + " Tu peux aussi choisir marque/modèle/vitesse à la main."}
