@@ -16,7 +16,7 @@ Vous connaissez la situation : un logiciel pour le log de tous les jours, un aut
 
 **🤖 Un copilote IA — jamais une obligation.** Branchez la clé API de votre choix (Claude, ChatGPT, Gemini, Mistral, Grok ou DeepSeek) et le copilote connaît déjà votre log, votre concours et les spots du moment : il classe les meilleures cibles en points réels, débriefe votre contest, et peut même lire le règlement PDF d'un concours inconnu pour l'ajouter à la base — toujours avec votre relecture avant enregistrement. Sans clé ? Tout le reste du logiciel fonctionne à 100 %.
 
-**🏆 Le score juste, selon le vrai règlement.** 36 concours sont suivis nativement (REF, IARU, CQ WW/WPX, ARRL...) avec leur échange exact (n° de série, département, zone CQ, classe Field Day...) et leur barème exact — km, km × locators, multiplicateurs... Le calendrier mondial complète la liste, et l'analyse IA d'un règlement couvre le reste.
+**🏆 Le score juste, selon le vrai règlement.** 41 concours sont suivis nativement (REF, IARU, CQ WW/WPX, ARRL...) avec leur échange exact (n° de série, département, zone CQ, classe Field Day...) et leur barème exact — km, km × locators, multiplicateurs... Le calendrier mondial complète la liste, et l'analyse IA d'un règlement couvre le reste.
 
 **📻 Multi-poste sans rien installer ailleurs.** Les autres postes du shack — PC, tablette, téléphone — rejoignent le même log en ouvrant une simple adresse WiFi. Jusqu'à 40 opérateurs en mode radioclub, un chat intégré, et un écran mural à projeter : le flux des QSO en direct, visible depuis la salle à manger pendant que les copains mangent. C'est aussi ça, la radio conviviale.
 
