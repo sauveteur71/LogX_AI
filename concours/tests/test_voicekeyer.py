@@ -4,6 +4,7 @@ phonétique, expansion de macros, orchestration PTT+lecture. Jamais de vrai
 TTS/audio/CAT dans ces tests — tout est mocké, seule la logique est testée."""
 import os
 import sys
+import wave
 
 import pytest
 
@@ -1218,3 +1219,126 @@ def test_synthesize_to_wav_rogne_le_silence_pyttsx3(monkeypatch, tmp_path):
     assert path is not None
     assert appeles == [path]
     os.remove(path)
+
+
+# ─── play_wav() : rééchantillonnage de repli si le périphérique refuse la ────
+# ─── fréquence native du WAV (retour F4GLD 21/08/2026, PaErrorCode -9997) ────
+# « Error opening RawOutputStream: Invalid sample rate » constaté en usage
+# réel sur le keyer vocal -- le fichier TTS et le périphérique de sortie
+# choisi n'ont pas forcément la même fréquence, et RawOutputStream ne
+# rééchantillonne pas tout seul. play_wav() doit réessayer UNE fois, à la
+# fréquence PAR DÉFAUT DU MÊME périphérique (jamais un autre) -- changer de
+# périphérique romprait la garantie « le keyer vocal sort vers l'entrée
+# micro de la radio, jamais les haut-parleurs de suivi ».
+
+def _wav_synthetique(path, rate=22050, n_frames=100, sampwidth=2, channels=1):
+    """Petit WAV réel (silence, le contenu n'importe pas pour ces tests) --
+    exercer le vrai wave.open()/getframerate() de play_wav(), pas une
+    valeur posée à la main."""
+    with wave.open(path, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(sampwidth)
+        wf.setframerate(rate)
+        wf.writeframes(b'\x00' * (n_frames * sampwidth * channels))
+
+
+def _patch_sd_playback(monkeypatch, open_calls, fail_rates, device_rate):
+    """Double de sounddevice.RawOutputStream/query_devices : lève
+    PortAudioError pour toute ouverture à une fréquence dans `fail_rates`,
+    réussit sinon. `open_calls` accumule (samplerate,) de chaque tentative
+    -- permet de vérifier QUELLE fréquence a réellement été essayée en
+    second, pas seulement que ça n'a pas planté."""
+    try:
+        import sounddevice as sd
+    except Exception as e:
+        pytest.skip(f'sounddevice indisponible sur cette plateforme : {e}')
+
+    class FakeStream:
+        def __init__(self, samplerate, channels, dtype, device):
+            open_calls.append(samplerate)
+            if samplerate in fail_rates:
+                raise sd.PortAudioError('Invalid sample rate [PaErrorCode -9997]')
+        def start(self): pass
+        def write(self, data): pass
+        def stop(self): pass
+        def close(self): pass
+
+    monkeypatch.setattr(sd, 'RawOutputStream', FakeStream)
+    monkeypatch.setattr(sd, 'query_devices', lambda idx: {'default_samplerate': device_rate})
+    return sd
+
+
+def test_play_wav_reessaie_reechantillonne_si_frequence_refusee(tmp_path, monkeypatch):
+    open_calls = []
+    _patch_sd_playback(monkeypatch, open_calls, fail_rates={22050}, device_rate=48000)
+    p = str(tmp_path / 'msg.wav')
+    _wav_synthetique(p, rate=22050)
+    vk.play_wav(p, device_index=3)   # ne doit PAS lever
+    assert open_calls == [22050, 48000], (
+        f'devrait essayer la fréquence native (22050) puis celle du périphérique '
+        f'(48000) en repli, obtenu : {open_calls}')
+
+
+def test_play_wav_ne_reessaie_pas_sur_peripherique_par_defaut(tmp_path, monkeypatch):
+    """Sans périphérique précis choisi (device_index=None), aucune fréquence
+    de repli à interroger -- l'échec doit remonter tel quel plutôt que de
+    deviner un autre périphérique (romprait le câblage vers la radio)."""
+    try:
+        import sounddevice as sd
+    except Exception as e:
+        pytest.skip(f'sounddevice indisponible sur cette plateforme : {e}')
+    open_calls = []
+
+    class FakeStream:
+        def __init__(self, samplerate, channels, dtype, device):
+            open_calls.append(samplerate)
+            raise sd.PortAudioError('Invalid sample rate [PaErrorCode -9997]')
+        def start(self): pass
+        def write(self, data): pass
+        def stop(self): pass
+        def close(self): pass
+    monkeypatch.setattr(sd, 'RawOutputStream', FakeStream)
+
+    p = str(tmp_path / 'msg.wav')
+    _wav_synthetique(p, rate=22050)
+    with pytest.raises(sd.PortAudioError):
+        vk.play_wav(p, device_index=None)
+    assert open_calls == [22050]   # une seule tentative, pas de repli
+
+
+def test_play_wav_ne_reessaie_pas_si_meme_frequence(tmp_path, monkeypatch):
+    """Le périphérique refuse la fréquence, mais sa fréquence par défaut EST
+    déjà celle du WAV -- un second essai identique échouerait pareil, mieux
+    vaut remonter l'erreur d'origine directement que boucler pour rien."""
+    open_calls = []
+    _patch_sd_playback(monkeypatch, open_calls, fail_rates={22050}, device_rate=22050)
+    p = str(tmp_path / 'msg.wav')
+    _wav_synthetique(p, rate=22050)
+    try:
+        import sounddevice as sd
+    except Exception as e:
+        pytest.skip(f'sounddevice indisponible sur cette plateforme : {e}')
+    with pytest.raises(sd.PortAudioError):
+        vk.play_wav(p, device_index=3)
+    assert open_calls == [22050]
+
+
+def test_play_wav_reussit_du_premier_coup_sans_reessai(tmp_path, monkeypatch):
+    """Cas nominal (aucun problème de fréquence) : une seule ouverture, pas
+    de rééchantillonnage inutile."""
+    open_calls = []
+    _patch_sd_playback(monkeypatch, open_calls, fail_rates=set(), device_rate=48000)
+    p = str(tmp_path / 'msg.wav')
+    _wav_synthetique(p, rate=44100)
+    vk.play_wav(p, device_index=3)
+    assert open_calls == [44100]
+
+
+def test_resample_pcm_change_le_nombre_dechantillons_selon_le_ratio():
+    out = vk._resample_pcm(b'\x00\x00' * 100, channels=1, typecode='h', src_rate=8000, dst_rate=16000)
+    assert len(out) // 2 == 200   # 2x la fréquence -> ~2x le nombre d'échantillons
+
+
+def test_resample_pcm_ne_touche_pas_a_une_frequence_identique():
+    raw = b'\x01\x02' * 50
+    assert vk._resample_pcm(raw, channels=1, typecode='h', src_rate=22050, dst_rate=22050) == raw
