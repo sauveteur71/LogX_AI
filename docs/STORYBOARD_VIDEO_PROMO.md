@@ -243,6 +243,7 @@ manque encore. Alors testez-le, et aidez-moi à l'améliorer. »
 **Texte à l'écran (fin)** :
 - Téléchargement : lien GitHub / dernière release
 - Wiki / guide utilisateur : lien
+- Groupe d'entraide : groups.io/g/LogXAI
 - Logiciel libre — GPLv3
 - 73 !
 
