@@ -5,6 +5,8 @@ TTS/audio/CAT dans ces tests — tout est mocké, seule la logique est testée."
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -351,7 +353,16 @@ def test_list_output_devices_ne_plante_pas():
 # cas réel observé, sans toucher au vrai matériel.
 
 def _patch_sd(monkeypatch, devices, hostapis):
-    import sounddevice as sd
+    # import sounddevice peut lever autre chose qu'ImportError : sur un
+    # environnement sans la bibliothèque native PortAudio (CI Linux sans
+    # libportaudio installé), le module Python s'importe mais son propre
+    # code de chargement du .so/.dll lève OSError -- constaté en CI (PR
+    # #168). pytest.importorskip ne suffit pas à couvrir ce cas, il ne
+    # filtre que ImportError/Skipped.
+    try:
+        import sounddevice as sd
+    except Exception as e:
+        pytest.skip(f'sounddevice indisponible sur cette plateforme : {e}')
     monkeypatch.setattr(sd, 'query_devices', lambda: devices)
     monkeypatch.setattr(sd, 'query_hostapis', lambda: hostapis)
 
