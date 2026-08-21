@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Point coloré « configuré / vide » sur les 17 champs de SECRET_CONFIG_FIELDS
+"""Point coloré « configuré / vide » sur les 18 champs de SECRET_CONFIG_FIELDS
 (CONFIG) -- retour F4GLD (16/08/2026, capture d'écran QSL & DIPLÔMES) :
 « difficile de voir ce qui a été rempli ou pas ». _refreshSecretDot()/
 _refreshAllSecretDots() posent/retirent la classe .secret-dot.set selon que
@@ -148,9 +148,9 @@ def _secret_field_names():
     return json.loads(ctx.eval("JSON.stringify(SECRET_CONFIG_FIELDS)"))
 
 
-def test_refresh_all_couvre_les_17_champs_de_secret_config_fields():
+def test_refresh_all_couvre_les_18_champs_de_secret_config_fields():
     fields = _secret_field_names()
-    assert len(fields) == 17
+    assert len(fields) == 18
     all_fields = {f: ('valeur' if i % 2 == 0 else '') for i, f in enumerate(fields)}
     ctx = _make_ctx(all_fields)
     ctx.eval("_refreshAllSecretDots();")
