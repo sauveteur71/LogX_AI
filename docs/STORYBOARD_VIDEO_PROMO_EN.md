@@ -242,6 +242,7 @@ give it a try, and help me make it better."
 **On-screen text (end)**:
 - Download: GitHub link / latest release
 - Wiki / user guide: link
+- Support group: groups.io/g/LogXAI
 - Free software — GPLv3
 - 73!
 

@@ -71,6 +71,13 @@ voir [CONTRIBUTING.md](CONTRIBUTING.md) (installation, tests, conventions) —
 toute contribution est soumise au [code de conduite](CODE_OF_CONDUCT.md) du
 projet.
 
+## Échanger avec d'autres utilisateurs
+
+Le groupe [groups.io/g/LogXAI](https://groups.io/g/LogXAI) sert au support,
+aux retours d'expérience en concours réel, aux demandes de fonctionnalités
+et aux annonces de version — ouvert à tous, utilisateurs actuels comme
+curieux.
+
 ## API locale
 
 Le serveur local expose environ 220 endpoints HTTP (journal de trafic,
