@@ -344,6 +344,11 @@ def all_regions(my_lat, my_lon, when=None, solar=None):
             'best_band': top.get('band'), 'best_score': top.get('score'),
             'open_bands': [b['band'] for b in p['bands'] if b['score'] >= 62],
             'best_window_utc': p['best_window_utc'],
+            # Indice A (voir _a_index) : identique pour toutes les régions
+            # (indice géomagnétique global, pas régional) — copié depuis
+            # path_openings() pour que context_block() (le texte envoyé à
+            # l'IA) puisse enfin le lire.
+            'a_index': p.get('a_index'),
         })
     out.sort(key=lambda r: -(r.get('best_score') or 0))
     return out
@@ -408,6 +413,16 @@ def context_block(my_lat, my_lon, when=None, solar=None):
     rows = all_regions(my_lat, my_lon, when, solar)
     lines = ["OUVERTURES DEPUIS TON QTH (estimation heuristique, "
              f"{when.strftime('%H:%M')} UTC) :"]
+    # Indice A (Ap) : calculé et stocké par région (_a_index, même valeur
+    # partout, indice global) mais jusqu'ici jamais SERVI ici malgré deux
+    # commentaires qui l'affirmaient (audit du 18/08/2026 : « le code se ment
+    # à lui-même »). Informatif seulement — voir _a_index, aucune table de
+    # coefficients STORM/IRI dans ce logiciel pour le traduire en dégradation
+    # chiffrée, donc jamais utilisé pour pondérer un score ici non plus.
+    a_idx = rows[0].get('a_index') if rows else None
+    if a_idx is not None:
+        lines.append(f"Indice A (Ap, historique géomagnétique 24 h) : {a_idx:.0f} "
+                     "— informatif, ne pondère aucun score ci-dessous.")
     for r in rows:
         openb = ', '.join(r['open_bands']) if r['open_bands'] else 'aucune bonne'
         lines.append(
