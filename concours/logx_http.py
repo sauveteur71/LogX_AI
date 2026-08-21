@@ -35,7 +35,7 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset,
                                   allocate_qso_ids_locked, reserve_qso_id_locked,
                                   etat_persistance as storage_etat_persistance)
-from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_bricks
+from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_bricks, calc_total_score
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -1105,8 +1105,11 @@ def add_qso_to_log(qso, force=False):
         if mqtt_bridge.mqtt_settings(cfg_now4)['enabled']:
             scope_now = qso_scope_id(qso)
             with log_lock:
-                score_total = sum(q.get('points', 0) or 0 for q in shared_log
-                                  if qso_scope_id(q) == scope_now)
+                # A10 (docs/FEUILLE_DE_ROUTE.md) : score AUTORITAIRE (points ×
+                # multiplicateurs), pas la seule somme des points par QSO.
+                _cdef_mqtt = CONTEST_DEFINITIONS.get(qso.get('contest', ''), {})
+                score_total = calc_total_score(
+                    [q for q in shared_log if qso_scope_id(q) == scope_now], _cdef_mqtt)
             def _publish_mqtt(cfg=cfg_now4, qso_copy=dict(qso), score=score_total):
                 # Le concours publié est celui DU QSO (qso['contest'], la
                 # même portée que score_total ci-dessus), pas celui de
@@ -2300,7 +2303,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # ou si aucun concours n'est sélectionné, aucun filtrage (log
             # complet, comportement historique — la "logbook simple" est le
             # journal personnel complet).
-            log_copy = _scope_filtered(log_copy, self._cfg_snapshot())
+            cfg_now_ll = self._cfg_snapshot()
+            log_copy = _scope_filtered(log_copy, cfg_now_ll)
+            # A10 (docs/FEUILLE_DE_ROUTE.md) : score AUTORITAIRE (points ×
+            # multiplicateurs), pas la seule somme des points par QSO — c'est
+            # ce champ qui alimente le score affiché EN DIRECT côté client
+            # pendant le concours. Repli sur la somme brute si aucun concours
+            # n'est activement sélectionné (mode simple, ou log qui mélange
+            # plusieurs concours/années) : aucune formule de multiplicateur
+            # unique ne s'applique alors à un ensemble hétérogène de QSO.
+            _cdef_live = CONTEST_DEFINITIONS.get(cfg_now_ll.get('contest', ''), {}) \
+                if contest_actif(cfg_now_ll) else {}
+            live_score = calc_total_score(log_copy, _cdef_live)
             # Synchro différentielle (?since=&boot=, voir logx_storage.stamp_qso_version/
             # mark_qso_deleted/mark_hard_reset et _valid_since ci-dessus) :
             # renvoie UNIQUEMENT les QSO ajoutés/modifiés depuis cette version
@@ -2321,7 +2335,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'deleted': deleted_ids,
                     'total': len(log_copy),
                     'peers': len(connected_peers),
-                    'score': sum(q.get('points', 0) for q in log_copy),
+                    'score': live_score,
                     'version': current_v,
                     'boot': _storage.SERVER_BOOT_ID,
                 })
@@ -2330,7 +2344,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'qsos': log_copy,
                 'total': len(log_copy),
                 'peers': len(connected_peers),
-                'score': sum(q.get('points', 0) for q in log_copy),
+                'score': live_score,
                 'version': current_v,
                 'boot': _storage.SERVER_BOOT_ID,
             })

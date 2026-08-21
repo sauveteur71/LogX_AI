@@ -620,6 +620,109 @@ def resolve_scoring_bricks(scoring):
                                       LEGACY_SCORING_PRESETS['km'])
 
 
+def _dx_base(q):
+    return str(q.get('call', '')).split('/')[0].upper()
+
+
+def _mult_entries(kind, q):
+    """(espace, valeur) multiplicateur qu'UN QSO apporte pour `kind` — vide si
+    non résoluble (indicatif inconnu de cty.dat, échange absent...). Utilise
+    la vraie donnée REÇUE du QSO déjà loggué (échange, locator), jamais un
+    proxy d'estimation au stade du spot (voir docstring de calc_total_score).
+
+    La plupart des kinds n'apportent qu'UNE entrée, sauf 'zone_dxcc' (CQ WW)
+    qui compte zone CQ ET pays DXCC comme deux multiplicateurs indépendants
+    (voir _mult_zone_dxcc, le même calcul en mode 'nouveau mult ?' plutôt que
+    'décompte total')."""
+    base = _dx_base(q)
+    if kind == 'zone_dxcc':
+        out = []
+        z = dxcc.cq_zone(base)
+        if z is not None:
+            out.append(('zone', str(z)))
+        c = dxcc.country_key(base)
+        if c:
+            out.append(('dxcc', c))
+        return out
+    if kind == 'dxcc_only':
+        c = dxcc.country_key(base)
+        return [('dxcc', c)] if c else []
+    if kind == 'itu_zone':
+        z = dxcc.itu_zone(base)
+        return [('itu', str(z))] if z is not None else []
+    if kind == 'prefix':
+        return [('prefix', _wpx_prefix(base))]
+    if kind == 'locator':
+        loc = str(q.get('locator', '')).strip().upper()
+        return [('locator', loc)] if loc else []
+    if kind == 'large_square':
+        sq = get_large_locator(q.get('locator', ''))
+        return [('square', sq)] if sq else []
+    if kind == 'dept_dxcc':
+        c = dxcc.country_key(base)
+        if PREDICATES['is_french']({'dx_country': c}):
+            d = departments.dept_for_qso(q)
+            return [('dept', d)] if d else []
+        return [('dxcc', c)] if c else []
+    if kind in ('na_section', 'na_state'):
+        # Valeur RÉELLEMENT reçue (ex. ARRL DX : 'RS + état/province' — le
+        # code d'état/province EST le champ num_rcvd tel que saisi), jamais
+        # le proxy préfixe d'indicatif que le coach utilise avant contact
+        # (indisponible : l'état exact n'est connu qu'à réception).
+        val = str(q.get('num_rcvd', '')).strip().upper()
+        return [(kind, val)] if val else []
+    if kind == 'exchange_distinct':
+        # Même règle que logx_coach.exchange_mult_stats (EUHFC §6) : 2
+        # derniers chiffres de l'échange reçu.
+        m = re.search(r'(\d{2})\s*$', str(q.get('num_rcvd', '')).strip())
+        return [('exch', m.group(1))] if m else []
+    return []
+
+
+def calc_total_score(qsos, cdef, extra_points=0):
+    """Score final AUTORITAIRE d'un log pour un concours : (somme des points
+    par QSO + extra_points) × nombre de multiplicateurs distincts travaillés
+    — exactement la formule que le barème documente lui-même (ex.
+    CQ_WW_SSB : 'QSO_pts × (zones_CQ + DXCC)', logx_definitions.py).
+
+    Avant cette fonction (A10, docs/FEUILLE_DE_ROUTE.md), AUCUN des chemins
+    qui exposaient un score agrégé (export Cabrillo CLAIMED-SCORE, score live
+    /log/list, MQTT, stats d'archive) ne multipliait jamais par le compte de
+    multiplicateurs — ils sommaient juste les points par QSO. Ces points
+    (q['points']) étaient déjà corrects (direct_pts, SANS multiplicateur —
+    voir score_new_qso) ; c'est la multiplication finale qui manquait
+    partout, pas le calcul par QSO.
+
+    Contrairement au moteur de coaching (calc_qso_value/MULT_EVALUATORS,
+    conçu pour ESTIMER la valeur d'un contact PAS ENCORE fait, donc limité
+    aux données connaissables au moment du SPOT — proxy d'indicatif pour
+    na_section/na_state, estimation géographique pour dept_dxcc), cette
+    fonction dispose de tout le QSO déjà loggué : elle utilise la vraie
+    valeur REÇUE (voir _mult_entries).
+
+    extra_points : points hors-QSO à ajouter AVANT multiplication (ex. QTC
+    WAE, 1 pt chacun — le règlement WAE définit le score comme
+    (QSO + QTC) × multiplicateurs, pas QSO × mult + QTC après coup)."""
+    raw_points = sum(q.get('points', 0) or 0 for q in qsos) + (extra_points or 0)
+    bricks = resolve_scoring_bricks((cdef or {}).get('scoring', {}) or {})
+    mult = bricks.get('multiplier') if isinstance(bricks, dict) else None
+    if not (isinstance(mult, dict) and mult.get('kind')):
+        return raw_points   # pas de multiplicateur (VHF/THF distance, activations SOTA/POTA...)
+
+    kind = mult['kind']
+    is_global = kind in ('prefix', 'locator', 'large_square')
+    weights = bricks.get('mult_weight_by_band') or {}
+    seen_by_band = {}   # band (ou '' si global) -> {(espace, valeur), ...}
+    for q in qsos:
+        band = '' if is_global else str(q.get('band', ''))
+        bucket = seen_by_band.setdefault(band, set())
+        for entry in _mult_entries(kind, q):
+            bucket.add(entry)
+
+    nb_mults = sum(len(vals) * weights.get(band, 1) for band, vals in seen_by_band.items())
+    return raw_points * max(nb_mults, 1)
+
+
 def contest_geo_mode(contest_id):
     """Type de « chasse aux multiplicateurs géographiques » d'un concours, pour
     décider si l'onglet montre les DÉPARTEMENTS (FR) ou les PAYS (DXCC) :

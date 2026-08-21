@@ -8,6 +8,12 @@ build_adif(qsos, cfg). Les en-têtes s'appuient sur la définition du concours
 import re
 
 from logx_utils import utcnow
+# A10 (docs/FEUILLE_DE_ROUTE.md) : calc_total_score() applique le compte de
+# multiplicateurs au CLAIMED-SCORE — sans quoi le score soumis au comité du
+# concours était juste la somme des points par QSO, sans jamais la
+# multiplier (faux pour tout concours à multiplicateur : CQ WW, WPX, ARRL
+# DX, IARU HF, REF...).
+from logx_scoring import calc_total_score
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -155,8 +161,13 @@ def _cabrillo_qtc_lines(qtc_series, callsign):
     return lines
 
 
-def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
+def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None, claimed_override=None):
     """Log partagé → Cabrillo v3 (texte). cdef : définition du concours actif.
+    claimed_override : impose le CLAIMED-SCORE plutôt que de le calculer
+    (logx_archive.import_external_log : le score d'un log EXTERNE importé
+    est une valeur déclarée/connue, à préserver telle quelle — pas un total
+    recalculable depuis des QSO reconstruits sans toutes leurs données
+    d'origine, voir calc_total_score).
     qtc_series : séries QTC (WAE) associées à la portée exportée, voir
     logx_storage.qtc_log — ignoré (silencieusement) pour tout concours sans QTC."""
     cdef = cdef or {}
@@ -167,8 +178,12 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
     # dans le score", mais CLAIMED-SCORE ne les ajoutait pas — comptage
     # identique à logx_storage.qtc_total(), directement sur qtc_series (déjà
     # filtrée sur la bonne portée par l'appelant). No-op hors WAE.
-    claimed = sum(q.get('points', 0) or 0 for q in qsos) \
-        + sum(s.get('count', 0) or 0 for s in (qtc_series or []))
+    # Les QTC entrent AVANT la multiplication par les multiplicateurs (règle
+    # WAE : score = (QSO + QTC) × multiplicateurs), via extra_points plutôt
+    # qu'une addition après coup.
+    qtc_points = sum(s.get('count', 0) or 0 for s in (qtc_series or []))
+    claimed = claimed_override if claimed_override is not None \
+        else calc_total_score(qsos, cdef, extra_points=qtc_points)
     # Créneaux BRUTS ('OP1', 'OP2'...) : sert uniquement à décider SINGLE-OP vs
     # MULTI-OP — deux créneaux distincts restent deux opérateurs même sans
     # config operators[] permettant de les résoudre en indicatifs réels (sans
