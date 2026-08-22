@@ -28,6 +28,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
@@ -123,8 +124,10 @@ def _real_source(rev=None):
     commit cb89dfc, celui qui introduit le bug) pour rejouer le scénario tel
     qu'il était avant ce correctif."""
     if rev is None:
-        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+        with open(RULES_JS_PATH, encoding='utf-8') as f:
             src = f.read()
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:

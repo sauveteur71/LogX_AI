@@ -31,6 +31,7 @@ py_mini_racer = pytest.importorskip(
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HARDWARE_CAT_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 19e/20e incréments : logx_logbook.js contient encore 2 appels
 # TOP-LEVEL (renderVoiceDynPanel(); voiceRefreshSlots();) qui dépendent de
 # ces 2 fichiers -- sans rapport avec CE test, mais ReferenceError au PARSE
@@ -166,6 +167,8 @@ def moteur():
     with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(RULES_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

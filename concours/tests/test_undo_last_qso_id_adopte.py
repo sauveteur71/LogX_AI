@@ -26,6 +26,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGBOOK_JS = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS = os.path.join(BASE, 'logx_contest_rules.js')
 EDIT_QSO_JS = os.path.join(BASE, 'logx_edit_qso.js')
 # Même convention que test_export_edi_num_sent.py : logx_logbook.js référence
 # au niveau racine des fonctions extraites vers ces fichiers -- sans eux
@@ -124,7 +125,7 @@ def _load_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
     src = ''
-    for p in (ESM_CALLBOT_JS, VOICE_KEYER_JS, EXPORT_EDI_JS, SOAPBOX_JS,
+    for p in (RULES_JS, ESM_CALLBOT_JS, VOICE_KEYER_JS, EXPORT_EDI_JS, SOAPBOX_JS,
               FILTRE_SPOTS_JS, LOGBOOK_JS, EDIT_QSO_JS):
         with open(p, encoding='utf-8') as f:
             src += '\n' + f.read()

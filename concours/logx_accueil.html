@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Accueil</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  PAGE D'ACCUEIL PAR ACTIVITÉ — chantier « axe = activité, pas mode déclaré »
+  (CLAUDE.md, décision F4GLD du 19/08/2026 suite à un échange avec Didier,
+  détaillée en pratique le 22/08/2026). Nouvelle porte d'entrée de l'app
+  (concours/logx_http.py, routage racine "/") : l'opérateur choisit CE QU'IL
+  FAIT (LOG V/UHF, LOG normal...) plutôt que de déclarer un niveau
+  simple/expert. Un clic pose localStorage.logx_activity puis redirige --
+  les visites suivantes sautent directement la grille (résumé en un geste,
+  « ne pas rallonger le chemin quotidien »).
+
+  HONNÊTETÉ DE PÉRIMÈTRE (22/08/2026) : seule LOG V/UHF a un vrai filtrage
+  (bandes/concours) à ce stade -- doctrine « une activité de bout en bout
+  avant les 18 autres ». Les autres tuiles restent pleinement fonctionnelles :
+  elles routent vers CONFIG/LOGBOOK SANS filtre supplémentaire, c'est-à-dire
+  exactement le comportement actuel de l'app (LOG normal/LOG Concours EN SONT
+  déjà l'usage principal). Aucune tuile n'est un leurre.
+
+  Le carnet reste UNIQUE et chronologique quelle que soit l'activité choisie
+  -- l'activité est une VUE, jamais un second carnet.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root {
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode {
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#665F55;
+}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+.config-link{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none;letter-spacing:.5px}
+.config-link:hover{color:var(--text)}
+
+/* align-items:flex-start (pas center) : un centrage vertical avec overflow
+   coupe le HAUT du contenu, hors d'atteinte du scroll, dès que la grille
+   dépasse la hauteur de fenêtre (fenêtre courte, mobile, ou simplement plus
+   d'activités ajoutées plus tard) -- trouvé en vérification navigateur
+   réelle, pas supposé. */
+.wrap{flex:1;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:30px 20px}
+.intro{max-width:900px;width:100%}
+.intro h1{font-family:var(--font-display);font-weight:900;font-size:26px;color:var(--accent2);letter-spacing:.2px;margin-bottom:6px;text-align:center}
+.intro p{color:var(--muted);font-size:14px;text-align:center;margin-bottom:28px}
+
+.activity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.activity-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:18px 16px;
+  cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:9px;
+  font-family:inherit;color:inherit;width:100%}
+.activity-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.activity-card svg{width:30px;height:30px;flex-shrink:0;color:var(--accent2)}
+.activity-name{font-size:14.5px;font-weight:700;color:var(--text)}
+.activity-hint{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:.5px;line-height:1.4}
+.activity-card.pilote{border-color:var(--accent2);box-shadow:0 0 0 1px rgba(var(--accent-rgb),.35)}
+.activity-card.pilote .activity-name{color:var(--accent2)}
+
+.chargement{text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:13px;padding:60px 0}
+
+button:focus-visible,.activity-card:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--green)">Accueil</span></span>
+  </div>
+  <a class="config-link" href="logx_configuration.html">Configuration avancée →</a>
+</header>
+
+<div class="wrap">
+  <div class="intro" id="intro">
+    <div class="chargement" id="chargement">Chargement…</div>
+  </div>
+</div>
+
+<script>
+(function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+</script>
+<script src="logx_accueil.js"></script>
+</body>
+</html>

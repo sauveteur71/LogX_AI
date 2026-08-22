@@ -77,6 +77,24 @@ function contestActif(){
 // body.sans-concours dans logx_logbook.html).
 function applyContestActifToLogbook(){
   if(document.body) document.body.classList.toggle('sans-concours', !contestActif());
+  _refreshScoreToggleBtn();
+}
+
+// #scoreVisibleToggle : point unique, appelé à la fois par
+// applyUsageModeToLogbook() (changement de mode) et applyContestActifToLogbook()
+// (rappelé à CHAQUE rafraîchissement de bannière, cf. commentaire sur ce
+// dernier plus bas — même raison ici : un changement de concours qui ne
+// passerait pas par applyUsageModeToLogbook() laisserait sinon ce bouton
+// obsolète).
+function _refreshScoreToggleBtn(){
+  const btn = document.getElementById('scoreVisibleToggle');
+  if(!btn) return;
+  const pertinent = usageMode !== 'simple' && usageMode !== 'expedition' && !contestActif();
+  btn.style.display = pertinent ? '' : 'none';
+  const demandee = _scoreDemandee();
+  btn.textContent = demandee ? '📊 SCORE ●' : '📊 SCORE ○';
+  btn.style.color = demandee ? 'var(--green)' : 'var(--muted)';
+  btn.style.borderColor = demandee ? 'var(--green)' : 'var(--border)';
 }
 
 let currentContest = window._initContest || 'REF_RPH';
@@ -199,12 +217,32 @@ let usageMode = 'contest';
 // Écrite quatre fois, elle divergerait : masquer au changement de mode ne
 // servirait à rien puisque le premier calcul de stats ferait réapparaître les
 // bandeaux. C'est précisément ce qui serait arrivé au mode expédition.
+// Le bandeau de score doit-il rester visible malgré bandeauxRythmeMasques() ?
+// Clé dédiée (pas dans logx_config, même patron que rc_ui_mode/logx_activity :
+// une clé racine indépendante n'est pas tributaire du cycle de saveConfig()).
+function _scoreDemandee(){
+  try{ return localStorage.getItem('logx_score_visible') === 'true'; }catch(e){ return false; }
+}
+function toggleScoreVisible(){
+  try{ localStorage.setItem('logx_score_visible', _scoreDemandee() ? 'false' : 'true'); }catch(e){}
+  applyUsageModeToLogbook(usageMode);
+}
+
 function bandeauxRythmeMasques(){
   // Expédition : ni score à suivre, ni temps restant, ni classement à
   // départager — on log en continu pendant des jours. Les 310 px mesurés que
   // ces bandeaux occupent manquent bien davantage à la saisie, surtout sur un
   // portable en /P.
-  return usageMode === 'simple' || usageMode === 'expedition';
+  if (usageMode === 'simple' || usageMode === 'expedition') return true;
+  // Hors concours actif, masqué PAR DÉFAUT (retour F4GLD 22/08/2026,
+  // « épurer au maximum » — chantier page d'accueil par activité), sur
+  // demande sinon (#scoreVisibleToggle). Même raisonnement déjà appliqué par
+  // body.sans-concours (logx_logbook.html) au sous-ensemble PTS/SCORE TOTAL
+  // — un « SCORE TOTAL » sans concours sélectionné laisse croire à un
+  // classement qui n'existe pas — étendu ici au bandeau entier plutôt que
+  // dupliqué une 2e fois avec une règle différente.
+  if (!contestActif() && !_scoreDemandee()) return true;
+  return false;
 }
 
 // ─── Menu DÉBUT / FIN ────────────────────────────────────────────────────────
@@ -333,6 +371,7 @@ function applyUsageModeToLogbook(mode){
   // concours chronométré — rien de tout ça ne s'applique à un log personnel.
   const scoreBanner = document.querySelector('.score-banner');
   if(scoreBanner) scoreBanner.style.display = sansBandeaux ? 'none' : '';
+  _refreshScoreToggleBtn();   // échappatoire du masquage par défaut hors concours (voir bandeauxRythmeMasques())
   // Même logique pour le récap par bande, le classement opérateurs et le
   // graphe QSO/heure : ce sont des outils de rythme de concours, sans
   // intérêt pour un log personnel hors concours.
@@ -2264,31 +2303,7 @@ function bandFromFreq(freqMHz){
   }
   return null;
 }
-const BANDS_THF = ['144','432','1296','2320','3400','5760','10368','24048','47088']; // 144 MHz → 47 GHz
-// BANDS_HF volontairement SANS les bandes WARC (10.1/18/24 MHz) : elles sont
-// exclues par accord international de tous les concours HF classiques
-// (CQ WW, ARRL FD...) — ne jamais les ajouter à cette constante partagée.
-const BANDS_HF  = ['1.8','3.5','7','14','21','28'];
 const ALL_BANDS = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70','144','432','1296','2320','3400','5760','10368','24048','47088'];
-
-// Bandes autorisées par concours
-const CONTEST_BANDS = {
-  REF_RPH:       ['144','432','1296','2320','3400','5760','10368','24048','47088'], // RPH : 144 MHz → 47 GHz
-  REF_NAT_THF:   BANDS_THF,
-  REF_PRINTEMPS: BANDS_THF,
-  REF_ETE:       BANDS_THF,
-  REF_CDF_THF:   BANDS_THF,
-  REF_IARU_VHF:  ['144'],
-  REF_IARU_UHF:  ['432','1296','2320','3400','5760','10368','24048','47088'],
-  REF_CCD:       ['144','432','1296','2320'],
-  CQ_WW_SSB:     BANDS_HF,
-  CQ_WW_CW:      BANDS_HF,
-  ARRL_FD:       [...BANDS_HF, '50'],
-  // World Wide Award : 80-40-30-20-17-15-12-10m (pas de 160m, cf. règlement §4)
-  WWA_2027_JAN:  ['3.5','7','10.1','14','18','21','24','28'],
-  WWA_2027_JUL:  ['3.5','7','10.1','14','18','21','24','28'],
-  CUSTOM:        ALL_BANDS,
-};
 
 // Modes autorisés par concours
 const CONTEST_MODES = {
@@ -2309,16 +2324,39 @@ const CONTEST_MODES = {
   CUSTOM:        ['SSB','CW','FM','FT8'],
 };
 
-// Correspondance valeur bande → clé toggle configuration
-const BAND_TOGGLE_KEY = {
-  '1.8':   'band_160m', '3.5':   'band_80m',  '7':     'band_40m',
-  '10.1':  'band_30m',  '14':    'band_20m',  '18':    'band_17m',
-  '21':    'band_15m',  '24':    'band_12m',  '28':    'band_10m',
-  '50':    'band_6m',   '70':    'band_4m',    '144':   'band_2m',
-  '432':   'band_70cm', '1296':  'band_23cm',  '2320':  'band_13cm',
-  '3400':  'band_9cm',  '5760':  'band_6cm',   '10368': 'band_3cm',
-  '24048': 'band_6mm',  '47088': 'band_4mm',
-};
+// BAND_TOGGLE_KEY/MODE_TOGGLE_KEY/_resolveContestFilters() viennent de
+// logx_contest_rules.js (partagé avec logx_configuration.js), chargé avant
+// ce fichier — ne pas les redéclarer ici (collision de `const`).
+
+// Bandes autorisées par concours, résolues via _resolveContestFilters()
+// (logx_contest_rules.js), qui connaît les VRAIES clés d'édition (REF_CCD_JAN1,
+// REF_MARCONI, REF_DDFM_50, REF_IARU_50...). Avant ce correctif (22/08/2026,
+// chantier « page d'accueil par activité »), une table locale ne couvrait que
+// des clés génériques (REF_CCD, REF_IARU_VHF...) absentes du catalogue réel —
+// le sélecteur retombait sur ALL_BANDS (bandes HF comprises) pour la
+// quasi-totalité des concours V/UHF réels. Table inverse triviale, clé toggle
+// → valeur MHz (le sens contraire de BAND_TOGGLE_KEY).
+const TOGGLE_KEY_TO_BAND = Object.fromEntries(
+  Object.entries(BAND_TOGGLE_KEY).map(([mhz, key]) => [key, mhz])
+);
+function _bandsForContest(contest){
+  const filters = _resolveContestFilters(contest);
+  if (!filters || !filters.bands) return null;   // axe libre (CUSTOM, POTA/SOTA...) → repli ALL_BANDS
+  return filters.bands.map(k => TOGGLE_KEY_TO_BAND[k]).filter(Boolean);
+}
+
+// Activité choisie sur logx_accueil.html (localStorage.logx_activity) --
+// lecture minuscule et locale à ce fichier, pas partagée via
+// logx_contest_rules.js : ce n'est pas une donnée de règlement de concours,
+// juste un repli d'affichage pour le QSO occasionnel hors concours ci-dessous.
+function _activiteEstVuhf(){
+  try{ return localStorage.getItem('logx_activity') === 'vuhf'; }catch(e){ return false; }
+}
+// QSO occasionnel (hors concours) en activité V/UHF : 2 m/70 cm/23 cm « et ça
+// suffit » (doctrine CLAUDE.md, retour F4GLD 22/08/2026) -- plutôt que
+// ALL_BANDS (HF compris) quand aucun concours ne restreint rien. Reste
+// filtrable comme les autres par les cases à cocher CONFIG (band_2m/70cm/23cm).
+const VUHF_ACTIVITY_DEFAULT_BANDS = ['144', '432', '1296'];
 
 // Bandes actuellement autorisées (concours + toggles) — utilisé par
 // onFreqInput() pour valider une bascule automatique de bande, et par le
@@ -2326,8 +2364,10 @@ const BAND_TOGGLE_KEY = {
 let _currentVisibleBands = [];
 
 function renderBandButtons(contest){
-  // Bandes du concours filtrées par les toggles de configuration
-  const contestBands = CONTEST_BANDS[contest] || ALL_BANDS;
+  // Bandes du concours (résolues via logx_contest_rules.js), filtrées par
+  // les toggles de configuration
+  const contestBands = _bandsForContest(contest)
+    || (_activiteEstVuhf() ? VUHF_ACTIVITY_DEFAULT_BANDS : ALL_BANDS);
 
   // Lire les toggles depuis localStorage pour masquer les bandes décochées
   let toggles = {};
@@ -2353,6 +2393,22 @@ function renderBandButtons(contest){
   setFreqForBand(currentBand);
 }
 
+// Lien profond PROPAG (nav, .app-nav) : ouvre logx_propagation.html
+// directement sur l'onglet BANDE ACTUELLE (« tout ce que le programme sait
+// de la bande en cours : cluster, ouvertures, carrés à reprendre »), pré-
+// réglé sur la bande EN COURS DE SAISIE ici plutôt que le dernier onglet
+// consulté sur cette autre page — retour F4GLD 22/08/2026 (« lien profond
+// propag »). `?band=` est lu en PRIORITÉ sur localStorage.rc_focus_band côté
+// logx_propagation.html (voir ce fichier) : ne touche donc pas la
+// préférence propre de cette page. Référencée par un typeof-guard dans
+// .app-nav (motif déjà établi ailleurs, ex. rigState dans
+// logx_esm_callbot.js) : la nav est identique sur 10 pages, seule celle-ci
+// connaît `currentBand`.
+function _navPropagContextuel(ev){
+  if(ev) ev.preventDefault();
+  window.location.href = 'logx_propagation.html?band=' + encodeURIComponent(currentBand) + '#propPane-focus';
+}
+
 // Correspondance mode affiché → clé toggle configuration
 //
 // Chaque mode qui a SA case en configuration pointe sur SA propre clé. Les
@@ -2364,21 +2420,8 @@ function renderBandButtons(contest){
 // l'origine, mais absentes d'ici : les cocher ne produisait aucun bouton, et
 // PSK rattaché à mode_rtty faisait en plus décocher la case PSK au WWA alors
 // que son règlement §5 autorise explicitement ce mode).
-const MODE_TOGGLE_KEY = {
-  'SSB':   'mode_ssb',
-  'AM':    'mode_am',
-  'CW':    'mode_cw',
-  'FM':    'mode_fm',
-  'DSTAR': 'mode_dstar',  // libellé ADIF ; la case de configuration dit "D-STAR"
-  'FT8':   'mode_ft8',
-  'FT4':   'mode_ft4',
-  'JS8':   'mode_js8',
-  'RTTY':  'mode_rtty',
-  'PSK':   'mode_psk',
-  'SSTV':  'mode_sstv',   // active aussi le panneau décodeur SSTV (updateKeyerPanels)
-  'DIGI':  'mode_ft8',    // code générique de règlement, aucune case dédiée
-  'FT2':   'mode_ft8',    // WWA (règlement §5) — pas de case dédiée, rattaché à FT8
-};
+// MODE_TOGGLE_KEY vient désormais de logx_contest_rules.js (partagé avec
+// logx_configuration.js, chargé avant ce fichier) — ne pas la redéclarer ici.
 
 // Modes actuellement autorisés (concours + toggles) — utilisé par
 // syncBandModeFromRig() (logx_hardware_cat.js) pour valider une bascule

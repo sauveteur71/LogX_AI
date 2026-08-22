@@ -46,6 +46,14 @@ _JS_PATH = os.path.join(BASE, 'logx_configuration.js')
 if os.path.exists(_JS_PATH):
     with open(_JS_PATH, encoding='utf-8') as _f:
         _HTML_SRC += '\n' + _f.read()
+# LEGACY_CONTEST_FILTERS/BAND_TOGGLE_KEY/MODE_TOGGLE_KEY/_resolveContestFilters()
+# extraits vers logx_contest_rules.js (22/08/2026, partagés avec logx_logbook.js
+# -- chantier « page d'accueil par activité ») : concaténer aussi, sinon les
+# extractions ci-dessous ne trouvent plus leurs marqueurs.
+_RULES_PATH = os.path.join(BASE, 'logx_contest_rules.js')
+if os.path.exists(_RULES_PATH):
+    with open(_RULES_PATH, encoding='utf-8') as _f:
+        _HTML_SRC += '\n' + _f.read()
 
 
 def _extract_braces(src, start_marker, open_char='{', close_char='}'):

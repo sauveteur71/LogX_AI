@@ -27,6 +27,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 : resetLog()/archiveLog() ont été extraites vers ce fichier -- ajouté
 # UNIQUEMENT pour la révision courante (rev=None). Au commit historique rejoué
 # ci-dessous (e68907d), les deux fonctions vivaient encore dans logx_logbook.js
@@ -125,8 +126,10 @@ def _real_source(rev=None):
     déplacé resetLog()/archiveLog()) : HEAD par défaut, ou `rev` (ex. le
     commit e68907d) pour rejouer le scénario tel qu'il était AVANT ce fix."""
     if rev is None:
-        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+        with open(RULES_JS_PATH, encoding='utf-8') as f:
             src = f.read()
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:

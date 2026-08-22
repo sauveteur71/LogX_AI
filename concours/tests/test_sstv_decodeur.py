@@ -35,6 +35,9 @@ import pytest
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS = os.path.join(CONCOURS, 'logx_sstvdecoder.js')
 LOGBOOK_JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# MODE_TOGGLE_KEY a été extrait vers ce fichier partagé le 22/08/2026
+# (chantier « page d'accueil par activité ») -- plus dans LOGBOOK_JS.
+RULES_JS = os.path.join(CONCOURS, 'logx_contest_rules.js')
 LOGBOOK_HTML = os.path.join(CONCOURS, 'logx_logbook.html')
 CONFIG_HTML = os.path.join(CONCOURS, 'logx_configuration.html')
 
@@ -252,7 +255,7 @@ def test_le_mode_sstv_est_declare_partout():
     arrivé à JS8/PSK/AM/D-STAR. La couverture est reprise par
     test_lot2_carnet_generaliste.py, qui exécute le vrai renderModeButtons."""
     assert 'data-key="mode_sstv"' in _lire(CONFIG_HTML)
-    src = _lire(LOGBOOK_JS)
+    src = _lire(RULES_JS)
     assert re.search(r"'SSTV':\s*'mode_sstv'", src)
 
 
