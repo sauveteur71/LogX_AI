@@ -201,15 +201,29 @@ def test_echap_est_bien_cable_sur_la_coupure():
     raccourci, pas seulement un bouton.
 
     L'expression cherchait « key === 'Escape' » suivi de stopEmission sur la
-    MÊME ligne (ou à 200 caractères). Elle figeait donc l'écriture de la
-    condition : la réécrire en sortie anticipée (« if(e.key !== 'Escape')
-    return; »), ce qu'a imposé l'ajout d'un troisième état à surveiller, la
-    faisait rougir sans la moindre régression. On vérifie maintenant que la
-    touche et la coupure vivent dans le MÊME gestionnaire, quelle que soit la
-    forme du test."""
+    MÊME ligne (ou à 200 caractères), puis sur une fenêtre fixe de 700
+    caractères. Les deux se sont déjà figées sur l'écriture du gestionnaire :
+    d'abord la sortie anticipée (« if(e.key !== 'Escape') return; »), puis
+    l'ajout d'un commentaire expliquant le quatrième état à surveiller (mode
+    Automatique) — aucune régression réelle les deux fois, juste du texte qui
+    a poussé `stopEmission` hors d'une fenêtre arbitraire. On extrait
+    maintenant le CORPS RÉEL du gestionnaire par comptage d'accolades (même
+    principe que `_extraire_fonction`), pas une tranche de longueur fixe :
+    la seule chose qui doit invalider ce test est que Échap et la coupure ne
+    vivent plus dans le même gestionnaire."""
     src = _lire(FT8_HTML)
-    i = src.index("addEventListener('keydown'")
-    zone = src[i:i + 700]
+    debut = src.index("addEventListener('keydown'")
+    i = src.index('{', debut)
+    prof = 0
+    while True:
+        if src[i] == '{':
+            prof += 1
+        elif src[i] == '}':
+            prof -= 1
+            if prof == 0:
+                break
+        i += 1
+    zone = src[debut:i + 1]
     assert 'Escape' in zone and 'stopEmission' in zone
 
 

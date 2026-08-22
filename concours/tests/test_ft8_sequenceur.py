@@ -671,6 +671,18 @@ function __messageCorrespondant(slot){
   }
   if(!precedent) return null;                       // rien entendu : silence
   var p = precedent.texte.split(' ');
+  // Mode Automatique : notre appel CQ n'est adressé à PERSONNE en
+  // particulier ("CQ <nous> <grille>") -- la correspondante y répond dès
+  // qu'elle ENTEND son propre indicatif nulle part encore (comme un vrai
+  // opérateur répond à un CQ entendu), sans attendre d'être nommée. Sa
+  // parité se fixe alors sur CE créneau (celui de sa propre réponse),
+  // exactement comme seqDemarrer() la fixe côté nous à partir du créneau où
+  // NOUS l'entendons.
+  if(p[0] === 'CQ' && p[1] === myCall
+     && __corr.parite !== 0 && __corr.parite !== 1){
+    __corr.parite = Math.floor(slot / 15000) % 2;
+    return myCall + ' ' + __corr.call + ' ' + (__corr.grille || '');
+  }
   if(p[0] !== __corr.call) return null;             // ce n'était pas pour elle
   var extra = p.slice(2).join(' ');
   var tete = myCall + ' ' + __corr.call + ' ';
@@ -736,6 +748,9 @@ function __etat(){
     now: NOW,
     seq: (typeof seq === 'undefined') ? null : seq,
     niveau: (typeof seqNiveau === 'undefined') ? null : seqNiveau,
+    cqAutoActif: (typeof cqAutoActif === 'undefined') ? null : cqAutoActif,
+    cqAutoParite: (typeof cqAutoParite === 'undefined') ? null : cqAutoParite,
+    cqAutoJeton: (typeof cqAutoJeton === 'undefined') ? null : cqAutoJeton,
     generationTx: generationTx,
     txArmed: txArmed, rxActif: rxActif,
     emissions: __emissions,
@@ -749,6 +764,8 @@ function __etat(){
     // interchangeables aux yeux du banc, et les trois raisons distinctes
     // ajoutées pour nommer la cause n'étaient contraintes par rien.
     seqEtat: document.getElementById('seqEtat').textContent,
+    stopBtnDisplay: document.getElementById('seqStopBtn').style.display,
+    cqAutoBtnDisplay: document.getElementById('cqAutoBtn').style.display,
     envoyerDesactive: !!document.getElementById('sendBtn').disabled,
     champVerrouille: !!document.getElementById('txText').readOnly,
     examens: __examens,
@@ -815,6 +832,10 @@ class _Banc:
         infos.setdefault('snr', SNR_ELLE_CHEZ_NOUS)
         return self.ctx.eval('seqDemarrer(%s, %s)'
                              % (json.dumps(cible), json.dumps(infos)))
+
+    def demarrer_cq(self):
+        """Bouton ▶ DÉMARRER APPEL CQ (mode Automatique)."""
+        return self.ctx.eval('cqAutoDemarrer()')
 
     # ── horloge ────────────────────────────────────────────────────────────
     def avancer(self, jusqua_ms):
@@ -3401,3 +3422,239 @@ def test_jeton_de_generation_existe_dans_envoyer_message():
     assert 'return' in apres[i_cond:i_cond + 400], (
         'le contrôle du jeton doit être suivi d\'un return : une condition '
         'sans effet ne protège rien')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §N. MODE AUTOMATIQUE — CQ répété + QSO en totale autonomie
+#
+# TRANCHÉ PAR F4GLD LE 22/08/2026 (activation TM6KJS) : après lui avoir
+# rappelé le principe « aucune émission automatique sans confirmation
+# humaine » (en-tête de logx_ft8.html), il a répondu « je veux que tu
+# changes la règle les qso doivent pouvoir se faire en total autonomie ».
+# seqNiveau==='auto' est donc une EXCEPTION volontaire et optionnelle : les
+# trois autres modes ne changent pas de comportement (94 tests ci-dessus,
+# tous verts sans modification).
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_qso_demarre_en_auto_survit_a_son_propre_preavis(banc):
+    """Témoin direct du piège le plus facile à manquer : seqProgrammer()
+    revérifie `seqNiveau` juste avant CHAQUE émission (préavis de 2 s). Avant
+    le remplacement de cette comparaison par _seqAutoContinu(), un QSO
+    démarré en mode 'auto' s'auto-abandonnait dès sa PREMIÈRE trame
+    programmée — jamais au démarrage lui-même (seqDemarrer() n'exclut que
+    'manuel'), seulement au créneau suivant, silencieusement."""
+    b = banc(niveau='auto', correspondant=_correspondant())
+    b.js('NOW = 2000;')
+    b.demarrer()
+    b.avancer(500000)
+
+    et = b.etat()
+    assert not et['erreurs'], et['erreurs']
+    suffixes = b.suffixes_emis()
+    assert suffixes, 'aucune émission — la séquence a dû être abandonnée au premier préavis'
+    assert suffixes[-1] == '73', \
+        'le QSO démarré en mode auto doit aboutir jusqu\'au 73, comme en mode sequenceur : %r' % (suffixes,)
+    assert len(et['journal']) == 1, et['journal']
+
+
+def test_bouton_stop_visible_pendant_l_attente_entre_deux_cq(banc):
+    """#seqStopBtn doit rester atteignable pendant la majorité du temps où le
+    mode Automatique tourne réellement (l'attente entre deux appels CQ,
+    AUCUN `seq` encore) — pas seulement pendant un QSO actif."""
+    b = banc(niveau='auto')
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    et = b.etat()
+    assert et['seq'] is None, 'aucun QSO ne doit démarrer sans réponse'
+    assert et['cqAutoActif'] is True
+    assert et['stopBtnDisplay'] == '', \
+        'le bouton STOP doit être visible pendant l\'attente du prochain CQ : %r' % (et['stopBtnDisplay'],)
+    assert et['cqAutoBtnDisplay'] == 'none', \
+        'le bouton DÉMARRER doit disparaître une fois la boucle lancée'
+
+
+def test_echap_atteint_la_boucle_cq_en_attente():
+    """Garde Échap (logx_ft8.html, hors de la région SEQ) : sans `!cqAutoActif`
+    dans la condition, Échap ne fait RIEN pendant l'attente entre deux appels
+    CQ automatiques (aucune des trois autres conditions n'est vraie à ce
+    moment) — trouvé par l'agent de conception en relisant le fichier, pas
+    par un scénario de test qui aurait dû deviner ce cas précis."""
+    src = _lire(FT8_HTML)
+    m = re.search(
+        r'if\(!pttDemande\s*&&\s*!emissionProgrammee\s*&&\s*!seq\s*&&\s*!cqAutoActif\)\s*return;',
+        src)
+    assert m, (
+        "la garde Échap doit inclure !cqAutoActif — sans elle, Échap est "
+        "inopérant pendant l'attente du mode Automatique entre deux CQ")
+
+
+def test_pas_de_cq_fantome_apres_reciblage_manuel(banc):
+    """seqDemarrer() appelle seqArreter('remplacement') PUIS crée un nouveau
+    `seq` dans la même frappe synchrone QUAND UNE SÉQUENCE EST DÉJÀ EN COURS
+    (pas au tout premier démarrage, qui ne « remplace » rien). Aucun CQ ne
+    doit partir pendant que ce nouveau QSO est en cours.
+
+    Vérifié EN DIRECT (mutation, pas supposé) : retirer l'exclusion
+    'remplacement' de seqArreter() ne suffit PAS à faire rougir ce test —
+    cqAutoSuspendrePourQso(), appelée sans condition en fin de seqDemarrer(),
+    annule le minuteur CQ orphelin dans la MÊME frappe synchrone avant qu'il
+    ait pu s'exécuter. L'exclusion reste dans le code par prudence (défense
+    en profondeur, évite un texte d'état "CQ programmé…" affiché puis
+    aussitôt écrasé) mais ce test-ci vérifie le résultat observable —
+    aucune trame CQ ne part pendant un QSO manuel — pas ce mécanisme précis."""
+    b = banc(niveau='auto')
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    b.demarrer(cible='F4XYZ')   # 1er démarrage : rien à remplacer
+    b.demarrer(cible='F4ABC')   # RECIBLAGE : seqArreter('remplacement') puis nouveau seq
+    et = b.etat()
+    assert et['seq'] is not None and et['seq']['cible'] == 'F4ABC', et['seq']
+    # Le minuteur de CQ ne doit plus être programmé : avancer le temps loin
+    # au-delà de tout créneau plausible ne doit produire AUCUNE trame CQ
+    # tant que le QSO avec F4ABC est en cours.
+    b.avancer(40000)
+    et = b.etat()
+    cq = [t for t in b.emissions_parties() if t.startswith('CQ ' + MOI)]
+    assert not cq, 'un CQ est parti alors qu\'un QSO manuel venait de démarrer : %r' % (cq,)
+
+
+def test_changer_de_mode_pendant_l_attente_coupe_le_cq_programme():
+    """cablerSequenceur() appelle seqArreter('niveau') inconditionnellement au
+    changement de #seqNiveauSel, y compris quand aucun `seq` n'est actif
+    (voir son propre commentaire) — c'est exactement le cas fréquent d'un
+    Automatique en attente entre deux CQ. Structurel : la boucle CQ vit hors
+    du banc (cablerSequenceur n'est pas dans la région SEQ), donc vérifié sur
+    le texte source plutôt que rejoué."""
+    src = _lire(FT8_HTML)
+    corps = _sans_commentaires(_extraire_fonction(src, 'seqArreter'))
+    assert re.search(r"CQ_AUTO_ARRETS_LOOP\.has\(raison\)", corps), \
+        "seqArreter() doit couper la boucle CQ pour toute raison d'arrêt d'opérateur"
+    # Doit être placé AVANT le retour anticipé `if(!seq) return;` : sinon
+    # l'arrêt de la boucle CQ, qui n'a justement PAS de `seq`, est inatteignable.
+    i_coupe = corps.index('CQ_AUTO_ARRETS_LOOP')
+    i_retour = corps.index('if(!seq) return;')
+    assert i_coupe < i_retour, (
+        "cqAutoArreter() doit être appelé AVANT `if(!seq) return;` — sinon "
+        "changer de mode pendant l'attente d'un CQ (aucun seq actif, le cas "
+        "le plus fréquent) n'atteint jamais la coupure de la boucle")
+
+
+def test_absence_de_reponse_relance_cq_sur_la_meme_parite(banc):
+    """L'autonomie ne doit pas s'éteindre juste parce qu'une station n'a pas
+    répondu : un abandon par plafond de relances doit relancer CQ, sur la
+    MÊME parité tenue depuis le début de la campagne (jamais un appelant FT8
+    ne change de moitié de cycle d'un appel à l'autre)."""
+    b = banc(niveau='auto', correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    b.avancer(200000)
+
+    et = b.etat()
+    assert not et['erreurs'], et['erreurs']
+    cq = [t for t in b.emissions_parties() if t.startswith('CQ ' + MOI)]
+    assert len(cq) >= 2, \
+        'au moins deux appels CQ attendus sur 200 s sans réponse : %r' % (cq,)
+    parite = et['cqAutoParite']
+    assert parite in (0, 1)
+    creneaux_cq = [e['slot'] for e in et['parties'] if e['texte'].startswith('CQ ' + MOI)]
+    assert all((c // 15000) % 2 == parite for c in creneaux_cq), \
+        'tous les appels CQ doivent tenir la même parité : %r (parité %r)' % (creneaux_cq, parite)
+    assert et['cqAutoActif'] is True, 'la boucle doit rester active malgré l\'absence de réponse'
+
+
+def test_parcours_complet_cq_reponse_qso_auto_puis_cq_relance(banc):
+    """Le parcours complet demandé par F4GLD : démarrer l'appel CQ, une
+    station répond, le QSO se déroule et se logue SANS confirmation humaine,
+    puis CQ repart tout seul — en boucle."""
+    b = banc(niveau='auto', correspondant=_correspondant())
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    b.avancer(400000)
+
+    et = b.etat()
+    assert not et['erreurs'], et['erreurs']
+    assert len(et['journal']) == 1, \
+        'le QSO doit être loggué automatiquement, sans confirmation humaine : %r' % (et['journal'],)
+    assert et['journal'][0]['call'] == CIBLE
+
+    parties = b.emissions_parties()
+    slots = [e['slot'] for e in et['parties']]
+    i_73 = next(i for i, t in enumerate(parties) if t.endswith(' 73'))
+    apres_73 = [t for t, s in zip(parties, slots) if s > slots[i_73]]
+    assert any(t.startswith('CQ ' + MOI) for t in apres_73), (
+        'aucun appel CQ après la fin du QSO — la boucle Automatique ne '
+        'reprend pas : %r' % (apres_73,))
+    assert et['cqAutoActif'] is True, 'la boucle doit rester active après le premier QSO'
+
+
+def test_pileup_deux_repondants_le_meilleur_snr_gagne(banc):
+    """Aucune logique de départage n'existait avant ce chantier (vérifié par
+    relecture du fichier) : deux stations qui répondent au même CQ dans le
+    même créneau doivent être départagées par le SNR le plus fort, pas par
+    l'ordre de décodage — c'est le cas réel d'un pileup sur une activation
+    spéciale (TM6KJS)."""
+    b = banc(niveau='auto')
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    # Laisse partir le premier CQ (créneau 15000, parité fixée à son envoi).
+    b.avancer(30000)
+    et = b.etat()
+    slot_cq = et['cqAutoParite']
+    assert slot_cq in (0, 1)
+    # Le créneau suivant NOTRE CQ (parité opposée) est celui où un pileup
+    # répond : deux indicatifs adressés à nous, SNR différents.
+    creneau_cq = next(e['slot'] for e in et['parties'] if e['texte'].startswith('CQ ' + MOI))
+    creneau_reponse = creneau_cq + 15000
+    b.charger_scenario({
+        str(creneau_reponse): [
+            {'text': f'{MOI} F4FAIBLE JN10', 'snr': -18},
+            {'text': f'{MOI} F4FORT JN20', 'snr': -3},
+        ],
+    })
+    b.avancer(creneau_reponse + 20000)
+
+    et = b.etat()
+    assert et['seq'] is not None, 'aucune séquence démarrée malgré deux répondants'
+    assert et['seq']['cible'] == 'F4FORT', \
+        'le meilleur SNR (-3, F4FORT) doit être choisi, pas le premier décodé : %r' % (et['seq'],)
+
+
+def test_reciblage_manuel_pendant_qu_un_cq_est_en_l_air_narrete_pas_le_nouveau_qso(banc):
+    """Un CQ automatique EN COURS DE TRANSMISSION (PTT engagé, ~12,64 s) ne
+    doit pas empêcher un double-clic manuel sur une station décodée
+    entre-temps de démarrer son propre QSO — et l'émission suivante ne doit
+    JAMAIS être un second CQ reprogrammé par-dessus ce nouveau QSO."""
+    b = banc(niveau='auto')
+    b.js('NOW = 2000;')
+    b.demarrer_cq()
+    b.avancer(20000)   # le premier CQ est EN L'AIR (créneau 15000-27640)
+    et = b.etat()
+    assert et['seq'] is None, 'aucun QSO ne doit exister avant le double-clic manuel'
+    b.demarrer(cible='F4XYZ')   # double-clic manuel PENDANT que le CQ est encore en l'air
+    et = b.etat()
+    assert et['seq'] is not None and et['seq']['cible'] == 'F4XYZ', et['seq']
+
+    b.avancer(80000)   # laisse le temps au CQ de se terminer ET au QSO d'avancer
+    et = b.etat()
+    parties = b.emissions_parties()
+    cq_apres_reciblage = [t for t in parties[1:] if t.startswith('CQ ' + MOI)]
+    assert not cq_apres_reciblage, (
+        'un second CQ est parti par-dessus le QSO démarré pendant que le '
+        'premier CQ était encore en l\'air : %r' % (parties,))
+
+
+def test_mode_auto_persiste_mais_pas_l_etat_en_cours(banc):
+    """Restauration localStorage (cablerSequenceur, hors de la région SEQ,
+    donc vérifiée sur le texte source) : le CHOIX de mode 'auto' doit
+    survivre à un rechargement comme les trois autres, mais cqAutoActif —
+    « est-ce que ça tourne réellement ? » — ne doit JAMAIS être restauré à
+    `true` : aucune clé localStorage ne doit exister pour cet état, exactement
+    comme `seq` lui-même ne survit jamais à un rechargement de page."""
+    src = _lire(FT8_HTML)
+    assert re.search(
+        r"memo === 'manuel' \|\| memo === 'assiste' \|\| memo === 'sequenceur' \|\| memo === 'auto'",
+        src), "le choix de mode 'auto' doit être restauré comme les trois autres au chargement"
+    assert 'cqAutoActif' not in re.search(r"cablerSequenceur.*?\n\s*\}\)\(\);",
+                                           src, re.S).group(0), (
+        "cqAutoActif ne doit JAMAIS être lu ou écrit dans localStorage / au "
+        "chargement de la page — la boucle CQ doit toujours démarrer éteinte")

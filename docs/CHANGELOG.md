@@ -52,6 +52,31 @@ poussé.
   (`bandeauxRythmeMasques()`) plutôt que d'en inventer un second ; un
   concours réellement actif continue d'afficher le score sans qu'on ait
   besoin de le demander — aucun changement pour l'usage contest classique.
+- **Lien profond PROPAG depuis le LOGBOOK.** Le lien PROPAG de la barre de
+  navigation du LOGBOOK ouvre désormais directement `logx_propagation.html`
+  sur la bande actuellement journalisée (`?band=...#propPane-focus`), au
+  lieu du dernier onglet consulté — évite un aller-retour pour retrouver la
+  bonne bande en pleine activité.
+- **FT8 : mode « Automatique » (CQ + QSO en totale autonomie), strictement
+  optionnel.** Nouveau 4e niveau dans le sélecteur du séquenceur FT8, en
+  plus de manuel/assisté/séquenceur : une fois activé par le menu ET un
+  bouton dédié (double geste explicite, jamais un simple choix de menu), la
+  station appelle CQ, décode les réponses, déroule l'échange complet
+  (grille/report/RRR/73), logue, puis relance CQ — en boucle, sans reclic à
+  chaque étape. Demandé par F4GLD le 22/08/2026 pour une activation à
+  indicatif spécial (TM6KJS), en dérogation explicite et assumée à la règle
+  de sécurité par défaut du séquenceur (« aucune émission automatique sans
+  confirmation humaine ») — dérogation qui NE s'applique QU'à ce mode
+  optionnel ; les 3 modes existants n'ont pas changé de comportement. Le
+  bouton STOP SÉQUENCE et la touche Échap arrêtent tout immédiatement, à
+  tout moment du cycle (y compris pendant l'attente entre deux CQ) ; un
+  bandeau d'avertissement reste affiché en permanence tant que le mode est
+  actif — pas une bulle au survol.
+- **FT8 : panneau « QSO en cours » séparé de l'activité de bande.** Nouveau
+  panneau dédié à l'échange en cours (grille/report/RRR/73 reçus et émis),
+  distinct du tableau existant qui liste toute l'activité décodée sur la
+  bande — demandé par F4GLD pour distinguer d'un coup d'œil « ce qui se
+  passe sur la bande » de « mon QSO ».
 
 ### Corrigé
 
