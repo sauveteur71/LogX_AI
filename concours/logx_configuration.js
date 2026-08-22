@@ -775,14 +775,13 @@ const CONTESTS = [
 //     lecture IA du règlement arrivera en Phase 3).
 const VERIFIED_IDS = new Set();   // ids présents dans la base serveur
 
-// Vrai règlement (bandes/modes) tel que connu côté serveur — CONTEST_DEFINITIONS
-// (logx_definitions.py, y compris les concours personnalisés fusionnés depuis
-// custom_contests.json), exposé tel quel par /data/calendar (valeurs brutes
-// MHz ex. '144'/'3.5' et modes majuscules ex. 'SSB'/'FT8', ou 'all'). Utilisé
-// par _resolveContestFilters() pour restreindre l'étape FILTRES sans dupliquer
-// une 2e fois ce règlement à la main (voir LEGACY_CONTEST_FILTERS plus bas,
-// qui ne sert plus que pour les quelques concours ABSENTS de cette base).
-const SERVER_CONTEST_RULES = {};
+// SERVER_CONTEST_RULES/LEGACY_CONTEST_FILTERS/BAND_TOGGLE_KEY/MODE_TOGGLE_KEY/
+// _resolveContestFilters() vivent désormais dans logx_contest_rules.js (chargé
+// juste avant ce fichier) -- partagés avec logx_logbook.js (correctif du
+// sélecteur de bandes du LOGBOOK, chantier « page d'accueil par activité »,
+// 22/08/2026). SERVER_CONTEST_RULES est peuplé ICI (mergeServerContests()
+// enrichit aussi CONTESTS, propre à cette page) ; _resolveContestFilters()
+// reste utilisable telle quelle par les deux pages via le même objet partagé.
 
 async function mergeServerContests(){
   try{
@@ -2389,16 +2388,37 @@ function buildContestGrid(filter = '') {
 // Le concours déjà sélectionné (état restauré) est toujours épinglé en tête,
 // même hors de cette fenêtre, pour ne jamais faire disparaître un réglage
 // existant derrière un filtre de date.
+// Narrowing par activité (chantier « page d'accueil par activité »,
+// 22/08/2026) : seule LOG V/UHF est câblée pour l'instant (voir
+// logx_accueil.js). Un concours est retenu seulement si SON RÈGLEMENT
+// (résolu via _resolveContestFilters(), logx_contest_rules.js -- source
+// serveur si connue, sinon LEGACY_CONTEST_FILTERS) est POSITIVEMENT connu et
+// tient ENTIÈREMENT dans VHF_BANDS. Un concours à l'axe libre (CUSTOM,
+// POTA/SOTA « au choix »...) est écarté ici plutôt que deviné compatible --
+// il reste atteignable via « Voir tous les concours » (buildContestGrid,
+// jamais filtré par activité : c'est l'échappatoire, masquer ≠ bloquer).
+function _activiteEstVuhf() {
+  try { return localStorage.getItem('logx_activity') === 'vuhf'; }
+  catch (e) { return false; }
+}
+function _contestCompatibleVuhf(c) {
+  const filtres = _resolveContestFilters(c.id);
+  if (!filtres || !filtres.bands) return false;
+  return filtres.bands.every(b => VHF_BANDS.includes(b));
+}
+
 function buildContestQuickView() {
   _contestViewMode = 'quick';
   const grid = document.getElementById('contestGrid');
   const clr = document.getElementById('contestSearchClear');
   if (clr) clr.style.display = 'none';
+  const filtreVuhf = _activiteEstVuhf();
 
   const cutoff = Date.now() - 2 * 24 * 3600 * 1000; // même grâce que le filtre "À VENIR" de logx_calendrier.html
   const picks = [];
   CONTESTS.forEach(c => {
     if (c.external || c.id === 'CUSTOM') return;
+    if (filtreVuhf && !_contestCompatibleVuhf(c)) return;
     const dates = calcContestDates(c.id) || serverContestDates(c.id);
     if (!dates) return;
     const startMs = Date.parse(dates.startDate + 'T00:00:00Z');
@@ -2413,12 +2433,18 @@ function buildContestQuickView() {
     if (cur) top.unshift({ c: cur, startMs: undefined });
   }
 
+  const lienTous = `<a href="#" onclick="showAllContests();return false" style="color:var(--accent2)">parcourir tous les concours</a>`;
   if (!top.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">Aucun concours à venir détecté pour l'instant — <a href="#" onclick="showAllContests();return false" style="color:var(--accent2)">parcourir tous les concours</a>.</div>`;
+    const msg = filtreVuhf
+      ? `Aucun concours V/UHF à venir détecté pour l'instant — ${lienTous}.`
+      : `Aucun concours à venir détecté pour l'instant — ${lienTous}.`;
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">${msg}</div>`;
   } else {
+    const titre = filtreVuhf ? 'CONCOURS V/UHF À VENIR' : 'CONCOURS À VENIR';
     grid.innerHTML = `
-      <div style="grid-column:1/-1;margin-bottom:6px;font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:3px;border-bottom:1px solid var(--border);padding-bottom:5px">CONCOURS À VENIR</div>
+      <div style="grid-column:1/-1;margin-bottom:6px;font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:3px;border-bottom:1px solid var(--border);padding-bottom:5px">${titre}</div>
       ${top.map(p => _contestCardHtml(p.c, p.startMs)).join('')}
+      ${filtreVuhf ? `<div style="grid-column:1/-1;text-align:center;font-family:var(--font-mono);font-size:12px;margin-top:6px">${lienTous}</div>` : ''}
     `;
   }
   _remarkSelectedContestCard();
@@ -3519,142 +3545,10 @@ async function disableAccessPassword(){
 }
 
 // ─── FILTRES AUTOMATIQUES PAR CONCOURS ────────────────────────────────────────
-// Correctif [audit config bandes/modes] : la grille de toggles était filtrée
-// par un objet client codé à la main (CONTEST_FILTERS, ~35 concours) qui ne
-// couvrait ni les concours personnalisés (custom_contests.json) ni les futurs
-// concours serveur, et ne masquait jamais les MODES hors règlement (seulement
-// les bandes) — un opérateur pouvait cocher un mode que le concours n'autorise
-// pas. Source de vérité désormais : SERVER_CONTEST_RULES (rempli par
-// mergeServerContests() depuis /data/calendar, lui-même dérivé de
-// CONTEST_DEFINITIONS + custom_contests.json côté serveur), traduit vers les
-// clés toggle via BAND_TOGGLE_KEY/MODE_TOGGLE_KEY (repris tels quels de
-// logx_logbook.js pour ne pas re-diverger une 2e fois du même mapping — c'est
-// exactement l'absence de clé WWA FT2/PSK dans CONTEST_FILTERS qui avait
-// provoqué le bug constaté par l'audit).
-//
-// LEGACY_CONTEST_FILTERS ne sert plus que de repli pour les quelques concours
-// ABSENTS de CONTEST_DEFINITIONS (parties CCD mensuelles, TVA, Marconi, F8TD,
-// 50 MHz REF/IARU, UFT...) : leur règlement n'existe nulle part ailleurs côté
-// serveur, donc cette table reste ici l'unique source pour CES ids précis —
-// ce n'est plus une duplication du même règlement que celui déjà exposé par
-// /data/calendar (voir _resolveContestFilters ci-dessous).
-const LEGACY_CONTEST_FILTERS = {
-
-  // ── Challenge THF annuel cumulatif (144MHz→47GHz, tous modes)
-  'REF_CHALLENGE_THF': { modes:['mode_ssb','mode_cw','mode_fm','mode_ft8','mode_ft4'],
-                          bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
-  // ── CCD parties THF (432/1296/2320 MHz = 70cm+23cm+13cm)
-  'REF_CCD_JAN1':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
-  'REF_CCD_FEV1':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
-  'REF_CCD_MAI':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
-  'REF_CCD_OCT':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
-
-  // ── CCD parties 144 MHz (SSB+CW+FM)
-  'REF_CCD_JAN2':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
-  'REF_CCD_FEV2':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
-  'REF_CCD_MAR':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
-  'REF_CCD_NOV':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
-  'REF_CCD_DEC':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
-
-  // ── CCD CW uniquement (144 MHz)
-  'REF_CCD_AVR_CW':{ modes:['mode_cw'], bands:['band_2m'] },
-  'REF_CCD_DEC_CW':{ modes:['mode_cw'], bands:['band_2m'] },
-
-  // ── TVA (ATV/FM relais — 70cm+23cm)
-  'REF_NAT_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
-  'REF_IARU_TVA':    { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
-  'REF_CDF_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
-  'REF_NAT_TVA_DEC': { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
-
-  // ── 50 MHz
-  'REF_DDFM_50':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_6m'] },
-  'REF_IARU_50':   { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
-  'IARU_50':       { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
-
-  // ── F8TD — SHF uniquement (1296MHz→47GHz, SSB+CW)
-  'REF_F8TD':      { modes:['mode_ssb','mode_cw'],
-                     bands:['band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
-  // ── IARU VHF (144MHz uniquement, SSB+CW) — id historique REF_IARU_VHF,
-  // distinct de IARU_VHF (celui-ci EST dans CONTEST_DEFINITIONS)
-  'REF_IARU_VHF':  { modes:['mode_ssb','mode_cw'], bands:['band_2m'] },
-
-  // ── Marconi (144MHz, CW UNIQUEMENT) — id historique REF_MARCONI, distinct
-  // de IARU_MARCONI (CONTEST_DEFINITIONS)
-  'REF_MARCONI':   { modes:['mode_cw'], bands:['band_2m'] },
-
-  // ── IARU UHF/SHF (432MHz→47GHz) — id historique REF_IARU_UHF, distinct de
-  // IARU_UHF (CONTEST_DEFINITIONS)
-  'REF_IARU_UHF':  { modes:['mode_ssb','mode_cw'],
-                     bands:['band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
-  // ── UFT (HF 80→10m, CW uniquement)
-  'F9NL':          { modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  'UFT_RENCONTRES':{ modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
-};
-
-// Correspondance valeur bande serveur (MHz brut, ex. '144') → clé toggle —
-// copie exacte de BAND_TOGGLE_KEY (logx_logbook.js, ~ligne 2318) : même
-// mapping, pas de 2e version qui pourrait diverger.
-const BAND_TOGGLE_KEY = {
-  '1.8':   'band_160m', '3.5':   'band_80m',  '7':     'band_40m',
-  '10.1':  'band_30m',  '14':    'band_20m',  '18':    'band_17m',
-  '21':    'band_15m',  '24':    'band_12m',  '28':    'band_10m',
-  '50':    'band_6m',   '70':    'band_4m',    '144':   'band_2m',
-  '432':   'band_70cm', '1296':  'band_23cm',  '2320':  'band_13cm',
-  '3400':  'band_9cm',  '5760':  'band_6cm',   '10368': 'band_3cm',
-  '24048': 'band_6mm',  '47088': 'band_4mm',
-};
-
-// Correspondance mode serveur → clé toggle — copie exacte de MODE_TOGGLE_KEY
-// (logx_logbook.js), y compris le rattachement WWA FT2→FT8 (règlement §5, même
-// famille "DIGI", aucune case dédiée). PSK, lui, a bien SA case (mode_psk) : il
-// était rattaché à mode_rtty jusqu'au 18/08/2026, ce qui faisait DÉCOCHER la
-// case PSK dès qu'on sélectionnait le WWA — dont le §5 autorise pourtant PSK.
-const MODE_TOGGLE_KEY = {
-  'SSB':   'mode_ssb',
-  'AM':    'mode_am',
-  'CW':    'mode_cw',
-  'FM':    'mode_fm',
-  'DSTAR': 'mode_dstar',  // libellé ADIF ; la case de configuration dit "D-STAR"
-  'FT8':   'mode_ft8',
-  'FT4':   'mode_ft4',
-  'JS8':   'mode_js8',
-  'RTTY':  'mode_rtty',
-  'PSK':   'mode_psk',
-  'SSTV':  'mode_sstv',   // mode d'activité (dimanches SSTV, ISS) — jamais imposé par un concours
-  'DIGI':  'mode_ft8',    // code générique de règlement, aucune case dédiée
-  'FT2':   'mode_ft8',    // WWA (règlement §5) — pas de case dédiée, rattaché à FT8
-};
-
-// Résout les clés toggle bandes/modes autorisées pour un concours :
-// 1. règlement serveur (SERVER_CONTEST_RULES, source de vérité) ;
-// 2. à défaut, repli LEGACY_CONTEST_FILTERS (concours absents côté serveur) ;
-// 3. sinon null → aucune restriction (comportement sûr par défaut).
-// Les deux axes (bandes/modes) sont résolus INDÉPENDAMMENT l'un de l'autre :
-// 'all' explicite, ou un règlement dont aucun code ne se traduit via
-// BAND_TOGGLE_KEY/MODE_TOGGLE_KEY, lève la restriction sur CET axe seul —
-// jamais sur l'autre. Avant ce correctif, un OR unique (bands.includes('all')
-// || modes.includes('all')) levait TOUTE restriction dès que l'un des deux
-// axes était 'all', y compris quand l'autre axe listait des valeurs précises
-// (ex. bands:['all'], modes:['CW'] laissait SSB/FT8/... cochables alors que
-// seul CW est autorisé). Le retour est { bands, modes } où chaque champ vaut
-// soit un tableau de clés à restreindre, soit null si l'axe est libre.
-function _resolveContestFilters(contestId) {
-  const rules = SERVER_CONTEST_RULES[contestId];
-  if (rules) {
-    const bands = rules.bands || [];
-    const modes = rules.modes || [];
-    const bandKeys = bands.includes('all') ? [] : [...new Set(bands.map(b => BAND_TOGGLE_KEY[b]).filter(Boolean))];
-    const modeKeys = modes.includes('all') ? [] : [...new Set(modes.map(m => MODE_TOGGLE_KEY[m]).filter(Boolean))];
-    const restrictBands = bandKeys.length > 0;
-    const restrictModes = modeKeys.length > 0;
-    if (!restrictBands && !restrictModes) return null; // aucun des deux axes n'a de restriction traduisible
-    return { bands: restrictBands ? bandKeys : null, modes: restrictModes ? modeKeys : null };
-  }
-  return LEGACY_CONTEST_FILTERS[contestId] || null;
-}
+// LEGACY_CONTEST_FILTERS/BAND_TOGGLE_KEY/MODE_TOGGLE_KEY/_resolveContestFilters()
+// vivent désormais dans logx_contest_rules.js (partagé avec logx_logbook.js,
+// voir ce fichier pour l'historique complet du correctif [audit config
+// bandes/modes] et de l'extraction du 22/08/2026).
 
 const HF_BANDS  = ['band_vlf','band_160m','band_80m','band_60m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m','band_8m'];
 const VHF_BANDS = ['band_6m','band_4m','band_2m','band_220','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm','band_qo100','band_sat'];

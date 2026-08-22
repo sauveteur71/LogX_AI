@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Panneau QTC (WAE) côté client (commit 5a98e7a) — showQTCPanel()/
-saveQTCSeries() ne réinitialisaient jamais #qtcPartner ni #qtcDirection
-entre deux séries : un opérateur qui enregistre une série ÉMISE à DL0XM,
-puis rouvre le panneau pour une série REÇUE d'une autre station, retrouvait
-encore l'indicatif ET le sens de la série précédente pré-remplis — au risque
-de logguer la série suivante sous le mauvais indicatif/sens par inattention.
+"""Score masqué par défaut hors concours, affiché sur demande (retour F4GLD
+22/08/2026 : « afin d'épurer au maximum les pages tout ce qui est scoring
+doit apparaître uniquement sur demande » -- chantier « page d'accueil par
+activité »).
 
-Ce module exécute le VRAI logx_logbook.js dans un moteur JS réel (V8 via
-py_mini_racer, même technique que tests/test_logbook_render_window_reset.py)
-avec un DOM minimal, pour reproduire le scénario concrètement plutôt que de
-grepper une chaîne dans le fichier source."""
+Précédent réutilisé, pas réinventé : bandeauxRythmeMasques() (logx_logbook.js)
+cachait déjà .score-banner en entier pour les modes 'simple'/'expedition'.
+Ce module vérifie l'extension : hors concours actif (contestActif() faux),
+le bandeau reste masqué par défaut, sur demande sinon via
+#scoreVisibleToggle/toggleScoreVisible()/logx_score_visible — sans jamais
+toucher le comportement existant en concours actif ou en mode simple/expedition.
+
+Exécute le VRAI logx_logbook.js dans un moteur JS réel (V8 via py_mini_racer),
+même harnais DOM que tests/test_dup_confirm_banner.py."""
 import os
 
 import pytest
@@ -20,23 +23,11 @@ py_mini_racer = pytest.importorskip(
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
-# EV-7 : showQTCPanel()/closeQTCPanel()/saveQTCSeries() ont été extraites
-# vers ce fichier -- doit être chargé AVANT logx_logbook.js, même convention
-# que tests/test_cw_panel_consolidation.py.
 QTC_JS_PATH = os.path.join(BASE, 'logx_qtc.js')
-# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
-# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
-# EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
-# logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
-# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
-# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
-# ─── DOM minimal (voir tests/test_logbook_render_window_reset.py pour la
-# version commentée/complète de ce Proxy — copie volontairement réduite ici
-# aux besoins du panneau QTC pour garder ce module indépendant) ──────────────
 _DOM_PREAMBLE = r"""
 var __store = {};
 function ElProxy(){
@@ -113,67 +104,65 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
-    with open(RULES_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(QTC_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
+    for path in (RULES_JS_PATH, QTC_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH, FILTRE_SPOTS_JS_PATH, JS_PATH):
+        with open(path, encoding='utf-8') as f:
+            ctx.eval(f.read())
     return ctx
 
 
-def test_showQTCPanel_reinitialise_partenaire_et_sens():
-    """Reproduction : ouvrir le panneau pour une 1e série (reçue, DL0XM) PUIS
-    le rouvrir pour une 2e série doit repartir de zéro (sens 'sent',
-    partenaire vide) — sans le fix, les deux champs restent sur DL0XM/'recv'."""
+def test_masque_par_defaut_sans_concours_actif():
     ctx = _make_ctx()
-    ctx.eval("""
-    document.getElementById('qtcDirection').value = 'recv';
-    document.getElementById('qtcPartner').value = 'DL0XM';
-    """)
-    # Rouvre le panneau (nouvelle série) : doit repartir à zéro.
-    ctx.eval("showQTCPanel();")
-    assert ctx.eval("document.getElementById('qtcPartner').value") == ''
-    assert ctx.eval("document.getElementById('qtcDirection').value") == 'sent'
+    assert ctx.eval('bandeauxRythmeMasques()') is True
 
 
-def test_closeQTCPanel_reinitialise_partenaire_et_sens():
+def test_affiche_sur_demande_sans_concours_actif():
     ctx = _make_ctx()
-    ctx.eval("""
-    document.getElementById('qtcDirection').value = 'recv';
-    document.getElementById('qtcPartner').value = 'DL0XM';
-    closeQTCPanel();
-    """)
-    assert ctx.eval("document.getElementById('qtcPartner').value") == ''
-    assert ctx.eval("document.getElementById('qtcDirection').value") == 'sent'
+    ctx.eval("toggleScoreVisible();")
+    assert ctx.eval('_scoreDemandee()') is True
+    assert ctx.eval('bandeauxRythmeMasques()') is False
 
 
-def test_saveQTCSeries_reinitialise_partenaire_et_sens_apres_enregistrement():
-    """Après un enregistrement RÉUSSI, la série SUIVANTE ne doit pas hériter
-    de l'indicatif/sens de la précédente."""
+def test_toggle_est_reversible():
     ctx = _make_ctx()
-    ctx.eval("""
-    fetch = function(){ return Promise.resolve({ ok:true, json:function(){
-      return Promise.resolve({ok:true, total:1, id:1}); } }); };
-    document.getElementById('qtcDirection').value = 'recv';
-    document.getElementById('qtcPartner').value = 'DL0XM';
-    document.getElementById('qtcRows').innerHTML = '';
-    qtcRows = [{time:'0030', call:'YU1ZZ', nr:'62'}];
-    """)
-    ctx.eval("saveQTCSeries();")
-    # saveQTCSeries() est async (attend le fetch) : laisser le microtask queue se vider.
-    ctx.eval("undefined")
-    assert ctx.eval("document.getElementById('qtcPartner').value") == ''
-    assert ctx.eval("document.getElementById('qtcDirection').value") == 'sent'
+    ctx.eval("toggleScoreVisible(); toggleScoreVisible();")
+    assert ctx.eval('_scoreDemandee()') is False
+    assert ctx.eval('bandeauxRythmeMasques()') is True
 
 
-def test_pas_de_qso_director():
-    """Interdiction absolue (nom d'un concurrent) — jamais dans le code."""
-    with open(JS_PATH, encoding='utf-8') as f:
-        assert 'QSO Director' not in f.read()
+def test_concours_actif_affiche_le_score_meme_sans_demande_explicite():
+    """Un concours réellement en cours ne doit JAMAIS voir son score caché
+    par défaut -- le nouveau masquage ne s'applique qu'en l'ABSENCE de
+    concours, jamais pendant un concours actif (contexte où le score est le
+    coeur de l'usage)."""
+    ctx = _make_ctx()
+    ctx.eval("localStorage.setItem('logx_config', JSON.stringify({contest:'REF_CCD_JAN1'}));")
+    assert ctx.eval('contestActif()') is True
+    assert ctx.eval('bandeauxRythmeMasques()') is False
+
+
+def test_mode_simple_reste_masque_meme_score_demande():
+    """Non-régression du mécanisme existant : le mode simple/expedition
+    masque le bandeau indépendamment de logx_score_visible -- une demande
+    explicite de score n'a pas de sens dans ce mode (log personnel continu)."""
+    ctx = _make_ctx()
+    ctx.eval("toggleScoreVisible();")   # demande explicite
+    ctx.eval("applyUsageModeToLogbook('simple');")
+    assert ctx.eval('bandeauxRythmeMasques()') is True
+
+
+def test_bouton_masque_pendant_un_concours_actif():
+    """Rien à révéler pendant un concours actif : le bouton lui-même
+    disparaît plutôt que de proposer une action sans effet."""
+    ctx = _make_ctx()
+    ctx.eval("localStorage.setItem('logx_config', JSON.stringify({contest:'REF_CCD_JAN1'}));")
+    ctx.eval("applyContestActifToLogbook();")
+    assert ctx.eval("document.getElementById('scoreVisibleToggle').style.display") == 'none'
+
+
+def test_bouton_visible_et_reflete_letat_hors_concours():
+    ctx = _make_ctx()
+    ctx.eval("applyContestActifToLogbook();")
+    assert ctx.eval("document.getElementById('scoreVisibleToggle').style.display") == ''
+    assert '○' in ctx.eval("document.getElementById('scoreVisibleToggle').textContent")
+    ctx.eval("toggleScoreVisible();")
+    assert '●' in ctx.eval("document.getElementById('scoreVisibleToggle').textContent")

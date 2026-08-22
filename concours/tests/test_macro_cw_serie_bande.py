@@ -36,6 +36,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 phase 2 : rigState (lu par copyMacro()/esmSend(), tous deux exercés par
 # ce scénario) vit désormais dans logx_hardware_cat.js, chargé en <script>
 # classique AVANT logx_logbook.js dans logx_logbook.html (portée globale
@@ -255,6 +256,8 @@ def _real_source(rev=None):
     """Source réelle de logx_logbook.js : HEAD par défaut, ou `rev` pour
     rejouer le scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
+        with open(RULES_JS_PATH, encoding='utf-8') as f:
+            rules = f.read()
         with open(HARDWARE_JS_PATH, encoding='utf-8') as f:
             hw = f.read()
         with open(CALLBOOK_JS_PATH, encoding='utf-8') as f:
@@ -274,7 +277,7 @@ def _real_source(rev=None):
         with open(OUTILS_DIVERS_JS_PATH, encoding='utf-8') as f:
             od = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return (hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n'
+            return (rules + '\n' + hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n'
                     + mc + '\n' + fs + '\n' + od + '\n' + f.read())
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],

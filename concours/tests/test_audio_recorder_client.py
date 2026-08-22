@@ -27,6 +27,11 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# _resolveContestFilters()/BAND_TOGGLE_KEY/MODE_TOGGLE_KEY, référencés par
+# logx_logbook.js (renderBandButtons(), 22/08/2026), vivent désormais ici --
+# ReferenceError au parse sans ce fichier (même piège déjà documenté pour
+# ESM_CALLBOT_JS_PATH/VOICE_KEYER_JS_PATH juste en dessous).
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 HTML_PATH = os.path.join(BASE, 'logx_logbook.html')
 # EV-7 19e incrément : logx_logbook.js contient un appel TOP-LEVEL
 # renderVoiceDynPanel(); (juste après le bloc CALLBOT/ESM extrait) -- sûr
@@ -244,7 +249,7 @@ def _real_source(rev=None):
     défaut, ou `rev` (ex. le commit d'origine 5a2c452) pour rejouer le
     scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
-        return (_read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
+        return (_read(RULES_JS_PATH) + '\n' + _read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
                 + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(FILTRE_SPOTS_JS_PATH) + '\n'
                 + _read(JS_PATH))
     out = subprocess.run(

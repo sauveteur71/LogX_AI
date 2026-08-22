@@ -135,6 +135,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 : showChecklist() (avec son échappement escHtml testé ici) a été
 # extraite vers ce fichier -- doit être chargée AVANT logx_logbook.js, même
 # convention que tests/test_cw_panel_consolidation.py.
@@ -257,6 +258,8 @@ def _checklist_html(peer_version, server_version='0.9-beta4'):
     /log/status), pas par une écriture directe dans les variables internes."""
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    with open(RULES_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
     with open(VERIF_PANEL_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(LOOKUP_JS_PATH, encoding='utf-8') as f:

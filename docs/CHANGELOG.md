@@ -13,6 +13,62 @@ poussé.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Page d'accueil par activité.** Nouvelle page `logx_accueil.html`, devenue
+  la porte d'entrée de l'app (routage racine `/`) : une grille de tuiles
+  (LOG normal, LOG 6m, LOG V/UHF, LOG SHF, LOG Satellites, LOG Concours, LOG
+  DXp, LOG Call spéciaux, LOG IOTA/POTA, LOG QRP) remplace le mode
+  simple/expert comme axe premier de l'interface — décision de F4GLD du
+  19/08/2026 suite à un échange avec un correspondant expérimenté (Didier) :
+  « pas besoin de mode débutant et expert... un logiciel comme une super
+  boîte à outils où on rentre très facilement dedans ». Un clic pose
+  `localStorage.logx_activity` puis redirige (CONFIG si aucun concours actif,
+  LOGBOOK sinon) ; les visites suivantes sautent directement la grille —
+  résumé en un geste, sans ralentir l'habitué. Le lien « ↺ ACTIVITÉ » dans
+  CONFIG (`?changer=1`) permet de revenir sur ce choix à tout moment :
+  masquer n'est jamais bloquer. Seule **LOG V/UHF** obtient un vrai filtrage
+  à ce stade (doctrine : valider le modèle sur UNE activité avant les 18
+  autres pages) — les autres tuiles routent honnêtement vers le comportement
+  actuel de l'app, sans filtre supplémentaire ni promesse non tenue.
+- **LOG V/UHF filtre réellement les concours et les bandes.** La grille de
+  concours de CONFIG (vue « à venir ») ne propose plus, en activité V/UHF,
+  que les concours dont le règlement est positivement connu comme tenant
+  entièrement dans les bandes VHF/UHF (`_contestCompatibleVuhf()`) — un
+  concours à l'axe libre (CUSTOM, POTA/SOTA « au choix »...) est écarté
+  plutôt que deviné compatible, conformément à la règle du dépôt de ne
+  jamais fabriquer une valeur de domaine. L'échappatoire « Voir tous les
+  concours » reste toujours accessible, jamais filtrée. Hors concours (QSO
+  occasionnel), le sélecteur de bandes du LOGBOOK propose par défaut
+  144/432/1296 MHz plutôt que la totalité des bandes HF+V/UHF — « 2m, 70cm,
+  23cm, et ça suffit » (F4GLD, 22/08/2026).
+- **Score masqué par défaut hors concours, affiché sur demande.** Nouveau
+  bouton SCORE dans l'en-tête du LOGBOOK : hors concours actif, le bandeau
+  de score (QSO, meilleur DX, rythme, temps restant...) reste masqué par
+  défaut pour épurer l'écran, et ne s'affiche que sur demande explicite —
+  retour F4GLD du 22/08/2026 (« afin d'épurer au maximum les pages tout ce
+  qui est scoring doit apparaître uniquement sur demande »). Étend le
+  mécanisme déjà existant pour les modes simple/expedition
+  (`bandeauxRythmeMasques()`) plutôt que d'en inventer un second ; un
+  concours réellement actif continue d'afficher le score sans qu'on ait
+  besoin de le demander — aucun changement pour l'usage contest classique.
+
+### Corrigé
+
+- **Le sélecteur de bandes du LOGBOOK ignorait les vrais concours V/UHF.**
+  `renderBandButtons()` indexait une table locale (`CONTEST_BANDS`) qui ne
+  connaissait que des clés génériques (`REF_CCD`, `REF_IARU_VHF`...) —
+  aucune des vraies clés d'édition utilisées partout ailleurs dans l'app
+  (`REF_CCD_JAN1`, `REF_MARCONI`, `REF_DDFM_50`, `REF_IARU_50`...). Le
+  sélecteur retombait donc sur la totalité des bandes (HF comprises) pour la
+  quasi-totalité des concours V/UHF réels — trouvé en construisant le
+  narrowing LOG V/UHF, pas signalé par un utilisateur. Corrigé en extrayant
+  le résolveur déjà correct côté CONFIG (`_resolveContestFilters()`,
+  `LEGACY_CONTEST_FILTERS`, `BAND_TOGGLE_KEY`, `MODE_TOGGLE_KEY`) vers un
+  nouveau fichier partagé `logx_contest_rules.js`, chargé par les deux pages
+  — corrige tous les concours concernés, pas seulement ceux de l'activité
+  V/UHF.
+
 ## [1.1-beta7] - 2026-08-21
 
 ### Ajouté

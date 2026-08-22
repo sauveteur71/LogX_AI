@@ -37,6 +37,12 @@ _ICI = os.path.dirname(os.path.abspath(__file__))
 _CONCOURS = os.path.dirname(_ICI)
 
 LOGBOOK_JS = os.path.join(_CONCOURS, 'logx_logbook.js')
+# MODE_TOGGLE_KEY vit désormais ici (22/08/2026, chantier « page d'accueil
+# par activité ») -- extrait de logx_logbook.js ET logx_configuration.js vers
+# ce fichier unique partagé, justement pour rendre la divergence entre les
+# deux anciennes copies structurellement impossible (voir
+# test_mode_toggle_key_nest_plus_duplique_localement plus bas).
+RULES_JS = os.path.join(_CONCOURS, 'logx_contest_rules.js')
 LOGBOOK_HTML = os.path.join(_CONCOURS, 'logx_logbook.html')
 CONFIG_JS = os.path.join(_CONCOURS, 'logx_configuration.js')
 CONFIG_HTML = os.path.join(_CONCOURS, 'logx_configuration.html')
@@ -268,28 +274,33 @@ def test_chaque_case_de_mode_de_config_pilote_un_bouton():
     l'origine, absente de MODE_TOGGLE_KEY. Les cocher ne produisait aucun
     bouton — une case qui ne fait rien, sans le moindre message."""
     cles_utilisees = set(re.findall(r"'mode_[a-z0-9_]+'",
-                                    _extraire_objet(_lire(LOGBOOK_JS),
+                                    _extraire_objet(_lire(RULES_JS),
                                                     'const MODE_TOGGLE_KEY = {')))
     cles_utilisees = {c.strip("'") for c in cles_utilisees}
     orphelines = _cases_mode_de_config() - cles_utilisees
     assert not orphelines, f'cases de CONFIG sans effet : {sorted(orphelines)}'
 
 
-def test_les_deux_copies_de_la_table_de_modes_sont_identiques():
-    """logx_logbook.js et logx_configuration.js dupliquent la table (pas de
-    module partagé dans ce produit). Une divergence rendrait un mode cochable
-    d'un côté et invisible de l'autre — sans erreur."""
-    def _table(chemin):
-        src = _extraire_objet(_lire(chemin), 'const MODE_TOGGLE_KEY = {')
-        return dict(re.findall(r"'([A-Z0-9-]+)':\s*'(mode_[a-z0-9_]+)'", src))
-    assert _table(LOGBOOK_JS) == _table(CONFIG_JS)
+def test_mode_toggle_key_nest_plus_duplique_localement():
+    """MODE_TOGGLE_KEY a été extrait vers logx_contest_rules.js (22/08/2026,
+    chantier « page d'accueil par activité ») précisément pour rendre
+    IMPOSSIBLE la divergence entre logx_logbook.js et logx_configuration.js
+    que ce test vérifiait auparavant en comparant deux copies -- il n'y a
+    plus qu'une seule source à vérifier : ni l'un ni l'autre ne doit la
+    redéclarer (une redéclaration locale romprait le chargement, cf.
+    collision de `const`, ou referait resurgir le risque de divergence)."""
+    assert "const MODE_TOGGLE_KEY = {" not in _lire(LOGBOOK_JS)
+    assert "const MODE_TOGGLE_KEY = {" not in _lire(CONFIG_JS)
+    # La table existe bien quelque part, avec un contenu exploitable.
+    src = _extraire_objet(_lire(RULES_JS), 'const MODE_TOGGLE_KEY = {')
+    assert dict(re.findall(r"'([A-Z0-9-]+)':\s*'(mode_[a-z0-9_]+)'", src))
 
 
 def test_psk_pointe_sur_sa_propre_case_pas_sur_celle_de_rtty():
     """Régression du WWA : son règlement §5 autorise PSK, mais PSK était
     traduit en `mode_rtty`, donc la case PSK ne figurait pas parmi les modes
     autorisés et applyContestFilters() la décochait."""
-    src = _extraire_objet(_lire(LOGBOOK_JS), 'const MODE_TOGGLE_KEY = {')
+    src = _extraire_objet(_lire(RULES_JS), 'const MODE_TOGGLE_KEY = {')
     assert re.search(r"'PSK':\s*'mode_psk'", src)
 
 
@@ -328,7 +339,7 @@ def test_cocher_une_case_produit_bien_son_bouton(mode, cle):
       function _setCurrentModeLabel(){}
       function _adapterRSTAuMode(){}
     """)
-    ctx.eval(_extraire_objet(src, 'const MODE_TOGGLE_KEY = {')
+    ctx.eval(_extraire_objet(_lire(RULES_JS), 'const MODE_TOGGLE_KEY = {')
              .replace('const MODE_TOGGLE_KEY', 'var MODE_TOGGLE_KEY', 1))
     ctx.eval(_extraire_fonction(src, 'renderModeButtons'))
     ctx.eval("localStorage._v = JSON.stringify({toggles: {%s: true}});" % cle)
@@ -353,7 +364,7 @@ def test_aucune_case_cochee_laisse_les_modes_du_concours():
       function _setCurrentModeLabel(){}
       function _adapterRSTAuMode(){}
     """)
-    ctx.eval(_extraire_objet(src, 'const MODE_TOGGLE_KEY = {')
+    ctx.eval(_extraire_objet(_lire(RULES_JS), 'const MODE_TOGGLE_KEY = {')
              .replace('const MODE_TOGGLE_KEY', 'var MODE_TOGGLE_KEY', 1))
     ctx.eval(_extraire_fonction(src, 'renderModeButtons'))
     ctx.eval("renderModeButtons('REF_CW');")
