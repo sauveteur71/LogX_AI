@@ -18,6 +18,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # EV-7 : mêmes dépendances top-level que tests/test_qtc_panel_js.py --
 # ReferenceError au parse de logx_logbook.js sans elles.
 QTC_JS_PATH = os.path.join(BASE, 'logx_qtc.js')
@@ -103,7 +104,7 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
-    for path in (QTC_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH, FILTRE_SPOTS_JS_PATH, JS_PATH):
+    for path in (RULES_JS_PATH, QTC_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH, FILTRE_SPOTS_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             ctx.eval(f.read())
     return ctx

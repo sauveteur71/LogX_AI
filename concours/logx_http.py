@@ -4900,8 +4900,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._serve_login_page(qs.get('next', ['/'])[0])
             return
 
+        # Porte d'entrée par activité (chantier « axe = activité, pas mode
+        # déclaré », CLAUDE.md, 22/08/2026) -- se place DEVANT logx_configuration.html
+        # (qui reste joignable directement, voir LEGACY_PAGES ci-dessous et les
+        # favoris/habitudes déjà en place), pour laisser l'opérateur choisir CE
+        # QU'IL FAIT avant d'entrer dans l'app. La page redirige elle-même côté
+        # client (localStorage.logx_activity) une fois l'activité connue.
         if path in ('/', ''):
-            path = '/logx_configuration.html'
+            path = '/logx_accueil.html'
 
         # Anciennes URL (avant le renommage logx_*) : on continue de
         # les servir pour ne casser ni favoris ni habitudes de l'équipe.

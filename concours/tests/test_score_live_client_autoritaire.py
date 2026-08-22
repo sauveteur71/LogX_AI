@@ -17,6 +17,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 HARDWARE_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
 DXCC_JS_PATH = os.path.join(BASE, 'logx_dxcc_lookup.js')
 CALLBOOK_JS_PATH = os.path.join(BASE, 'logx_callbook.js')
@@ -108,7 +109,7 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 
 def _real_source():
     parts = []
-    for path in (HARDWARE_JS_PATH, DXCC_JS_PATH, CALLBOOK_JS_PATH, LOOKUP_JS_PATH, ESM_CALLBOT_JS_PATH,
+    for path in (RULES_JS_PATH, HARDWARE_JS_PATH, DXCC_JS_PATH, CALLBOOK_JS_PATH, LOOKUP_JS_PATH, ESM_CALLBOT_JS_PATH,
                  VOICE_KEYER_JS_PATH, LOCATOR_REVERSE_JS_PATH, MACROS_JS_PATH,
                  FILTRE_SPOTS_JS_PATH, OUTILS_DIVERS_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:

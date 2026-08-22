@@ -38,6 +38,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 HTML_PATH = os.path.join(BASE, 'logx_logbook.html')
 # logx_logbook.js référence CwPanel (logx_cw_panel.js) via _cwPanel(suffix),
 # qui l'instancie PARESSEUSEMENT au premier appel (ex. toggleCwPanel()) --
@@ -197,6 +198,7 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    ctx.eval(_read(RULES_JS_PATH))
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))
@@ -275,6 +277,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval("window.__ecouteurs = [];"
              "window.addEventListener = function(ev){ window.__ecouteurs.push(ev); };")
+    ctx.eval(_read(RULES_JS_PATH))
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))

@@ -20,6 +20,7 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+RULES_JS_PATH = os.path.join(BASE, 'logx_contest_rules.js')
 # pickMode() appelle désormais _qsyVersRadio() (synchro CAT bidirectionnelle,
 # PR #81) qui lit/écrit rigState — défini dans ce fichier, doit être chargé
 # AVANT logx_logbook.js, même convention que les autres dépendances ci-dessous.
@@ -140,7 +141,7 @@ def moteur():
     # hardware_cat.js s'exécute -- même technique que
     # test_cat_manual_bandmode_qsy.py.
     parts = []
-    for path in (HARDWARE_CAT_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH,
+    for path in (RULES_JS_PATH, HARDWARE_CAT_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH,
                  EDIT_QSO_JS_PATH, FILTRE_SPOTS_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             parts.append(f.read())

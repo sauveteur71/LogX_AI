@@ -76,7 +76,11 @@ function editQSO(id, triggerEl){
   // l'option existe TOUJOURS, plutôt qu'en réparant après coup une valeur
   // que le select a déjà mal choisie.
   const editBandSel = document.getElementById('editBand');
-  const contestBands = CONTEST_BANDS[currentContest] || ALL_BANDS;
+  // _bandsForContest() (logx_logbook.js) résout les VRAIES bandes du concours
+  // via _resolveContestFilters() (logx_contest_rules.js) -- CONTEST_BANDS,
+  // supprimée le 22/08/2026, ne couvrait que des clés génériques absentes du
+  // catalogue réel (voir logx_logbook.js pour l'historique du correctif).
+  const contestBands = _bandsForContest(currentContest) || ALL_BANDS;
   const editBandOptions = (q.band && !contestBands.includes(q.band)) ? [...contestBands, q.band] : contestBands;
   editBandSel.innerHTML = editBandOptions.map(b =>
     `<option value="${escHtml(b)}"${b===q.band?' selected':''}>${escHtml(BAND_LABELS[b]||b+' MHz')}</option>`
