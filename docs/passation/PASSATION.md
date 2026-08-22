@@ -4,6 +4,12 @@
 échéance. Ce document est dans le DÉPÔT, pas dans une session : c'est lui qui
 survit au changement de compte.
 
+**Mise à jour le 22/08/2026** (nouveau changement de compte) : section 1
+revérifiée et corrigée (version publiée, PR fusionnées depuis le 19/08,
+nouvel item en attente d'essai sur l'air), mémoire condensée recopiée dans le
+dépôt (§4). Le reste du document (méthode, conventions) n'a pas eu besoin de
+changer.
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -18,17 +24,45 @@ travail et la méthode — les deux sont archivées ici.
 |---|---|
 | #115 | **Sûreté d'émission** : STOP et Échap annulent réellement une émission déjà programmée. Avant, jusqu'à 12,9 s d'émission continuaient APRÈS l'ordre d'arrêt, écran affichant « Émission coupée ». |
 | #117 | **Décimation audio 48 → 12 kHz** avant décodage FT8. Blocage du thread principal divisé par 4 (10 319 → 2 576 ms par créneau, mesuré en vrai Chrome). |
+| #178 | **Page d'accueil par activité** (`logx_accueil.html`) : remplace le mode simple/expert comme axe premier de l'UI, décision F4GLD du 19/08. Seule LOG V/UHF filtre réellement à ce stade (doctrine : valider sur une activité avant les 18 autres). Inclut aussi le lien profond PROPAG depuis LOGBOOK. |
+| #179 | **FT8 : mode Automatique** (CQ + QSO en totale autonomie, 22/08) + panneau QSO en cours séparé de l'activité de bande. Voir « En attente d'un essai sur l'air » ci-dessous — **c'est le nouvel item le plus important de cette section**. |
 
 La branche d'intégration locale est `local/live-8080-combined` — c'est celle
-que sert le serveur sur le port 8080. Elle est à jour.
+que sert le serveur sur le port 8080. Elle est à jour (diff vide avec
+`origin/main`, vérifié le 22/08/2026).
+
+⚠️ `.claude/launch.json` (config `logx-serveur` pour l'aperçu navigateur)
+pointait vers un chemin périmé (`RADIOAMATEUR/Programme pour contest`,
+l'ancien emplacement du dépôt avant réorganisation) au lieu du dépôt actuel —
+corrigé le 22/08/2026, mais ce fichier est dans `.gitignore` (config locale
+par machine) : si le nouveau compte tourne sur une AUTRE machine, il faudra
+recréer ce fichier localement, pas s'attendre à retrouver le correctif via
+git. Une seconde config morte (`pttrts-statique`, worktree disparu) a été
+supprimée du même fichier.
 
 > ⚠️ **Le serveur doit être redémarré** pour prendre les correctifs Python.
 > Les fichiers `.html`/`.js` sont relus à chaque requête, pas les `.py`.
 
 ### En attente d'un essai sur l'air
 
-**PR #116 — le séquenceur FT8 automatique.** Un double-clic sur une station
-déroule le QSO seul (appel, report, accusé, 73) puis logue.
+🔴 **PR #179 (22/08/2026) — le mode Automatique FT8, LE PLUS PRIORITAIRE des
+deux items de cette section.** Appelle CQ, décode qui répond, enchaîne
+l'échange complet (grille/report/RRR/73), logue, relance CQ — SANS aucune
+confirmation humaine à chaque étape, en boucle. C'est une dérogation
+EXPLICITE et VOULUE par F4GLD (22/08/2026, activation TM6KJS) à la règle de
+sécurité par défaut du séquenceur (« aucune émission automatique sans
+confirmation humaine ») — dérogation qui ne s'applique qu'à ce 4e mode
+optionnel, à double geste (menu + bouton dédié `▶ DÉMARRER APPEL CQ`), jamais
+aux 3 modes existants. 111 tests, chaque garde de sécurité vérifiée par
+contre-épreuve de mutation, vérification navigateur faite (visibilité
+conditionnelle, thèmes jour/nuit) — mais **aucun test ne peut remplacer un
+QSO réel sur l'air**, et ce mode est structurellement le plus exposé de tous
+ceux du dépôt (émission en boucle, sans supervision). **Premier essai à
+faire en SUPERVISÉ, jamais laissé tourner seul avant ça.**
+
+**PR #116 — le séquenceur FT8 automatique (manuel : double-clic).** Un
+double-clic sur une station déroule le QSO seul (appel, report, accusé, 73)
+puis logue.
 
 > 🔴 **Elle EST fusionnée** — le 19/08/2026 à 09:19 UTC, commit `ff5991e`.
 > Une version antérieure de cette page affirmait le contraire (« jamais
@@ -51,19 +85,14 @@ l'émission et n'a jamais été vérifié sur l'air ni contrôlé sur un WebSDR.
 PR #114 est l'ancêtre abandonné du séquenceur, laissée en brouillon. Ne pas la
 rouvrir.
 
-**PR #129 — le guide utilisateur.** Ouverte, jamais fusionnée faute de temps.
-Elle ne porte **aucune coche de CI**, et c'est normal, pas un échec :
-`check.yml` ne se déclenche que sur `concours/**` et deux chemins `.github/`,
-or cette PR ne touche que `docs/`. Ne pas lire « aucune vérification » comme
-« vérification en attente » — c'est le filtre de chemins, vérifié dans le
-workflow. Elle ajoute au `docs/GUIDE_UTILISATEUR.md` les deux choses que
-l'incident du 19/08 a rendues urgentes : l'avertissement du chapitre 2 disant
-que **la sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est
-renseigné** (le guide la décrivait au §14.4 comme si elle tournait), et la
-réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV » — le FT8
-natif n'apparaissait nulle part dans les 1458 lignes du guide, alors que c'est
-l'argument principal du produit. Rien de risqué dedans : c'est de la
-documentation. À fusionner telle quelle.
+✅ **PR #129 — le guide utilisateur — FUSIONNÉE** (vérifié le 22/08/2026 via
+`gh pr view 129`, l'affirmation précédente « ouverte, jamais fusionnée » était
+périmée). Elle ajoutait à `docs/GUIDE_UTILISATEUR.md` les deux choses que
+l'incident du 19/08 avait rendues urgentes : l'avertissement disant que **la
+sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est renseigné**,
+et la réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV ». Le
+guide n'a en revanche pas encore de section sur le mode Automatique FT8
+(PR #179, ci-dessus) — à ajouter une fois l'essai sur l'air fait.
 
 ### 🔴 L'incident du 19/08/2026 — le carnet perdu
 
@@ -125,20 +154,26 @@ maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
 toujours pas** au premier lancement. Une invite au démarrage tant que le
 dossier est vide serait le vrai correctif, et elle n'existe pas.
 
-### 🔴 Rien de tout cela n'est publié
+### ✅ RÉSOLU depuis — publication rattrapée, mais un nouveau décalage existe
 
-`concours/logx_version.py` annonce `1.1-beta4`, et le dernier tag publié est
-`v1.1-beta4`. Or **32 commits sont sur `main` depuis ce tag** (vérifié par
-`git rev-list --count v1.1-beta4..main`), dont la PR #127 ci-dessus.
+Le paragraphe original (19/08) alertait sur un décalage de 32 commits entre
+`main` et le dernier tag (`v1.1-beta4`), dont les garde-fous anti-perte de
+carnet (PR #127) absents de tout binaire publié. **Rattrapé depuis** :
+`concours/logx_version.py` annonce `1.1-beta7`, tag `v1.1-beta7` publié —
+vérifié le 22/08/2026 (`git describe --tags`). Les garde-fous du carnet sont
+dans cette version publiée.
 
-Autrement dit : **les garde-fous qui protègent le carnet ne sont dans aucun
-binaire téléchargeable.** Quiconque installe LogX AI aujourd'hui prend la
-version d'avant l'incident. La publication d'une `v1.1-beta5` a été commencée
-puis suspendue, et jamais reprise.
+⚠️ **Mais un nouveau petit décalage existe, à surveiller** : 5 commits sont
+sur `main` depuis `v1.1-beta7` (vérifié `git rev-list --count
+v1.1-beta7..origin/main`), dont la PR #179 (mode Automatique FT8). **Ne pas
+publier de tag qui inclut la PR #179 avant l'essai supervisé sur l'air**
+décrit ci-dessus — le mode Automatique n'a encore jamais émis en dehors des
+tests et de la vérification navigateur.
 
-Avant de pousser le tag : **vérifier le build PyInstaller en local d'abord**.
-Un build de release est resté cassé deux jours sans que personne le sache
-(`Tree()` vs `Analysis()`), et seul un vrai build local l'avait révélé.
+Avant de pousser un futur tag : **vérifier le build PyInstaller en local
+d'abord**. Un build de release est resté cassé deux jours sans que personne
+le sache (`Tree()` vs `Analysis()`), et seul un vrai build local l'avait
+révélé.
 
 ### Ce qui reste ouvert
 
@@ -718,14 +753,24 @@ git fetch origin main -q && git merge origin/main --no-edit
 
 ## 4. Reprendre sur le nouveau compte
 
-1. La mémoire de travail est dans `docs/passation/memoire/` (191 fiches).
-   `MEMORY.md` en est l'index. La recopier dans
-   `~/.claude/projects/<projet>/memory/` pour la réactiver.
-2. `CLAUDE.md` à la racine est lu automatiquement à chaque session : il porte
-   déjà la langue, l'intuitivité, la charte graphique — et désormais un renvoi
-   vers ce document.
-3. Le premier réflexe utile : lire `MEMORY.md`, puis les fiches marquées 🚨
-   (ce sont les pièges qui ont coûté le plus cher).
+1. **La mémoire ACTIVE est dans `docs/passation/memoire_condensee/`** (6
+   fichiers + `MEMORY.md` index) — à recopier tel quel dans
+   `~/.claude/projects/<projet>/memory/` pour la réactiver. C'est la version
+   déjà consolidée le 21/08/2026 (191 fiches → 6 fichiers, cf. `MEMORY.md`
+   de ce dossier pour le détail), copiée dans le dépôt le 22/08/2026
+   spécifiquement pour ce changement de compte — inutile de reconstruire
+   quoi que ce soit à partir des fiches archivées.
+2. `docs/passation/memoire/` (191 fiches d'origine, PR #118) reste
+   **l'archive**, git-trackée pour ne rien perdre — ne pas la recopier, elle
+   ne sert qu'en cas de besoin de retrouver le détail brut d'une fiche
+   consolidée.
+3. `CLAUDE.md` à la racine est lu automatiquement à chaque session : il porte
+   déjà la langue, l'intuitivité, la charte graphique — et un renvoi vers ce
+   document.
+4. Le premier réflexe utile après avoir recopié la mémoire : relire la
+   section 1 ci-dessus (« Où en est le travail »), à jour à la date indiquée
+   en tête de ce document — c'est elle qui dit ce qui est fusionné, ce qui
+   attend un essai sur l'air, et ce qui reste ouvert, pas la mémoire.
 
 ---
 
