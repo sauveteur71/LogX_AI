@@ -466,6 +466,80 @@ Un build de release est resté cassé deux jours sans que personne le sache
    rouge survit » passe au VERT avec le défaut en place. Assertions
    structurelles, ou banc étendu, ou vérification navigateur.
 
+6. 📋 **CHANTIER À VENIR, pas commencé — scinder les gros fichiers HTML
+   monolithiques.** Demandé par F4GLD le 22/08/2026, pendant le chantier du
+   mode Automatique, à propos de `logx_ft8.html` — puis élargi le même jour
+   après mesure des autres pages du dépôt.
+
+   **Pas un problème de vitesse, sur aucune de ces pages.** Quelques centaines
+   de Ko se parsent en quelques ms, et servi en local il n'y a même pas de
+   coût réseau — mesuré nulle part comme un point noir. Scinder en plusieurs
+   `<script src>` ne changerait rien à la rapidité (voire ajouterait des
+   requêtes HTTP sans bénéfice en local). L'intérêt est uniquement la
+   maintenance : navigation plus facile, moins de risque de perdre un
+   correctif en éditant une zone déjà touchée par ailleurs (le dépôt a déjà eu
+   deux incidents d'éditions perdues avec des agents en parallèle sur un même
+   fichier — un fichier plus petit réduit la probabilité de collision, il ne
+   l'élimine pas).
+
+   **Mesure faite le 22/08/2026 sur toutes les pages de `concours/`, PUIS
+   CORRIGÉE le même jour** — le premier passage comptait les lignes/Ko du
+   `.html` sans vérifier s'il contenait vraiment du `<script>` inline, ce qui
+   a fait cataloguer `logx_configuration.html` comme candidat alors qu'il ne
+   l'est plus. 🚨 **Piège attrapé en se relisant, pas trouvé du premier
+   coup** : la seule mesure fiable est `grep -n "<script"` sur le `.html` —
+   un fichier peut peser 260 Ko de HTML/CSS légitimes sans une ligne de JS
+   inline. Compter les lignes/Ko seul aurait refait exactement l'erreur que
+   ce chantier veut corriger ailleurs.
+
+   | Fichier | `<script>` inline ? | Où est vraiment le monolithe |
+   |---|---|---|
+   | `logx_ft8.html` | **oui** — JS inline massif, région `SEQ:DEBUT`/`SEQ:FIN` repérable | le `.html` lui-même : 4896 lignes / 276 Ko |
+   | `logx_carte.html` | **oui**, ligne 545 (`<script>` sans `src`) — confirmé, 142 fonctions inline | le `.html` lui-même : 3480 lignes / 204 Ko, **rien de spécifique à la carte** n'a jamais été extrait |
+   | `logx_configuration.html` | **non** — 0 `<script>` sans `src`, extraction faite le 10/08/2026 (avant même `logx_contest_rules.js` du 19/08) | **`logx_configuration.js`** : 6930 lignes / 416 Ko / 259 fonctions — c'est LUI le monolithe, pas le `.html` |
+   | `logx_logbook.html` | non, 50 modules externes déjà chargés | aucun — modèle déjà atteint, pas un chantier |
+
+   **Découpage le plus naturel pour chacun des trois vrais candidats :**
+   - `logx_ft8.html` : isoler le bloc du séquenceur, déjà délimité par les
+     sentinelles `SEQ:DEBUT`/`SEQ:FIN` que `test_ft8_sequenceur.py` utilise
+     pour l'extraire — un fichier `logx_ft8_sequenceur.js`. **Ne rien
+     commencer ici avant que le mode Automatique (ci-dessus) soit fusionné
+     et éprouvé sur l'air.**
+   - `logx_configuration.js` : analysé le 22/08/2026 (agent en lecture
+     seule, résultats revérifiés indépendamment — `wc -l`/`du -h`/`grep -c
+     "function "` confirment 6930/416K/259). Trois blocs candidats, du plus
+     sûr au moins sûr :
+     1. **Cloud Sync + MySQL** (~lignes 3361-3457, ~96 lignes) —
+        `cloudsyncNow`, `_mysqlFieldsFromForm`, `testMysqlConnection`,
+        `mysqlSyncNow` — **zéro dépendance externe** trouvée. À commencer
+        par lui.
+     2. **ACOM (série RS-232)** (~lignes 1705-1781, ~76 lignes) —
+        `refreshAcomPorts`, `testAcomConnection`, `acomSetOperate` — zéro
+        dépendance externe trouvée, mêmes garanties que Cloud Sync.
+     3. **Mot de passe d'accès optionnel** (~lignes 3457-3547, ~90 lignes) —
+        `refreshAccessPasswordStatus`, `setAccessPassword`,
+        `disableAccessPassword` — une seule dépendance externe (`init()`
+        l'appelle une fois, ligne 1075).
+     ⚠️ Les bannières `// ─── TITRE ───` du fichier ne délimitent PAS
+     toujours un module cohérent : la section « AMPLIFICATEUR HF »
+     (~1781-2134) mélange en réalité des fonctions ACOM/AMP avec du CAT/QRZ/
+     backup sans rapport — vérifier au cas par cas, ne jamais se fier au
+     titre seul. Aucun test Python n'extrait encore ces fonctions par nom
+     à ce jour — en écrire ou en adapter sera nécessaire.
+   - `logx_carte.html` : confirmé monolithique (ligne 545) mais **aucun
+     bloc candidat identifié encore** — à analyser avant de commencer, ne
+     pas supposer qu'une des découpes ci-dessus s'y applique.
+
+   **Le coût réel, à ne pas sous-estimer.** Extraire un module bien plus
+   petit et bien moins sensible que n'importe lequel des blocs ci-dessus
+   (`logx_contest_rules.js`, une pure fonction de filtrage) a déjà demandé
+   de mettre à jour une trentaine de fichiers de test. `logx_ft8.html` en
+   particulier pilote de l'émission radio réelle (le séquenceur, et depuis
+   le 22/08 le mode Automatique qui émet sans confirmation humaine) —
+   chaque bloc doit être traité SEUL, avec la même discipline contre-épreuve
+   par mutation que le reste du dépôt, jamais « en passant » à côté d'un
+   autre correctif.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats

@@ -24,13 +24,27 @@
     pause de l'affichage de 1-3s par cycle de 15s est normale (le calcul
     reste dans le budget du cycle suivant). Un Worker serait une suite
     naturelle si ça se révèle gênant à l'usage réel.
-  - AUCUNE émission automatique sans confirmation humaine : chaque
-    transmission part d'un clic explicite sur "Envoyer" (bouton lui-même
-    inactif tant que "Activer l'émission" n'est pas coché). Pas de
-    séquenceur qui boucle seul — décision volontaire, pas une limite
-    technique : un décodage erroné ne doit jamais pouvoir déclencher une
-    émission sur la fréquence de quelqu'un d'autre sans qu'un humain
-    valide le contenu à chaque étape.
+  - AUCUNE émission automatique sans confirmation humaine, PAR DÉFAUT :
+    chaque transmission part d'un clic explicite sur "Envoyer" (bouton
+    lui-même inactif tant que "Activer l'émission" n'est pas coché). Les
+    modes Manuel/Assisté/Séquenceur ne dérogent jamais à ce principe : un
+    décodage erroné ne doit jamais pouvoir déclencher une émission sur la
+    fréquence de quelqu'un d'autre sans qu'un humain valide le contenu à
+    chaque étape.
+
+    EXCEPTION VOULUE ET OPTIONNELLE — MODE « AUTOMATIQUE » (seqNiveau===
+    'auto', absent par défaut, TRANCHÉ PAR F4GLD LE 22/08/2026, activation
+    TM6KJS). Après lui avoir explicitement rappelé le principe ci-dessus,
+    F4GLD a répondu : « je veux que tu changes la règle les qso doivent
+    pouvoir se faire en total autonomie ». Ce mode répète l'appel CQ,
+    décode qui répond, enchaîne tout le QSO (grille/report/RRR/73) et
+    relance CQ — SANS validation humaine à chaque étape — équivalent du
+    « Enable Tx » + CQ continu de WSJT-X/JTDX. À DOUBLE geste explicite
+    (le menu MODE D'ENVOI ET le bouton ▶ DÉMARRER APPEL CQ, jamais l'un
+    sans l'autre) ; ne change RIEN au comportement des trois autres modes ;
+    ■ STOP SÉQUENCE et Échap l'arrêtent exactement comme un QSO manuel.
+    Voir la section « Mode Automatique » dans la région SEQ:DEBUT/SEQ:FIN
+    plus bas pour la machine à états.
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -167,6 +181,7 @@ table.decodes th{text-align:left;color:var(--muted);font-weight:400;letter-spaci
 table.decodes td{padding:5px 8px;border-bottom:1px solid var(--border)}
 table.decodes tr.cq td{color:var(--yellow)}
 table.decodes tr.tome td{color:var(--green);font-weight:700}
+table.decodes tr.nous td{color:var(--accent2);font-weight:700}
 table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .vide{color:var(--muted);font-size:12.5px;font-style:italic;padding:10px 0}
 
@@ -240,6 +255,9 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 @media (prefers-reduced-motion: reduce){.toggle-arm.attention{animation:none;outline:2px solid var(--accent)}}
 .ptt-alarme{margin-top:10px;padding:10px 12px;border-radius:6px;
   background:#B3261E;color:#fff;font-weight:700;font-size:13px;line-height:1.45}
+.cq-auto-avertissement{flex-basis:100%;padding:8px 12px;border-radius:6px;
+  background:rgba(255,214,10,.12);border:1px solid var(--yellow);color:var(--yellow);
+  font-family:var(--font-mono);font-size:12px;font-weight:700;line-height:1.4}
 #ft8StopBtn{background:#B3261E;color:#fff;border-color:#B3261E}
 
 .qso-prompt{display:none;background:rgba(var(--accent-rgb),.12);border:1px solid var(--accent2);border-radius:8px;
@@ -506,6 +524,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="manuel">Manuel — un double-clic, un message</option>
             <option value="assiste">Assisté — prépare la réponse, n'émet jamais seul</option>
             <option value="sequenceur">Séquenceur — déroule le QSO et le logue</option>
+            <option value="auto">Automatique — appelle CQ et enchaîne les QSO sans confirmation</option>
           </select>
         </label>
         <label id="seqRelancesLabel" style="display:none">RELANCES SANS RÉPONSE
@@ -515,9 +534,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="10">10 puis abandon</option>
           </select>
         </label>
+        <button id="cqAutoBtn" style="display:none" onclick="cqAutoDemarrer()"
+                title="Démarrer l'appel CQ automatique : répète CQ, décode qui répond, enchaîne le QSO">▶ DÉMARRER APPEL CQ</button>
         <button id="seqStopBtn" class="danger" style="display:none" onclick="seqStop()"
                 title="Arrêter la séquence en cours (Échap coupe aussi l'émission)">■ STOP SÉQUENCE</button>
         <span class="tx-status" id="seqEtat">Manuel : un double-clic prépare et envoie UN message.</span>
+        <div class="cq-auto-avertissement" id="cqAutoAvertissement" style="display:none">
+          ⚠ Mode Automatique : la station appelle CQ, décode les réponses et transmet
+          RRR/73 SANS validation humaine à chaque étape. ■ STOP SÉQUENCE ou Échap
+          arrêtent tout, immédiatement.
+        </div>
       </div>
       <!-- Alarme de dernier recours : affichée UNIQUEMENT quand le relâchement
            du PTT a échoué malgré les réessais. À ce stade le logiciel ne peut
@@ -559,6 +585,23 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <tbody id="decodesBody"></tbody>
       </table>
       <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
+      </div>
+    </div>
+
+    <!-- QSO EN COURS — séparé de l'activité générale de la bande (panneau
+         Réception ci-dessus) : demande F4GLD (22/08/2026, chantier du mode
+         Automatique). Ne montre QUE les messages de l'échange en cours avec
+         seq.cible (les leurs, via ajouterDecodage(), ET les nôtres, ajoutés
+         directement par envoyerMessage()) -- vidé au DÉMARRAGE d'une
+         séquence (pas à sa fin, pour rester lisible jusqu'au prochain QSO). -->
+    <div class="panel" id="panelQsoEnCours">
+      <div class="panel-title">QSO en cours</div>
+      <div class="decodes-scroll">
+      <table class="decodes">
+        <thead><tr><th>UTC</th><th>Hz</th><th>DT</th><th>SNR</th><th>Message</th></tr></thead>
+        <tbody id="qsoEnCoursBody"></tbody>
+      </table>
+      <div class="vide" id="qsoEnCoursVide">Aucun QSO en cours.</div>
       </div>
     </div>
     </div>
@@ -1953,6 +1996,20 @@ if(localStorage.getItem('rc_theme') === null){
     // ─── Colonne gauche : compteurs + liste des CQ entendus ────────────────
     compteurDecodages++;
     const {call, grid} = extraireStation(text);
+    // Panneau « QSO en cours » (demande F4GLD 22/08/2026) : cloné depuis la
+    // ligne déjà construite ci-dessus (mêmes cellules/mise en forme, pas une
+    // 2e règle qui pourrait diverger) -- UNIQUEMENT si ce décodage vient de
+    // la station avec laquelle une séquence est active.
+    if(seq && call === seq.cible){
+      const vide = document.getElementById('qsoEnCoursVide');
+      if(vide) vide.style.display = 'none';
+      const qTbody = document.getElementById('qsoEnCoursBody');
+      if(qTbody){
+        const qTr = tr.cloneNode(true);
+        qTbody.insertBefore(qTr, qTbody.firstChild);
+        while(qTbody.children.length > 20) qTbody.removeChild(qTbody.lastChild);
+      }
+    }
     // Elle vient de réémettre : on reprend sa parité sur ce créneau-ci. Utile
     // si elle change de moitié de cycle en cours de QSO — rare, mais alors
     // c'est nous qui deviendrions le brouilleur.
@@ -2705,7 +2762,11 @@ if(localStorage.getItem('rc_theme') === null){
     // Verrouiller sur un seul laisse un trou : c'est exactement ce que
     // corrigeait le correctif d'annulation, et le séquenceur en ajoute un
     // troisième par-dessus.
-    if(!pttDemande && !emissionProgrammee && !seq) return;
+    // !cqAutoActif : pendant l'attente entre deux appels CQ automatiques
+    // (mode Automatique, aucun QSO en cours), aucune des trois conditions
+    // précédentes n'est vraie -- sans elle, Échap ne ferait RIEN pendant
+    // la majorité de chaque cycle d'appel.
+    if(!pttDemande && !emissionProgrammee && !seq && !cqAutoActif) return;
     e.preventDefault();
     window.stopEmission();
   });
@@ -3198,6 +3259,28 @@ if(localStorage.getItem('rc_theme') === null){
                                      : 'Émis, mais RELÂCHEMENT NON CONFIRMÉ — voir l\'alerte';
       statusEl.className = 'tx-status';
       majBoutonEnvoyer();
+      // Panneau « QSO en cours » (demande F4GLD 22/08/2026) : NOTRE propre
+      // émission n'apparaît nulle part dans les tableaux de décodage --
+      // uniquement quand elle fait partie d'un QSO en cours (seq non nul),
+      // jamais pour un appel CQ automatique (aucun QSO n'existe encore).
+      if(seq){
+        const maintenant = new Date();
+        const heure = String(maintenant.getUTCHours()).padStart(2,'0') + ':'
+                    + String(maintenant.getUTCMinutes()).padStart(2,'0') + ':'
+                    + String(maintenant.getUTCSeconds()).padStart(2,'0');
+        const vide = document.getElementById('qsoEnCoursVide');
+        if(vide) vide.style.display = 'none';
+        const qTbody = document.getElementById('qsoEnCoursBody');
+        if(qTbody){
+          const qTr = document.createElement('tr');
+          qTr.className = 'nous';
+          [heure, '', '', '', text].forEach(function(v){
+            const td = document.createElement('td'); td.textContent = v; qTr.appendChild(td);
+          });
+          qTbody.insertBefore(qTr, qTbody.firstChild);
+          while(qTbody.children.length > 20) qTbody.removeChild(qTbody.lastChild);
+        }
+      }
     }
 
     // ─── Offre de log — CHEMIN MANUEL SEULEMENT ────────────────────────────
@@ -3684,6 +3767,25 @@ if(localStorage.getItem('rc_theme') === null){
   let seqJetonSuivant = 1;
   let seqTimerPreavis = null;
 
+  // ─── Mode « Automatique » — appelle CQ, décode qui répond, enchaîne les
+  // QSO, relogue, relance CQ, en boucle. TRANCHÉ PAR F4GLD LE 22/08/2026
+  // (activation TM6KJS) : « je veux que tu changes la règle les qso doivent
+  // pouvoir se faire en total autonomie » — après lui avoir explicitement
+  // rappelé le principe ci-dessus (aucune émission sans confirmation
+  // humaine à chaque étape). C'est donc une EXCEPTION voulue et OPTIONNELLE
+  // (seqNiveau==='auto', absent par défaut, à double geste explicite : le
+  // menu ET #cqAutoBtn) — les trois autres modes ne changent pas de
+  // comportement. Toute la machine à états ci-dessous (seqDemarrer,
+  // seqProgrammer, seqExaminerCreneau, seqArreter) reste inchangée pour un
+  // QSO démarré en 'auto' : seule la façon dont ce démarrage est déclenché
+  // diffère (cqAutoChoisirCible() au lieu d'un double-clic humain), et la
+  // façon dont on relance après coup (cqAutoProgrammerProchain()).
+  let cqAutoActif = false;        // du démarrage à l'arrêt, survit aux QSO successifs -- distinct de `seq`
+  let cqAutoParite = null;        // fixée au premier appel CQ de la campagne, jamais changée en cours de route
+  let cqAutoTimerPreavis = null;  // miroir de seqTimerPreavis, pour LE CQ (pas un QSO)
+  let cqAutoJetonSuivant = 1;
+  let cqAutoJeton = 0;
+
   // ─── Analyse lexicale ────────────────────────────────────────────────────
   function estIndicatif(jeton){
     const j = String(jeton == null ? '' : jeton).trim().toUpperCase();
@@ -3876,6 +3978,211 @@ if(localStorage.getItem('rc_theme') === null){
     return t;
   }
 
+  // ─── Mode Automatique : appel CQ répété, jusqu'à ce qu'une station réponde ─
+  //
+  // Rien de tout ceci ne touche à la machine à états ci-dessus (seq*) : une
+  // fois qu'une station a répondu à notre CQ, c'est seqDemarrer() qui prend
+  // le relais exactement comme pour un double-clic humain — seule la façon
+  // dont ce démarrage est déclenché change (cqAutoChoisirCible() plutôt
+  // qu'un double-clic), et la façon dont on relance CQ ensuite.
+
+  // Point UNIQUE pour « une séquence déjà démarrée doit-elle continuer à
+  // s'auto-dérouler ? » — remplace toute comparaison exacte
+  // `seqNiveau === 'sequenceur'` qui gate la CONTINUATION d'un QSO déjà en
+  // cours (pas son DÉMARRAGE, ni le mode Assisté qui n'en démarre jamais).
+  // Sans ce point unique, un QSO démarré en mode 'auto' s'auto-abandonnait
+  // dès la première ligne qui comparait encore à la chaîne littérale
+  // 'sequenceur' — trouvé par relecture ligne à ligne, pas par un test qui
+  // aurait forcément raté celle qu'on n'a pas pensé à écrire.
+  function _seqAutoContinu(){
+    return seqNiveau === 'sequenceur' || seqNiveau === 'auto';
+  }
+
+  // Notre appel CQ. Même construction que seqTexte() (grille4(), jamais le
+  // locator brut de CONFIG) mais SANS grille si CONFIG n'en a pas — un CQ
+  // sans grille est un message FT8 standard valide (indicatif seul), pas un
+  // message tronqué.
+  function texteCQ(){
+    const g = grille4();
+    return 'CQ ' + myCall + (g ? ' ' + g : '');
+  }
+
+  // Créneau du PROCHAIN appel CQ. Fixe la parité au tout premier appel de la
+  // campagne (mémorisée dans cqAutoParite) et la retient ensuite — un
+  // appelant FT8 émet toujours sur la MÊME moitié de cycle, un CQ toutes les
+  // 30 s, jamais toutes les 15 s (sinon on ne s'entendrait jamais nous-même
+  // écouter). Repose sur seqProchainCreneau(), déjà correcte et déjà testée.
+  function prochainCreneauCQ(maintenant){
+    if(cqAutoParite === null){
+      const premier = seqProchainCreneau(maintenant, null);
+      cqAutoParite = Math.floor(premier / SEQ_SLOT_MS) % 2;
+      return premier;
+    }
+    return seqProchainCreneau(maintenant, cqAutoParite);
+  }
+
+  // Parmi les décodages du créneau examiné, la ligne qui NOUS répond
+  // (myCall en destinataire, comme seqCibleDepuisDecodage() le teste déjà
+  // pour le double-clic humain) avec le MEILLEUR SNR — c'est le départage
+  // de pileup. Aucune logique de ce genre n'existait avant ce chantier
+  // (vérifié par relecture du fichier), donc rien à réutiliser tel quel.
+  //
+  // Ne réutilise PAS seqCibleDepuisDecodage() directement : sa branche
+  // « CQ [directive] INDICATIF » existe pour que le double-clic HUMAIN
+  // puisse répondre à N'IMPORTE QUELLE CQ entendue — l'appeler ici ferait
+  // du mode Automatique un répondeur à toutes les CQ de la bande, l'inverse
+  // de ce qui est demandé (répondre à qui répond à NOTRE CQ). D'où le test
+  // direct, restreint à la seule forme « <notre indicatif> <indicatif> … ».
+  function cqAutoChoisirCible(msgs){
+    let meilleur = null;
+    (msgs || []).forEach(function(m){
+      const text = (m && m.text != null) ? m.text : '';
+      const parts = String(text).trim().toUpperCase().split(/\s+/).filter(Boolean);
+      if(parts.length < 2 || !myCall || parts[0] !== myCall || !estIndicatif(parts[1])) return;
+      const snr = (m && typeof m.snr === 'number' && isFinite(m.snr)) ? m.snr : null;
+      if(meilleur && meilleur.snr !== null && (snr === null || snr <= meilleur.snr)) return;
+      meilleur = {call: parts[1], snr: snr, grille: extraireStation(text).grid};
+    });
+    return meilleur;
+  }
+
+  // Programme le PROCHAIN appel CQ — même patron de préavis que
+  // seqProgrammer() (revérification complète au dernier moment), mais sans
+  // état de séquence (etat/etape) puisqu'il n'y a personne à appeler
+  // encore : juste notre propre texte, notre propre jeton anti-continuation
+  // périmée, et un ré-armement de nous-même une fois l'émission confirmée.
+  function cqAutoProgrammerProchain(){
+    if(cqAutoTimerPreavis){ clearTimeout(cqAutoTimerPreavis); cqAutoTimerPreavis = null; }
+    const maintenant = Date.now();
+    const creneau = prochainCreneauCQ(maintenant);
+    const texte = texteCQ();
+    const st = document.getElementById('seqEtat');
+    if(st){
+      st.textContent = 'CQ automatique programmé pour '
+        + new Date(creneau).toISOString().slice(11, 19) + ' UTC…';
+      st.className = 'tx-status wait';
+    }
+    const monJeton = cqAutoJeton;
+    cqAutoTimerPreavis = setTimeout(function(){
+      cqAutoTimerPreavis = null;
+      // REVÉRIFICATION COMPLÈTE au dernier moment, même principe que
+      // seqProgrammer() : c'est ici que se rattrapent tous les gestes
+      // d'arrêt faits pendant l'attente du créneau.
+      if(!cqAutoActif || cqAutoJeton !== monJeton) return;
+      if(seqNiveau !== 'auto'){ cqAutoArreter('niveau-preavis'); return; }
+      if(!txArmed){ cqAutoArreter('emission-desarmee-preavis'); return; }
+      if(!rxActif){ cqAutoArreter('ecoute-arretee-preavis'); return; }
+      // Défense en profondeur : dans l'architecture actuelle,
+      // cqAutoSuspendrePourQso() (appelée de façon SYNCHRONE par
+      // seqDemarrer(), qui pose aussi `seq`) a déjà annulé CE timer avant
+      // qu'il ait pu arriver ici -- vérifié par contre-épreuve (mutation).
+      // Gardée volontairement contre un futur refactor qui romprait cette
+      // synchronicité, même si elle est aujourd'hui inatteignable en
+      // pratique -- même logique que les revérifications de seq.jeton
+      // ailleurs dans ce fichier.
+      if(seq) return;
+      Promise.resolve(envoyerMessage(texte, creneau)).then(function(emis){
+        if(!cqAutoActif || cqAutoJeton !== monJeton) return;
+        if(emis !== true){
+          cqAutoArreter(dernierRefusPtt === 'non_engage'
+                        ? 'pas-de-pilotage-radio' : 'emission-refusee');
+          return;
+        }
+        if(seq) return;   // un QSO a démarré pendant que le CQ partait -- ne pas reprogrammer par-dessus
+        cqAutoProgrammerProchain();
+      }, function(){
+        if(!cqAutoActif || cqAutoJeton !== monJeton) return;
+        cqAutoArreter('emission-refusee');
+      });
+    }, Math.max(0, creneau - SEQ_PREAVIS_MS - maintenant));
+  }
+
+  // Bouton « DÉMARRER APPEL CQ ». Même UX que seqDemarrer() pour les
+  // conditions manquantes (message + mise en évidence du contrôle fautif),
+  // pour que l'opérateur retrouve les mêmes repères que sur les autres modes.
+  function cqAutoDemarrer(){
+    if(seqNiveau !== 'auto') return;
+    if(!myCall){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = "Impossible : ton indicatif n'est pas renseigné. "
+                       + 'Va le saisir dans CONFIG, puis reviens.';
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
+    if(!rxActif){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = 'Impossible : démarre « Écouter » avant l\'appel '
+                       + 'CQ automatique — sans écoute, aucune réponse ne '
+                       + 'peut jamais être détectée.';
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
+    if(!txArmed){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = 'Impossible : coche « Activer l\'émission » avant '
+                       + 'l\'appel CQ automatique.';
+        el.className = 'tx-status wait';
+      }
+      const lbl = document.getElementById('armLabel');
+      if(lbl){
+        lbl.classList.add('attention');
+        setTimeout(() => lbl.classList.remove('attention'), 2500);
+      }
+      return;
+    }
+    if(seq){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = 'Un QSO est déjà en cours avec ' + seq.cible
+                       + ' — l\'appel CQ automatique reprendra à sa fin.';
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
+    cqAutoActif = true;
+    cqAutoParite = null;
+    cqAutoJeton = cqAutoJetonSuivant++;
+    // Pas de raison dédiée dans SEQ_RAISONS : la branche seqNiveau==='auto'
+    // de seqMajUI() ci-dessous affiche déjà le bon texte à partir de
+    // cqAutoActif seul, sans avoir besoin d'une clé de plus (même motif que
+    // le rafraîchissement générique de cablerSequenceur()).
+    seqMajUI();
+    cqAutoProgrammerProchain();
+  }
+  window.cqAutoDemarrer = cqAutoDemarrer;
+
+  // Coupe la boucle CQ automatique. Distincte de seqArreter() (qui gère le
+  // QSO en cours, s'il y en a un) mais appelée PAR seqArreter() pour toute
+  // raison d'arrêt d'opérateur (voir CQ_AUTO_ARRETS_LOOP) — un seul geste
+  // (STOP, Échap, désarmement) coupe les deux à la fois.
+  function cqAutoArreter(raison){
+    if(cqAutoTimerPreavis){ clearTimeout(cqAutoTimerPreavis); cqAutoTimerPreavis = null; }
+    if(!cqAutoActif) return;
+    cqAutoActif = false;
+    cqAutoJeton = 0;
+    // seqArreter() n'appelle seqMajUI() qu'après avoir vérifié `seq` — quand
+    // la boucle CQ est coupée pendant qu'elle attend simplement (le cas le
+    // plus fréquent, `seq` est alors déjà `null`), cet appel serait
+    // inatteignable depuis là-bas. Idempotent avec le sien : les deux
+    // passent par la même fonction, qui relit l'état à chaque fois.
+    seqMajUI(raison);
+  }
+
+  // Suspend la boucle CQ (annule le prochain appel programmé) SANS
+  // l'éteindre : cqAutoActif reste vrai, elle reprendra d'elle-même à la
+  // fin du QSO (voir seqArreter()). Appelée depuis la fin de seqDemarrer()
+  // dès qu'une séquence démarre — qu'elle vienne d'un répondant détecté par
+  // le mode Automatique ou d'un double-clic manuel pendant que la boucle
+  // attendait.
+  function cqAutoSuspendrePourQso(){
+    if(cqAutoTimerPreavis){ clearTimeout(cqAutoTimerPreavis); cqAutoTimerPreavis = null; }
+  }
+
   // ─── Programmation d'une émission ────────────────────────────────────────
   function seqProgrammer(etat, etape){
     etat.etape = etape;
@@ -3921,7 +4228,7 @@ if(localStorage.getItem('rc_theme') === null){
       // Trois conditions, trois raisons DISTINCTES. Les agréger produisait
       // « conditions plus réunies », une phrase qui ne nomme ni ce qui manque
       // ni où le retrouver — alors que le code sait laquelle a échoué.
-      if(seqNiveau !== 'sequenceur'){ seqArreter('niveau-preavis'); return; }
+      if(!_seqAutoContinu()){ seqArreter('niveau-preavis'); return; }
       if(!txArmed){ seqArreter('emission-desarmee-preavis'); return; }
       if(!rxActif){ seqArreter('ecoute-arretee-preavis'); return; }
       seq.slotEmis = creneau;
@@ -3974,6 +4281,10 @@ if(localStorage.getItem('rc_theme') === null){
           seqMajUI(issue === 'ECHEC' ? 'qso-non-enregistre'
                    : issue === 'DOUBLON' ? 'qso-doublon'
                    : issue === 'COMPLET' ? 'qso-termine' : 'qso-termine-incomplet');
+          // Mode Automatique : relance CQ APRÈS le texte final (voir le
+          // commentaire de seqArreter() sur 'qso-ecriture' -- relancer plus
+          // tôt afficherait "CQ programmé…" écrasé ensuite par ce texte).
+          if(seqNiveau === 'auto' && cqAutoActif && !seq) cqAutoProgrammerProchain();
         });
       };
       // On LAISSE PARTIR le 73 avant d'arrêter : couper le dernier message en
@@ -4051,8 +4362,24 @@ if(localStorage.getItem('rc_theme') === null){
     'remplacement',
   ]);
 
+  // Raisons qui doivent aussi ÉTEINDRE la boucle CQ automatique — TOUTES
+  // celles de SEQ_ARRETS_OPERATEUR SAUF 'remplacement' : un reciblage (une
+  // autre station a répondu, on lui donne la priorité) n'est pas un retrait
+  // de consentement à l'automatisme, contrairement à un bouton STOP, un
+  // Échap, ou le désarmement de l'émission/écoute. DÉRIVÉE plutôt que
+  // recopiée à la main : une raison ajoutée à SEQ_ARRETS_OPERATEUR plus tard
+  // arrive ici automatiquement, sans qu'une deuxième liste puisse diverger.
+  const CQ_AUTO_ARRETS_LOOP = new Set(
+    Array.from(SEQ_ARRETS_OPERATEUR).filter(r => r !== 'remplacement'));
+
   function seqArreter(raison){
     if(seqTimerPreavis){ clearTimeout(seqTimerPreavis); seqTimerPreavis = null; }
+    // AVANT le retour anticipé sur `!seq` : la boucle CQ automatique doit
+    // pouvoir être coupée même quand elle n'a PAS de séquence en cours
+    // (le cas le plus fréquent, pendant l'attente entre deux appels CQ) —
+    // sinon Échap/STOP/désarmement pendant cette attente ne l'atteindrait
+    // jamais.
+    if(CQ_AUTO_ARRETS_LOOP.has(raison)) cqAutoArreter(raison);
     if(!seq) return;
     seq = null;
     // Faire vieillir le jeton de génération est le SEUL moyen d'empêcher une
@@ -4069,6 +4396,27 @@ if(localStorage.getItem('rc_theme') === null){
       generationTx++;
     }
     seqMajUI(raison);
+    // Mode Automatique (TRANCHÉ PAR F4GLD LE 22/08/2026, voir le commentaire
+    // en tête de fichier) : relance CQ après TOUT abandon SYNCHRONE de
+    // séquence, qu'il s'agisse d'un QSO complété ou d'une absence de
+    // réponse — l'autonomie ne doit pas s'éteindre juste parce qu'une
+    // station n'a pas répondu. EXCLUSIONS :
+    //   'remplacement'   : un NOUVEAU seq vient d'être créé dans la même
+    //                      frappe synchrone (voir seqDemarrer) — relancer
+    //                      ici programmerait un CQ pour une boucle qui va
+    //                      être immédiatement suspendue par
+    //                      cqAutoSuspendrePourQso().
+    //   'qso-ecriture'    : la fin RÉELLE d'un QSO a une suite ASYNCHRONE
+    //                      (seqLoguer, un appel réseau) — relancer ICI
+    //                      afficherait "CQ programmé…" qui serait ensuite
+    //                      ÉCRASÉ par le texte final arrivé en retard. La
+    //                      relance se fait depuis les callbacks
+    //                      seqLoguer(...).then(...) eux-mêmes, une fois le
+    //                      texte final affiché (voir les deux sites).
+    if(seqNiveau === 'auto' && cqAutoActif
+       && raison !== 'remplacement' && raison !== 'qso-ecriture'){
+      cqAutoProgrammerProchain();
+    }
   }
 
   // ─── Démarrage ───────────────────────────────────────────────────────────
@@ -4300,6 +4648,19 @@ if(localStorage.getItem('rc_theme') === null){
       rangMax: SEQ_RANG[etapeDepart] || SEQ_RANG.TX1,
       jeton: seqJetonSuivant++,
     };
+    // Suspend un appel CQ automatique en attente (mode Automatique) SANS
+    // éteindre cqAutoActif -- la boucle reprendra d'elle-même à la fin de
+    // CE QSO (voir seqArreter()). Sans-effet si le mode Automatique n'était
+    // pas actif, ou si le QSO a démarré par un double-clic manuel : c'est
+    // volontairement inconditionnel, pas testé au cas par cas.
+    cqAutoSuspendrePourQso();
+    // Panneau « QSO en cours » : vidé au DÉMARRAGE d'une NOUVELLE séquence,
+    // pas à sa fin -- l'opérateur doit pouvoir relire l'échange qui vient de
+    // se conclure jusqu'à ce que le suivant commence.
+    const qTbody = document.getElementById('qsoEnCoursBody');
+    if(qTbody) qTbody.innerHTML = '';
+    const qVide = document.getElementById('qsoEnCoursVide');
+    if(qVide) qVide.style.display = '';
     seqProgrammer(seq, etapeDepart);
     return seq;
   }
@@ -4310,7 +4671,22 @@ if(localStorage.getItem('rc_theme') === null){
     // 1. Conditions d'existence. Chacune est un ARRÊT, pas une pause : couper
     //    l'émission ou l'écoute sans arrêter la séquence la ferait repartir au
     //    créneau suivant, ce qui revient à ignorer l'ordre donné.
-    if(!seq) return;
+    if(!seq){
+      // Mode Automatique, en attente de répondant (aucun QSO en cours) :
+      // c'est ICI, et nulle part ailleurs, que passe TOUT décodage réel
+      // (conclureCreneau() appelle cette fonction directement) -- point
+      // d'accroche unique pour détecter qui répond à notre CQ.
+      if(seqNiveau === 'auto' && cqAutoActif){
+        if(!txArmed){ cqAutoArreter('emission-desarmee'); return; }
+        if(!rxActif){ cqAutoArreter('ecoute-arretee'); return; }
+        const cible = cqAutoChoisirCible(msgs);
+        if(cible){
+          seqDemarrer(cible.call, {grille: cible.grille, snr: cible.snr,
+                                    slotEntendu: slotExamine});
+        }
+      }
+      return;
+    }
     // Plafond de DURÉE : le seul qui s'applique quel que soit le réglage de
     // relances. Contrôlé ici, c'est-à-dire au plus tard juste avant de décider
     // de réémettre.
@@ -4318,7 +4694,7 @@ if(localStorage.getItem('rc_theme') === null){
       seqArreter('duree-max');
       return;
     }
-    if(seqNiveau !== 'sequenceur'){ seqArreter('niveau'); return; }
+    if(!_seqAutoContinu()){ seqArreter('niveau'); return; }
     if(!txArmed){ seqArreter('emission-desarmee'); return; }
     if(!rxActif){ seqArreter('ecoute-arretee'); return; }
 
@@ -4352,6 +4728,9 @@ if(localStorage.getItem('rc_theme') === null){
           seqMajUI(issue === 'ECHEC' ? 'qso-non-enregistre'
                    : issue === 'DOUBLON' ? 'qso-doublon'
                    : issue === 'COMPLET' ? '73-recu' : '73-recu-incomplet');
+          // Voir le commentaire jumeau dans seqProgrammer() -- même raison,
+          // même ordre (texte final d'abord, relance ensuite).
+          if(seqNiveau === 'auto' && cqAutoActif && !seq) cqAutoProgrammerProchain();
         });
         return;
       }
@@ -4409,9 +4788,17 @@ if(localStorage.getItem('rc_theme') === null){
     // « RELANCES SANS RÉPONSE : sans limite » affiché à côté d'un mode qui
     // promet « n'émet jamais seul » sème le doute sur la seule question qui
     // compte sur cette page : est-ce que ma station va émettre sans moi ?
-    if(relancesEl) relancesEl.style.display = (seqNiveau === 'sequenceur') ? '' : 'none';
+    if(relancesEl) relancesEl.style.display = _seqAutoContinu() ? '' : 'none';
     const stopBtn = document.getElementById('seqStopBtn');
-    if(stopBtn) stopBtn.style.display = seq ? '' : 'none';
+    // (seq || cqAutoActif) : le bouton d'arrêt doit rester atteignable
+    // pendant l'attente entre deux appels CQ automatiques (aucun `seq`
+    // encore) -- sinon le seul bouton d'arrêt disparaît pendant la majorité
+    // du temps où le mode Automatique tourne réellement.
+    if(stopBtn) stopBtn.style.display = (seq || cqAutoActif) ? '' : 'none';
+    const cqBtn = document.getElementById('cqAutoBtn');
+    if(cqBtn) cqBtn.style.display = (seqNiveau === 'auto' && !cqAutoActif && !seq) ? '' : 'none';
+    const cqWarn = document.getElementById('cqAutoAvertissement');
+    if(cqWarn) cqWarn.style.display = (seqNiveau === 'auto') ? '' : 'none';
     majBoutonEnvoyer();
     const etatEl = document.getElementById('seqEtat');
     if(!etatEl) return;
@@ -4437,6 +4824,10 @@ if(localStorage.getItem('rc_theme') === null){
       etatEl.textContent = 'Manuel : un double-clic prépare et envoie UN message.';
     } else if(seqNiveau === 'assiste'){
       etatEl.textContent = "Assisté : le double-clic prépare la réponse, c'est toi qui envoies.";
+    } else if(seqNiveau === 'auto'){
+      etatEl.textContent = cqAutoActif
+        ? 'Automatique : en attente du prochain créneau CQ…'
+        : 'Automatique prêt : ▶ DÉMARRER APPEL CQ pour appeler et enchaîner les QSO sans confirmation.';
     } else {
       etatEl.textContent = 'Séquenceur prêt : double-clique une station, le QSO se déroule et se logue.';
     }
@@ -4453,7 +4844,13 @@ if(localStorage.getItem('rc_theme') === null){
     const selRelances = document.getElementById('seqRelancesSel');
     try{
       const memo = localStorage.getItem('rc_ft8_seq_niveau');
-      if(memo === 'manuel' || memo === 'assiste' || memo === 'sequenceur') seqNiveau = memo;
+      // 'auto' est un CHOIX de mode restauré comme les trois autres -- mais
+      // cqAutoActif (« est-ce que ça tourne réellement ? ») ne fait PARTIE
+      // d'AUCUNE clé localStorage et reste donc à `false` par défaut à
+      // chaque chargement, exactement comme `seq` lui-même ne survit jamais
+      // à un rechargement. Un rechargement de page en mode Automatique ne
+      // relance JAMAIS l'appel CQ tout seul.
+      if(memo === 'manuel' || memo === 'assiste' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
       const memoR = parseInt(localStorage.getItem('rc_ft8_seq_relances'), 10);
       if(isFinite(memoR) && memoR >= 0) seqMaxRelancesDefaut = memoR;
     }catch(e){}

@@ -349,6 +349,30 @@ body.day-mode {             /* JOUR — thème prioritaire */
   permanence sur tout, réservé à ce qui est actionnable ou qui vient de
   changer, pour renforcer la hiérarchie plutôt que la noyer.
 
+## Densité — pas d'espace mort
+
+Directive permanente (demandée le 22/08/2026, pendant le chantier du mode
+FT8 automatique) : sur **toute page** du programme, utiliser l'espace
+disponible à l'écran — pas de zone vide qui ne sert à rien pendant qu'une
+information utile reste hors champ ou tassée. L'objectif est la
+**lisibilité**, pas le remplissage pour le remplissage :
+
+- Avant de considérer une page/un panneau terminé, se demander : y a-t-il
+  une information utile (décodages, état, historique, aide contextuelle)
+  qui pourrait occuper un espace actuellement vide plutôt que d'être
+  cachée, coupée par un défilement évitable, ou absente ?
+- Ne s'applique JAMAIS au détriment de la hiérarchie visuelle (voir
+  Effets ci-dessus) ni du chemin critique (Intuitivité, plus haut) — remplir
+  l'écran de contenu secondaire pour ne pas laisser de vide serait le même
+  défaut inversé. Densifier veut dire : donner sa vraie place à ce qui a
+  déjà sa place légitime sur l'écran, pas entasser.
+- Piège déjà rencontré (chantier accueil par activité, 22/08/2026) :
+  centrer verticalement un bloc de contenu (`align-items:center`) dans un
+  conteneur `overflow-y:auto` coupe le HAUT du contenu hors d'atteinte du
+  défilement dès que ça dépasse la hauteur de fenêtre — préférer
+  `align-items:flex-start` dès qu'un panneau peut légitimement grandir
+  (plus d'activités, plus de décodages, plus de lignes de log).
+
 ## Avant de toucher une nouvelle page
 
 1. Lire son bloc `:root`/`body.day-mode` existant — chaque page HTML de
