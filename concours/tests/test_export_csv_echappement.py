@@ -46,6 +46,9 @@ _EXPORTCSV_SRC = _extract_function(_SRC, 'exportCSV')
 _CSVFIELD_SRC = ''
 if re.search(r'^function _csvField\(', _SRC, re.M):
     _CSVFIELD_SRC = _extract_function(_SRC, '_csvField')
+# exportCSV s'appuie désormais sur ces dépendances (refonte export « CSV valide ») :
+_HEADER_SRC = re.search(r"const _CSV_HEADER = '[^']*';", _SRC).group(0)
+_DEPS_SRC = '\n'.join(_extract_function(_SRC, n) for n in ('_csvBaseRow', '_downloadCsv'))
 
 _PREAMBLE = r"""
 var _csv = null;
@@ -55,13 +58,15 @@ var document = { createElement: function(){ return { click:function(){}, style:{
                  getElementById: function(){ return null; } };
 var myCall = 'F4GLD';
 function _resolveOperatorCallsign(op){ return op ? String(op) : 'F4GLD'; }
+function isValidQSO(q){ return true; }
 var qsoLog = [];
 """
 
 
 def _csv_for(qso):
     c = py_mini_racer.MiniRacer()
-    c.eval(_PREAMBLE + '\n' + _CSVFIELD_SRC + '\n' + _EXPORTCSV_SRC)
+    c.eval(_PREAMBLE + '\n' + _HEADER_SRC + '\n' + _CSVFIELD_SRC + '\n'
+           + _DEPS_SRC + '\n' + _EXPORTCSV_SRC)
     import json
     c.eval('qsoLog = ' + json.dumps([qso]) + ';')
     c.eval('exportCSV();')

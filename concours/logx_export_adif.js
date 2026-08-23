@@ -144,16 +144,45 @@ function _csvField(v){
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-function exportCSV(){
-  let csv = 'N°,Date,Heure,Indicatif,Bande,Mode,RST_env,N°_env,RST_recu,N°_recu,Locator,Distance_km,Points,Operateur\n';
-  qsoLog.forEach((q,i)=>{
-    csv += [i+1, q.date, q.time, q.call, q.band, q.mode, q.rst_sent, q.num_sent,
-            q.rst_rcvd, q.num_rcvd, q.locator, (q.dist||0), (q.points||0),
-            _resolveOperatorCallsign(q.operator)].map(_csvField).join(',') + '\n';
-  });
-  const blob = new Blob([csv],{type:'text/csv'});
+const _CSV_HEADER = 'N°,Date,Heure,Indicatif,Bande,Mode,RST_env,N°_env,RST_recu,N°_recu,Locator,Distance_km,Points,Operateur';
+
+function _csvBaseRow(q, i){
+  return [i + 1, q.date, q.time, q.call, q.band, q.mode, q.rst_sent, q.num_sent,
+          q.rst_rcvd, q.num_rcvd, q.locator, (q.dist || 0), (q.points || 0),
+          _resolveOperatorCallsign(q.operator)];
+}
+
+function _downloadCsv(csv, suffixe){
+  const blob = new Blob([csv], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${myCall.replace('/','_')}_log.csv`;
+  a.download = `${myCall.replace('/','_')}_${suffixe}.csv`;
   a.click();
+}
+
+// CSV COMPLET (diagnostic / récupération) : TOUS les QSO, même incomplets ou
+// invalides, + 4 champs diagnostic DÉRIVÉS (décision F4GLD 23/08). raw_exchange
+// = échange reçu brut ; parsed_exchange et le statut de validation détaillé
+// restent à ajouter quand le parseur d'échange par profil sera en place.
+function exportCSV(){
+  let csv = _CSV_HEADER + ',Complet,Scoré,Concours,Echange_reçu_brut\n';
+  qsoLog.forEach((q,i)=>{
+    const row = _csvBaseRow(q, i).concat([
+      isValidQSO(q) ? 'oui' : 'non',
+      ((q.points || 0) > 0) ? 'oui' : 'non',
+      q.contest, q.num_rcvd]);
+    csv += row.map(_csvField).join(',') + '\n';
+  });
+  _downloadCsv(csv, 'log');
+}
+
+// CSV VALIDE (soumission / partage) : uniquement les QSO complets et validés
+// (même filtre isValidQSO que l'export ADIF), colonnes propres (sans les champs
+// de diagnostic du CSV complet). Distinct du CSV complet, comme ADIF/Cabrillo.
+function exportCSVValide(){
+  let csv = _CSV_HEADER + '\n';
+  qsoLog.filter(isValidQSO).forEach((q,i)=>{
+    csv += _csvBaseRow(q, i).map(_csvField).join(',') + '\n';
+  });
+  _downloadCsv(csv, 'log_valide');
 }
