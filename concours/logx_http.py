@@ -6067,6 +6067,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if res.get('ok'):
                             print(f"[SER] CW {cfg_snap.get('cw_serial_line', 'DTR')} -> "
                                   f"{str(res.get('text', ''))[:60]} ({res.get('wpm')} mots/min)")
+                            import logx_cw_journal as cwj
+                            cwj.enregistrer(res.get('text'), 'serial', wpm=res.get('wpm'))
                         _reponse_cw(res, 200 if res.get('ok') else 400)
                     return
             import logx_cat as cat
