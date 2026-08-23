@@ -44,6 +44,16 @@ DEPARTMENTS = {
     '975': 'St-Pierre-et-Miquelon', '976': 'Mayotte',
 }
 
+# Départements acceptables comme ÉCHANGE de concours : les codes DOM à 3 chiffres
+# (971-976) en sont EXCLUS. Règle Coupe du REF HF / WAE (F4GLD, 23/08/2026) : les
+# DOM/TOM envoient un PRÉFIXE de contrée (FM, FG, FY, FR, FH, FP, FO, FK, FT),
+# JAMAIS 971-976 ; un « 971 » reçu dans un échange est donc une SÉRIE (station
+# étrangère / maritime mobile / WAE), pas la Guadeloupe. DEPARTMENTS complet reste
+# utilisé pour la détection GÉOGRAPHIQUE par locator/calldb, où 971-976 sont de
+# vrais départements. (Un profil de concours qui déclarerait explicitement 971-976
+# comme multiplicateurs géo d'échange devrait le faire via son propre parseur.)
+_DEPTS_ECHANGE = frozenset(d for d in DEPARTMENTS if not (len(d) == 3 and d.isdigit()))
+
 
 def _is_rst(tok):
     """Un token ressemble-t-il à un RST ('59', '599', '55'...) ? readability
@@ -56,7 +66,9 @@ def dept_from_exchange(num_rcvd):
     """Extrait le n° de département d'un échange reçu.
     En PRODUCTION le champ « DEPT RCU » contient le département SEUL (le RST
     est un champ séparé) : un token unique EST le département ('33' → 33,
-    '43' → 43, '971' → DOM). Le format combiné « RST dept » (plusieurs tokens,
+    '43' → 43). Un code DOM 3 chiffres (971-976) n'est PAS un département
+    d'échange ici (c'est une série — voir _DEPTS_ECHANGE). Le format combiné
+    « RST dept » (plusieurs tokens,
     ex. '59 04') est aussi géré défensivement : on retire alors le RST de tête
     pour lever l'ambiguïté (le RST '599' contient '59'). '' si rien de fiable."""
     s = str(num_rcvd or '').upper()
@@ -71,12 +83,13 @@ def dept_from_exchange(num_rcvd):
     if len(toks) > 1 and _is_rst(toks[0]):
         toks = toks[1:]
     for tok in toks:
-        # Un token de 2 chiffres (01-95) ou un DOM à 3 chiffres (971-976) est
-        # accepté tel quel. On NE tronque PLUS un token de 3 chiffres à ses 2
-        # premiers : un numéro de série du Bol d'Or ('042', '590') n'est pas le
-        # département '04'/'59' — ce court-circuit verdissait la carte à tort et
-        # gonflait le multiplicateur REF (l'échange prime sur calldb/locator).
-        if tok in DEPARTMENTS:
+        # Un token de 2 chiffres (01-95) est accepté tel quel. On NE tronque PLUS
+        # un token de 3 chiffres à ses 2 premiers ('042' n'est pas '04'), et un
+        # code DOM 3 chiffres (971-976) n'est JAMAIS un département d'échange
+        # (c'est une série — _DEPTS_ECHANGE l'exclut) : ces court-circuits
+        # verdissaient la carte à tort et gonflaient le multiplicateur REF
+        # (l'échange prime sur calldb/locator).
+        if tok in _DEPTS_ECHANGE:
             return tok
     return ''
 

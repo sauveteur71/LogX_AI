@@ -91,7 +91,12 @@ def test_dept_seul_production():
     compris ceux dont le n° ressemble à un RST (13, 33, 44, 59...)."""
     for d in ['33', '59', '13', '44', '31', '35', '43', '54', '57', '75', '06', '90']:
         assert dept_from_exchange(d) == d, f"dept seul {d} perdu"
-    assert dept_from_exchange('971') == '971'       # DOM
+    # Règle F4GLD (Coupe du REF HF / WAE, 23/08/2026) : les DOM/TOM envoient un
+    # PRÉFIXE de contrée (FG, FM…), JAMAIS 971-976. Un code DOM 3 chiffres dans
+    # un échange est donc une SÉRIE, pas la Guadeloupe — il n'est plus lu comme
+    # un département d'échange (audit departments:79). Ce test consacrait l'ancien
+    # comportement (971 -> Guadeloupe), corrigé ici.
+    assert dept_from_exchange('971') == ''
     assert dept_from_exchange('2A') == '2A'
 
 
@@ -106,7 +111,10 @@ def test_dept_format_combine():
 def test_corse_et_dom():
     assert dept_from_exchange('2A 015') == '2A'
     assert dept_from_exchange('58 2B') == '2B'
-    assert dept_from_exchange('5NN 971') == '971'   # Guadeloupe (DOM)
+    # '971' dans un échange = SÉRIE, pas la Guadeloupe (règle F4GLD, audit
+    # departments:79). Un vrai DOM géographique est détecté par locator/calldb,
+    # jamais par l'échange.
+    assert dept_from_exchange('5NN 971') == ''
 
 
 def test_echange_sans_dept():
