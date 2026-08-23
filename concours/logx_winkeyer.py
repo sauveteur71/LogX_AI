@@ -235,9 +235,17 @@ def parametres(cfg):
     except (TypeError, ValueError):
         farns = 0
     farns = 0 if farns <= 0 else max(10, min(99, farns))
+    # Variante de protocole : 'WK3' (K1EL WinKeyer 3, défaut) applique toute la
+    # séquence de réglages ; 'K3NG' (keyer Arduino K3NG en émulation WinKeyer
+    # 1.0/2.0) n'envoie que la séquence de BASE (WPM), sans les commandes WK3
+    # qu'une émulation WK1/2 pourrait ne pas comprendre. Choix conservateur —
+    # aucune supposition sur les commandes non universellement sûres.
+    variant = str(cfg.get('winkeyer_variant', '') or '').upper()
+    variant = 'K3NG' if variant in ('K3NG', 'WK1_2', 'WK12', 'WK1', 'WK2') else 'WK3'
     return {
         'enabled': str(cfg.get('winkeyer_enabled', '')).strip() not in ('', '0', 'False', 'false'),
         'port': str(cfg.get('winkeyer_port', '') or '').strip(),
+        'variant': variant,
         'wpm': _entier_borne(cfg.get('winkeyer_wpm', 25), WPM_MIN, WPM_MAX, 25),
         'weighting': _entier_borne(cfg.get('winkeyer_weighting', 50), 10, 90, 50),
         'ratio': _entier_borne(cfg.get('winkeyer_ratio', 50), 33, 66, 50),
@@ -331,10 +339,15 @@ def _ouvrir_locked(params):
         return ("Aucune réponse du WinKeyer sur %s — vérifie le port, "
                 "l'alimentation du boîtier et le câble" % nom_port)
     _version = reponse[0]
-    # Séquence WK3 (capacités + PINCFG + PTT + mode + WPM + weighting/ratio/
-    # Farnsworth/sidetone). Bornée en amont ; on protège quand même la session.
+    # WK3 : séquence complète (capacités + PINCFG + PTT + mode + WPM +
+    # weighting/ratio/Farnsworth/sidetone). K3NG (émulation WK1/2) : séquence de
+    # BASE uniquement (WPM), sans les commandes WK3 qu'il pourrait ignorer/mal
+    # interpréter. Bornée en amont ; on protège quand même la session.
     try:
-        _appliquer_reglages_wk3_locked(params)
+        if params.get('variant') == 'K3NG':
+            _port.write(bytes([CMD_SET_WPM, params['wpm']]))
+        else:
+            _appliquer_reglages_wk3_locked(params)
     except Exception as e:
         _fermer_locked()
         return 'Réglages WinKeyer refusés sur %s (%s)' % (nom_port, e)
