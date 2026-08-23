@@ -129,10 +129,13 @@ function downloadAdifBlob(adif, suffix){
 }
 
 async function exportADIF(){
-  const validQSOs = qsoLog.filter(isValidQSO);
-  const skipped = qsoLog.length - validQSOs.length;
+  const act = _activeActivity();
+  const scope = act ? await _demanderPerimetre(act) : null;
+  const base = scope ? qsoLog.filter(scope.match) : qsoLog;
+  const validQSOs = base.filter(isValidQSO);
+  const skipped = base.length - validQSOs.length;
   if(skipped && !(await _confirmDupBanner(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}), 'Continuer', 'Annuler'))) return;
-  downloadAdifBlob(buildAdifText(validQSOs), 'log');
+  downloadAdifBlob(buildAdifText(validQSOs), scope ? ('log_' + _safeSuffixe(scope.suffixe)) : 'log');
 }
 
 // Échappement CSV (RFC 4180) : un champ contenant une virgule, un guillemet ou
@@ -153,36 +156,95 @@ function _csvBaseRow(q, i){
 }
 
 function _downloadCsv(csv, suffixe){
-  const blob = new Blob([csv], {type:'text/csv'});
+  // BOM UTF-8 (﻿) : sans lui, Excel lit le CSV en ANSI et corrompt les
+  // accents (N°, Scoré, Échange reçu…). charset=utf-8 par cohérence.
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `${myCall.replace('/','_')}_${suffixe}.csv`;
   a.click();
 }
 
-// CSV COMPLET (diagnostic / récupération) : TOUS les QSO, même incomplets ou
-// invalides, + 4 champs diagnostic DÉRIVÉS (décision F4GLD 23/08). raw_exchange
-// = échange reçu brut ; parsed_exchange et le statut de validation détaillé
-// restent à ajouter quand le parseur d'échange par profil sera en place.
-function exportCSV(){
+// ─── Filtre d'export par ACTIVITÉ (concours actif ou activation POTA/SOTA) ───
+// Chaque QSO est déjà tagué à la source (submitQSO : q.contest, q.my_sig/
+// q.my_sig_info). On étend ici la logique scopée de Cabrillo/EDI/POTA à TOUS les
+// exports : si une activité est en cours, on propose « tout le carnet » OU
+// « l'activité en cours ». Renvoie {label, suffixe, match} ou null (pas d'activité).
+//
+// _CONTEST_DEFAUT : valeur de REPLI de currentContest quand aucun concours n'est
+// configuré (logx_logbook.js : `window._initContest || 'REF_RPH'`). Ce n'est PAS
+// une activité délibérément choisie — on la traite comme « aucune activité » pour
+// ne PAS imposer un dialogue de périmètre à chaque export du quotidien.
+const _CONTEST_DEFAUT = 'REF_RPH';
+
+function _activeActivity(){
+  if(typeof activationProgram !== 'undefined' && activationProgram
+     && typeof myActivationRef !== 'undefined' && myActivationRef){
+    const prog = String(activationProgram).toUpperCase(), ref = String(myActivationRef);
+    return { label: prog + ' ' + ref, suffixe: prog + '_' + ref,
+             match: q => String(q.my_sig || '').toUpperCase() === prog
+                         && String(q.my_sig_info || '') === ref };
+  }
+  if(typeof currentContest !== 'undefined' && currentContest && currentContest !== _CONTEST_DEFAUT){
+    const c = String(currentContest);
+    return { label: c, suffixe: c, match: q => String(q.contest || '') === c };
+  }
+  return null;
+}
+
+function _safeSuffixe(s){ return String(s || '').replace(/[^A-Za-z0-9_-]+/g, '_'); }
+
+// Demande le périmètre à l'opérateur pour une activité DÉJÀ détectée (act non
+// null) : renvoie l'activité (avec .match) pour « activité seule », ou null pour
+// « tout le carnet ». Appelée UNIQUEMENT si _activeActivity() a renvoyé non-null,
+// pour qu'un export sans activité reste 100 % synchrone (aucun await atteint).
+async function _demanderPerimetre(act){
+  const seule = await _confirmDupBanner(
+    trF('Une activité est en cours : « {a} ».\n\nQue veux-tu exporter ?\n\n'
+        + 'OK = uniquement « {a} »   ·   Annuler = tout le carnet.', {a: act.label}),
+    trT('Activité en cours'), trT('Tout le carnet'));
+  return seule ? act : null;
+}
+
+// Builders CSV SYNCHRONES (testables) — la sélection du périmètre (dialogue) est
+// gérée par les fonctions export* async ci-dessous.
+function _csvComplet(src){
   let csv = _CSV_HEADER + ',Complet,Scoré,Concours,Echange_reçu_brut\n';
-  qsoLog.forEach((q,i)=>{
+  src.forEach((q,i)=>{
     const row = _csvBaseRow(q, i).concat([
       isValidQSO(q) ? 'oui' : 'non',
       ((q.points || 0) > 0) ? 'oui' : 'non',
       q.contest, q.num_rcvd]);
     csv += row.map(_csvField).join(',') + '\n';
   });
-  _downloadCsv(csv, 'log');
+  return csv;
+}
+
+function _csvValide(src){
+  let csv = _CSV_HEADER + '\n';
+  src.filter(isValidQSO).forEach((q,i)=>{
+    csv += _csvBaseRow(q, i).map(_csvField).join(',') + '\n';
+  });
+  return csv;
+}
+
+// CSV COMPLET (diagnostic / récupération) : TOUS les QSO, même incomplets ou
+// invalides, + 4 champs diagnostic DÉRIVÉS (décision F4GLD 23/08). raw_exchange
+// = échange reçu brut ; parsed_exchange et le statut de validation détaillé
+// restent à ajouter quand le parseur d'échange par profil sera en place.
+async function exportCSV(){
+  const act = _activeActivity();
+  const scope = act ? await _demanderPerimetre(act) : null;
+  const src = scope ? qsoLog.filter(scope.match) : qsoLog;
+  _downloadCsv(_csvComplet(src), scope ? ('log_' + _safeSuffixe(scope.suffixe)) : 'log');
 }
 
 // CSV VALIDE (soumission / partage) : uniquement les QSO complets et validés
 // (même filtre isValidQSO que l'export ADIF), colonnes propres (sans les champs
 // de diagnostic du CSV complet). Distinct du CSV complet, comme ADIF/Cabrillo.
-function exportCSVValide(){
-  let csv = _CSV_HEADER + '\n';
-  qsoLog.filter(isValidQSO).forEach((q,i)=>{
-    csv += _csvBaseRow(q, i).map(_csvField).join(',') + '\n';
-  });
-  _downloadCsv(csv, 'log_valide');
+async function exportCSVValide(){
+  const act = _activeActivity();
+  const scope = act ? await _demanderPerimetre(act) : null;
+  const src = scope ? qsoLog.filter(scope.match) : qsoLog;
+  _downloadCsv(_csvValide(src), scope ? ('log_valide_' + _safeSuffixe(scope.suffixe)) : 'log_valide');
 }
