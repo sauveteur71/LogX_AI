@@ -95,7 +95,14 @@ function buildAdifText(qsos){
     // aussi le seul moyen, pour un importateur, de retrouver la bande d'un
     // QSO dont le libellé serait intraduisible.
     adif += adifField('FREQ', q.freq);
-    adif += adifField('MODE', q.mode);
+    // FT2 = sous-mode EXPÉRIMENTAL de MFSK : WSJT-X ne liste pas FT2, on exporte
+    // MODE=MFSK + SUBMODE=FT2 — JAMAIS MODE=FT2 (sinon ADIF invalide / illisible
+    // par un logiciel tiers). Terrain FT2 Phase 1 (F4GLD).
+    if(String(q.mode || '').toUpperCase() === 'FT2'){
+      adif += adifField('MODE', 'MFSK') + adifField('SUBMODE', 'FT2');
+    } else {
+      adif += adifField('MODE', q.mode);
+    }
     adif += adifField('RST_SENT', q.rst_sent);
     adif += adifField('RST_RCVD', q.rst_rcvd);
     adif += adifField('STX_STRING', q.num_sent);
