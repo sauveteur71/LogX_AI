@@ -586,9 +586,30 @@ révélé.
      dans du code entrelacé — le reste du monolithe est cohérent. Le
      modèle « extraire vers un `<script src>` chargé après, test
      d'équivalence + contre-épreuve » est validé pour de futurs blocs.**
-   - `logx_carte.html` : confirmé monolithique (ligne 545) mais **aucun
-     bloc candidat identifié encore** — à analyser avant de commencer, ne
-     pas supposer qu'une des découpes ci-dessus s'y applique.
+   - `logx_carte.html` : analysé le 23/08/2026 (lecture seule). 🚫 **NON
+     découpable proprement — écarté, ne pas re-proposer.** Le `<script>`
+     inline (545→3478, 257 fonctions) mêle les définitions à du code exécuté
+     AU CHARGEMENT top-level (`L.map('map',...)`, `setInterval`/`setTimeout`
+     épars : ~411, 581-582, 807, 2303-2304, 2333-2334…, appels directs
+     `fetchCoach()`) partageant un état de MODULE (`leafletMap`, timers,
+     caches) via closures. Extraire un sous-ensemble casserait cet état
+     partagé — il faudrait passer les `let` en globaux, ce qui n'est PLUS un
+     déplacement pur (même obstacle que le bloc Mot de passe, en pire).
+
+   **Bilan du chantier découpage (23/08/2026) : SOLDÉ côté sûr.** Les seuls
+   candidats à déplacement pur (Cloud Sync, ACOM) sont faits (#219/#220,
+   -172 l sur configuration.js). Mot de passe et `logx_carte.html` écartés
+   sur analyse (couplage/entrelacement). Restent hors périmètre autonome :
+   `logx_ft8.html` (émission), `logx_logbook.js` (chemin critique, sur accord
+   F4GLD uniquement). AUCUN autre gros fichier n'est un candidat propre.
+
+   **Audit i18n (23/08/2026, lecture seule) : SAIN.** Extraction des 24
+   dictionnaires `T`/`T_XXX` et calcul de parité : **2371 clés source, parité
+   parfaite** sur les 7 langues (en/de/es/it/pt/nl/pl), 0 manquante — le
+   travail des blocs `T_PARITY_FIX` tient. Les traductions identiques au
+   français sont des noms propres légitimes (PowerGenius XL, Kenwood,
+   définitions IOTA/POTA/SOTA…). Rien à corriger ; ne pas « traduire » (ce
+   serait inventer du contenu).
 
    **Le coût réel, à ne pas sous-estimer.** Extraire un module bien plus
    petit et bien moins sensible que n'importe lequel des blocs ci-dessus
