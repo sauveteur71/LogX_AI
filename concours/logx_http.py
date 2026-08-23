@@ -2152,6 +2152,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'query': q, 'results': logx_search.search(q)})
             return
 
+        # Journal TX CW : ce qui est RÉELLEMENT parti à la clé (keyer Phase 1c).
+        if path == '/rig/cw/journal':
+            from urllib.parse import parse_qs, urlparse
+            import logx_cw_journal as cwj
+            limite = parse_qs(urlparse(self.path).query).get('n', ['50'])[0]
+            self._json({'entries': cwj.entrees(limite)})
+            return
+
         # Info réseau (IP locale pour les clients WiFi)
         if path == '/network/info':
             import socket as _sock
@@ -6042,6 +6050,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if res.get('ok'):
                             print(f"[WK] CW -> {str(res.get('text',''))[:60]} "
                                   f"({res.get('wpm')} mots/min)")
+                            import logx_cw_journal as cwj
+                            cwj.enregistrer(res.get('text'), 'winkeyer', wpm=res.get('wpm'))
                         _reponse_cw(res, 200 if res.get('ok') else 400)
                     return
             import logx_cat as cat
@@ -6133,6 +6143,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     res = cat.send_cw(cfg_snap, payload.get('text', ''))
                     if res.get('ok'):
                         print(f"[RIG] CW natif -> {str(res.get('text',''))[:60]}")
+                        import logx_cw_journal as cwj
+                        cwj.enregistrer(res.get('text'), 'cat')
                     _reponse_cw(res, 200 if res.get('ok') else 400)
                 return
             elif use_flrig:
