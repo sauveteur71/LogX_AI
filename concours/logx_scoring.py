@@ -154,6 +154,13 @@ def _points_value(rule, ctx, scoring):
         v = scoring.get(v.get('param'), v.get('default', 0))
     if v == 'per_km':
         return ctx['dist_km']
+    if v == 'per_km_stew':
+        # Stew Perry TBDC : 1 pt minimum + 1 pt par tranche de 500 km entre
+        # grands carrés (source : https://www.kkn.net/stew/stew_rules.html —
+        # « minimum one point per QSO and an additional point for every 500
+        # kilometers »). Ex. 1750 km -> 4 pts. per_km (km bruts) reste réservé
+        # aux concours VHF/THF où le point EST la distance.
+        return 1 + int(ctx['dist_km'] // 500)
     return v
 
 def _eval_points(rules, ctx, scoring):

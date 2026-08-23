@@ -10,9 +10,11 @@ let dupOptions = {sameDay:false, sameMinute:false};
 function dupKeyOf(q){
   let k = (q.call||'').toUpperCase() + '|' + (q.band||'') + '|' + (q.mode||'').toUpperCase();
   if(dupOptions.sameDay) k += '|' + (q.date||'');
-  // 'HH:MM' ou 'HH:MM:SS' selon la source (saisie manuelle vs import) — les 5
-  // premiers caractères couvrent les deux formats sans dépendre de la longueur.
-  if(dupOptions.sameMinute) k += '|' + String(q.time||'').slice(0,5);
+  // L'heure varie selon la source : 'HH:MM(:SS)' (saisie manuelle, avec
+  // deux-points) vs 'HHMM(SS)' (import ADIF, sans deux-points). On normalise en
+  // chiffres SEULS puis HHMM, sinon '14:30' et '1430' donnaient deux clés
+  // différentes et un doublon natif/importé échappait à la détection.
+  if(dupOptions.sameMinute) k += '|' + String(q.time||'').replace(/\D/g,'').slice(0,4);
   return k;
 }
 

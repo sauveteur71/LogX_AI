@@ -170,8 +170,18 @@ def set_freq(host, port, freq_hz, mode=None):
         if not _rprt_ok(lines):
             return {'ok': False, 'error': f'Refus rigctld : {lines}'}
         if mode:
+            # Neutralise tout caractère de contrôle : sans ça, un '\n' dans
+            # `mode` ferait exécuter à rigctld une commande supplémentaire
+            # ('M CW\nT 1' -> QSY puis PTT ON = émission NON demandée) — même
+            # injection que send_morse() neutralise déjà (l.188-189).
+            mode = ''.join(c if ord(c) >= 0x20 else ' ' for c in str(mode)).strip()
+        if mode:
             # passband 0 = défaut de la radio pour ce mode
-            _command(host, port, f'M {mode} 0')
+            mlines = _command(host, port, f'M {mode} 0')
+            if not _rprt_ok(mlines):
+                # Un mode refusé par la radio ne doit pas être rapporté comme
+                # succès : la fréquence est réglée mais le mode NON.
+                return {'ok': False, 'error': f'Mode refusé par rigctld : {mlines}'}
         return {'ok': True}
     except Exception as e:
         return {'ok': False, 'error': f'rigctld injoignable ({e})'}

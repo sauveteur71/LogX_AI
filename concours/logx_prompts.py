@@ -17,6 +17,11 @@ def sanitize_external_text(text, max_len=120):
     aplatit les sauts de ligne (empêche l'imitation d'un nouveau tour de
     conversation), tronque, et délimite explicitement comme DONNÉE."""
     text = re.sub(r'[\r\n\t]+', ' ', str(text or ''))
+    # Neutralise les chevrons : sans ça, un '<<'/'>>' dans la charge (champ de
+    # spot, message ON4KST) refermerait le fence et ferait passer le texte
+    # suivant pour une instruction. Les chevrons ne portent aucune donnée utile
+    # dans un indicatif/commentaire de spot.
+    text = text.replace('<', '').replace('>', '')
     text = text[:max_len]
     return f"<<{text}>>"
 

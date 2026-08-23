@@ -55,7 +55,12 @@ def get_weather(lat, lon):
         gust = num('wind_gusts_10m')
         wind = num('wind_speed_10m')
         precip = num('precipitation')
-        temp = num('temperature_2m')
+        # Température : distinguer « absente/null » de « 0 °C réel ». Le repli à
+        # 0 de num() convient au vent/rafales/précip mais déclencherait une
+        # fausse alerte GEL (temp <= 0) dès qu'open-meteo n'envoie pas de
+        # température. None quand absente/null.
+        _t = cur.get('temperature_2m')
+        temp = _t if isinstance(_t, (int, float)) else None
         # Alerte matériel — TOUTES les conditions à risque cumulées (l'orage,
         # danger foudre, ne doit jamais être masqué par une simple rafale).
         warns = []
@@ -66,14 +71,14 @@ def get_weather(lat, lon):
             warns.append(f'⚠️ RAFALES {gust:.0f} km/h — sécurise les antennes')
         elif gust >= 40 and code not in (95, 96, 99):
             warns.append(f'⚠️ Rafales {gust:.0f} km/h — surveille le pylône')
-        if temp <= 0:
+        if temp is not None and temp <= 0:
             warns.append('❄️ Gel — attention au givre sur les éléments')
         # `storm` : l'orage ISOLÉ du reste, en booléen. La pastille de foudre de
         # la barre de statut (logx_statusbar.js) en a besoin seule — `warn`
         # agrège orage + rafales + gel dans une phrase FRANÇAISE, et un client
         # qui y chercherait le mot « ORAGE » se casserait au premier
         # reformulage ou dans une interface traduite.
-        data = {'ok': True, 'temp': round(temp), 'wind': round(wind),
+        data = {'ok': True, 'temp': round(temp) if temp is not None else None, 'wind': round(wind),
                 'gust': round(gust), 'precip': precip, 'desc': desc,
                 'icon': icon, 'warn': ' · '.join(warns),
                 'storm': code in (95, 96, 99)}

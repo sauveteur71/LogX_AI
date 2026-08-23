@@ -274,10 +274,19 @@ function toggleAssistant(){
     addAssistantMsg('agent', "Bonjour ! Je peux expliquer n'importe quel champ de cette page. Clique une question ci-dessous, ou tape la tienne.");
     const sugg = document.createElement('div');
     sugg.style.cssText = 'display:flex;flex-direction:column;gap:6px';
-    sugg.innerHTML = ASSISTANT_SUGGESTIONS.map(q =>
-      `<button type="button" onclick="askAssistant(${JSON.stringify(q)})" style="text-align:left;background:var(--bg3);`
-      + `border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12.5px">${q}</button>`
-    ).join('');
+    // Boutons câblés par référence (addEventListener) et non par un onclick
+    // inline : JSON.stringify produit des guillemets DOUBLES qui cassaient
+    // l'attribut onclick (lui-même à guillemets doubles), si bien que cliquer
+    // une suggestion ne déclenchait RIEN. textContent évite en prime toute
+    // injection du libellé.
+    ASSISTANT_SUGGESTIONS.forEach(q => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = q;
+      btn.style.cssText = 'text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12.5px';
+      btn.addEventListener('click', () => askAssistant(q));
+      sugg.appendChild(btn);
+    });
     document.getElementById('assistantBody').appendChild(sugg);
   }
 }

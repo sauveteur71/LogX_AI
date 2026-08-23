@@ -18,6 +18,12 @@ import glob
 from logx_utils import utcnow, safe_filename
 
 KEEP = 20                 # nombre de sauvegardes conservées
+# Plancher anti-perte massive (même valeur/esprit que
+# logx_storage._SEUIL_PERTE_MASSIVE) : on refuse d'écrire une sauvegarde dont le
+# nombre de QSO a chuté d'au moins ce seuil sous la meilleure sauvegarde
+# existante — un carnet vidé (incident du 19/08) ne doit pas se propager dans
+# les sauvegardes ni y effacer les bonnes par rotation.
+_SEUIL_PERTE_QSO = 25
 
 # Nom d'un JEU de sauvegarde : logx_{indicatif}_{AAAAMMJJ-HHMMSS}. Seuls ces
 # noms-là sont soumis à la rotation (voir _prune).
@@ -119,6 +125,19 @@ def run_backup(cfg, shared_log=None):
     except Exception as e:
         return {'ok': False, 'error': f'Dossier inaccessible : {e}'}
 
+    # Plancher anti-perte massive : ne rien écrire NI élaguer si le carnet à
+    # sauvegarder a massivement rétréci par rapport à la meilleure sauvegarde
+    # déjà présente. Sans ça, un carnet vidé se propage dans les sauvegardes et
+    # efface les bonnes au fil de la rotation (le filet détruisait les données
+    # qu'il devait protéger — incident du 19/08).
+    n_now = len(list(shared_log)) if shared_log is not None else len(_load_json('shared_log.json'))
+    best = _best_backup_qso_count(folder)
+    if best is not None and best >= _SEUIL_PERTE_QSO and n_now < best - _SEUIL_PERTE_QSO:
+        return {'ok': False, 'skipped': 'perte_massive',
+                'error': ('Sauvegarde ANNULÉE : %d QSO à écrire contre %d dans la '
+                          'meilleure sauvegarde existante — perte massive suspectée. '
+                          'Les sauvegardes existantes sont préservées.' % (n_now, best))}
+
     now = utcnow()
     stamp = now.strftime('%Y%m%d-%H%M%S')
     call = (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or 'LOG'
@@ -179,6 +198,21 @@ def _load_json(path):
             return json.load(f)
     except Exception:
         return []
+
+
+def _best_backup_qso_count(folder):
+    """Plus grand nombre de QSO parmi les sauvegardes .json existantes (jeux
+    logx_..._AAAAMMJJ-HHMMSS.json), ou None s'il n'y en a aucune. Sert de
+    plancher anti-perte massive dans run_backup()."""
+    best = None
+    for p in glob.glob(os.path.join(folder, 'logx_*.json')):
+        b = os.path.basename(p).rsplit('.', 1)[0]
+        if not _BASE_RE.match(b):
+            continue
+        data = _load_json(p)
+        if isinstance(data, list):
+            best = len(data) if best is None else max(best, len(data))
+    return best
 
 
 def _prune(folder):

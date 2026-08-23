@@ -326,8 +326,10 @@ def near_matches(call, shared_log=None, limit=5):
     idx = build_index(shared_log)
     if call in idx:
         return []
+    with _lock:
+        _items = list(idx.items())   # instantané sous verrou (voir export_index)
     out = []
-    for other, e in idx.items():
+    for other, e in _items:
         if abs(len(other) - len(call)) > 1:
             continue
         if _one_edit_away(call, other):
@@ -584,9 +586,11 @@ def suggest(fragment, shared_log=None, limit=12, contest=None):
     if len(fragment) < 2:
         return []
     idx = build_index(shared_log)
+    with _lock:
+        _items = list(idx.items())   # instantané sous verrou : évite 'dictionary changed size' si un QSO est logué en concurrence (update_from_qso)
     ch_slice = _ch_slice(contest)
     starts, contains = [], []
-    for call, e in idx.items():
+    for call, e in _items:
         if call.startswith(fragment):
             starts.append((call, e))
         elif fragment in call:
@@ -596,7 +600,7 @@ def suggest(fragment, shared_log=None, limit=12, contest=None):
     contains.sort(key=key)
     ch_only = []
     if ch_slice:
-        seen = set(idx)
+        seen = {c for c, _ in _items}
         for call, fields in ch_slice.items():
             if call in seen or not (call.startswith(fragment) or fragment in call):
                 continue
@@ -654,9 +658,11 @@ def export_index(shared_log=None, contest=None):
     Call History N1MM importé pour ce concours et ajoute les indicatifs qui
     n'existent QUE dans ce fichier (jamais travaillés par ailleurs)."""
     idx = build_index(shared_log)
+    with _lock:
+        _items = list(idx.items())   # instantané sous verrou (voir suggest)
     ch_slice = _ch_slice(contest)
     calls = {}
-    for call, e in idx.items():
+    for call, e in _items:
         merged = _apply_call_history(e, ch_slice.get(call)) if ch_slice else e
         c = {}
         if merged.get('dept'):

@@ -154,6 +154,11 @@ def _lookup_compute(call):
         # F/ON4ABC : le préfixe hôte (le plus court) prime s'il matche seul
         parts.sort(key=len)
         for p in parts:
+            # Surcharge exacte =CALL d'abord : sans ça, un call à DXCC/zone
+            # particulier (ligne =CALL de cty.dat) opéré en /P, /QRP, /MM…
+            # retombait sur son préfixe et se voyait attribuer le mauvais pays.
+            if p in _EXACT:
+                return _as_dict(_EXACT[p])
             r = _longest_prefix(p)
             if r:
                 return r

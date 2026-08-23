@@ -200,7 +200,7 @@ def demarrer_suivi(nom_sat, cfg):
 
     # Le rotor répond-il ? UN appel, borné à 3 s (TIMEOUT_S de logx_rotor) —
     # même ordre de grandeur que les endpoints /rotor existants.
-    r = rotor.get_position(rs['host'], rs['port'])
+    r = rotor.get_position(rs['host'], rs['port'], proto=rs.get('proto', 'rotctld'))
     if not r.get('ok'):
         return False, r.get('error', 'Rotor injoignable.')
 
@@ -240,7 +240,8 @@ def demarrer_suivi(nom_sat, cfg):
         t = threading.Thread(
             target=_boucle_suivi,
             args=(nom, rs['host'], rs['port'], lat, lon, alt_m, cache, ev),
-            kwargs={'duree_max_s': duree_max, 'offset_az': rs['offset_deg']},
+            kwargs={'duree_max_s': duree_max, 'offset_az': rs['offset_deg'],
+                    'proto': rs.get('proto', 'rotctld')},
             daemon=True)
         _track.update(actif=True, sat=nom, phase='attente', message='', note='',
                       cible_az=None, cible_el=None,
@@ -289,24 +290,25 @@ TOURS_ENTRE_LECTURES = 5
 
 def _boucle_suivi(nom, host, port, lat, lon, alt_m, cache, stop_ev,
                   cadence_s=CADENCE_S, duree_max_s=DUREE_MAX_S,
-                  deadband_deg=DEADBAND_DEG, offset_az=0.0):
+                  deadband_deg=DEADBAND_DEG, offset_az=0.0, proto='rotctld'):
     """Le corps du suivi. Enveloppé de bout en bout : quoi qu'il arrive, un
     état terminal est posé — la leçon du verrou fantôme, appliquée d'entrée.
     `stop_ev` est l'Event PROPRE à ce suivi (jamais un Event module partagé).
     `offset_az` = décalage mécanique du pylône, appliqué à l'azimut envoyé."""
     try:
         _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
-                            cadence_s, duree_max_s, deadband_deg, offset_az)
+                            cadence_s, duree_max_s, deadband_deg, offset_az, proto)
     except Exception as e:
         try:
-            rotor.stop(host, port)
+            rotor.stop(host, port, proto=proto)
         except Exception:
             pass
         _fin('erreur', 'Suivi interrompu : %s' % e)
 
 
 def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
-                        cadence_s, duree_max_s, deadband_deg, offset_az=0.0):
+                        cadence_s, duree_max_s, deadband_deg, offset_az=0.0,
+                        proto='rotctld'):
     import math
     debut = time.monotonic()
     vu_au_dessus = False
@@ -318,18 +320,18 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
 
     while True:
         if stop_ev.is_set():
-            rotor.stop(host, port)
+            rotor.stop(host, port, proto=proto)
             _fin('fini', 'Arrêté par l\'opérateur.')
             return
         if time.monotonic() - debut > duree_max_s:
-            rotor.stop(host, port)
+            rotor.stop(host, port, proto=proto)
             _fin('fini', 'Durée maximale de suivi atteinte (%d min) — arrêt '
                          'automatique.' % (duree_max_s // 60))
             return
 
         pos = sp.position(cache, nom, lat, lon, alt_m)
         if not pos.get('available'):
-            rotor.stop(host, port)
+            rotor.stop(host, port, proto=proto)
             _fin('erreur', pos.get('error', 'Position satellite indisponible.'))
             return
 
@@ -343,7 +345,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
             phase = 'suivi'
         elif vu_au_dessus:
             # LOS : le passage est terminé.
-            rotor.stop(host, port)
+            rotor.stop(host, port, proto=proto)
             _fin('fini', 'Passage terminé (LOS).')
             return
         else:
@@ -355,7 +357,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
                 r = sp.prochain_passage(cache, nom, lat, lon, alt_m)
                 p = (r or {}).get('passage')
                 if not p:
-                    rotor.stop(host, port)
+                    rotor.stop(host, port, proto=proto)
                     _fin('erreur', 'Passage attendu introuvable dans la '
                                    'prédiction.')
                     return
@@ -390,7 +392,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
             az_envoi = _st.azimut_rotor({'offset_deg': offset_az}, cible_az)
             if az_envoi is None:
                 az_envoi = cible_az
-            r = rotor.set_position(host, port, az_envoi, cible_el)
+            r = rotor.set_position(host, port, az_envoi, cible_el, proto=proto)
             if r.get('ok'):
                 echecs = 0
                 derniere_consigne = (cible_az, cible_el)
@@ -399,7 +401,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
             else:
                 echecs += 1
                 if echecs >= ECHECS_ROTOR_MAX:
-                    rotor.stop(host, port)
+                    rotor.stop(host, port, proto=proto)
                     _fin('erreur', 'Rotor injoignable (%d échecs consécutifs) '
                                    '— %s' % (echecs, r.get('error', '')))
                     return
@@ -407,7 +409,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
         # Relecture périodique de la VRAIE position (voir TOURS_ENTRE_LECTURES).
         tours += 1
         if tours % TOURS_ENTRE_LECTURES == 0:
-            lu = rotor.get_position(host, port)
+            lu = rotor.get_position(host, port, proto=proto)
             # Un échec de LECTURE ne compte pas dans `echecs` : celui-ci
             # protège l'envoi de consignes, pas l'affichage.
             if lu.get('ok') and math.isfinite(lu['azimuth']) \

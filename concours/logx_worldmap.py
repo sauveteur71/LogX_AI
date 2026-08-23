@@ -139,7 +139,12 @@ def _entity_feature_map():
         fid = entity_to_feature_id(e['lat'], e['lon'], features)
         if fid:
             mapping[e['prefix']] = fid
-    _cache['entity_feature'] = mapping
+    # Ne PAS mémoriser un mapping vide : il ne peut résulter que d'un échec
+    # transitoire de _load_features() (GeoJSON pas encore prêt). Le cacher
+    # figerait la carte monde cassée pour toute la session — on laisse plutôt
+    # les appels suivants retenter.
+    if features and mapping:
+        _cache['entity_feature'] = mapping
     return mapping
 
 

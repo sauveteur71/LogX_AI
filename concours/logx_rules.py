@@ -305,16 +305,21 @@ def check_rules_update(contest_id):
 
 def run_annual_update():
     """Lance la vérification complète annuelle des règlements"""
-    print(f"\n[UPDATE] Vérification annuelle des règlements — Année {CURRENT_YEAR}")
+    # Année COURANTE, lue à l'EXÉCUTION (et non CURRENT_YEAR figé à l'import) :
+    # sur un process long qui franchit le 1er janvier, l'ancien code recalculait
+    # pour l'année ÉCOULÉE et schedule_annual_check rebouclait chaque jour sans
+    # jamais converger (rules_db['year'] restait sur l'ancienne année).
+    annee = datetime.datetime.now().year
+    print(f"\n[UPDATE] Vérification annuelle des règlements — Année {annee}")
     print("[UPDATE] Calcul des dates pour toutes les compétitions...")
 
     # Calculer les dates
-    dates_this_year = calc_all_dates(CURRENT_YEAR)
-    dates_next_year = calc_all_dates(CURRENT_YEAR + 1)
+    dates_this_year = calc_all_dates(annee)
+    dates_next_year = calc_all_dates(annee + 1)
 
     results = {
         'last_update': datetime.datetime.now().isoformat(),
-        'year': CURRENT_YEAR,
+        'year': annee,
         'dates': dates_this_year,
         'dates_next_year': dates_next_year,
         'rules_checks': {},
@@ -331,7 +336,7 @@ def run_annual_update():
         if check:
             results['rules_checks'][cid] = check
             # Alerte uniquement si année FUTURE et plausible détectée
-            if check.get('latest_year_found', 0) > CURRENT_YEAR + 1:
+            if check.get('latest_year_found', 0) > annee + 1:
                 results['alerts'].append(
                     f"⚠️ {cid}: règlement {check['latest_year_found']} détecté — vérifier mise à jour"
                 )
