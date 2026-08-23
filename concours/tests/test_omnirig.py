@@ -139,13 +139,15 @@ def test_set_freq_avec_mode_ecrit_les_deux(monkeypatch):
     assert rig1.Mode == omnirig.PM_CW_U
 
 
-def test_set_freq_mode_inconnu_ignore_silencieusement_le_mode(monkeypatch):
+def test_set_freq_mode_inconnu_signale_echec(monkeypatch):
+    # Correctif (2 audits) : un mode inconnu ne doit PLUS être avalé en ok:True.
+    # La fréquence est réglée (freq_set), mais le mode NON -> ok:False.
     rig1 = _FakeRig(status=omnirig.ST_ONLINE, mode=omnirig.PM_AM)
     _install_fake(monkeypatch, _FakeOmniRig(rig1=rig1))
     r = omnirig.set_freq({'omnirig_enabled': True}, 3573000, mode='PLOUF')
-    assert r == {'ok': True}
+    assert r.get('ok') is False and r.get('freq_set') is True
     assert rig1.Freq == 3573000
-    assert rig1.Mode == omnirig.PM_AM  # inchangé
+    assert rig1.Mode == omnirig.PM_AM  # mode inchangé (non appliqué)
 
 
 def test_set_freq_desactive_refuse(monkeypatch):

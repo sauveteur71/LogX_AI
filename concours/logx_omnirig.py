@@ -94,6 +94,20 @@ MODE_TO_PARAM = {
 }
 PARAM_TO_MODE = {v: k for k, v in MODE_TO_PARAM.items()}
 
+# Modes numériques bande latérale HAUTE (famille FT8) : OmniRig ne les distingue
+# pas et le réglage FT8 standard passe par le sous-mode DATA/USB-D (validé
+# F4GLD — audio arrière, pas de compression AGC micro, modulation GFSK propre).
+# On les normalise vers 'DATA' pour qu'un mode de carnet (FT8/FT4/PSK/JT…) soit
+# réellement appliqué, au lieu d'être silencieusement ignoré.
+_DIGI_UPPER = {'FT8', 'FT4', 'JT65', 'JT9', 'FST4', 'MFSK', 'JS8',
+               'PSK', 'PSK31', 'PSK63', 'DIGITAL', 'DIGI',
+               'DATA-U', 'USB-D', 'USB-DATA', 'PKTUSB'}
+
+
+def _mode_omnirig(mode):
+    m = str(mode or '').strip().upper()
+    return 'DATA' if m in _DIGI_UPPER else m
+
 # ── enum RigStatusX ──────────────────────────────────────────────────────────
 ST_NOTCONFIGURED = 0
 ST_DISABLED = 1
@@ -291,9 +305,13 @@ def set_freq(cfg, freq_hz, mode=None):
             return {'ok': False, 'error': f'Rig{rig_num} OmniRig hors ligne ({_status_label(status)})'}
         rig.Freq = int(freq_hz)
         if mode:
-            param = MODE_TO_PARAM.get(str(mode).strip().upper())
-            if param is not None:
-                rig.Mode = param
+            param = MODE_TO_PARAM.get(_mode_omnirig(mode))
+            if param is None:
+                # Mode inconnu : ne PAS annoncer un succès (la fréquence est
+                # réglée, mais le mode NON) — cohérent avec set_mode().
+                return {'ok': False, 'freq_set': True,
+                        'error': f'Mode "{mode}" non reconnu par OmniRig'}
+            rig.Mode = param
         return {'ok': True}
 
     return _com_call(rig_num, _write)
@@ -306,7 +324,7 @@ def set_mode(cfg, mode):
     if not settings['enabled']:
         return {'ok': False, 'error': 'Pilotage OmniRig désactivé (CONFIG)'}
     rig_num = settings['rig_num']
-    param = MODE_TO_PARAM.get(str(mode or '').strip().upper())
+    param = MODE_TO_PARAM.get(_mode_omnirig(mode))
     if param is None:
         return {'ok': False, 'error': f'Mode "{mode}" non reconnu par OmniRig — '
                 f'valeurs acceptées : {", ".join(sorted(MODE_TO_PARAM))}'}
