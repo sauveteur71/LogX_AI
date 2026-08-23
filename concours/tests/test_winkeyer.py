@@ -95,6 +95,56 @@ def test_le_texte_part_apres_l_ouverture():
     assert o.index(b'CQ TEST') > o.index(bytes([0x00, 0x02]))
 
 
+# ─── Séquence de réglages WK3 à l'ouverture (Phase 2B) ───────────────────────
+
+def test_sequence_wk3_dans_l_ordre_source():
+    """Après Host Open, la séquence sourcée K1EL est envoyée DANS L'ORDRE :
+    capacités WK3 → PINCFG → PTT → mode → WPM → weighting → ratio → sidetone."""
+    wk.envoyer(CFG, 'CQ')
+    o = _octets()
+    frames = [
+        bytes([0x00, 0x02]),        # Host Open
+        bytes([0x00, 0x14]),        # ADMIN_ENABLE_WK3
+        bytes([0x09, 0x0B]),        # PINCFG KEY1+PTT+sidetone (défaut)
+        bytes([0x04, 0x00, 0x00]),  # PTT lead/tail 0/0 (défaut)
+        bytes([0x0E, 0x16]),        # mode IambicA+echo+autospace (défaut)
+        bytes([0x02, 28]),          # WPM 28 (CFG)
+        bytes([0x03, 0x32]),        # weighting 50 (défaut)
+        bytes([0x17, 0x32]),        # ratio 50 = 1:3 (défaut)
+        bytes([0x01, 78]),          # sidetone 800 Hz (défaut) -> 62500/800≈78
+    ]
+    positions = [o.index(f) for f in frames]
+    assert positions == sorted(positions), (positions, o.hex())
+
+
+def test_farnsworth_absent_par_defaut_present_si_active():
+    wk.envoyer(CFG, 'CQ')
+    assert bytes([0x0D]) not in _octets()            # 0 = désactivé -> non envoyé
+    FauxWinKeyer.instances = []
+    wk.fermer()
+    wk.envoyer(dict(CFG, winkeyer_farnsworth=25), 'CQ')
+    assert bytes([0x0D, 0x19]) in _octets()          # 25 WPM caractères -> 0D 19
+
+
+def test_reglages_config_appliques():
+    wk.envoyer(dict(CFG, winkeyer_weighting=55, winkeyer_ratio=33,
+                    winkeyer_sidetone_hz=700, winkeyer_ptt_lead_ms=100,
+                    winkeyer_ptt_tail_ms=300), 'CQ')
+    o = _octets()
+    assert bytes([0x03, 0x37]) in o                  # weighting 55
+    assert bytes([0x17, 0x21]) in o                  # ratio 33
+    assert bytes([0x01, 89]) in o                    # sidetone 700 -> 62500/700≈89
+    assert bytes([0x04, 10, 30]) in o                # PTT lead 100ms tail 300ms
+
+
+def test_config_hors_plage_bornee_sans_crash():
+    # weighting 999 -> borné 90 (03 5A) ; sidetone 100 Hz -> borné 500 (01 7D)
+    res = wk.envoyer(dict(CFG, winkeyer_weighting=999, winkeyer_sidetone_hz=100), 'CQ')
+    assert res['ok']
+    o = _octets()
+    assert bytes([0x03, 0x5A]) in o and bytes([0x01, 0x7D]) in o
+
+
 def test_un_port_sans_winkeyer_est_detecte():
     """Sans la lecture de version, un simple adaptateur USB passerait pour un
     manipulateur et les macros partiraient dans le vide, sans message."""

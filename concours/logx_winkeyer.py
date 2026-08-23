@@ -201,17 +201,52 @@ class PortWinKeyer:
 _ouvrir_port = PortWinKeyer
 
 
+def _entier_borne(valeur, lo, hi, defaut):
+    """Entier de config borné [lo, hi], repli `defaut` si absent/illisible.
+    Sert à ce que les helpers wk_* ne lèvent jamais sur une config malformée."""
+    try:
+        v = int(valeur)
+    except (TypeError, ValueError):
+        return defaut
+    return max(lo, min(hi, v))
+
+
+def _multiple_10_borne(valeur, hi_ms, defaut):
+    """Délai PTT en ms : borné [0, hi_ms] ET arrondi au multiple de 10 ms
+    inférieur (le protocole ne code que des pas de 10 ms)."""
+    try:
+        v = int(valeur)
+    except (TypeError, ValueError):
+        return defaut
+    v = max(0, min(hi_ms, v))
+    return v - (v % 10)
+
+
+# PINCFG par défaut : KEY1 + PTT + sidetone (le profil courant WKUSB).
+PINCFG_DEFAUT = PINCFG_KEY_1 | PINCFG_PTT | PINCFG_SIDETONE   # 0x0B
+
+
 def parametres(cfg):
     cfg = cfg or {}
-    wpm = cfg.get('winkeyer_wpm', 25)
+    # Farnsworth : 0 = DÉSACTIVÉ (on ne l'enverra pas) ; sinon borné 10–99.
+    farns = cfg.get('winkeyer_farnsworth', 0)
     try:
-        wpm = int(wpm)
+        farns = int(farns)
     except (TypeError, ValueError):
-        wpm = 25
+        farns = 0
+    farns = 0 if farns <= 0 else max(10, min(99, farns))
     return {
         'enabled': str(cfg.get('winkeyer_enabled', '')).strip() not in ('', '0', 'False', 'false'),
         'port': str(cfg.get('winkeyer_port', '') or '').strip(),
-        'wpm': max(WPM_MIN, min(WPM_MAX, wpm)),
+        'wpm': _entier_borne(cfg.get('winkeyer_wpm', 25), WPM_MIN, WPM_MAX, 25),
+        'weighting': _entier_borne(cfg.get('winkeyer_weighting', 50), 10, 90, 50),
+        'ratio': _entier_borne(cfg.get('winkeyer_ratio', 50), 33, 66, 50),
+        'farnsworth': farns,
+        'sidetone_hz': _entier_borne(cfg.get('winkeyer_sidetone_hz', 800), 500, 4000, 800),
+        'ptt_lead_ms': _multiple_10_borne(cfg.get('winkeyer_ptt_lead_ms', 0), 2500, 0),
+        'ptt_tail_ms': _multiple_10_borne(cfg.get('winkeyer_ptt_tail_ms', 0), 2500, 0),
+        'mode_bits': _entier_borne(cfg.get('winkeyer_mode', MODE_LOGX_DEFAUT), 0, 255, MODE_LOGX_DEFAUT),
+        'pincfg': _entier_borne(cfg.get('winkeyer_pincfg', PINCFG_DEFAUT), 0, 255, PINCFG_DEFAUT),
     }
 
 
@@ -234,7 +269,24 @@ def fermer():
     return {'ok': True}
 
 
-def _ouvrir_locked(nom_port, wpm):
+def _appliquer_reglages_wk3_locked(p):
+    """Applique les réglages WK3 sur le port déjà ouvert (session active).
+    Séquence sourcée K1EL : capacités WK3 → PINCFG → PTT lead/tail → mode →
+    WPM → weighting → ratio → Farnsworth (si activé) → sidetone. Les valeurs
+    viennent de parametres() (déjà bornées : les helpers wk_* ne lèvent pas)."""
+    _port.write(bytes([ADMIN, ADMIN_ENABLE_WK3]))
+    _port.write(wk_set_pin_config(p['pincfg']))
+    _port.write(wk_set_ptt_lead_tail(p['ptt_lead_ms'], p['ptt_tail_ms']))
+    _port.write(wk_set_mode(p['mode_bits']))
+    _port.write(bytes([CMD_SET_WPM, p['wpm']]))
+    _port.write(wk_set_weighting(p['weighting']))
+    _port.write(wk_set_dit_dah_ratio(p['ratio']))
+    if p['farnsworth']:
+        _port.write(wk_set_farnsworth(p['farnsworth']))
+    _port.write(wk_set_sidetone(p['sidetone_hz']))
+
+
+def _ouvrir_locked(params):
     """Ouvre et fait entrer le WinKeyer en mode piloté.
 
     L'ouverture RENVOIE la version du micrologiciel : c'est la seule preuve
@@ -243,6 +295,7 @@ def _ouvrir_locked(nom_port, wpm):
     manipulateur, et les macros partiraient dans le vide sans le moindre
     message."""
     global _port, _port_nom, _version
+    nom_port = params['port']
     if _port is not None and _port_nom == nom_port:
         return None
     _fermer_locked()
@@ -278,7 +331,13 @@ def _ouvrir_locked(nom_port, wpm):
         return ("Aucune réponse du WinKeyer sur %s — vérifie le port, "
                 "l'alimentation du boîtier et le câble" % nom_port)
     _version = reponse[0]
-    _port.write(bytes([CMD_SET_WPM, wpm]))
+    # Séquence WK3 (capacités + PINCFG + PTT + mode + WPM + weighting/ratio/
+    # Farnsworth/sidetone). Bornée en amont ; on protège quand même la session.
+    try:
+        _appliquer_reglages_wk3_locked(params)
+    except Exception as e:
+        _fermer_locked()
+        return 'Réglages WinKeyer refusés sur %s (%s)' % (nom_port, e)
     return None
 
 
@@ -298,7 +357,7 @@ def envoyer(cfg, texte):
     if not propre:
         return {'ok': False, 'error': 'Rien à manipuler (texte vide après filtrage)'}
     with _lock:
-        err = _ouvrir_locked(p['port'], p['wpm'])
+        err = _ouvrir_locked(p)
         if err:
             return {'ok': False, 'error': err}
         try:
@@ -338,7 +397,7 @@ def tester(cfg):
     if not p['port']:
         return {'ok': False, 'error': 'Port du WinKeyer non renseigné'}
     with _lock:
-        err = _ouvrir_locked(p['port'], p['wpm'])
+        err = _ouvrir_locked(p)
         if err:
             return {'ok': False, 'error': err}
         v = _version
