@@ -238,13 +238,13 @@
                     "description": "Optionnel : la règle ne s'applique qu'à ces modes (ex. ARRL 10m : CW=4 pts). Une règle filtrée par mode est SAUTÉE quand le mode est inconnu (spots cluster) — prévoir une règle plancher sans filtre ensuite."
                   },
                   "points": {
-                    "description": "Nombre fixe, 'per_km' (= distance en km), ou référence à un paramètre du bloc scoring : {'param': 'points_dx', 'default': 3}.",
+                    "description": "Nombre fixe, 'per_km' (= distance en km), 'per_km_stew' (Stew Perry : 1 + km//500), ou référence à un paramètre du bloc scoring : {'param': 'points_dx', 'default': 3}.",
                     "oneOf": [
                       {
                         "type": "number"
                       },
                       {
-                        "const": "per_km"
+                        "enum": ["per_km", "per_km_stew"]
                       },
                       {
                         "type": "object",
