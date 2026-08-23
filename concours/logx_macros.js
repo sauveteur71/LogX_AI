@@ -170,7 +170,8 @@ function cwEnvoyerTexte(txt){
   return fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({text: txt,
         armed: (typeof cwTxArme !== 'undefined' && cwTxArme),
-        mode: (typeof cwCurrentMode === 'function' ? cwCurrentMode() : '')})})
+        mode: (typeof cwCurrentMode === 'function' ? cwCurrentMode() : ''),
+        freq_khz: (typeof rigState !== 'undefined' && rigState.freq_khz) || undefined})})
     .then(r => r.json());
 }
 

@@ -105,3 +105,18 @@ def segment_for(freq_khz, band=None):
         if s['start_khz'] <= f < s['end_khz']:
             return s
     return None
+
+
+def en_bande_amateur(freq_khz):
+    """True si `freq_khz` tombe dans UNE bande amateur de l'inventaire IARU R1
+    (2200 m → 1 mm, HF/VHF/UHF/SHF). Sert au garde-fou d'émission CW : ne pas
+    keyer hors bande. `freq_khz` illisible/absente -> None (indéterminé :
+    l'appelant ne bloque PAS dessus, ex. pas de CAT pour donner la fréquence)."""
+    try:
+        f = float(freq_khz)
+    except (TypeError, ValueError):
+        return None
+    for e in _bp()['inventaire']:
+        if e['start_mhz'] * 1000.0 <= f < e['end_mhz'] * 1000.0:
+            return True
+    return False

@@ -40,4 +40,13 @@ def cw_tx_autorise(payload):
     if mode and not est_mode_cw(mode):
         return False, (f"Le poste est en « {mode} » — passe-le en CW "
                        "avant d'émettre du CW.")
+    # HORS PLAN DE BANDE : si la fréquence est CONNUE (CAT) et hors de toute
+    # bande amateur, on refuse (émission illégale). Fréquence inconnue (pas de
+    # CAT) -> en_bande_amateur() renvoie None et on NE bloque PAS sur ce critère.
+    freq = payload.get('freq_khz')
+    if freq not in (None, ''):
+        import logx_frequences as freq_mod
+        if freq_mod.en_bande_amateur(freq) is False:
+            return False, (f"Fréquence {freq} kHz hors des bandes amateur — "
+                           "vérifie le VFO avant d'émettre.")
     return True, ''
