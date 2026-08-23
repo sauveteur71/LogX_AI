@@ -138,6 +138,67 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
     <div class="qsy-note">Envoie ton poste (piloté par CAT) sur la fréquence conventionnelle du mode numérique pour la bande choisie (IARU R1). Rien n'est émis — simple changement de fréquence ; tu restes libre de retuner ensuite.</div>
   </div>
 
+  <!-- ══ SECTION FT2 — Decodium 4.0 (EXPÉRIMENTAL) ══════════════════════════
+       Phase 4 : coquille visuelle + la SEULE action réellement fonctionnelle,
+       le QSY (RX seul, /rig/qsy sans mode -> le poste garde son mode data).
+       L'émission FT2 ne part JAMAIS de LogX : elle passe par Decodium (UDP),
+       et le câblage des boutons « Préparer/Appeler FT2 » est de la Phase 5
+       (essai on-air supervisé). En Phase 4 ces boutons sont donc présents mais
+       DÉSACTIVÉS (choix F4GLD : structure finale visible, rien ne peut émettre).
+       Profil SÉPARÉ et expérimental (jamais mêlé au plan de bande IARU) —
+       servi par GET /freq/ft2. Le bandeau d'avertissement reste TOUJOURS
+       visible (choix F4GLD). Ne PAS créer de profil global nommé « FT2 ». -->
+  <style>
+  .ft2-panel{background:var(--bg2);border:1px solid var(--red);border-radius:12px;padding:14px 18px;margin:0 0 20px}
+  .ft2-title{font-family:var(--font-display);font-weight:900;color:var(--accent2);font-size:14px;letter-spacing:.2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ft2-title svg{width:18px;height:18px;flex-shrink:0}
+  .ft2-exp{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;padding:2px 7px;border-radius:4px;background:rgba(var(--accent-rgb),.14);color:var(--red);border:1px solid var(--red)}
+  .ft2-warn{margin:11px 0;padding:10px 12px;border-radius:8px;background:rgba(255,45,85,.10);border:1px solid var(--red);border-left:3px solid var(--red);font-size:12px;color:var(--text);line-height:1.55}
+  body.day-mode .ft2-warn{background:rgba(204,0,48,.09)}
+  .ft2-warn ul{margin:5px 0 0;padding-left:18px}
+  .ft2-warn li{margin:1px 0}
+  .ft2-warn.fort{border-width:2px;box-shadow:0 0 0 1px var(--red) inset}
+  .ft2-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;margin-top:4px}
+  .ft2-row label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);letter-spacing:.5px}
+  .ft2-row select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-family:var(--font-mono);font-size:13px;min-width:90px}
+  .ft2-freq{font-family:var(--font-mono);font-size:15px;color:var(--accent2);min-width:150px}
+  .ft2-note{width:100%;font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .ft2-tx{margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
+  .ft2-tx-title{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--muted);margin-bottom:8px}
+  .ft2-voyants{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+  .ft2-v{display:flex;align-items:center;gap:6px}
+  .ft2-v .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
+  .ft2-v .dot.on{background:var(--green)}
+  .ft2-v .dot.off{background:var(--red)}
+  .ft2-tx-btns{display:flex;flex-wrap:wrap;gap:10px}
+  .ft2-tx-btns .mode-btn{margin:0}
+  .ft2-tx-hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:8px;max-width:640px}
+  </style>
+  <div class="ft2-panel" id="ft2Panel" style="display:none">
+    <div class="ft2-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg><span id="ft2Label">FT2 — Decodium 4.0</span><span class="ft2-exp">EXPÉRIMENTAL</span></div>
+    <div class="ft2-warn" id="ft2Warn"></div>
+    <div class="ft2-row">
+      <label>BANDE<select id="ft2Band"></select></label>
+      <span class="ft2-freq" id="ft2Freq">—</span>
+      <button class="mode-btn" id="ft2Go" onclick="ft2Aller()">Aller sur FT2 (QSY, RX seul)</button>
+    </div>
+    <div class="ft2-note" id="ft2FreqNote">QSY simple : LogX règle ton poste sur la fréquence Decodium de la bande choisie. <b>Rien n'est émis.</b> Ton poste garde son mode data actuel (le même qu'en FT8) — à toi de le régler comme d'habitude.</div>
+    <div class="ft2-tx">
+      <div class="ft2-tx-title">ÉMISSION FT2 — pilotée par Decodium (UDP), jamais par LogX</div>
+      <div class="ft2-voyants">
+        <span class="ft2-v"><span class="dot" id="ft2vUdp"></span>Decodium relié</span>
+        <span class="ft2-v"><span class="dot" id="ft2vAccept"></span>Accept commands</span>
+        <span class="ft2-v"><span class="dot" id="ft2vTx"></span>TX armée</span>
+        <span class="ft2-v"><span class="dot" id="ft2vFreq"></span>Fréquence autorisée</span>
+      </div>
+      <div class="ft2-tx-btns">
+        <button class="mode-btn" id="ft2Prep" disabled title="Câblage Phase 5 — l'écoute UDP Decodium et l'essai on-air supervisé arrivent ensuite">Préparer FT2</button>
+        <button class="mode-btn" id="ft2Call" disabled title="Câblage Phase 5 — confirmation explicite + envoi Reply gardé (can_send_ft2_reply), essai on-air supervisé">Appeler FT2</button>
+      </div>
+      <div class="ft2-tx-hint">Aucune émission automatique : un double-clic sur un décodage <b>prépare</b> une réponse mais n'émet jamais. « Appeler FT2 » exigera une confirmation explicite et l'accord de tous les voyants (garde <code>can_send_ft2_reply</code>). Le câblage réel de l'émission est en <b>Phase 5</b> — ces boutons s'activeront pour l'essai on-air, sous ta supervision.</div>
+    </div>
+  </div>
+
   <div class="mode-grid">
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg>FT8</div>
@@ -230,6 +291,70 @@ async function qsyAller(){
   } catch(err){ notifyHub('QSY impossible : serveur injoignable.'); }
 }
 document.addEventListener('DOMContentLoaded', qsyInit);
+
+// ─── Section FT2 — Decodium 4.0 (EXPÉRIMENTAL) ─────────────────────────────
+// Profil SÉPARÉ servi par /freq/ft2 (jamais mêlé au plan de bande IARU). En
+// Phase 4 : bandeau d'avertissement TOUJOURS visible + QSY (RX seul, sans
+// mode -> le poste garde son mode data). L'émission passe par Decodium (UDP)
+// et n'est PAS câblée ici : les boutons Préparer/Appeler restent désactivés
+// (Phase 5, essai on-air supervisé). Aucune valeur de domaine inventée : tout
+// vient du JSON servi par le serveur.
+let _ft2 = null;
+function _ft2FmtMHz(hz){ return (hz / 1e6).toFixed(3) + ' MHz'; }
+async function ft2Init(){
+  const panel = document.getElementById('ft2Panel');
+  try {
+    const r = await fetch('/freq/ft2');
+    if(!r.ok) throw new Error('http');
+    _ft2 = await r.json();
+    if(!_ft2.frequencies || !_ft2.frequencies.length) throw new Error('vide');
+  } catch(e){ if(panel) panel.style.display = 'none'; return; }  // pas de profil -> pas de section
+  if(panel) panel.style.display = '';
+  if(_ft2.label) document.getElementById('ft2Label').textContent = _ft2.label;
+  // Avertissements : rendus une fois, restent affichés en permanence.
+  const warn = document.getElementById('ft2Warn');
+  const items = (_ft2.avertissements || []).map(a => '<li>' + _ft2Echap(a) + '</li>').join('');
+  warn.innerHTML = '<b>⚠ FT2 est expérimental — à lire avant toute émission :</b>'
+    + (items ? '<ul>' + items + '</ul>' : '');
+  const bandSel = document.getElementById('ft2Band');
+  bandSel.innerHTML = _ft2.frequencies.map((f, i) => '<option value="' + i + '">' + _ft2Echap(f.band) + '</option>').join('');
+  bandSel.onchange = ft2RefreshFreq;
+  ft2RefreshFreq();
+}
+function _ft2Echap(s){ const d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+function ft2RefreshFreq(){
+  if(!_ft2) return;
+  const i = parseInt(document.getElementById('ft2Band').value, 10);
+  const f = (_ft2.frequencies || [])[i];
+  const disp = document.getElementById('ft2Freq'), go = document.getElementById('ft2Go');
+  const warn = document.getElementById('ft2Warn'), note = document.getElementById('ft2FreqNote');
+  if(!f){ disp.textContent = '—'; go.disabled = true; return; }
+  disp.textContent = _ft2FmtMHz(f.dial_hz) + ' (dial Decodium)';
+  go.disabled = false;
+  // Avertissement renforcé sur les fréquences marquées warning_fort (17 m, 6 m).
+  warn.classList.toggle('fort', !!f.warning_fort);
+  const base = 'QSY simple : LogX règle ton poste sur la fréquence Decodium de la bande choisie. Rien n\'est émis. Ton poste garde son mode data actuel (le même qu\'en FT8) — à toi de le régler comme d\'habitude.';
+  note.innerHTML = _ft2Echap(base).replace('Rien n\'est émis', '<b>Rien n\'est émis</b>')
+    + (f.note ? '<br><span style="color:var(--red)">⚠ ' + _ft2Echap(f.note) + '</span>' : '');
+}
+async function ft2Aller(){
+  if(!_ft2) return;
+  const i = parseInt(document.getElementById('ft2Band').value, 10);
+  const f = (_ft2.frequencies || [])[i];
+  if(!f) return;
+  const freqKhz = Math.round(f.dial_hz / 1000);
+  try {
+    // QSY RX seul : freq_khz sans 'mode' -> /rig/qsy garde le mode courant du
+    // poste (mode optionnel côté serveur). Aucune émission.
+    const r = await fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq_khz: freqKhz})});
+    const d = await r.json().catch(() => ({}));
+    if(d.ok) notifyHub('QSY FT2 ' + _ft2FmtMHz(f.dial_hz) + ' (' + f.band + ') — vérifie ton mode data. Rien n\'est émis.');
+    else notifyHub('QSY impossible : ' + (d.error || 'poste non piloté par CAT ?'));
+  } catch(err){ notifyHub('QSY impossible : serveur injoignable.'); }
+}
+document.addEventListener('DOMContentLoaded', ft2Init);
+
 function ouvrirFenetreDetachee(url, nom, options){
   // REVENIR SUR LA PAGE DÉJÀ OUVERTE, SANS LA RECHARGER.
   //
