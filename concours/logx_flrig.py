@@ -94,11 +94,18 @@ def set_freq(host, port, freq_hz, mode=None):
         with _lock:
             proxy = _proxy(host, port)
             proxy.rig.set_frequency(float(freq_hz))
-            if mode:
-                proxy.rig.set_mode(str(mode))
-        return {'ok': True}
     except Exception as e:
         return {'ok': False, 'error': f'flrig injoignable ({e})'}
+    if mode:
+        try:
+            with _lock:
+                _proxy(host, port).rig.set_mode(str(mode))
+        except Exception as e:
+            # La fréquence EST réglée ; seul le mode a échoué. On le dit sans
+            # laisser croire que le QSY a échoué (freq_set=True).
+            return {'ok': False, 'freq_set': True,
+                    'error': f'Fréquence réglée mais mode "{mode}" refusé par flrig ({e})'}
+    return {'ok': True}
 
 
 def set_ptt(host, port, on):
