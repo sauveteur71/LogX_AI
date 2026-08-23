@@ -67,12 +67,24 @@ def _record(exc_type, exc_value, exc_tb, thread_name):
     """Ajoute une entrée au tampon mémoire ET au fichier disque. Ne lève
     jamais — un bug dans le journal d'erreurs lui-même ne doit pas empêcher le
     programme de continuer (ou pire, masquer l'erreur d'origine)."""
-    tb_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    # Construction DÉFENSIVE : une exception dont __str__ lève (args non
+    # imprimables, objet en cours de finalisation à l'arrêt de l'interpréteur…)
+    # ferait sinon PROPAGER _record, alors que le docstring promet une fonction
+    # totale. traceback.format_exception appelle lui-même str(exc_value) — donc
+    # peut lever aussi. Sans ça, _excepthook se referme sans rien afficher.
+    try:
+        tb_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    except Exception:
+        tb_text = '(traceback illisible)'
+    try:
+        message = str(exc_value)
+    except Exception:
+        message = '(message illisible)'
     entry = {
         'ts': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'thread': thread_name,
-        'type': exc_type.__name__ if exc_type else 'Exception',
-        'message': str(exc_value),
+        'type': getattr(exc_type, '__name__', 'Exception') if exc_type else 'Exception',
+        'message': message,
         'traceback': tb_text,
     }
     # Le verrou enveloppe AUSSI la rotation + l'écriture disque, pas seulement

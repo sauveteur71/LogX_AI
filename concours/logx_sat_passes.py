@@ -176,7 +176,14 @@ def _corps(cache, nom):
         return None
     jeux = cache.get('tle') or {}
     cible = str(nom or '').upper().replace(' ', '').replace('-', '')
-    for cle, (l1, l2) in jeux.items():
+    for cle, paire in jeux.items():
+        # Ignore toute entrée qui n'est pas une paire (l1, l2) : un cache recopié
+        # ou écrit par une autre version peut contenir une chaîne ou une liste de
+        # 3 lignes. charger_tle() promet de ne jamais lever — on saute, on ne
+        # dépaquette pas à l'aveugle (sinon ValueError remonte à l'UI).
+        if not (isinstance(paire, (list, tuple)) and len(paire) == 2):
+            continue
+        l1, l2 = paire
         if cle.upper().replace(' ', '').replace('-', '') == cible:
             try:
                 return ephem.readtle(cle, l1, l2)
