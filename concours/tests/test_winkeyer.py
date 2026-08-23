@@ -117,6 +117,29 @@ def test_sequence_wk3_dans_l_ordre_source():
     assert positions == sorted(positions), (positions, o.hex())
 
 
+def test_variant_wk3_par_defaut_sequence_complete():
+    wk.envoyer(CFG, 'CQ')                      # pas de variant -> WK3 par défaut
+    o = _octets()
+    assert bytes([0x00, 0x14]) in o and bytes([0x03, 0x32]) in o   # capacités WK3 + weighting
+
+
+def test_variant_k3ng_n_envoie_que_la_base():
+    """K3NG (émulation WinKeyer 1/2) : PAS les commandes WK3, juste le WPM."""
+    wk.envoyer(dict(CFG, winkeyer_variant='K3NG'), 'CQ')
+    o = _octets()
+    assert bytes([0x00, 0x14]) not in o        # pas d'activation des capacités WK3
+    assert bytes([0x03, 0x32]) not in o        # pas de weighting WK3
+    assert bytes([wk.CMD_SET_WPM, 28]) in o    # mais la vitesse, oui
+    assert o.index(b'CQ') > o.index(bytes([0x00, 0x02]))   # texte après Host Open
+
+
+def test_parametres_variant_defaut_et_normalisation():
+    assert wk.parametres(CFG)['variant'] == 'WK3'
+    assert wk.parametres(dict(CFG, winkeyer_variant='K3NG'))['variant'] == 'K3NG'
+    assert wk.parametres(dict(CFG, winkeyer_variant='wk2'))['variant'] == 'K3NG'
+    assert wk.parametres(dict(CFG, winkeyer_variant='xyz'))['variant'] == 'WK3'
+
+
 def test_farnsworth_absent_par_defaut_present_si_active():
     wk.envoyer(CFG, 'CQ')
     assert bytes([0x0D]) not in _octets()            # 0 = désactivé -> non envoyé
