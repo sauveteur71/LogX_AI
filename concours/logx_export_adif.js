@@ -135,10 +135,21 @@ async function exportADIF(){
   downloadAdifBlob(buildAdifText(validQSOs), 'log');
 }
 
+// Échappement CSV (RFC 4180) : un champ contenant une virgule, un guillemet ou
+// un retour-ligne est entouré de guillemets (guillemets internes doublés) ;
+// undefined/null -> '' (jamais le texte « undefined »). Sans ça, une virgule
+// dans un champ (échange, locator, opérateur) décalait toutes les colonnes.
+function _csvField(v){
+  const s = (v === undefined || v === null) ? '' : String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
 function exportCSV(){
   let csv = 'N°,Date,Heure,Indicatif,Bande,Mode,RST_env,N°_env,RST_recu,N°_recu,Locator,Distance_km,Points,Operateur\n';
   qsoLog.forEach((q,i)=>{
-    csv += `${i+1},${q.date},${q.time},${q.call},${q.band},${q.mode},${q.rst_sent},${q.num_sent},${q.rst_rcvd},${q.num_rcvd||''},${q.locator||''},${q.dist||0},${q.points||0},${_resolveOperatorCallsign(q.operator)}\n`;
+    csv += [i+1, q.date, q.time, q.call, q.band, q.mode, q.rst_sent, q.num_sent,
+            q.rst_rcvd, q.num_rcvd, q.locator, (q.dist||0), (q.points||0),
+            _resolveOperatorCallsign(q.operator)].map(_csvField).join(',') + '\n';
   });
   const blob = new Blob([csv],{type:'text/csv'});
   const a = document.createElement('a');
