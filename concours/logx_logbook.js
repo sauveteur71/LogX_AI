@@ -287,6 +287,9 @@ function itemsMenuLogbook(format){
   }
   apres.push(['📥', 'Exporter ADIF', 'exportADIF']);
   apres.push(['📥', 'Exporter CSV', 'exportCSV']);
+  // CSV « valide » = uniquement les QSO complets/validés (comme ADIF/Cabrillo),
+  // à côté du CSV complet (brut, tous les QSO). Le libellé dit la distinction.
+  apres.push(['📥', 'Exporter CSV valide (QSO validés)', 'exportCSVValide']);
   // Carte QSL papier : action légitime après avoir loggué des QSO même en
   // usage simple/DXpédition (envoyer une carte QSL est une pratique courante,
   // pas un outil de power-user) -- donc PAS dans MENU_LB_EXPERT_ONLY_FN.
