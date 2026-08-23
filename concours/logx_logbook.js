@@ -3197,6 +3197,20 @@ async function syncOfflineQueue(){
 
 function backupLog(){
   if(!qsoLog.length) return;
+  // Garde-fou client (miroir du _SEUIL_PERTE_MASSIVE serveur = 25) : ne pas
+  // écraser le filet rc_log_backup avec un carnet BRUTALEMENT rétréci. fetchLog()
+  // peut remplacer qsoLog par une liste complète PLUS COURTE (redémarrage /
+  // boot-token périmé / chargement disque incomplet / perte massive) ; sans ce
+  // contrôle, le tick suivant recopiait le carnet amputé PAR-DESSUS le backup
+  // complet — le filet détruit précisément quand il sert.
+  try{
+    const prev = JSON.parse(localStorage.getItem('rc_log_backup') || 'null');
+    if(Array.isArray(prev) && prev.length - qsoLog.length >= 25){
+      console.warn('[backup] carnet rétréci de '+prev.length+' à '+qsoLog.length
+        +' QSO — filet rc_log_backup PRÉSERVÉ (réponse serveur partielle ?)');
+      return;
+    }
+  }catch(e){}
   const now = new Date();
   const hhmm = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
   localStorage.setItem('rc_log_backup', JSON.stringify(qsoLog));
