@@ -206,9 +206,32 @@ function cwPiloteDisponible(){
 // sinon du sélecteur du carnet : même priorité que updateKeyerPanels()/
 // esmSend(), pour qu'un opérateur en CW sans CAT soit détecté.
 function cwEmissionPossible(){
-  const mode = (typeof rigState !== 'undefined' && rigState.mode)
-    || (typeof currentMode !== 'undefined' ? currentMode : '');
-  return cwPiloteDisponible() && /CW/i.test(mode || '');
+  return cwPiloteDisponible() && /CW/i.test(cwCurrentMode());
+}
+
+// Mode courant vu par le client : la radio quand le CAT le donne, sinon le
+// sélecteur du carnet — même priorité que cwEmissionPossible()/esmSend(). Envoyé
+// au serveur avec chaque /rig/cw pour la vérification de mode (logx_cw_guard).
+function cwCurrentMode(){
+  return ((typeof rigState !== 'undefined' && rigState.mode)
+    || (typeof currentMode !== 'undefined' ? currentMode : '') || '');
+}
+
+// ─── Interrupteur maître d'émission CW (TX-enable, F4GLD 23/08 keyer Phase 1) ──
+// DÉSARMÉ par défaut : aucune émission CW (macro, texte tapé) tant que
+// l'opérateur n'a pas armé explicitement. Le serveur REFUSE /rig/cw si non armé
+// (logx_cw_guard) — ceci n'est que le miroir client + le passage de l'état.
+let cwTxArme = false;
+function toggleCwTxArme(){
+  cwTxArme = !cwTxArme;
+  updateCwArmBtn();
+}
+function updateCwArmBtn(){
+  const btn = document.getElementById('cwArmBtn');
+  if(!btn) return;
+  btn.textContent = cwTxArme ? '🔴 TX ARMÉ' : '🔒 TX DÉSARMÉ';
+  btn.setAttribute('aria-pressed', cwTxArme ? 'true' : 'false');
+  btn.classList.toggle('armed', cwTxArme);
 }
 
 // Appelée depuis refreshHardware(). Le bouton STOP CW vit dans son propre
@@ -225,6 +248,7 @@ function updateCwStopBtn(){
   // ci-dessus. Le coupe-circuit reste offert tant qu'une manipulation est
   // pilotable, même si le sélecteur de mode a bougé depuis l'envoi.
   if(panel) panel.style.display = cwPiloteDisponible() ? 'block' : 'none';
+  updateCwArmBtn();   // reflète l'état armé/désarmé quand le panneau apparaît
 }
 
 // ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────

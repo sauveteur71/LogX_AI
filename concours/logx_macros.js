@@ -42,8 +42,24 @@ const DEFAULT_MACROS = [
   {key:'F6', label:'?',        text:'{CALL}?'},
   {key:'F7', label:'AGN?',     text:'AGN?'},
   {key:'F8', label:'73',       text:'73 {CALL}'},
+  {key:'F9', label:'NR?',      text:'{HISCALL} NR?'},
+  {key:'F10',label:'QSO B4',   text:'{HISCALL} QSO B4'},
+  {key:'F11',label:'MON IND',  text:'{MYCALL}'},
+  {key:'F12',label:'NOM/QTH',  text:'UR {RST} OP {NAME} QTH {QTH}'},
 ];
-function getMacros(){ try{ const s=localStorage.getItem('logx_macros'); return s?JSON.parse(s):DEFAULT_MACROS; }catch(e){ return DEFAULT_MACROS; } }
+// Migration douce : garantir F1–F12 même pour un log qui n'avait enregistré que
+// F1–F8, SANS écraser les macros personnalisées (fusion par clé). Les clés déjà
+// sauvegardées gardent le texte/label de l'opérateur ; les manquantes (F9–F12
+// d'un ancien log) sont ajoutées depuis DEFAULT_MACROS.
+function getMacros(){
+  let saved = null;
+  try{ const s=localStorage.getItem('logx_macros'); saved = s?JSON.parse(s):null; }catch(e){ saved=null; }
+  if(!Array.isArray(saved)) return DEFAULT_MACROS.slice();
+  const parCle = {}; saved.forEach(m => { if(m && m.key) parCle[m.key] = m; });
+  const fusion = DEFAULT_MACROS.map(d => parCle[d.key] || d);
+  saved.forEach(m => { if(m && m.key && !DEFAULT_MACROS.some(d => d.key === m.key)) fusion.push(m); });
+  return fusion;
+}
 function saveMacros(m){ localStorage.setItem('logx_macros', JSON.stringify(m)); }
 // {NR} doit valoir EXACTEMENT le numéro qui sera loggué : la macro F2
 // (« 59 {NR} {LOC} ») part directement au keyer de la radio via copyMacro() →
@@ -108,7 +124,24 @@ function expandMacro(text){
   // Un indicatif contenant « {LOC} » (collé depuis un spot de cluster, champ
   // mal rempli) serait alors ré-interprété. On ne re-substitue jamais une
   // valeur d'origine externe. (Revue adversariale du lot, 18/08/2026.)
-  return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr)
+  // Jetons ajoutés (keyer CW Phase 1, F4GLD 23/08) — toutes des sources RÉELLES,
+  // repli '' (jamais un caractère parasite sur l'air, comme les jetons existants) :
+  //   {MYCALL} = alias de {CALL} (ma station) ; {SERIAL} = alias de {NR} ;
+  //   {RST}  = RST envoyé (#inputRSTsent, repli _rstParDefaut(mode) déjà utilisé
+  //            par submitQSO) ; {NAME} = op_name (config) ; {QTH} = ville (config).
+  const rstEl = document.getElementById('inputRSTsent');
+  const rst = (rstEl && String(rstEl.value || '').trim())
+    || (typeof _rstParDefaut === 'function' && typeof currentMode !== 'undefined'
+        ? _rstParDefaut(currentMode) : '');
+  const name = cfg.op_name || '';
+  const qth  = cfg.city || '';
+  // {MYCALL} AVANT {CALL} (pas de chevauchement : « {MYCALL} » ne contient pas
+  // « {CALL} »), {HISCALL} en DERNIER (valeur d'origine externe, jamais
+  // re-substituée — voir plus haut).
+  return text.replace(/{MYCALL}/g,call).replace(/{CALL}/g,call)
+             .replace(/{LOC}/g,loc).replace(/{QTH}/g,qth)
+             .replace(/{SERIAL}/g,nr).replace(/{NR}/g,nr)
+             .replace(/{RST}/g,rst).replace(/{NAME}/g,name)
              .replace(/{HISCALL}/g,his);
 }
 function renderMacroPanel(){
@@ -128,6 +161,19 @@ function renderMacroPanel(){
 }
 
 
+// Envoi d'un texte au keyer CW — CHEMIN UNIQUE, gardé côté serveur par
+// logx_cw_guard (refus si TX désarmé ou mode ≠ CW). Utilisé par les macros ET
+// le terminal CW (logx_cw_terminal.js). Retourne la promesse résolue en
+// {ok, error, wpm, ...}. armed/mode via typeof (les globals vivent dans
+// logx_hardware_cat.js ; repli sûr si absents).
+function cwEnvoyerTexte(txt){
+  return fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text: txt,
+        armed: (typeof cwTxArme !== 'undefined' && cwTxArme),
+        mode: (typeof cwCurrentMode === 'function' ? cwCurrentMode() : '')})})
+    .then(r => r.json());
+}
+
 function copyMacro(idx){
   const m = getMacros()[idx]; if(!m) return;
   const txt = expandMacro(m.text);
@@ -141,15 +187,15 @@ function copyMacro(idx){
   // Garde typeof conservée : même motif que les autres lectures de rigState
   // hors de ce fichier (EV-7).
   if(typeof cwEmissionPossible === 'function' && cwEmissionPossible()){
-    fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
-                      body: JSON.stringify({text: txt})})
-      .then(r=>r.json()).then(d=>{
-        const toast = document.getElementById('macroToast');
-        if(toast){ toast.textContent = d.ok ? trF('📻 CW → {txt}', {txt})
-                                             : trF('❌ {err}', {err: d.error});
-          toast.className = 'macro-toast' + (d.ok ? '' : ' toast-err');
-          toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2200); }
-      }).catch(()=>{});
+    // Le serveur refuse (403) si TX désarmé ou mode ≠ CW ; le message de refus
+    // s'affiche via la branche `❌ {err}` du toast ci-dessous.
+    cwEnvoyerTexte(txt).then(d=>{
+      const toast = document.getElementById('macroToast');
+      if(toast){ toast.textContent = d.ok ? trF('📻 CW → {txt}', {txt})
+                                           : trF('❌ {err}', {err: d.error});
+        toast.className = 'macro-toast' + (d.ok ? '' : ' toast-err');
+        toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2200); }
+    }).catch(()=>{});
     return;
   }
   navigator.clipboard.writeText(txt).catch(()=>{});
@@ -167,7 +213,7 @@ function editMacro(idx){
   // {HISCALL} annoncé ici : un jeton que l'interface ne nomme nulle part
   // n'existe pas pour l'opérateur. `!` (alias N1MM) n'est volontairement PAS
   // listé — il sert aux macros recopiées depuis N1MM, pas à la découverte.
-  const newText = prompt(trT('Message ({CALL} {HISCALL} {LOC} {NR}) :'), m.text);
+  const newText = prompt(trT('Message ({CALL} {HISCALL} {LOC} {NR} {RST} {NAME} {QTH}) :'), m.text);
   if(newText === null) return;
   macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
   saveMacros(macros); renderMacroPanel();

@@ -198,6 +198,19 @@ body.sans-concours .compass-pts{display:none}
 
 /* MACRO PANEL */
 .macro-panel{background:var(--bg3);border-top:1px solid var(--border);padding:8px 14px 10px}
+/* Terminal CW (keyer Phase 1b) */
+.cw-term-panel{background:var(--bg3);border-top:1px solid var(--border);padding:8px 14px 10px}
+.cw-term-head{display:flex;align-items:center;gap:10px}
+.cw-term-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;color:inherit;font-family:var(--font-mono);font-size:12px;letter-spacing:1px}
+.cw-term-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.cw-term-wpm{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.cw-term-body{margin-top:8px}
+.cw-term-log{max-height:120px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-family:var(--font-mono);font-size:12px;line-height:1.5;margin-bottom:6px}
+.cw-term-row{white-space:pre-wrap;word-break:break-word}
+.cw-term-refuse{color:var(--red)}
+.cw-term-input{width:100%;box-sizing:border-box;padding:7px 9px;background:var(--bg2);color:inherit;border:1px solid var(--border);border-radius:5px;font-family:var(--font-mono);font-size:13px}
+.cw-term-input:focus{outline:none;border-color:var(--accent)}
+.cw-term-hint{margin-top:5px;font-size:11px;color:var(--muted)}
 .macro-panel-title{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:6px}
 .rig-panel{background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:8px}
 .rig-row{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:14px}
@@ -208,6 +221,9 @@ body.sans-concours .compass-pts{display:none}
 .rig-mode{color:var(--text);letter-spacing:1px}
 .rig-stop{margin-left:auto;font-family:var(--font-mono);font-size:12px;padding:3px 10px;border-radius:5px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;letter-spacing:1px}
 .rig-stop:hover{background:rgba(255,45,85,.15)}
+.rig-arm{margin-left:auto;margin-right:6px;font-family:var(--font-mono);font-size:12px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:1px}
+.rig-arm:hover{border-color:var(--accent);color:var(--accent)}
+.rig-arm.armed{border-color:var(--red);background:var(--red);color:#fff}
 .point-antenna-btn{font-family:var(--font-mono);font-size:12px;padding:4px 11px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;margin-left:auto;align-self:center}
 .point-antenna-btn:hover{background:var(--purple);color:#0A0B18}
 .macro-btns{display:flex;gap:5px;flex-wrap:wrap}
@@ -1745,6 +1761,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="rig-panel" id="cwStopPanel" style="display:none">
         <div class="rig-row">
           <span class="rig-label">CW</span>
+          <button class="rig-arm" id="cwArmBtn" onclick="toggleCwTxArme()" aria-pressed="false" title="Interrupteur maître d'émission CW : aucune émission tant qu'il est désarmé">🔒 TX DÉSARMÉ</button>
           <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours (Échap)">■ STOP CW</button>
         </div>
       </div>
@@ -1766,6 +1783,21 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="macro-panel expert-only" id="macroPanel">
         <div class="macro-panel-title" id="macroPanelTitle">MACROS — clic: copier · double-clic: modifier</div>
         <div class="macro-btns" id="macroBtns"></div>
+      </div>
+
+      <!-- TERMINAL CW (keyer Phase 1b) : saisie clavier → CW, journal, Échap = STOP.
+           Émission bloquée tant que TX désarmé (bouton près du STOP CW). -->
+      <div class="cw-term-panel expert-only" id="cwTerminalPanel">
+        <div class="cw-term-head">
+          <button class="cw-term-toggle" id="cwTermToggleBtn" onclick="cwTermToggle()" aria-expanded="false" aria-controls="cwTerminalBody">⌨ TERMINAL CW</button>
+          <span class="cw-term-wpm" id="cwTermWpm">— mots/min</span>
+        </div>
+        <div class="cw-term-body" id="cwTerminalBody" style="display:none">
+          <div class="cw-term-log" id="cwTermLog" aria-live="polite"></div>
+          <input type="text" id="cwTermInput" class="cw-term-input" autocomplete="off" spellcheck="false"
+                 placeholder="Tape ton texte puis Entrée — Échap = STOP" onkeydown="cwTermKey(event)">
+          <div class="cw-term-hint">Entrée = envoyer au keyer · Échap = STOP · macros F1–F12 ci-dessus · émission bloquée tant que TX désarmé</div>
+        </div>
       </div>
 
       <!-- LOCATOR TRACKER : carrés QRA entendus en FT8/FT4 qui apportent
@@ -2155,6 +2187,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_cw_panel2_audio.js"></script>
 <script src="logx_bandscope_waterfall.js"></script>
 <script src="logx_macros.js"></script>
+<script src="logx_cw_terminal.js"></script>
 <script src="logx_filtre_spots.js"></script>
 <script src="logx_shortcut_offer.js"></script>
 <script src="logx_version_badge.js"></script>
