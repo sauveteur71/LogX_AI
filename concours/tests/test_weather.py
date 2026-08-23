@@ -66,4 +66,8 @@ def test_valeur_null_ne_plante_pas(monkeypatch):
     monkeypatch.setattr(logx_utils, 'fetch_url', fake_fetch)
     weather._cache.update(ts=0, data=None, key='')
     r = weather.get_weather(45.1, 3.9)
-    assert r['ok'] and r['temp'] == 0 and r['gust'] == 0
+    # Ne plante pas (round(None)) ET une température null devient None, jamais
+    # un faux 0 °C (qui déclencherait une fausse alerte GEL — cf.
+    # test_weather_gel_temp_absente.py). Le vent/rafales gardent leur repli à 0.
+    assert r['ok'] and r['temp'] is None and r['gust'] == 0
+    assert 'Gel' not in r.get('warn', '')
