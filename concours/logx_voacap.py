@@ -432,6 +432,14 @@ def predict(tx_lat, tx_lon, rx_lat, rx_lon, month=None, year=None, ssn=None,
                 return {'ok': False, 'error': f"Echec du calcul VOACAP (code {r.returncode}): {detail}"}
             with open(out_path, "r", errors="replace") as f:
                 out_content = f.read()
+        except subprocess.TimeoutExpired:
+            # `timeout` existe PRÉCISÉMENT pour un voacapl.exe resté bloqué : le
+            # transformer en erreur PROPRE (comme toutes les autres sorties
+            # d'échec de predict()) plutôt que de laisser TimeoutExpired remonter
+            # et planter la route/l'appelant (en expédition, calcul 24h/24).
+            return {'ok': False,
+                    'error': f"Le moteur VOACAP n'a pas répondu dans le délai "
+                             f"imparti ({timeout:g} s) — calcul abandonné."}
         finally:
             for p in (dat_path, out_path,
                       os.path.join(_RUN_DIR, "gain01.dat"),
