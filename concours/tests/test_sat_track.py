@@ -33,20 +33,20 @@ class FauxRotor:
         self.stops = 0
         self.panne = False
 
-    def set_position(self, host, port, az, el=0):
+    def set_position(self, host, port, az, el=0, proto='rotctld'):
         if self.panne:
             return {'ok': False, 'error': 'rotctld injoignable (panne simulée)'}
         self.consignes.append((round(float(az), 1), round(float(el), 1)))
         return {'ok': True, 'azimuth': round(float(az), 1),
                 'elevation': round(float(el), 1)}
 
-    def get_position(self, host, port):
+    def get_position(self, host, port, proto='rotctld'):
         if self.panne:
             return {'ok': False, 'error': 'rotctld injoignable (panne simulée)'}
         az, el = self.consignes[-1] if self.consignes else (0.0, 0.0)
         return {'ok': True, 'azimuth': az, 'elevation': el}
 
-    def stop(self, host, port):
+    def stop(self, host, port, proto='rotctld'):
         self.stops += 1
         return {'ok': True}
 
@@ -483,7 +483,7 @@ def test_les_NaN_du_rotor_ne_partent_pas_dans_le_JSON(monkeypatch):
     import json
     _rotor(monkeypatch)
     monkeypatch.setattr(st.rotor, 'get_position',
-                        lambda h, p: {'ok': True, 'azimuth': float('nan'),
+                        lambda h, p, proto='rotctld': {'ok': True, 'azimuth': float('nan'),
                                       'elevation': float('inf')})
     monkeypatch.setattr(st.sp, 'charger_tle',
                         lambda *a, **k: {'recupere': 'x',
@@ -507,7 +507,7 @@ def test_la_position_rotor_affichee_est_RELUE_pas_l_echo(monkeypatch):
     import threading as _th
 
     class RotorALaTraine(FauxRotor):
-        def get_position(self, host, port):
+        def get_position(self, host, port, proto='rotctld'):
             # La mécanique est LOIN de la dernière consigne.
             return {'ok': True, 'azimuth': 42.0, 'elevation': 7.0}
 
