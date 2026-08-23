@@ -154,7 +154,7 @@ async function archiveLog(){
     if(d.ok){
       const clearedNote = d.cleared ? trT(' — log vidé, prêt pour la suite.') : trT(' — log conservé.');
       notify(trF('📦 Archivé : {n} QSO dans « {name} »{note}', {n: d.qso_count, name: d.name, note: clearedNote}));
-      if(d.cleared){ qsoLog = qsoLog.filter(q => false); resetLogRenderWindow(); renderLog(); updateStats(); }
+      if(d.cleared){ qsoLog = qsoLog.filter(q => false); serialByBand = {}; resetLogRenderWindow(); renderLog(); updateStats(); updateSerialDisplay(); }
       else { fetchLog(); }
     } else {
       notify(trF('Archivage : {err}', {err: d.error || trT('échec')}));
