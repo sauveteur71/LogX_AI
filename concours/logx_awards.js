@@ -100,6 +100,19 @@ function renderActivityChart(days){
     </div>`;
 }
 
+// Récap per-band / VUCC par bande : le champ `band` (clé) vient du QSO et peut
+// être alimenté par un import ADIF (non assaini côté serveur) — il DOIT être
+// échappé (escHtml), comme dans la Worked Matrix, avant d'être posé via
+// innerHTML. Extrait en helpers pour rester testable et cohérent.
+function _awardsPerBandHtml(perBand){
+  return Object.entries(perBand||{}).map(([b,v]) =>
+    `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${escHtml(b)} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
+}
+function _awardsVuccBandesHtml(perBand){
+  return Object.entries(perBand||{}).map(([b,n]) =>
+    `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${escHtml(b)} MHz : <b style="color:var(--text)">${n}</b></span>`).join('');
+}
+
 // ─── DIPLÔMES & QSL (carnet permanent, tous concours) ────────────────────────
 async function showAwards(){
   const ov = document.getElementById('awardsOverlay');
@@ -129,8 +142,7 @@ async function showAwards(){
   const row = (label, val) => `<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${label}</span><b>${val}</b></div>`;
   const confNote = a.has_confirmations ? '' :
     `<div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Aucune confirmation importée — synchronise LoTW ci-dessous pour voir le « confirmé ».</div>`;
-  const perBand = Object.entries(a.per_band||{}).map(([b,v]) =>
-    `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
+  const perBand = _awardsPerBandHtml(a.per_band);
   // ── Diplômes classiques ────────────────────────────────────────────────
   // Tous calculés RÉTROACTIVEMENT sur le carnet existant, sauf le WAS :
   // l'entité, la zone et le continent se déduisent de l'indicatif, le champ et
@@ -150,10 +162,7 @@ async function showAwards(){
     ? dip('🇺🇸 WAS (états US)', a.was) + manquants(a.was, 'États manquants')
     : row('🇺🇸 WAS (états US)', `<span style="color:var(--muted)">état non renseigné</span>`) +
       `<div style="margin-top:2px;font-size:12px;color:var(--muted)">L'état ne se déduit pas de l'indicatif. Il se remplit à la saisie (annuaire) et par un import ADIF LoTW/ClubLog.</div>`;
-  const vuccBandes = (a.vucc && a.vucc.per_band)
-    ? Object.entries(a.vucc.per_band).map(([b,n]) =>
-        `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${n}</b></span>`).join('')
-    : '';
+  const vuccBandes = (a.vucc && a.vucc.per_band) ? _awardsVuccBandesHtml(a.vucc.per_band) : '';
   const diplomesHtml = `
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🏅 DIPLÔMES</div>

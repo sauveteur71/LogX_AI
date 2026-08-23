@@ -39,7 +39,11 @@ const VOICE_MACRO_DEFAULT = [
   {key:'B3', label:'REPORT', text:'{RST_SENT}, {MYCALL}'},
   {key:'B4', label:'73 + MERCI', text:'{TNX}, {MYCALL}'},
 ];
-function getVoiceDynMacros(){ try{ const s=localStorage.getItem('logx_voice_macros'); return s?JSON.parse(s):VOICE_MACRO_DEFAULT; }catch(e){ return VOICE_MACRO_DEFAULT; } }
+// Rend une COPIE du défaut (jamais la RÉFÉRENCE de la const) : editVoiceDynMacro
+// fait `macros[idx]={...}` et corromprait sinon VOICE_MACRO_DEFAULT en place —
+// les valeurs d'usine (et le repli si localStorage devient illisible) seraient
+// perdues pour toute la session.
+function getVoiceDynMacros(){ try{ const s=localStorage.getItem('logx_voice_macros'); return s?JSON.parse(s):VOICE_MACRO_DEFAULT.map(m=>({...m})); }catch(e){ return VOICE_MACRO_DEFAULT.map(m=>({...m})); } }
 function saveVoiceDynMacros(m){ localStorage.setItem('logx_voice_macros', JSON.stringify(m)); }
 
 function renderVoiceDynPanel(){
