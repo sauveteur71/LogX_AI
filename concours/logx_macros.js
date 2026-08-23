@@ -167,6 +167,18 @@ function renderMacroPanel(){
 // {ok, error, wpm, ...}. armed/mode via typeof (les globals vivent dans
 // logx_hardware_cat.js ; repli sûr si absents).
 function cwEnvoyerTexte(txt){
+  // Soundcard CW (Web Audio) : émission LOCALE (pas de POST serveur). Garde-fou
+  // CLIENT — TX armé requis (le garde-fou serveur ne s'applique pas à l'audio
+  // local). En SSB le poste n'est PAS en mode CW : on n'exige donc PAS le mode
+  // CW pour cette voie (contrairement aux keyers matériels).
+  if(typeof cwSoundcardActif === 'function' && cwSoundcardActif()){
+    if(!(typeof cwTxArme !== 'undefined' && cwTxArme)){
+      return Promise.resolve({ok: false, error: "TX non armé — arme l'émission (interrupteur maître) avant d'envoyer du CW."});
+    }
+    const wpm = (typeof cwSoundcardWpm === 'function') ? cwSoundcardWpm() : 20;
+    const hz = (typeof cwSoundcardHz === 'function') ? cwSoundcardHz() : 700;
+    return cwSoundcardPlay(txt, wpm, hz).then(() => ({ok: true, text: txt, wpm: wpm}));
+  }
   return fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({text: txt,
         armed: (typeof cwTxArme !== 'undefined' && cwTxArme),
@@ -187,7 +199,8 @@ function copyMacro(idx){
   // presse-papier alors que le serveur savait parfaitement les envoyer à la clé.
   // Garde typeof conservée : même motif que les autres lectures de rigState
   // hors de ce fichier (EV-7).
-  if(typeof cwEmissionPossible === 'function' && cwEmissionPossible()){
+  if((typeof cwEmissionPossible === 'function' && cwEmissionPossible())
+     || (typeof cwSoundcardActif === 'function' && cwSoundcardActif())){
     // Le serveur refuse (403) si TX désarmé ou mode ≠ CW ; le message de refus
     // s'affiche via la branche `❌ {err}` du toast ci-dessous.
     cwEnvoyerTexte(txt).then(d=>{

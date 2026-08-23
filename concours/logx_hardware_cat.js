@@ -167,6 +167,10 @@ function syncBandModeFromRig(freqKhz, mode){
 }
 
 function rigStopCW(){
+  // Coupe-circuit : arrête aussi le soundcard CW local (Web Audio), qui ne
+  // passe pas par le serveur — sinon Esc/STOP ne couperait pas une émission
+  // audio en cours.
+  if(typeof cwSoundcardStop === 'function') cwSoundcardStop();
   fetch('/rig/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
 }
 
