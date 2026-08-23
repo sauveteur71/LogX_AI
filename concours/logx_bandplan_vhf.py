@@ -327,7 +327,14 @@ def alternatives_nb(bande):
     """Segments à bande étroite alternatifs, CONDITIONNELS AU PAYS — piège (c).
     Retourne None si la bande n'en a pas."""
     a = ALTERNATIVES_NB.get(str(bande or '').strip())
-    return dict(a) if a else None
+    if not a:
+        return None
+    # Copie PROFONDE de la liste mutable 'alternatives' : un dict(a) de surface
+    # la partagerait par référence avec le global (un appelant qui la modifie
+    # corromprait la table du module). Les tuples internes sont immuables.
+    out = dict(a)
+    out['alternatives'] = list(out.get('alternatives', []))
+    return out
 
 
 def contraintes_puissance(mhz, large_bande=False):

@@ -65,6 +65,22 @@ def _chemin_local_valide(chemin, exists_fn):
     return exists_fn(chemin)
 
 
+def _split_args(args_raw, system=None):
+    """Découpe la chaîne d'arguments en liste. Sur Windows, shlex en mode POSIX
+    (le défaut) traite le backslash comme un échappement et détruit les chemins
+    (`C:\\a` -> `C:a`) : on passe alors posix=False (backslashes préservés) et on
+    retire à la main les guillemets d'entourage que ce mode laisse dans le token.
+    Ailleurs, découpage POSIX standard. `system` est injectable pour un test
+    déterministe quel que soit l'OS réel."""
+    if not isinstance(args_raw, str):
+        return list(args_raw or [])
+    if (system or platform.system()) == 'Windows':
+        toks = shlex.split(args_raw, posix=False)
+        return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in '"\'' else t
+                for t in toks]
+    return shlex.split(args_raw)
+
+
 def lancer(entree, deja_lance_fn=None, popen=None, exists_fn=None):
     """Un seul programme. `entree` : {'path', 'args', 'name', 'enabled'}.
     `deja_lance_fn`/`popen`/`exists_fn` injectables pour les tests (jamais de
@@ -80,7 +96,7 @@ def lancer(entree, deja_lance_fn=None, popen=None, exists_fn=None):
     if check(chemin):
         return {'ok': True, 'skipped': True}
     args_raw = (entree or {}).get('args', '')
-    args = shlex.split(args_raw) if isinstance(args_raw, str) else list(args_raw or [])
+    args = _split_args(args_raw)
     launcher = popen or subprocess.Popen
     try:
         # CREATE_NO_WINDOW (Windows) : un exécutable console (ex. un script
