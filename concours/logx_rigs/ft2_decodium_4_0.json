@@ -1,0 +1,32 @@
+{
+  "id": "ft2_decodium_4_0",
+  "label": "FT2 — Decodium 4.0 — Expérimental",
+  "_note": "Table FT2 du manuel Decodium 4.0, fournie par F4GLD le 23/08/2026. PROFIL SÉPARÉ et EXPÉRIMENTAL — ce ne sont PAS des fréquences de plan de bande IARU (aucun sous-segment FT2 dédié en Région 1). Ne jamais fusionner dans la table QSY réglementaire. Ne PAS ajouter les anciennes fréquences communautaires (7.052, 14.084) : listes FT2 concurrentes, hors table Decodium 4.0 actuelle.",
+  "source": "Manuel Decodium 4.0",
+  "mode": "MFSK",
+  "submode": "FT2",
+  "protocol_variant": "FT2_DECODIUM",
+  "source_application": "DECODIUM_4",
+  "status": "experimental",
+  "regulatory_status": "no_dedicated_iaru_segment",
+  "tx_confirmation_required": true,
+  "avertissements": [
+    "FT2 Decodium est expérimental.",
+    "Vérifier l'activité présente avant émission.",
+    "Vérifier la réglementation nationale.",
+    "Ne pas transmettre sur un QSO actif.",
+    "Aucune émission automatique.",
+    "Ces fréquences sont des conventions du projet Decodium, pas un plan de bande IARU."
+  ],
+  "frequencies": [
+    { "band": "80m", "dial_hz": 3580000 },
+    { "band": "40m", "dial_hz": 7080000, "note": "Segment 7.060–7.100 tous modes, mais préférence SSB contest en Région 1." },
+    { "band": "30m", "dial_hz": 10137000 },
+    { "band": "20m", "dial_hz": 14080000, "note": "Dans le segment numérique étroit 14.070–14.089 — bon candidat QSY FT2." },
+    { "band": "17m", "dial_hz": 18105000, "warning_fort": true, "note": "À la limite du segment de stations de données automatiquement contrôlées — avertissement renforcé." },
+    { "band": "15m", "dial_hz": 21080000 },
+    { "band": "12m", "dial_hz": 24920000 },
+    { "band": "10m", "dial_hz": 28180000 },
+    { "band": "6m", "dial_hz": 50318000, "warning_fort": true, "note": "6 m dépend du pays, de la région IARU et de l'activité VHF locale — profil régional obligatoire." }
+  ]
+}

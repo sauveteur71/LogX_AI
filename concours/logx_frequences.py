@@ -14,6 +14,10 @@ _FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      'logx_rigs', 'frequences_iaru_r1.json')
 _cache = None
 
+_FT2_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'logx_rigs', 'ft2_decodium_4_0.json')
+_ft2_cache = None
+
 
 def _load():
     global _cache
@@ -21,6 +25,20 @@ def _load():
         with open(_FILE, encoding='utf-8') as f:
             _cache = json.load(f).get('frequences', [])
     return _cache
+
+
+def ft2_decodium():
+    """Profil FT2 Decodium 4.0 — EXPÉRIMENTAL et SÉPARÉ (jamais mêlé au plan de
+    bande IARU : aucun sous-segment FT2 dédié en R1). Renvoie le dict complet :
+    métadonnées (status/regulatory_status/tx_confirmation_required),
+    avertissements et frequencies[{band, dial_hz, note?, warning_fort?}].
+    Lecture seule. Ces fréquences sont des conventions du projet, pas un
+    plan de bande — l'appelant DOIT afficher les avertissements avant émission."""
+    global _ft2_cache
+    if _ft2_cache is None:
+        with open(_FT2_FILE, encoding='utf-8') as f:
+            _ft2_cache = json.load(f)
+    return _ft2_cache
 
 
 def digital_table(region='IARU_R1'):

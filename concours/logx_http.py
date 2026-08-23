@@ -2995,6 +2995,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(freqdb.digital_table())
             return
 
+        # Profil FT2 Decodium 4.0 — EXPÉRIMENTAL et SÉPARÉ du plan de bande IARU
+        # (aucun sous-segment FT2 dédié). L'UI DOIT afficher les avertissements
+        # avant tout QSY/émission. Lecture seule.
+        if path == '/freq/ft2':
+            import logx_frequences as freqdb
+            self._json(freqdb.ft2_decodium())
+            return
+
         if path == '/call/index':
             import logx_callhistory as callhistory
             cfg_snap = self._cfg_snapshot()
