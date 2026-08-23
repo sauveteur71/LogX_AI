@@ -113,6 +113,10 @@ def duree_totale_ms(text, wpm):
 import threading  # noqa: E402
 
 WPM_MIN, WPM_MAX = 5, 99
+# Garde-fou anti-runaway : durée max d'UNE émission (le timing étant généré par
+# le PC, un texte absurde tiendrait la clé baissée trop longtemps). 120 s laisse
+# large pour un long CQ ; au-delà on refuse plutôt que de manipuler.
+_MAX_EMISSION_MS = 120000
 
 _lock = threading.Lock()
 _stop = threading.Event()
@@ -226,6 +230,9 @@ def envoyer(cfg, texte):
     seq = keying_sequence(texte, p['wpm'])
     if not seq:
         return {'ok': False, 'error': 'Rien à manipuler (texte vide après filtrage)'}
+    if sum(d for _, d in seq) > _MAX_EMISSION_MS:
+        return {'ok': False, 'error': 'Texte trop long pour une seule émission '
+                '(garde-fou anti-runaway) — découpe-le ou augmente la vitesse.'}
     global _thread
     with _lock:
         _arreter_locked()                      # stoppe une manip précédente
