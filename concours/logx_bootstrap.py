@@ -73,10 +73,21 @@ def bootstrap():
         dst = os.path.join(data, name)
         src = os.path.join(res, name)
         if not os.path.exists(dst) and os.path.exists(src):
+            # Copie ATOMIQUE : écrire dans un .tmp puis os.replace(). Une copie
+            # directe sur dst qui échoue en cours (disque plein, process tué)
+            # laisserait un dst TRONQUÉ que le garde `not os.path.exists(dst)`
+            # empêche ensuite de re-copier -> fichier de référence corrompu à
+            # vie (cty.dat partiel, custom_contests.json amputé).
+            tmp = dst + '.tmp'
             try:
-                shutil.copy2(src, dst)
+                shutil.copy2(src, tmp)
+                os.replace(tmp, dst)
             except Exception:
-                pass
+                try:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                except OSError:
+                    pass
     os.chdir(data)
     return data
 
