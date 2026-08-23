@@ -1785,6 +1785,34 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="number" id="winkeyer_wpm" placeholder="25" min="5" max="99">
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>WEIGHTING (%)</label>
+            <input type="number" id="winkeyer_weighting" placeholder="50" min="10" max="90">
+          </div>
+          <div class="form-group">
+            <label>RATIO POINT/TIRET</label>
+            <input type="number" id="winkeyer_ratio" placeholder="50" min="33" max="66">
+          </div>
+          <div class="form-group">
+            <label>FARNSWORTH (0 = off)</label>
+            <input type="number" id="winkeyer_farnsworth" placeholder="0" min="0" max="99">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>SIDETONE (Hz)</label>
+            <input type="number" id="winkeyer_sidetone_hz" placeholder="800" min="500" max="4000">
+          </div>
+          <div class="form-group">
+            <label>PTT LEAD (ms)</label>
+            <input type="number" id="winkeyer_ptt_lead_ms" placeholder="0" min="0" max="2500" step="10">
+          </div>
+          <div class="form-group">
+            <label>PTT TAIL (ms)</label>
+            <input type="number" id="winkeyer_ptt_tail_ms" placeholder="0" min="0" max="2500" step="10">
+          </div>
+        </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
           <button type="button" class="btn btn-secondary" onclick="testWinKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester le WinKeyer</button>
           <span id="winkeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
