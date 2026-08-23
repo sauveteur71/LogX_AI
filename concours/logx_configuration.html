@@ -1817,6 +1817,31 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <button type="button" class="btn btn-secondary" onclick="testWinKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester le WinKeyer</button>
           <span id="winkeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted)">Keyer série DTR/RTS — repli de manipulation quand aucun WinKeyer n'est branché (le WinKeyer garde la priorité s'il est activé). Le timing est généré par l'ordinateur.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>KEYER SÉRIE DTR/RTS</label>
+            <select id="cw_serial_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <input type="text" id="cw_serial_port" placeholder="COM6 ou /dev/ttyUSB2">
+          </div>
+          <div class="form-group">
+            <label>LIGNE MANIPULÉE</label>
+            <select id="cw_serial_line">
+              <option value="DTR">DTR</option>
+              <option value="RTS">RTS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>VITESSE (mots/min)</label>
+            <input type="number" id="cw_serial_wpm" placeholder="22" min="5" max="99">
+          </div>
+        </div>
       </div>
 
       <!-- ─── TRANSVERTERS ─────────────────────────────────────────────────
