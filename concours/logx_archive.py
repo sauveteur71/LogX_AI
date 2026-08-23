@@ -31,7 +31,8 @@ def _safe(s):
     return safe_filename(s, 40)
 
 
-def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared_score=None):
+def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared_score=None,
+                date_reliable=True):
     """Écrit une archive permanente du log d'un concours. Retourne un dict
     {ok, folder, qso_count, files} ou {ok: False, error}.
     qtc_series : séries QTC (WAE, voir logx_storage.qtc_log) déjà filtrées par
@@ -76,9 +77,18 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared
 
     # 1b. Score déclaré (import d'un log externe) : préservé tel quel plutôt
     # que recalculé — voir docstring declared_score ci-dessus.
-    if declared_score is not None:
+    # date_reliable=False : import d'un log SANS date exploitable — le dossier
+    # porte la date du JOUR faute de mieux, mais on le TRACE dans meta.json pour
+    # que best_for_contest n'en déduise AUCUNE année (sinon une édition de 2019
+    # sans QSO_DATE passe pour un record de l'année courante).
+    if declared_score is not None or not date_reliable:
+        meta = {}
+        if declared_score is not None:
+            meta['declared_score'] = declared_score
+        if not date_reliable:
+            meta['date_reliable'] = False
         _write(os.path.join(folder, 'meta.json'),
-               json.dumps({'declared_score': declared_score}, ensure_ascii=False))
+               json.dumps(meta, ensure_ascii=False))
         files.append('meta.json')
 
     # 2. Cabrillo + ADIF (réutilise le moteur d'export)
@@ -195,7 +205,13 @@ def best_for_contest(contest_id):
             points = meta['declared_score']
         else:
             points = calc_total_score(qsos, cdef)
-        year = (info.get('date') or '')[:4] or None
+        # Une archive dont la date n'est PAS fiable (import sans QSO_DATE : le
+        # dossier porte la date du jour faute de mieux) ne revendique AUCUNE
+        # année, sinon elle fausse le « record de l'année ».
+        if meta and meta.get('date_reliable') is False:
+            year = None
+        else:
+            year = (info.get('date') or '')[:4] or None
         if len(qsos) > best_qso:
             best_qso, best_qso_year = len(qsos), year
         if points > best_points:
@@ -359,10 +375,16 @@ def import_external_log(text, fmt, contest_id=None, cfg=None, manual_score=None)
             when = datetime.datetime.strptime(dates[0][:8], '%Y%m%d')
         except ValueError:
             when = None
-    res = archive_log(qsos, contest_id, cfg or {}, when=when, declared_score=score)
+    res = archive_log(qsos, contest_id, cfg or {}, when=when, declared_score=score,
+                      date_reliable=when is not None)
     if res.get('ok'):
         res['contest'] = contest_id
         res['detected'] = detected
+        # Aucune date exploitable dans le log importé : l'archive est datée du
+        # jour faute de mieux — on le SIGNALE (plus de silence) pour que l'UI
+        # puisse proposer à l'opérateur de saisir la vraie date.
+        if when is None:
+            res['date_missing'] = True
     return res
 
 
