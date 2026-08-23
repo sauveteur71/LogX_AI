@@ -41,13 +41,106 @@ ADMIN = 0x00           # préfixe des commandes d'administration
 ADMIN_RESET = 0x01
 ADMIN_HOST_OPEN = 0x02   # réponse : 1 octet = version du micrologiciel
 ADMIN_HOST_CLOSE = 0x03
+ADMIN_ENABLE_WK3 = 0x14  # 00 14 : active les capacités spécifiques WK3
+CMD_SET_SIDETONE = 0x01  # 01 nn : sidetone WK3, nn = round(62500/Hz)
 CMD_SET_WPM = 0x02       # suivi de la vitesse en mots/minute
+CMD_SET_WEIGHTING = 0x03  # 03 nn : weighting %, 10–90 (50 = neutre)
 CMD_PTT_LEAD_TAIL = 0x04  # suivi de <lead><tail>, par pas de 10 ms
+CMD_SET_PIN_CONFIG = 0x09  # 09 nn : bits sorties KEY/PTT/sidetone
 CMD_CLEAR_BUFFER = 0x0A   # vide le tampon = ARRÊT IMMÉDIAT
+CMD_KEY_IMMEDIATE = 0x0B  # 0B 01 / 0B 00 : key down/up (tune manuel)
+CMD_SET_FARNSWORTH = 0x0D  # 0D nn : Farnsworth WPM caractères, 10–99
 CMD_SET_MODE = 0x0E       # registre de mode
+CMD_GET_STATUS = 0x15
+CMD_SET_DIT_DAH_RATIO = 0x17  # 17 nn : ratio dit/dah, 33–66 (50 = 1:3)
+# ⚠️ le ratio est 0x17 ; 0x0C est HSCW (piège classique des tables WK).
 
 BAUD = 1200
 WPM_MIN, WPM_MAX = 5, 99
+
+# ─── Réglages fins WK3 (Phase 2 keyer CW) — opcodes/plages SOURCÉS K1EL WK3.1 ──
+# Fonctions PURES : construisent la trame octet(s) et lèvent ValueError hors
+# plage. AUCUNE émission ici (pas de port ouvert) — le câblage à l'ouverture et
+# l'UI de réglage sont séparés, l'essai on-air reste supervisé par l'opérateur.
+
+# Bits PINCFG (0x09) : le PTT n'agit QUE si son bit est activé ici (régler le
+# lead/tail via 0x04 ne suffit pas).
+PINCFG_PTT = 0x01
+PINCFG_SIDETONE = 0x02
+PINCFG_KEY_2 = 0x04
+PINCFG_KEY_1 = 0x08
+
+# Bits MODE (0x0E). Le watchdog paddle doit rester ACTIF par défaut (bit à 0 :
+# ne PAS poser MODE_DISABLE_PADDLE_WATCHDOG) — il coupe après 128 éléments
+# consécutifs, protection contre un paddle bloqué.
+MODE_DISABLE_PADDLE_WATCHDOG = 0x80
+MODE_PADDLE_ECHOBACK = 0x40
+MODE_IAMBIC_B = 0x00
+MODE_IAMBIC_A = 0x10
+MODE_ULTIMATIC = 0x20
+MODE_BUG = 0x30
+MODE_SWAP_PADDLES = 0x08
+MODE_SERIAL_ECHOBACK = 0x04
+MODE_AUTOSPACE = 0x02
+MODE_CONTEST_SPACING = 0x01
+MODE_LOGX_DEFAUT = MODE_IAMBIC_A | MODE_SERIAL_ECHOBACK | MODE_AUTOSPACE   # 0x16
+
+
+def wk_set_weighting(percent):
+    """03 nn — weighting %. 10–90 (50 = neutre ; <50 éléments plus courts)."""
+    if not 10 <= percent <= 90:
+        raise ValueError("weighting WinKeyer hors plage 10–90")
+    return bytes([CMD_SET_WEIGHTING, percent])
+
+
+def wk_set_dit_dah_ratio(value):
+    """17 nn — ratio dit/dah. 33–66 (50 = 1:3 standard ; dah/dit = 3*nn/50)."""
+    if not 33 <= value <= 66:
+        raise ValueError("ratio dit/dah WinKeyer hors plage 33–66")
+    return bytes([CMD_SET_DIT_DAH_RATIO, value])
+
+
+def wk_set_farnsworth(character_wpm):
+    """0D nn — Farnsworth : WPM des CARACTÈRES (≥ WPM global). 10–99.
+    NE PAS envoyer 0 en hôte WK3 (désactivation) sans essai matériel."""
+    if not 10 <= character_wpm <= 99:
+        raise ValueError("Farnsworth WinKeyer hors plage 10–99 WPM")
+    return bytes([CMD_SET_FARNSWORTH, character_wpm])
+
+
+def wk_set_sidetone(frequency_hz):
+    """01 nn — sidetone WK3. 500–4000 Hz, nn = round(62500/Hz)."""
+    if not 500 <= frequency_hz <= 4000:
+        raise ValueError("sidetone WK3 hors plage 500–4000 Hz")
+    return bytes([CMD_SET_SIDETONE, round(62500 / frequency_hz)])
+
+
+def wk_set_ptt_lead_tail(lead_ms, tail_ms):
+    """04 lead tail — délais PTT, pas de 10 ms, 0–2500 ms. Le tail RÉEL garde en
+    plus 3 temps de dit (04 00 00 ne coupe donc pas instantanément)."""
+    if lead_ms % 10 or tail_ms % 10:
+        raise ValueError("lead/tail PTT doivent être des multiples de 10 ms")
+    lead, tail = lead_ms // 10, tail_ms // 10
+    if not 0 <= lead <= 250:
+        raise ValueError("lead PTT hors plage 0–2500 ms")
+    if not 0 <= tail <= 250:
+        raise ValueError("tail PTT hors plage 0–2500 ms")
+    return bytes([CMD_PTT_LEAD_TAIL, lead, tail])
+
+
+def wk_set_pin_config(pin_config):
+    """09 nn — bits PINCFG (KEY1/KEY2/PTT/sidetone). Sans le bit PTT, 0x04 ne
+    produit aucun PTT."""
+    if not 0 <= pin_config <= 255:
+        raise ValueError("PINCFG WinKeyer hors plage 0–255")
+    return bytes([CMD_SET_PIN_CONFIG, pin_config])
+
+
+def wk_set_mode(mode_bits):
+    """0E nn — registre de mode (Iambic A/B, Ultimatic, Bug, autospace…)."""
+    if not 0 <= mode_bits <= 255:
+        raise ValueError("mode WinKeyer hors plage 0–255")
+    return bytes([CMD_SET_MODE, mode_bits])
 
 # Un octet d'état du WinKeyer a ses deux bits de poids fort à 1. Sert à
 # distinguer un état d'un écho de caractère quand on lit le port.
