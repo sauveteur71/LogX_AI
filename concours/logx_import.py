@@ -40,7 +40,7 @@ _MODE_SYNONYMES = {'PH': 'SSB'}
 # silence, pour un aller-retour import/export fidèle (voir editQSO/
 # buildAdifText côté client, qui lisent/écrivent le même extra_fields).
 _TAGS_MAPPES = {
-    'CALL', 'BAND', 'MODE', 'QSO_DATE', 'TIME_ON', 'TIME_OFF', 'RST_SENT',
+    'CALL', 'BAND', 'MODE', 'QSO_DATE', 'TIME_ON', 'RST_SENT',
     'RST_RCVD', 'STX_STRING', 'STX', 'SRX_STRING', 'SRX', 'GRIDSQUARE',
     'STATE', 'SAT_NAME', 'MY_GRIDSQUARE', 'OPERATOR', 'STATION_CALLSIGN',
     'CONTEST_ID', 'MY_SIG', 'MY_SIG_INFO', 'SIG', 'SIG_INFO',
@@ -48,6 +48,9 @@ _TAGS_MAPPES = {
     # FREQ n'est PAS mappé par ce parseur (pré-existant, hors scope de ce
     # correctif) : exclu volontairement de cet ensemble pour qu'un FREQ
     # importé atterrisse dans extra_fields plutôt que d'être perdu.
+    # TIME_OFF non plus : il figurait ici (donc exclu de extra_fields) SANS
+    # qu'aucune clé interne ne le reçoive -> détruit en silence. Il reste donc
+    # HORS de cet ensemble pour être préservé dans extra_fields et réexporté.
 }
 
 
@@ -69,11 +72,20 @@ def _dedup_key(qso):
     plus stricte que celle d'add_qso_to_log (call+band+mode+contest) — un
     import historique doit pouvoir coexister avec un QSO de concours en
     cours sur le même indicatif/bande, seule une correspondance EXACTE
-    (même instant) est un vrai doublon d'import."""
+    (même instant) est un vrai doublon d'import.
+
+    Renvoie None quand la DATE est vide (absente/malformée) : sans date, le QSO
+    n'a pas d'identité fiable — deux contacts réels distincts produiraient sinon
+    la même clé ('', '0000') et le second serait PERDU en silence à l'import.
+    Une clé None n'est jamais considérée comme un doublon (mieux vaut un doublon
+    à trier qu'un QSO perdu)."""
+    date = str(qso.get('date', ''))
+    if not date:
+        return None
     return (str(qso.get('call', '')).upper().strip(),
             str(qso.get('band', '')),
             str(qso.get('mode', '')).upper().strip(),
-            str(qso.get('date', '')),
+            date,
             str(qso.get('time', '')))
 
 
@@ -214,8 +226,9 @@ def preview_import(adif_text, existing_log):
     `mode_warnings` : modes non standards détectés — INFORMATIF seulement,
     n'affecte pas `new`/`duplicates` (ces QSO sont importables normalement)."""
     qsos, errors = parse_adif_to_qsos(adif_text)
-    existing_keys = {_dedup_key(q) for q in existing_log}
-    new_qsos = [q for q in qsos if _dedup_key(q) not in existing_keys]
+    existing_keys = {k for q in existing_log if (k := _dedup_key(q)) is not None}
+    new_qsos = [q for q in qsos
+                if (k := _dedup_key(q)) is None or k not in existing_keys]
     duplicates = len(qsos) - len(new_qsos)
     return {
         'ok': True,
@@ -233,7 +246,7 @@ def commit_import(adif_text, existing_log):
     (l'appelant fait l'ajout + la sauvegarde sous log_lock — ce module ne
     connaît pas shared_log, pour rester testable sans le serveur)."""
     qsos, errors = parse_adif_to_qsos(adif_text)
-    existing_keys = {_dedup_key(q) for q in existing_log}
+    existing_keys = {k for q in existing_log if (k := _dedup_key(q)) is not None}
     new_qsos = []
     now = time.time()
     # Numérotation AU-DESSUS du plus grand id déjà présent dans le log, jamais
@@ -249,10 +262,12 @@ def commit_import(adif_text, existing_log):
     base_id = storage.next_free_qso_id((q.get('id') for q in existing_log),
                                        int(now * 1000))
     for q in qsos:
-        if _dedup_key(q) in existing_keys:
+        k = _dedup_key(q)
+        if k is not None and k in existing_keys:
             continue
         q['id'] = base_id + len(new_qsos)
         q['server_time'] = now
         new_qsos.append(q)
-        existing_keys.add(_dedup_key(q))   # le fichier importé peut contenir ses propres doublons
+        if k is not None:
+            existing_keys.add(k)   # le fichier importé peut contenir ses propres doublons
     return new_qsos, errors
