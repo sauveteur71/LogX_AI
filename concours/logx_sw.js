@@ -26,7 +26,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;                 // écritures : jamais interceptées
   const url = new URL(req.url);
   // Données live : laisser le réseau (pas de cache périmé sur le log/scores)
-  if (/^\/(data|log|config|agent|proxy|coach|rig|rotor|cluster|activation|countries|departments)/.test(url.pathname)) return;
+  if (/^\/(data|log|config|agent|proxy|coach|rig|rotor|cluster|activation|countries|departments)(\/|$)/.test(url.pathname)) return;
   // Shell statique : RÉSEAU D'ABORD (les mises à jour arrivent tout de suite),
   // le cache ne sert QUE de repli hors-ligne.
   e.respondWith(fetch(req).then(res => {
