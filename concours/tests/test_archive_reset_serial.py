@@ -14,9 +14,11 @@ _JS = pathlib.Path(__file__).resolve().parent.parent / "logx_outils_autonomes.js
 
 def test_archive_vider_reinitialise_le_numero_de_serie():
     src = _JS.read_text(encoding="utf-8")
-    m = re.search(r"if\(d\.cleared\)\{[^}]*\}", src)
+    # Capture le corps complet de la branche jusqu'au « } else » (le corps
+    # contient lui-même un {} depuis le correctif serialByBand = {}).
+    m = re.search(r"if\(d\.cleared\)\{(.*?)\}\s*else", src, re.S)
     assert m, "branche d.cleared d'archiveLog introuvable"
-    branche = m.group(0)
+    branche = m.group(1)
     assert "serialByBand" in branche and "{}" in branche, (
         "archiveLog(clear) doit remettre serialByBand à zéro (comme resetLog)"
     )
