@@ -17,12 +17,17 @@ vérité absolue, juste un ordre de grandeur raisonnable par bande."""
 
 _HF_LABELS = (
     '1.8 MHz', '3.5 MHz', '5 MHz', '7 MHz', '10 MHz', '14 MHz',
-    '18 MHz', '21 MHz', '24 MHz', '28 MHz', '40 MHz', 'HF',
-)
+    '18 MHz', '21 MHz', '24 MHz', '28 MHz', 'HF',
+)   # NB : 8m (40 MHz) N'EST PAS ici — il a ses propres seuils ci-dessous.
 
 # Distance (km) au-delà de laquelle une station est un "DX exceptionnel"
 BAND_DX_THRESHOLD_KM = {
     **{b: 8000 for b in _HF_LABELS},   # HF : DX = intercontinental, pas juste "loin"
+    # 8m (40 MHz) : NI HF (8000) NI 6m (2500). Heuristique produit LogX sourcée
+    # F4GLD 23/08/2026 depuis les obs de propagation SpE/F2 du 8m (pas une norme) :
+    # une ouverture notable existe dès ~3000 km. Un badge « DX exceptionnel »
+    # F2 ≥ 8000 km reste une évolution distincte (non implémentée ici).
+    '40 MHz': 3000,
     '50 MHz': 2500,                    # 6m — Es/F2 fréquents en saison
     '70 MHz': 1200, '144 MHz': 800, '432 MHz': 400,
     '1.2 GHz': 400, '2.4 GHz': 300, '3.4 GHz': 250,
@@ -37,6 +42,7 @@ BAND_DX_THRESHOLD_KM = {
 # Distance (km) en-deçà de laquelle un spotter est jugé fiable pour cette bande
 BAND_SPOTTER_RELIABLE_KM = {
     **{b: 4000 for b in _HF_LABELS},
+    '40 MHz': 2500,                    # 8m — cf. BAND_DX_THRESHOLD_KM
     '50 MHz': 800, '70 MHz': 500, '144 MHz': 300, '432 MHz': 150,
     '1.2 GHz': 100, '2.4 GHz': 80, '3.4 GHz': 60,
     '5.7 GHz': 40, '10 GHz': 30, '24 GHz': 15, '47 GHz': 10,
