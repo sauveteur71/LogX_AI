@@ -5978,6 +5978,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # et le clic sur ■ STOP laisserait sinon le verrou d'origine
             # orphelin, bug trouvé en revue adversariale 07/08/2026).
             if self.path == '/rig/cw':
+                # Garde-fou d'émission (F4GLD 23/08, keyer CW Phase 1) : TX-enable
+                # maître + mode CW vérifiés AVANT de prendre le verrou TX, pour
+                # qu'un refus ne bloque pas l'autre radio. Refus BLOQUANT (403).
+                import logx_cw_guard as cwg
+                ok_tx, raison_tx = cwg.cw_tx_autorise(json.loads(body) if body else {})
+                if not ok_tx:
+                    self._json({'ok': False, 'error': raison_tx, 'blocked': True}, 403)
+                    return
                 verrou = so2r.verrouiller_tx(radio_active, 'cw')
                 if not verrou['ok']:
                     self._json(verrou, 409)
