@@ -83,6 +83,53 @@ def _vers_secondes(bloc):
     return (entier - ERE_NTP_VERS_POSIX) + fraction / 2 ** 32
 
 
+def _analyser_reponse(reponse, serveur, t1, t4):
+    """Analyse une réponse NTP (48 octets) -> dict {ok,...}. Séparé de l'I/O
+    socket pour être testable avec des octets fabriqués."""
+    if len(reponse) < 48:
+        return {'ok': False, 'serveur': serveur,
+                'error': f'Réponse tronquée de {serveur} ({len(reponse)} octets sur 48)'}
+
+    li = reponse[0] >> 6
+    mode = reponse[0] & 0b111
+    if mode != 4:
+        # Mode 4 = serveur (RFC 5905 §7.3). Autre chose = ce n'est pas une
+        # réponse à notre requête : on refuse plutôt que de lire des octets au
+        # hasard comme un horodatage.
+        return {'ok': False, 'serveur': serveur,
+                'error': f'Réponse inattendue de {serveur} (mode {mode}, 4 attendu)'}
+
+    strate = reponse[1]
+    if strate == 0:
+        # « Kiss-o'-Death » (RFC 5905 §7.4) : le serveur refuse de nous servir
+        # — surcharge, ou cadence de requêtes trop élevée. Le message tient
+        # dans l'identifiant de référence, octets 12 à 15.
+        code = reponse[12:16].decode('ascii', 'replace').strip('\x00 ')
+        return {'ok': False, 'serveur': serveur,
+                'error': f'{serveur} refuse de répondre (code {code or "inconnu"}) — '
+                         'réessaie plus tard ou choisis un autre serveur'}
+
+    if li == 3 or strate >= 16:
+        # LI=3 = « horloge NON synchronisée » (RFC 5905 §7.3, tableau 4) ;
+        # strate 16 = « unsynchronized ». Le serveur tourne alors sur son propre
+        # quartz libre : ses horodatages T2/T3 ne valent RIEN comme référence —
+        # exactement le défaut que ce module doit DÉTECTER côté client (sinon un
+        # opérateur FT8 se cale sur une référence fausse en croyant l'avoir
+        # validée). Le KoD (strate 0) est déjà traité ; ce cas-ci ne l'était pas.
+        return {'ok': False, 'serveur': serveur,
+                'error': f"{serveur} n'est pas synchronisé (LI={li}, strate {strate}) — "
+                         'réponse rejetée, choisis un autre serveur'}
+
+    t2 = _vers_secondes(reponse[32:40])   # arrivée de notre requête au serveur
+    t3 = _vers_secondes(reponse[40:48])   # départ de la réponse du serveur
+
+    ecart = ((t2 - t1) + (t3 - t4)) / 2
+    trajet = (t4 - t1) - (t3 - t2)
+    return {'ok': True, 'serveur': serveur, 'strate': strate,
+            'ecart_s': ecart, 'trajet_s': trajet,
+            'sur': abs(trajet) < TRAJET_DOUTEUX_S}
+
+
 def interroger(serveur=None, timeout=None):
     """Mesure l'écart de l'horloge locale par rapport au serveur donné.
 
@@ -135,33 +182,4 @@ def interroger(serveur=None, timeout=None):
             except OSError:
                 pass
 
-    if len(reponse) < 48:
-        return {'ok': False, 'serveur': serveur,
-                'error': f'Réponse tronquée de {serveur} ({len(reponse)} octets sur 48)'}
-
-    mode = reponse[0] & 0b111
-    if mode != 4:
-        # Mode 4 = serveur (RFC 5905 §7.3). Autre chose = ce n'est pas une
-        # réponse à notre requête : on refuse plutôt que de lire des octets au
-        # hasard comme un horodatage.
-        return {'ok': False, 'serveur': serveur,
-                'error': f'Réponse inattendue de {serveur} (mode {mode}, 4 attendu)'}
-
-    strate = reponse[1]
-    if strate == 0:
-        # « Kiss-o'-Death » (RFC 5905 §7.4) : le serveur refuse de nous servir
-        # — surcharge, ou cadence de requêtes trop élevée. Le message tient
-        # dans l'identifiant de référence, octets 12 à 15.
-        code = reponse[12:16].decode('ascii', 'replace').strip('\x00 ')
-        return {'ok': False, 'serveur': serveur,
-                'error': f'{serveur} refuse de répondre (code {code or "inconnu"}) — '
-                         'réessaie plus tard ou choisis un autre serveur'}
-
-    t2 = _vers_secondes(reponse[32:40])   # arrivée de notre requête au serveur
-    t3 = _vers_secondes(reponse[40:48])   # départ de la réponse du serveur
-
-    ecart = ((t2 - t1) + (t3 - t4)) / 2
-    trajet = (t4 - t1) - (t3 - t2)
-    return {'ok': True, 'serveur': serveur, 'strate': strate,
-            'ecart_s': ecart, 'trajet_s': trajet,
-            'sur': abs(trajet) < TRAJET_DOUTEUX_S}
+    return _analyser_reponse(reponse, serveur, t1, t4)
