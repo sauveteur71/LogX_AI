@@ -972,7 +972,7 @@ CONTEST_DEFINITIONS = {
         'cabrillo_name': 'STEW-PERRY',
         'scoring': {
             'bricks': {
-                'points': [{'when':'always','points':'per_km'}],
+                'points': [{'when':'always','points':'per_km_stew'}],
                 'multiplier': None,
                 'priority_thresholds': [[3000,1],[1500,2],[500,3]],
                 'priority_default': 4,
