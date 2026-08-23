@@ -2,7 +2,7 @@
  "_note": "Frequences conventionnelles de CADRAN (dial), IARU R1 Europe, transcrites de la table fournie par F4GLD le 23/08/2026. USB-DATA. Les autorisations NATIONALES priment sur le bandplan IARU ; les conventions changent (d ou verified_on). local/selon-autorisation = non renseigne (jamais invente). AJOUT 23/08/2026 (F4GLD) : centres d'activite RTTY/PSK31/SSTV (frequency_kind=activity_center). RTTY = FSK vrai par defaut, variante AFSK_USB conservee. SSTV 70cm=FM, reste USB. 145.800 (satellite/ISS) volontairement NON enregistree comme SSTV.",
  "source": "Table IARU R1 fournie par F4GLD 23/08/2026 (WSJT-X working frequencies)",
  "region": "IARU_R1",
- "count": 101,
+ "count": 105,
  "frequences": [
   {
    "region": "IARU_R1",
@@ -1118,6 +1118,50 @@
    "band": "70cm",
    "mode": "SSTV",
    "dial_mhz": 433.4,
+   "radio_mode": "FM",
+   "frequency_kind": "activity_center",
+   "operation": "two_way",
+   "status": "active",
+   "verified_on": "2026-08-23"
+  },
+  {
+   "region": "IARU_R1",
+   "band": "6m",
+   "mode": "RTTY",
+   "dial_mhz": 50.6,
+   "radio_mode": "RTTY",
+   "frequency_kind": "activity_center",
+   "operation": "two_way",
+   "status": "active",
+   "verified_on": "2026-08-23"
+  },
+  {
+   "region": "IARU_R1",
+   "band": "4m",
+   "mode": "MGM",
+   "dial_mhz": 70.27,
+   "radio_mode": "USB-DATA",
+   "frequency_kind": "activity_center",
+   "operation": "two_way",
+   "status": "active",
+   "verified_on": "2026-08-23"
+  },
+  {
+   "region": "IARU_R1",
+   "band": "2m",
+   "mode": "MGM",
+   "dial_mhz": 144.6,
+   "radio_mode": "USB-DATA",
+   "frequency_kind": "activity_center",
+   "operation": "two_way",
+   "status": "active",
+   "verified_on": "2026-08-23"
+  },
+  {
+   "region": "IARU_R1",
+   "band": "2m",
+   "mode": "APRS",
+   "dial_mhz": 144.8,
    "radio_mode": "FM",
    "frequency_kind": "activity_center",
    "operation": "two_way",
