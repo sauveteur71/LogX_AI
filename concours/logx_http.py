@@ -7148,7 +7148,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import logx_import as imp
                 with log_lock:
                     snapshot = list(shared_log)
-                self._json(imp.preview_import(payload.get('adif', ''), snapshot))
+                self._json(imp.preview_import(payload.get('adif', ''), snapshot,
+                                              payload.get('activite', '')))
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 400)
             return
@@ -7161,7 +7162,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import logx_import as imp
                 with log_lock:
                     snapshot = list(shared_log)
-                new_qsos, errors = imp.commit_import(payload.get('adif', ''), snapshot)
+                new_qsos, errors = imp.commit_import(payload.get('adif', ''), snapshot,
+                                                     payload.get('activite', ''))
                 # bump_log_version()/stamp_qso_version() DANS le même verrou que
                 # l'extend : même fenêtre de course que /log/add (voir le
                 # commentaire détaillé dans add_qso_to_log) — un lecteur
