@@ -52,6 +52,10 @@ def mqtt_settings(cfg):
     config.json (poste qui redémarre sans repasser par /config/save)."""
     cfg = cfg or {}
     enabled = bool(cfg.get('mqtt_enabled'))
+    # Une désactivation EXPLICITE en mémoire (clé présente = False) ne doit pas
+    # être ré-activée par un config.json périmé : on ne consulte le repli disque
+    # pour `enabled` que si la clé est ABSENTE de cfg.
+    enabled_explicite = 'mqtt_enabled' in cfg
     host = cfg.get('mqtt_host')
     port = cfg.get('mqtt_port')
     prefix = cfg.get('mqtt_topic_prefix')
@@ -59,7 +63,8 @@ def mqtt_settings(cfg):
         try:
             with open('config.json', encoding='utf-8') as f:
                 m = (json.load(f).get('mqtt', {}) or {})
-            enabled = enabled or bool(m.get('enabled'))
+            if not enabled_explicite:
+                enabled = enabled or bool(m.get('enabled'))
             host = host or m.get('host')
             port = port or m.get('port')
             prefix = prefix or m.get('topic_prefix')

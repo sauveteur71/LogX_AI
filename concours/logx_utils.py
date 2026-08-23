@@ -165,26 +165,35 @@ _FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetc
 
 _FETCH_LOCK = _threading.Lock()
 _FETCH_PENDING = 0
+_FETCH_GEN = 0     # génération du pool : incrémentée à chaque swap (voir _submit_fetch)
 
 def _submit_fetch(fn):
     """Soumet au pool partagé ; si les 8 workers semblent tous bloqués
     (DNS captif/muet), remplace le pool par un neuf au lieu de mettre en
     file indéfiniment derrière des threads jamais revenus."""
-    global _FETCH_EXECUTOR, _FETCH_PENDING
+    global _FETCH_EXECUTOR, _FETCH_PENDING, _FETCH_GEN
     with _FETCH_LOCK:
         if _FETCH_PENDING >= 8:
             _FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetch_url')
             _FETCH_PENDING = 0
+            _FETCH_GEN += 1     # nouvelle génération : les callbacks des futures
+                                # de l'ancien pool ne toucheront plus CE compteur
         _FETCH_PENDING += 1
         executor = _FETCH_EXECUTOR
+        gen = _FETCH_GEN
     fut = executor.submit(fn)
-    fut.add_done_callback(lambda _f: _dec_fetch_pending())
+    fut.add_done_callback(lambda _f, g=gen: _dec_fetch_pending(g))
     return fut
 
-def _dec_fetch_pending():
+def _dec_fetch_pending(gen):
     global _FETCH_PENDING
     with _FETCH_LOCK:
-        _FETCH_PENDING = max(0, _FETCH_PENDING - 1)
+        # Ne décrémente que le compteur de SA génération : une future de l'ancien
+        # pool (gén. < courante), en se terminant après un swap, ne doit pas
+        # fausser le compteur du nouveau pool (sinon un futur swap ne se
+        # déclenche jamais, le compteur restant coincé sous le seuil).
+        if gen == _FETCH_GEN:
+            _FETCH_PENDING = max(0, _FETCH_PENDING - 1)
 
 
 def fetch_url(url, timeout=10, log_url=True):
