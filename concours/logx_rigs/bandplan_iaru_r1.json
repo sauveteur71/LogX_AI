@@ -1,0 +1,629 @@
+{
+ "_note": "Bandplan IARU R1 (Europe). Transcription EXACTE des tables fournies par F4GLD 23/08/2026. Plan HF en vigueur depuis 16/10/2020. Les autorisations NATIONALES priment. Segments >30 MHz : categories (les plans changent par pays, surtout relais/DV).",
+ "region": "IARU_R1",
+ "verified_on": "2026-08-23",
+ "source": "Tables IARU R1 fournies par F4GLD",
+ "inventaire": [
+  {
+   "band": "2200m",
+   "start_mhz": 0.1357,
+   "end_mhz": 0.1378,
+   "usage": "CW lent, QRSS, WSPR, FST4W, numerique etroit"
+  },
+  {
+   "band": "630m",
+   "start_mhz": 0.472,
+   "end_mhz": 0.479,
+   "usage": "CW, WSPR, FST4W, numerique etroit"
+  },
+  {
+   "band": "160m",
+   "start_mhz": 1.81,
+   "end_mhz": 2.0,
+   "usage": "CW, FT8, FT4, JS8, RTTY, SSB"
+  },
+  {
+   "band": "80m",
+   "start_mhz": 3.5,
+   "end_mhz": 3.8,
+   "usage": "CW, numerique, SSB, SSTV"
+  },
+  {
+   "band": "60m",
+   "start_mhz": 5.3515,
+   "end_mhz": 5.3665,
+   "usage": "Canaux/segments nationaux, numerique et voix USB"
+  },
+  {
+   "band": "40m",
+   "start_mhz": 7.0,
+   "end_mhz": 7.2,
+   "usage": "CW, numerique, FT8, SSB, SSTV"
+  },
+  {
+   "band": "30m",
+   "start_mhz": 10.1,
+   "end_mhz": 10.15,
+   "usage": "CW et numerique uniquement"
+  },
+  {
+   "band": "20m",
+   "start_mhz": 14.0,
+   "end_mhz": 14.35,
+   "usage": "CW, FT8, RTTY, PSK, SSTV, SSB, DX"
+  },
+  {
+   "band": "17m",
+   "start_mhz": 18.068,
+   "end_mhz": 18.168,
+   "usage": "CW, numerique, SSB"
+  },
+  {
+   "band": "15m",
+   "start_mhz": 21.0,
+   "end_mhz": 21.45,
+   "usage": "CW, numerique, SSTV, SSB"
+  },
+  {
+   "band": "12m",
+   "start_mhz": 24.89,
+   "end_mhz": 24.99,
+   "usage": "CW, numerique, SSB"
+  },
+  {
+   "band": "10m",
+   "start_mhz": 28.0,
+   "end_mhz": 29.7,
+   "usage": "CW, numerique, SSB, FM, relais, satellites"
+  },
+  {
+   "band": "6m",
+   "start_mhz": 50.0,
+   "end_mhz": 54.0,
+   "usage": "CW/SSB DX, FT8, MSK144, FM, relais selon pays"
+  },
+  {
+   "band": "4m",
+   "start_mhz": 70.0,
+   "end_mhz": 70.5,
+   "usage": "Usage national ; SSB, numerique, FM"
+  },
+  {
+   "band": "2m",
+   "start_mhz": 144.0,
+   "end_mhz": 146.0,
+   "usage": "Faibles signaux, FT8, SSTV, APRS, satellites, FM, relais"
+  },
+  {
+   "band": "70cm",
+   "start_mhz": 430.0,
+   "end_mhz": 440.0,
+   "usage": "EME, FT8, SSTV, numerique, satellites, FM, relais"
+  },
+  {
+   "band": "23cm",
+   "start_mhz": 1240.0,
+   "end_mhz": 1300.0,
+   "usage": "EME, ATV, numerique, satellites, FM, relais"
+  },
+  {
+   "band": "13cm",
+   "start_mhz": 2300.0,
+   "end_mhz": 2450.0,
+   "usage": "EME, ATV, donnees, satellites, experimentation"
+  },
+  {
+   "band": "9cm",
+   "start_mhz": 3400.0,
+   "end_mhz": 3475.0,
+   "usage": "Experimentation, EME, large bande selon pays"
+  },
+  {
+   "band": "6cm",
+   "start_mhz": 5650.0,
+   "end_mhz": 5850.0,
+   "usage": "EME, ATV, donnees, experimentation"
+  },
+  {
+   "band": "3cm",
+   "start_mhz": 10000.0,
+   "end_mhz": 10500.0,
+   "usage": "EME, balises, large bande, experimentation"
+  },
+  {
+   "band": "1.25cm",
+   "start_mhz": 24000.0,
+   "end_mhz": 24250.0,
+   "usage": "EME, experimentation"
+  },
+  {
+   "band": "6mm",
+   "start_mhz": 47000.0,
+   "end_mhz": 47200.0,
+   "usage": "Experimentation"
+  },
+  {
+   "band": "4mm",
+   "start_mhz": 75500.0,
+   "end_mhz": 81500.0,
+   "usage": "Experimentation"
+  },
+  {
+   "band": "2.5mm",
+   "start_mhz": 122250.0,
+   "end_mhz": 123000.0,
+   "usage": "Experimentation"
+  },
+  {
+   "band": "2mm",
+   "start_mhz": 134000.0,
+   "end_mhz": 141000.0,
+   "usage": "Experimentation"
+  },
+  {
+   "band": "1mm",
+   "start_mhz": 241000.0,
+   "end_mhz": 250000.0,
+   "usage": "Experimentation"
+  }
+ ],
+ "hf_segments": [
+  {
+   "band": "2200m",
+   "start_khz": 135.7,
+   "end_khz": 137.8,
+   "max_width_hz": 200,
+   "usage": "CW, QRSS, numerique tres etroit"
+  },
+  {
+   "band": "630m",
+   "start_khz": 472,
+   "end_khz": 475,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "630m",
+   "start_khz": 475,
+   "end_khz": 479,
+   "max_width_hz": null,
+   "usage": "CW et numerique"
+  },
+  {
+   "band": "160m",
+   "start_khz": 1810,
+   "end_khz": 1838,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "160m",
+   "start_khz": 1838,
+   "end_khz": 1840,
+   "max_width_hz": 500,
+   "usage": "Numerique etroit"
+  },
+  {
+   "band": "160m",
+   "start_khz": 1840,
+   "end_khz": 1843,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique"
+  },
+  {
+   "band": "160m",
+   "start_khz": 1843,
+   "end_khz": 2000,
+   "max_width_hz": 2700,
+   "usage": "Tous modes"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3500,
+   "end_khz": 3570,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3570,
+   "end_khz": 3580,
+   "max_width_hz": 200,
+   "usage": "Numerique etroit"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3580,
+   "end_khz": 3590,
+   "max_width_hz": 500,
+   "usage": "Numerique : FT8, FT4, RTTY, PSK, JT65"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3590,
+   "end_khz": 3600,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3600,
+   "end_khz": 3650,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique"
+  },
+  {
+   "band": "80m",
+   "start_khz": 3650,
+   "end_khz": 3800,
+   "max_width_hz": 2700,
+   "usage": "SSB, SSTV 3735, urgence 3760"
+  },
+  {
+   "band": "60m",
+   "start_khz": 5351.5,
+   "end_khz": 5354.0,
+   "max_width_hz": 200,
+   "usage": "CW et numerique etroit"
+  },
+  {
+   "band": "60m",
+   "start_khz": 5354.0,
+   "end_khz": 5366.0,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, USB recommandee"
+  },
+  {
+   "band": "60m",
+   "start_khz": 5366.0,
+   "end_khz": 5366.5,
+   "max_width_hz": 20,
+   "usage": "Faibles signaux"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7000,
+   "end_khz": 7040,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7040,
+   "end_khz": 7047,
+   "max_width_hz": 500,
+   "usage": "Numerique etroit"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7047,
+   "end_khz": 7050,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7050,
+   "end_khz": 7053,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7053,
+   "end_khz": 7060,
+   "max_width_hz": 2700,
+   "usage": "Numerique"
+  },
+  {
+   "band": "40m",
+   "start_khz": 7060,
+   "end_khz": 7200,
+   "max_width_hz": 2700,
+   "usage": "SSB, DV 7070, SSTV 7165, urgence 7110"
+  },
+  {
+   "band": "30m",
+   "start_khz": 10100,
+   "end_khz": 10130,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "30m",
+   "start_khz": 10130,
+   "end_khz": 10150,
+   "max_width_hz": 500,
+   "usage": "Numerique uniquement"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14000,
+   "end_khz": 14070,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14070,
+   "end_khz": 14089,
+   "max_width_hz": 500,
+   "usage": "Numerique etroit : PSK, RTTY, FT8"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14089,
+   "end_khz": 14099,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14099,
+   "end_khz": 14101,
+   "max_width_hz": null,
+   "usage": "Balises exclusivement"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14101,
+   "end_khz": 14112,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique"
+  },
+  {
+   "band": "20m",
+   "start_khz": 14112,
+   "end_khz": 14350,
+   "max_width_hz": 2700,
+   "usage": "SSB, DV 14130, SSTV 14230, DX 14195"
+  },
+  {
+   "band": "17m",
+   "start_khz": 18068,
+   "end_khz": 18095,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "17m",
+   "start_khz": 18095,
+   "end_khz": 18105,
+   "max_width_hz": 500,
+   "usage": "Numerique"
+  },
+  {
+   "band": "17m",
+   "start_khz": 18105,
+   "end_khz": 18109,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "17m",
+   "start_khz": 18109,
+   "end_khz": 18111,
+   "max_width_hz": null,
+   "usage": "Balises exclusivement"
+  },
+  {
+   "band": "17m",
+   "start_khz": 18111,
+   "end_khz": 18168,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique, SSB"
+  },
+  {
+   "band": "15m",
+   "start_khz": 21000,
+   "end_khz": 21070,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "15m",
+   "start_khz": 21070,
+   "end_khz": 21090,
+   "max_width_hz": 500,
+   "usage": "Numerique"
+  },
+  {
+   "band": "15m",
+   "start_khz": 21090,
+   "end_khz": 21110,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "15m",
+   "start_khz": 21110,
+   "end_khz": 21120,
+   "max_width_hz": 2700,
+   "usage": "Numerique large, pas SSB"
+  },
+  {
+   "band": "15m",
+   "start_khz": 21120,
+   "end_khz": 21450,
+   "max_width_hz": 2700,
+   "usage": "SSB, DV 21180, SSTV 21340"
+  },
+  {
+   "band": "12m",
+   "start_khz": 24890,
+   "end_khz": 24915,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "12m",
+   "start_khz": 24915,
+   "end_khz": 24925,
+   "max_width_hz": 500,
+   "usage": "Numerique"
+  },
+  {
+   "band": "12m",
+   "start_khz": 24925,
+   "end_khz": 24929,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "12m",
+   "start_khz": 24929,
+   "end_khz": 24931,
+   "max_width_hz": null,
+   "usage": "Balises exclusivement"
+  },
+  {
+   "band": "12m",
+   "start_khz": 24931,
+   "end_khz": 24990,
+   "max_width_hz": 2700,
+   "usage": "Tous modes, numerique, SSB"
+  },
+  {
+   "band": "10m",
+   "start_khz": 28000,
+   "end_khz": 28070,
+   "max_width_hz": 200,
+   "usage": "CW"
+  },
+  {
+   "band": "10m",
+   "start_khz": 28070,
+   "end_khz": 28120,
+   "max_width_hz": 500,
+   "usage": "Numerique"
+  },
+  {
+   "band": "10m",
+   "start_khz": 28120,
+   "end_khz": 28150,
+   "max_width_hz": 500,
+   "usage": "Numerique, stations automatiques"
+  },
+  {
+   "band": "10m",
+   "start_khz": 28150,
+   "end_khz": 28225,
+   "max_width_hz": null,
+   "usage": "Balises"
+  },
+  {
+   "band": "10m",
+   "start_khz": 28225,
+   "end_khz": 29000,
+   "max_width_hz": 2700,
+   "usage": "SSB, DV 28330, SSTV 28680"
+  },
+  {
+   "band": "10m",
+   "start_khz": 29000,
+   "end_khz": 29200,
+   "max_width_hz": 6000,
+   "usage": "FM simplex"
+  },
+  {
+   "band": "10m",
+   "start_khz": 29200,
+   "end_khz": 29300,
+   "max_width_hz": 6000,
+   "usage": "FM, numerique"
+  },
+  {
+   "band": "10m",
+   "start_khz": 29300,
+   "end_khz": 29510,
+   "max_width_hz": null,
+   "usage": "Satellites"
+  },
+  {
+   "band": "10m",
+   "start_khz": 29510,
+   "end_khz": 29700,
+   "max_width_hz": 6000,
+   "usage": "Entrees et sorties relais FM"
+  }
+ ],
+ "vhf_uhf_categories": {
+  "6m": [
+   "Balises",
+   "CW",
+   "SSB DX",
+   "FT8",
+   "FT4",
+   "MSK144",
+   "Q65",
+   "RTTY",
+   "FM",
+   "numerique",
+   "relais"
+  ],
+  "4m": [
+   "CW/SSB",
+   "FT8",
+   "MSK144",
+   "numerique",
+   "FM",
+   "relais (dispo nationale)"
+  ],
+  "2m": [
+   "EME",
+   "CW",
+   "SSB",
+   "FT8",
+   "JT65",
+   "Q65",
+   "MSK144",
+   "SSTV",
+   "packet",
+   "APRS",
+   "satellites",
+   "FM",
+   "relais"
+  ],
+  "70cm": [
+   "EME",
+   "CW",
+   "SSB",
+   "FT8",
+   "JT65",
+   "Q65",
+   "SSTV",
+   "packet",
+   "DMR/D-Star/C4FM",
+   "satellites",
+   "ATV",
+   "FM",
+   "relais"
+  ],
+  "23cm": [
+   "EME",
+   "balises",
+   "SSTV",
+   "ATV",
+   "DATV",
+   "FM",
+   "relais",
+   "satellites",
+   "donnees"
+  ],
+  "13cm": [
+   "EME",
+   "ATV/DATV",
+   "donnees",
+   "experimentation",
+   "satellites"
+  ],
+  "9cm+": [
+   "EME",
+   "balises",
+   "ATV",
+   "donnees",
+   "haut debit",
+   "experimentation (3400 MHz-250 GHz)"
+  ]
+ }
+}

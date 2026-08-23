@@ -38,3 +38,28 @@ def test_dial_freq_absent_rend_none():
 def test_modes_de_bande():
     m = fr.modes_de_bande('20m')
     assert 'FT8' in m and 'FT4' in m and 'WSPR' in m
+
+
+def test_bandplan_bien_forme():
+    bp = json.load(open(os.path.join(BASE, 'logx_rigs', 'bandplan_iaru_r1.json'), encoding='utf-8'))
+    assert bp['inventaire'] and bp['hf_segments'] and bp['vhf_uhf_categories']
+    for e in bp['inventaire']:
+        assert e['start_mhz'] < e['end_mhz'], e
+    for s in bp['hf_segments']:
+        assert s['start_khz'] < s['end_khz'], s
+
+
+def test_band_range():
+    assert fr.band_range('20m') == (14.0, 14.35)
+    assert fr.band_range('2m') == (144.0, 146.0)
+    assert fr.band_range('bidon') is None
+
+
+def test_segment_for_freq():
+    # 14074 kHz (FT8) tombe dans le segment numérique étroit 14070-14089
+    s = fr.segment_for(14074, '20m')
+    assert s and s['start_khz'] == 14070 and s['max_width_hz'] == 500
+    # 14200 kHz -> segment SSB 14112-14350
+    assert fr.segment_for(14200, '20m')['start_khz'] == 14112
+    # hors de tout segment HF référencé
+    assert fr.segment_for(99999) is None
