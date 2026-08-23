@@ -1214,7 +1214,15 @@ def load_log_from_disk():
             _disk_version = log_version
             _disk_pending = 0
             print(f"[LOG] {len(shared_log)} QSO charges depuis {DB_FILE}")
-            _reprendre_journal_apres_chargement()
+            # Si la reprise a réintégré des QSO, les PERSISTER tout de suite :
+            # _rejouer_journal() a déjà renommé le fichier journal (os.replace),
+            # donc sans ce save un arrêt avant la 1re mutation perdrait les QSO
+            # repris — ni en base (jamais écrite), ni dans le journal renommé
+            # (non rejoué au démarrage suivant). Cohérent avec la branche
+            # migration/sans-base ci-dessous, dont l'incohérence prouvait
+            # que ce save était l'intention.
+            if _reprendre_journal_apres_chargement():
+                save_log_to_disk()
             return
         migration = False
         if os.path.exists('shared_log.json'):
