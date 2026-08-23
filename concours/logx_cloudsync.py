@@ -358,6 +358,23 @@ def _qso_key(q):
     return qso_key(q)
 
 
+def _tombstone_removals(shared_log, remote_pairs, seuil):
+    """QSO locaux à retirer suite aux tombstones distants — BORNÉ.
+
+    Rend `(removed, refuses)`. Au-delà de `seuil` correspondances (= le
+    `_SEUIL_PERTE_MASSIVE` de storage), on considère la synchro suspecte
+    (tombstones périmés, copie de conflit Synology/Dropbox, ou fichier forgé —
+    acceptés NON signés sans secret d'équipe) et on N'EN APPLIQUE AUCUNE : le
+    carnet ne doit pas pouvoir être vidé par cette porte, d'autant que l'ancien
+    code y armait effacement_autorise=True et éteignait donc le garde-fou.
+    En deçà du seuil, la sauvegarde se fait garde-fou ARMÉ (voir sync)."""
+    candidates = [q for q in shared_log
+                  if (q.get('id'), _qso_key(q)) in remote_pairs]
+    if len(candidates) >= seuil:
+        return [], len(candidates)
+    return candidates, 0
+
+
 # Le dossier cible est choisi par l'utilisateur et peut être un point de montage
 # géré par un client de sync tiers (OneDrive Files On-Demand, Synology Drive en
 # mode lecteur virtuel, Dropbox Smart Sync) : si un fichier n'est pas hydraté
@@ -525,28 +542,37 @@ def _sync_now_locked(cfg, shared_log):
         # handler /log/delete (un lecteur /log/list concurrent ne doit jamais
         # voir le QSO absent sans tombstone posé).
         removed = []
+        suppr_refusees = 0
         with http.log_lock:
             if remote_pairs:
-                keep = []
-                for q in http.shared_log:
-                    if (q.get('id'), _qso_key(q)) in remote_pairs:
-                        removed.append(q)
-                    else:
-                        keep.append(q)
+                # BORNÉ : au-delà de _SEUIL_PERTE_MASSIVE tombstones, aucune
+                # suppression n'est appliquée (voir _tombstone_removals).
+                removed, suppr_refusees = _tombstone_removals(
+                    http.shared_log, remote_pairs, storage._SEUIL_PERTE_MASSIVE)
                 if removed:
-                    http.shared_log[:] = keep
+                    rem_pairs = {(q.get('id'), _qso_key(q)) for q in removed}
+                    http.shared_log[:] = [q for q in http.shared_log
+                                          if (q.get('id'), _qso_key(q)) not in rem_pairs]
                     storage.bump_log_version()
                     for q in removed:
                         storage.mark_qso_deleted(q.get('id'))
             seen = {_qso_key(q) for q in http.shared_log}
             local_ids = {q.get('id') for q in http.shared_log if q.get('id') is not None}
+        if suppr_refusees:
+            print(f"[CLOUDSYNC] ⚠ {suppr_refusees} suppressions distantes REFUSÉES "
+                  f"(>= seuil de perte massive {storage._SEUIL_PERTE_MASSIVE}) : "
+                  "tombstones ignorés pour protéger le carnet. Vérifier le dossier "
+                  "partagé (fichier de conflit/périmé/forgé, tombstones non signés "
+                  "sans secret d'équipe).")
         if removed:
             removed_count = len(removed)
-            # Suppressions DEMANDÉES par un autre poste (tombstones distants) :
-            # destruction voulue et tracée, donc consentement explicite. Sans
-            # lui, une synchro qui rapporte beaucoup de suppressions se ferait
-            # refuser par le garde-fou de logx_storage.
-            http.save_log_to_disk(effacement_autorise=True)
+            # Suppressions DEMANDÉES par un autre poste (tombstones distants),
+            # BORNÉES à < _SEUIL_PERTE_MASSIVE ci-dessus : une sauvegarde NORMALE
+            # suffit et garde le garde-fou anti-perte-massive ARMÉ. On ne passe
+            # PLUS effacement_autorise=True, qui éteignait le garde-fou pour TOUTE
+            # l'écriture et ouvrait la porte au vidage du carnet par un simple
+            # fichier de tombstones périmé/de conflit/forgé.
+            http.save_log_to_disk()
             # Même nettoyage du scan QSL attaché que /log/delete : cette
             # suppression propagée ne doit pas laisser de fichier orphelin.
             for q in removed:
