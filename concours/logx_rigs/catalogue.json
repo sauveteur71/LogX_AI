@@ -1,0 +1,641 @@
+{
+ "_note": "Catalogue des postes ACTUELS (metadonnees seulement, aucune commande). Anciens postes = couche 2 a venir. Regle: aucune commande de memoire (README.md). cat_support prudent (research=support LogX a confirmer).",
+ "genere_le": "2026-08-23",
+ "count": 36,
+ "rigs": [
+  {
+   "id": "icom_ic7300mk2",
+   "manufacturer": "Icom",
+   "model": "IC-7300MK2",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "icom_ic7300",
+   "manufacturer": "Icom",
+   "model": "IC-7300",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "icom_ic705",
+   "manufacturer": "Icom",
+   "model": "IC-705",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "documented",
+   "profile": "profils/icom/ic_705.json"
+  },
+  {
+   "id": "icom_ic7610",
+   "manufacturer": "Icom",
+   "model": "IC-7610",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "icom_ic7760",
+   "manufacturer": "Icom",
+   "model": "IC-7760",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "icom_ic9700",
+   "manufacturer": "Icom",
+   "model": "IC-9700",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "icom_ic905",
+   "manufacturer": "Icom",
+   "model": "IC-905",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "icom_civ",
+   "transport": [
+    "usb_serial",
+    "civ_bus"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ftx1",
+   "manufacturer": "Yaesu",
+   "model": "FTX-1",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ftdx10",
+   "manufacturer": "Yaesu",
+   "model": "FTDX10",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ft710",
+   "manufacturer": "Yaesu",
+   "model": "FT-710",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ftdx101d",
+   "manufacturer": "Yaesu",
+   "model": "FTDX101D",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ftdx101mp",
+   "manufacturer": "Yaesu",
+   "model": "FTDX101MP",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ft991a",
+   "manufacturer": "Yaesu",
+   "model": "FT-991A",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "yaesu_ft891",
+   "manufacturer": "Yaesu",
+   "model": "FT-891",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz",
+    "SDR"
+   ],
+   "protocol": "yaesu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "kenwood_ts890s",
+   "manufacturer": "Kenwood",
+   "model": "TS-890S",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "kenwood_ts590sg",
+   "manufacturer": "Kenwood",
+   "model": "TS-590SG",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "kenwood_ts990s",
+   "manufacturer": "Kenwood",
+   "model": "TS-990S",
+   "status": "current",
+   "category": [
+    "HF",
+    "50MHz"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "elecraft_k4",
+   "manufacturer": "Elecraft",
+   "model": "K4",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "elecraft_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "elecraft_kx2",
+   "manufacturer": "Elecraft",
+   "model": "KX2",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "elecraft_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "elecraft_kx3",
+   "manufacturer": "Elecraft",
+   "model": "KX3",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "elecraft_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "flexradio_flex6400",
+   "manufacturer": "FlexRadio",
+   "model": "FLEX-6400",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "flexradio_api",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "network_native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "flexradio_flex6600",
+   "manufacturer": "FlexRadio",
+   "model": "FLEX-6600",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "flexradio_api",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "network_native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "flexradio_flex6700",
+   "manufacturer": "FlexRadio",
+   "model": "FLEX-6700",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "flexradio_api",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "network_native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "flexradio_flex8000",
+   "manufacturer": "FlexRadio",
+   "model": "FLEX-8000",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "flexradio_api",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "network_native",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "apache_anan7000dle",
+   "manufacturer": "Apache Labs",
+   "model": "ANAN-7000DLE",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "hamlib",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "apache_anan8000dle",
+   "manufacturer": "Apache Labs",
+   "model": "ANAN-8000DLE",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "hamlib",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "apache_anang2",
+   "manufacturer": "Apache Labs",
+   "model": "ANAN-G2",
+   "status": "current",
+   "category": [
+    "HF",
+    "SDR"
+   ],
+   "protocol": "hamlib",
+   "transport": [
+    "tcp_network"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "xiegu_g90",
+   "manufacturer": "Xiegu",
+   "model": "G90",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "xiegu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "xiegu_g106",
+   "manufacturer": "Xiegu",
+   "model": "G106",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "xiegu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "xiegu_x6100",
+   "manufacturer": "Xiegu",
+   "model": "X6100",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "xiegu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "xiegu_x6200",
+   "manufacturer": "Xiegu",
+   "model": "X6200",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "xiegu_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "lab599_tx500",
+   "manufacturer": "Lab599",
+   "model": "TX-500",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "hamlib",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "lab599_tx500mp",
+   "manufacturer": "Lab599",
+   "model": "TX-500MP",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "hamlib",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "qrp_qdx",
+   "manufacturer": "QRP Labs",
+   "model": "QDX",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "qrp_qmx",
+   "manufacturer": "QRP Labs",
+   "model": "QMX",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  },
+  {
+   "id": "qrp_qmxplus",
+   "manufacturer": "QRP Labs",
+   "model": "QMX+",
+   "status": "current",
+   "category": [
+    "HF",
+    "QRP"
+   ],
+   "protocol": "kenwood_cat",
+   "transport": [
+    "usb_serial"
+   ],
+   "cat_support": "research",
+   "ft8_support": "full",
+   "documentation_status": "à sourcer"
+  }
+ ]
+}

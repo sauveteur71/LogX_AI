@@ -1,0 +1,36 @@
+{
+  "id": "icom_ic705",
+  "manufacturer": "Icom",
+  "model": "IC-705",
+  "protocol": "icom_civ",
+  "default_civ_address": "A4",
+  "controller_address": "E0",
+  "serial_defaults": {
+    "baudrate": 115200,
+    "data_bits": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "rtscts": false
+  },
+  "commands": {
+    "frequency_get": "03",
+    "frequency_set": "05",
+    "mode_get": "04",
+    "mode_set": "06",
+    "ptt": "1C00",
+    "split": "0F"
+  },
+  "capabilities": {
+    "frequency": true,
+    "mode": true,
+    "usb_data": true,
+    "ptt": true,
+    "split": true,
+    "tx_frequency": true,
+    "power": true
+  },
+  "source": "Adresse CI-V par defaut A4 + commandes CI-V standard Icom (03/05 freq, 04/06 mode, 1C00 PTT, 0F split) — fournies et confirmees par F4GLD le 23/08/2026 (manuel IC-705). L'adresse et la vitesse CI-V sont configurables dans le poste.",
+  "documentation_status": "documented",
+  "verified_on_hardware": false,
+  "note": "verified_on_hardware=false : commandes documentees mais PAS encore testees sur un vrai IC-705. Ne pas armer d'emission (PTT/split) en confiance avant un essai supervise."
+}

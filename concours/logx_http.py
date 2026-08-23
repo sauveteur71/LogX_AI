@@ -2979,6 +2979,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Super Check Partial — même forme, enrichie de qso_count/worked/
         # last_date. Le concours actif surclasse dept/locator/nom/section/zone
         # avec le Call History N1MM importé pour LUI (voir export_index()).
+        # Table des fréquences conventionnelles de cadran par bande × mode
+        # numérique (IARU R1, données sourcées logx_rigs/frequences_iaru_r1.json).
+        # Alimente le bouton QSY du hub MODE NUMÉRIQUE. Lecture seule.
+        if path == '/freq/digital':
+            import logx_frequences as freqdb
+            self._json(freqdb.digital_table())
+            return
+
         if path == '/call/index':
             import logx_callhistory as callhistory
             cfg_snap = self._cfg_snapshot()
