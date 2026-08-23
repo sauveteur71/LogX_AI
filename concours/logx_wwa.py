@@ -73,12 +73,20 @@ def _fetch_roster_blocking(edition_code):
     entry = _cache.get(edition_code)
     html = fetch_url(f'{TEAMS_URL}?sub_menu={edition_code}', timeout=10)
     if not html:
-        return entry['roster'] if entry else {}   # repli sur le cache périmé si le réseau échoue
+        # Réseau en échec : garder le cache périmé, MAIS actualiser son 'ts' pour
+        # que le throttle CACHE_TTL s'applique AUSSI aux échecs — sinon
+        # get_roster() rejugerait « stale » à chaque appel et re-déclencherait un
+        # rafraîchissement en boucle (martèlement de hamaward.cloud quand il tombe).
+        if entry:
+            entry['ts'] = time.time()
+            return entry['roster']
+        return {}
     roster = _parse_teams_html(html)
     if roster or not entry:
         _cache[edition_code] = {'ts': time.time(), 'roster': roster}
         return roster
-    return entry['roster']   # page vide/inchangée : garder le dernier roster non-vide connu
+    entry['ts'] = time.time()   # page vide/inchangée : throttle appliqué ici aussi
+    return entry['roster']      # garder le dernier roster non-vide connu
 
 
 # ─── Accès NON BLOQUANT (pour is_wwa_station()/le moteur de scoring) ────────
