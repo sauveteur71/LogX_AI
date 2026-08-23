@@ -6054,6 +6054,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             cwj.enregistrer(res.get('text'), 'winkeyer', wpm=res.get('wpm'))
                         _reponse_cw(res, 200 if res.get('ok') else 400)
                     return
+            # Repli DTR/RTS (keyer CW Phase 3B) : après le WinKeyer, avant le CAT.
+            # Timing généré par le PC, émission en tâche de fond, Esc coupe.
+            if self.path in ('/rig/cw', '/rig/stop'):
+                import logx_cw_serial as cws
+                if cws.parametres(cfg_snap)['enabled']:
+                    if self.path == '/rig/stop':
+                        res = cws.arreter(cfg_snap)
+                        self._json(res, 200 if res.get('ok') else 400)
+                    else:
+                        res = cws.envoyer(cfg_snap, (json.loads(body) if body else {}).get('text', ''))
+                        if res.get('ok'):
+                            print(f"[SER] CW {cfg_snap.get('cw_serial_line', 'DTR')} -> "
+                                  f"{str(res.get('text', ''))[:60]} ({res.get('wpm')} mots/min)")
+                        _reponse_cw(res, 200 if res.get('ok') else 400)
+                    return
             import logx_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
             native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
