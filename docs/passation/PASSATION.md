@@ -544,23 +544,48 @@ révélé.
      seule, résultats revérifiés indépendamment — `wc -l`/`du -h`/`grep -c
      "function "` confirment 6930/416K/259). Trois blocs candidats, du plus
      sûr au moins sûr :
-     1. **Cloud Sync + MySQL** (~lignes 3361-3457, ~96 lignes) —
-        `cloudsyncNow`, `_mysqlFieldsFromForm`, `testMysqlConnection`,
-        `mysqlSyncNow` — **zéro dépendance externe** trouvée. À commencer
-        par lui.
-     2. **ACOM (série RS-232)** (~lignes 1705-1781, ~76 lignes) —
-        `refreshAcomPorts`, `testAcomConnection`, `acomSetOperate` — zéro
-        dépendance externe trouvée, mêmes garanties que Cloud Sync.
-     3. **Mot de passe d'accès optionnel** (~lignes 3457-3547, ~90 lignes) —
+     1. **Cloud Sync + MySQL** (~96 lignes) — `cloudsyncNow`,
+        `_mysqlFieldsFromForm`, `testMysqlConnection`, `mysqlSyncNow`.
+        ✅ **FAIT le 23/08/2026 (PR #219)** — extrait dans
+        `logx_configuration_cloudsync.js`, chargé APRÈS configuration.js.
+        Déplacement pur (-96 l, 0 ajout), équivalence byte-à-byte,
+        contre-épreuve mutation, `test_config_cloudsync_extrait.py`.
+     2. **ACOM (série RS-232)** (~76 lignes) — `refreshAcomPorts`,
+        `testAcomConnection`, `acomSetOperate`.
+        ✅ **FAIT le 23/08/2026 (PR #220)** — extrait dans
+        `logx_configuration_acom.js`, chargé APRÈS configuration.js.
+        Déplacement pur (-76 l, 0 ajout), `test_config_acom_extrait.py`.
+        Dépendance notée : `escC()` reste un global de configuration.js
+        (disponible au moment de l'appel — les 3 fonctions ne sont
+        appelées qu'au clic/focus, jamais au chargement).
+     3. **Mot de passe d'accès optionnel** (~90 lignes) —
         `refreshAccessPasswordStatus`, `setAccessPassword`,
-        `disableAccessPassword` — une seule dépendance externe (`init()`
-        l'appelle une fois, ligne 1075).
+        `disableAccessPassword`.
+        🚫 **ÉCARTÉ le 23/08/2026 après analyse (décision F4GLD) — NE PAS
+        re-proposer.** L'analyse initiale sous-estimait le couplage. Deux
+        obstacles vérifiés dans le vrai code : (a) `init()` est appelée
+        **synchroniquement au chargement** (`const _initReady = init();`,
+        fin de configuration.js) et appelle `refreshAccessPasswordStatus()`
+        — un fichier extrait chargé APRÈS configuration.js casserait l'init
+        (ReferenceError) ; (b) `disableAccessPassword` dépend en retour de
+        `_confirmConfigBanner()`, global de configuration.js. Une extraction
+        n'est possible qu'en chargeant le fichier AVANT configuration.js
+        (ordre INVERSÉ vs les deux précédents) — fragilité subtile qu'un
+        futur rangement casserait en silence, **sur du code d'auth**, pour
+        ne gagner que ~90 lignes sur ~6760. Mauvais échange : on laisse ce
+        bloc dans configuration.js.
      ⚠️ Les bannières `// ─── TITRE ───` du fichier ne délimitent PAS
      toujours un module cohérent : la section « AMPLIFICATEUR HF »
-     (~1781-2134) mélange en réalité des fonctions ACOM/AMP avec du CAT/QRZ/
-     backup sans rapport — vérifier au cas par cas, ne jamais se fier au
-     titre seul. Aucun test Python n'extrait encore ces fonctions par nom
-     à ce jour — en écrire ou en adapter sera nécessaire.
+     mélange en réalité des fonctions ACOM/AMP avec du CAT/QRZ/backup sans
+     rapport — vérifier au cas par cas, ne jamais se fier au titre seul.
+     Garde-fou inscrit en test pour ACOM (le bloc ne doit pas déborder sur
+     `AMP_DEFAULT_BAUD`/`updateEnabledFieldsVisibility`).
+
+     **Bilan `logx_configuration.js` : 6939 → ~6767 lignes (-172), deux
+     extractions propres. Plus de bloc franchement isolable sans entrer
+     dans du code entrelacé — le reste du monolithe est cohérent. Le
+     modèle « extraire vers un `<script src>` chargé après, test
+     d'équivalence + contre-épreuve » est validé pour de futurs blocs.**
    - `logx_carte.html` : confirmé monolithique (ligne 545) mais **aucun
      bloc candidat identifié encore** — à analyser avant de commencer, ne
      pas supposer qu'une des découpes ci-dessus s'y applique.
