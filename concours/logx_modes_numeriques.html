@@ -119,6 +119,25 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
   <h1>Modes numériques</h1>
   <p class="intro">Chaque mode s'ouvre dans sa <b>propre fenêtre de navigateur</b>, déplaçable où tu veux — y compris sur un second écran — plutôt que dans un panneau coincé dans cette page. Le <b>CW</b> reste dans <a href="logx_logbook.html" style="color:var(--accent2)">LOGBOOK</a> (panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction <a href="logx_cw.html" style="color:var(--accent2)">ÉCOLE CW</a>.</p>
 
+  <style>
+  .qsy-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin:0 0 20px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px}
+  .qsy-panel .qsy-title{font-family:var(--font-display);font-weight:900;color:var(--accent2);font-size:14px;letter-spacing:.2px;width:100%;display:flex;align-items:center;gap:8px}
+  .qsy-panel .qsy-title svg{width:18px;height:18px;flex-shrink:0}
+  .qsy-panel label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);letter-spacing:.5px}
+  .qsy-panel select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-family:var(--font-mono);font-size:13px;min-width:90px}
+  .qsy-freq{font-family:var(--font-mono);font-size:15px;color:var(--accent2);min-width:180px}
+  .qsy-panel .mode-btn{margin:0}
+  .qsy-note{width:100%;font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+  </style>
+  <div class="qsy-panel">
+    <div class="qsy-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="2" x2="9" y2="6"/><line x1="9" y1="12" x2="9" y2="16"/><circle cx="9" cy="9" r="2.4"/><path d="M4 5a6 6 0 0 0 0 8M14 5a6 6 0 0 1 0 8"/></svg>QSY — aller sur la fréquence du mode</div>
+    <label>BANDE<select id="qsyBand"></select></label>
+    <label>MODE<select id="qsyMode"></select></label>
+    <span class="qsy-freq" id="qsyFreq">—</span>
+    <button class="mode-btn" id="qsyGo" onclick="qsyAller()">Aller sur la fréquence</button>
+    <div class="qsy-note">Envoie ton poste (piloté par CAT) sur la fréquence conventionnelle du mode numérique pour la bande choisie (IARU R1). Rien n'est émis — simple changement de fréquence ; tu restes libre de retuner ensuite.</div>
+  </div>
+
   <div class="mode-grid">
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg>FT8</div>
@@ -161,6 +180,56 @@ function notifyHub(msg){
   clearTimeout(notifyHub._tm);
   notifyHub._tm = setTimeout(() => t.classList.remove('show'), 6000);
 }
+
+// ─── Bouton QSY par bande × mode numérique ─────────────────────────────────
+// Fréquences conventionnelles de cadran (IARU R1, données sourcées) servies par
+// /freq/digital. Le QSY réutilise l'endpoint existant /rig/qsy {freq_khz, mode}
+// (celui du LOGBOOK). L'opérateur DÉCLENCHE (jamais automatique) et reste libre
+// de retuner. Rien n'est émis : simple set_freq CAT.
+let _qsyTable = null;
+function _qsyFmt(m){ return m.toFixed(m < 1 ? 4 : 3); }
+async function qsyInit(){
+  const panel = document.querySelector('.qsy-panel');
+  try {
+    const r = await fetch('/freq/digital');
+    if(!r.ok) throw new Error('http');
+    _qsyTable = await r.json();
+    if(!_qsyTable.bands || !_qsyTable.bands.length) throw new Error('vide');
+  } catch(e){ if(panel) panel.style.display = 'none'; return; }  // pas de données -> pas de bouton
+  const bandSel = document.getElementById('qsyBand');
+  bandSel.innerHTML = _qsyTable.bands.map(b => '<option>' + b + '</option>').join('');
+  bandSel.onchange = qsyRefreshModes;
+  document.getElementById('qsyMode').onchange = qsyRefreshFreq;
+  qsyRefreshModes();
+}
+function qsyRefreshModes(){
+  const b = document.getElementById('qsyBand').value;
+  const modes = Object.keys((_qsyTable.table || {})[b] || {});
+  document.getElementById('qsyMode').innerHTML = modes.map(m => '<option>' + m + '</option>').join('');
+  qsyRefreshFreq();
+}
+function qsyRefreshFreq(){
+  const b = document.getElementById('qsyBand').value, m = document.getElementById('qsyMode').value;
+  const e = ((_qsyTable.table || {})[b] || {})[m];
+  const disp = document.getElementById('qsyFreq'), go = document.getElementById('qsyGo');
+  if(e){ disp.textContent = _qsyFmt(e.dial_mhz) + ' MHz ' + e.radio_mode; go.disabled = false; }
+  else { disp.textContent = '—'; go.disabled = true; }
+}
+async function qsyAller(){
+  const b = document.getElementById('qsyBand').value, m = document.getElementById('qsyMode').value;
+  const e = ((_qsyTable.table || {})[b] || {})[m];
+  if(!e) return;
+  const freqKhz = Math.round(e.dial_mhz * 1000);
+  try {
+    const r = await fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq_khz: freqKhz, mode: e.radio_mode})});
+    const d = await r.json().catch(() => ({}));
+    if(d.ok) notifyHub('QSY ' + _qsyFmt(e.dial_mhz) + ' MHz (' + m + ') — poste en ' + e.radio_mode + '.');
+    else if(d.freq_set) notifyHub('Fréquence réglée (' + _qsyFmt(e.dial_mhz) + ' MHz) — règle le mode ' + e.radio_mode + ' à la main : ' + (d.error || ''));
+    else notifyHub('QSY impossible : ' + (d.error || 'poste non piloté par CAT ?'));
+  } catch(err){ notifyHub('QSY impossible : serveur injoignable.'); }
+}
+document.addEventListener('DOMContentLoaded', qsyInit);
 function ouvrirFenetreDetachee(url, nom, options){
   // REVENIR SUR LA PAGE DÉJÀ OUVERTE, SANS LA RECHARGER.
   //

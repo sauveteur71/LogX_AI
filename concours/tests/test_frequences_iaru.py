@@ -55,6 +55,15 @@ def test_band_range():
     assert fr.band_range('bidon') is None
 
 
+def test_digital_table():
+    t = fr.digital_table()
+    assert '20m' in t['bands'] and 'FT8' in t['modes']
+    assert t['table']['20m']['FT8']['dial_mhz'] == 14.074
+    assert t['table']['20m']['FT8']['radio_mode'] == 'USB-DATA'
+    # 2m FT4 = 'local' -> absent de la table
+    assert 'FT4' not in t['table'].get('2m', {})
+
+
 def test_segment_for_freq():
     # 14074 kHz (FT8) tombe dans le segment numérique étroit 14070-14089
     s = fr.segment_for(14074, '20m')

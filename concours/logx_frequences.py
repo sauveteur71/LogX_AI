@@ -23,6 +23,24 @@ def _load():
     return _cache
 
 
+def digital_table(region='IARU_R1'):
+    """Table pour le bouton QSY du hub numérique :
+    {'bands': [...ordre...], 'modes': [...], 'table': {band: {mode: {'dial_mhz','radio_mode'}}}}.
+    Ne conserve que l'entrée PRINCIPALE (sans variante) par (band, mode)."""
+    table, bands, modes = {}, [], []
+    for e in _load():
+        if e.get('region') != region or 'variant' in e:
+            continue
+        b, m = e['band'], e['mode']
+        if b not in table:
+            table[b] = {}
+            bands.append(b)
+        if m not in modes:
+            modes.append(m)
+        table[b][m] = {'dial_mhz': e['dial_mhz'], 'radio_mode': e.get('radio_mode', 'USB-DATA')}
+    return {'bands': bands, 'modes': modes, 'table': table}
+
+
 def dial_freq(band, mode, region='IARU_R1', variant=None):
     """Fréquence de cadran (MHz) pour (band, mode), ou None si non définie
     (ex. 'local'/'selon autorisation' non renseignés). `variant` sélectionne une
