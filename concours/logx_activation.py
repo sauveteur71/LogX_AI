@@ -125,7 +125,13 @@ def activation_state(shared_log, program, my_ref):
         per_band[b] = per_band.get(b, 0) + 1
         per_mode[m] = per_mode.get(m, 0) + 1
         their = normalize_ref(q.get('sig_info', ''))
-        if their:
+        their_prog = str(q.get('sig', '')).strip().upper()
+        # P2P uniquement si le correspondant est dans le MÊME programme (champ
+        # ADIF 'sig'). Un 'sig' ABSENT est toléré (beaucoup d'ADIF ne
+        # remplissent que sig_info — cas courant) ; mais un 'sig' présent et
+        # DIFFÉRENT (ex. un SOTA travaillé pendant une activation POTA) n'est
+        # PAS un contact parc-à-parc.
+        if their and (not their_prog or their_prog == program):
             p2p.append({'call': str(q.get('call', '')).upper(),
                         'ref': their, 'band': b, 'mode': m})
 

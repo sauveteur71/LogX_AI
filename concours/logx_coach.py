@@ -572,6 +572,15 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
 
 # ─── DÉBRIEF POST-CONCOURS ───────────────────────────────────────────────────
 
+def _best_worst_hours(hours_sorted):
+    """(best_hours, worst_hours) TOUJOURS DISJOINTS. `hours_sorted` est trié par
+    -count. best = les 3 heures les plus productives ; worst = les 3 dernières
+    PARMI LE RESTE (hours_sorted[3:]), donc jamais une heure déjà dans best.
+    Avant : worst = hours_sorted[-3:] chevauchait best quand len ∈ {4, 5} — une
+    même heure figurait à la fois comme 'meilleure' et 'creuse' dans le débrief."""
+    return hours_sorted[:3], hours_sorted[3:][-3:]
+
+
 def build_debrief(cfg, shared_log, now=None):
     """Statistiques DÉTERMINISTES du concours écoulé + prompt prêt pour un
     débrief narratif par l'IA (/proxy/ai côté client).
@@ -629,6 +638,7 @@ def build_debrief(cfg, shared_log, now=None):
                              'to': b.strftime('%d/%m %H:%M'), 'min': int(gap)})
 
     hours_sorted = sorted(per_hour.items(), key=lambda kv: -kv[1])
+    best_hours, worst_hours = _best_worst_hours(hours_sorted)
     stats = {
         'contest': contest_id,
         'contest_name': cdef.get('name', contest_id),
@@ -636,8 +646,8 @@ def build_debrief(cfg, shared_log, now=None):
         'qso_total': len(entries),
         'score': score,
         'per_hour': per_hour,
-        'best_hours': hours_sorted[:3],
-        'worst_hours': hours_sorted[-3:] if len(hours_sorted) > 3 else [],
+        'best_hours': best_hours,
+        'worst_hours': worst_hours,
         'per_band': {b: {**v, 'locators': len(v['locators'])}
                      for b, v in per_band.items()},
         'silences': silences[:10],
