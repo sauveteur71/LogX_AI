@@ -99,6 +99,9 @@ const CONFIG_HELP = {
   cw_serial_port: "Le port série (COM sous Windows, /dev/ttyUSBx sous Linux) où l'interface de manipulation DTR/RTS est reliée. Peut être un port différent du CAT.",
   cw_serial_line: "La ligne série qui commande la clé : DTR ou RTS, selon le câblage de ton interface (montage transistor/opto). En cas de doute, essaie l'autre si rien ne part.",
   cw_serial_wpm: "La vitesse d'envoi CW en mots par minute pour le keyer série (le timing étant généré par l'ordinateur).",
+  soundcard_cw_enabled: "Génère la tonalité CW dans le NAVIGATEUR (Web Audio) pour un poste SANS entrée KEY : la BF part sur l'entrée micro/ligne du poste en SSB (déclenché par VOX ou PTT). Émission LOCALE au navigateur — le poste reste en SSB (USB/LSB), pas en mode CW. Le TX doit être armé (interrupteur maître) pour émettre.",
+  soundcard_cw_hz: "Hauteur de la tonalité CW générée, en Hz (300–1200 ; 700 par défaut). À accorder au filtre/à l'oreille du correspondant.",
+  soundcard_cw_wpm: "La vitesse d'envoi CW en mots par minute pour la voie carte son (le timing est généré par le navigateur).",
 
   amp_enabled: "Active le pilotage de ton amplificateur linéaire (lecture de puissance/ROS, bascule standby/émission) depuis le logiciel.",
   amp_brand: "La marque de ton amplificateur (Elecraft, Icom, SPE...) — détermine le protocole de communication utilisé.",
@@ -5407,6 +5410,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cw_serial_port: document.getElementById('cw_serial_port')?.value.trim() || '',
     cw_serial_line: document.getElementById('cw_serial_line')?.value || 'DTR',
     cw_serial_wpm: _numClamped('cw_serial_wpm', 22),
+    soundcard_cw_enabled: document.getElementById('soundcard_cw_enabled')?.value || '',
+    soundcard_cw_hz: _numClamped('soundcard_cw_hz', 700),
+    soundcard_cw_wpm: _numClamped('soundcard_cw_wpm', 20),
     transverters: readTransverters(),
     autostart_programs: readAutostart(),
     // Parc de la station. readParcStation() relit les champs à l'instant de la
@@ -6164,6 +6170,7 @@ function applyFullConfigToForm(c) {
      'winkeyer_weighting','winkeyer_ratio','winkeyer_farnsworth',
      'winkeyer_sidetone_hz','winkeyer_ptt_lead_ms','winkeyer_ptt_tail_ms',
      'cw_serial_enabled','cw_serial_port','cw_serial_line','cw_serial_wpm',
+     'soundcard_cw_enabled','soundcard_cw_hz','soundcard_cw_wpm',
      'cat2_enabled','cat2_mode','cat2_brand','cat2_port','cat2_baudrate','cat2_omnirig_rig_num',
      'so2r_enabled','so2r_port','so2r_stereo',
      'amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port',

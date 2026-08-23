@@ -1849,6 +1849,24 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="number" id="cw_serial_wpm" placeholder="22" min="5" max="99">
           </div>
         </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted)">Soundcard CW — génère la tonalité CW dans le navigateur pour un poste SANS entrée KEY : la BF part sur l'entrée micro/ligne du poste en SSB (VOX ou PTT). Émission locale au navigateur.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>SOUNDCARD CW (navigateur)</label>
+            <select id="soundcard_cw_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>TONALITÉ (Hz)</label>
+            <input type="number" id="soundcard_cw_hz" placeholder="700" min="300" max="1200">
+          </div>
+          <div class="form-group">
+            <label>VITESSE (mots/min)</label>
+            <input type="number" id="soundcard_cw_wpm" placeholder="20" min="5" max="40">
+          </div>
+        </div>
       </div>
 
       <!-- ─── TRANSVERTERS ─────────────────────────────────────────────────
