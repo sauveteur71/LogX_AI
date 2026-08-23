@@ -32,6 +32,10 @@
 // date+heure exacts) se fait aussi côté serveur, contre le VRAI log partagé
 // entre tous les postes, pas seulement le qsoLog de ce navigateur.
 let _pendingImportText = '';
+// Activité à affecter au lot importé (F4GLD 23/08) : un log externe d'événement
+// spécial (TM6KJS…) arrive souvent sans CONTEST_ID -> non tagué. Saisi ici, il
+// tague les QSO neufs sans concours propre (voir logx_import.commit_import).
+let _importActivite = '';
 
 function triggerImport(){
   const inp = document.createElement('input');
@@ -54,7 +58,7 @@ async function previewImportAdif(text){
   try{
     const res = await fetch('/log/import_adif/preview', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({adif: text}),
+      body: JSON.stringify({adif: text, activite: _importActivite}),
     });
     const p = await res.json();
     if(!p.ok){
@@ -66,6 +70,18 @@ async function previewImportAdif(text){
     rows.push(`<div class="shortcuts-row"><span>📄 QSO valides dans le fichier</span><span>${p.total_in_file}</span></div>`);
     rows.push(`<div class="shortcuts-row"><span>✅ Nouveaux à importer</span><span style="color:var(--green)">${p.new}</span></div>`);
     rows.push(`<div class="shortcuts-row"><span>⏩ Déjà dans le log (doublons exacts)</span><span style="color:var(--muted)">${p.duplicates}</span></div>`);
+    // Champ « affecter à une activité » : tague les QSO neufs sans concours
+    // propre. onchange -> re-preview pour rafraîchir le compteur `to_tag`.
+    rows.push('<div class="shortcuts-row" style="margin-top:10px;flex-direction:column;align-items:stretch;gap:4px">'
+      + '<label for="importActivite" style="color:var(--muted)">🏷️ Affecter cet import à une activité '
+      + '(concours ou indicatif spécial, ex. TM6KJS) — optionnel :</label>'
+      + `<input id="importActivite" type="text" value="${escHtml(_importActivite)}" placeholder="ex. TM6KJS" `
+      + 'style="padding:6px 8px;background:var(--bg2);color:inherit;border:1px solid var(--border);border-radius:6px;font-family:inherit" '
+      + 'oninput="_importActivite=this.value.toUpperCase();this.value=_importActivite" '
+      + 'onchange="previewImportAdif(_pendingImportText)"></div>');
+    if(_importActivite && typeof p.to_tag === 'number'){
+      rows.push(`<div class="shortcuts-row"><span>↳ QSO qui recevront le tag « ${escHtml(_importActivite)} »</span><span style="color:var(--accent)">${p.to_tag}</span></div>`);
+    }
     if(p.errors && p.errors.length){
       rows.push(`<div class="shortcuts-row"><span>⚠️ Records ignorés</span><span style="color:var(--yellow)">${p.errors.length}</span></div>`);
     }
@@ -96,7 +112,7 @@ async function confirmImportAdif(){
   try{
     const res = await fetch('/log/import_adif/commit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({adif: _pendingImportText}),
+      body: JSON.stringify({adif: _pendingImportText, activite: _importActivite}),
     });
     const r = await res.json();
     closeImportOverlay();
@@ -117,6 +133,7 @@ async function confirmImportAdif(){
 function closeImportOverlay(){
   document.getElementById('importOverlay').classList.remove('show');
   _pendingImportText = '';
+  _importActivite = '';
 }
 
 // ─── EXPORT ON4KST ────────────────────────────────────────────────────────────

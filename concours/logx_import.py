@@ -220,16 +220,23 @@ def _mode_warnings(qsos):
     return warnings
 
 
-def preview_import(adif_text, existing_log):
+def preview_import(adif_text, existing_log, activite=''):
     """Analyse SANS RIEN ÉCRIRE : compte nouveaux/doublons, donne un
     échantillon. `existing_log` : snapshot de shared_log (liste de dicts).
     `mode_warnings` : modes non standards détectés — INFORMATIF seulement,
-    n'affecte pas `new`/`duplicates` (ces QSO sont importables normalement)."""
+    n'affecte pas `new`/`duplicates` (ces QSO sont importables normalement).
+
+    `activite` : si fourni, `to_tag` indique combien de QSO NEUFS recevront ce
+    tag d'activité au commit (ceux sans CONTEST_ID propre), pour l'afficher
+    avant confirmation. Voir commit_import()."""
+    activite = str(activite or '').strip()
     qsos, errors = parse_adif_to_qsos(adif_text)
     existing_keys = {k for q in existing_log if (k := _dedup_key(q)) is not None}
     new_qsos = [q for q in qsos
                 if (k := _dedup_key(q)) is None or k not in existing_keys]
     duplicates = len(qsos) - len(new_qsos)
+    to_tag = (sum(1 for q in new_qsos if not str(q.get('contest', '') or '').strip())
+              if activite else 0)
     return {
         'ok': True,
         'total_in_file': len(qsos),
@@ -238,13 +245,23 @@ def preview_import(adif_text, existing_log):
         'errors': errors,
         'mode_warnings': _mode_warnings(qsos),
         'sample': new_qsos[:5],
+        'to_tag': to_tag,
     }
 
 
-def commit_import(adif_text, existing_log):
+def commit_import(adif_text, existing_log, activite=''):
     """Ré-analyse et retourne la liste des QSO NEUFS à ajouter au log
     (l'appelant fait l'ajout + la sauvegarde sous log_lock — ce module ne
-    connaît pas shared_log, pour rester testable sans le serveur)."""
+    connaît pas shared_log, pour rester testable sans le serveur).
+
+    `activite` (F4GLD 23/08) : identifiant d'activité saisi par l'opérateur au
+    moment de l'import (ex. 'TM6KJS'). Un log externe d'événement spécial porte
+    souvent l'indicatif en STATION_CALLSIGN SANS CONTEST_ID -> il arriverait non
+    tagué et l'export par activité ne le retrouverait pas. Si `activite` est
+    fourni, on l'attribue (champ 'contest') aux QSO neufs qui n'ont PAS déjà leur
+    propre tag concours : un CONTEST_ID présent dans l'ADIF n'est JAMAIS écrasé.
+    N'affecte pas la dédup (_dedup_key ignore 'contest')."""
+    activite = str(activite or '').strip()
     qsos, errors = parse_adif_to_qsos(adif_text)
     existing_keys = {k for q in existing_log if (k := _dedup_key(q)) is not None}
     new_qsos = []
@@ -267,6 +284,8 @@ def commit_import(adif_text, existing_log):
             continue
         q['id'] = base_id + len(new_qsos)
         q['server_time'] = now
+        if activite and not str(q.get('contest', '') or '').strip():
+            q['contest'] = activite
         new_qsos.append(q)
         if k is not None:
             existing_keys.add(k)   # le fichier importé peut contenir ses propres doublons
