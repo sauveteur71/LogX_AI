@@ -336,6 +336,15 @@ def resolve_operator_callsign(op_id, cfg, station_fallback=True):
     return (cfg.get('callsign_contest') or cfg.get('callsign') or raw) if station_fallback else raw
 
 
+def _adif_mode(q):
+    """Champ(s) ADIF de mode. FT2 = sous-mode EXPÉRIMENTAL de MFSK : WSJT-X ne
+    liste pas FT2 -> MODE=MFSK + SUBMODE=FT2, JAMAIS MODE=FT2 (terrain FT2
+    Phase 1, jumeau de logx_export_adif.js). Aucune émission concernée."""
+    if str(q.get('mode', '')).strip().upper() == 'FT2':
+        return _adif_field('mode', 'MFSK') + _adif_field('submode', 'FT2')
+    return _adif_field('mode', _norm_mode(q))
+
+
 def build_adif(qsos, cfg=None):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
     il sait maintenant l'écrire."""
@@ -362,7 +371,7 @@ def build_adif(qsos, cfg=None):
             _adif_field('time_on', time),
             _adif_field('band', ADIF_BAND.get(_norm_band(q), '')),
             _adif_field('freq', str(q.get('freq', '') or '')),
-            _adif_field('mode', _norm_mode(q)),
+            _adif_mode(q),
             _adif_field('rst_sent', q.get('rst_sent', '')),
             _adif_field('rst_rcvd', q.get('rst_rcvd', '')),
             _adif_field('stx_string', q.get('num_sent', '')),

@@ -34,6 +34,17 @@ from logx_utils import CALL_RE as _CALL_RE, clean_text as _clean_text
 # correspondance non ambiguë et documentée, pas une déduction hasardeuse.
 _MODE_SYNONYMES = {'PH': 'SSB'}
 
+
+def _lire_mode(rec):
+    """Mode interne depuis un record ADIF. FT2 = sous-mode EXPÉRIMENTAL de MFSK :
+    MODE=MFSK + SUBMODE=FT2 -> 'FT2' (miroir exact de l'export). Terrain FT2
+    Phase 1 (F4GLD) — aucune émission, seul l'aller-retour ADIF est concerné."""
+    mode = _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB'
+    submode = _clean_text((rec.get('SUBMODE') or '').upper())
+    if mode == 'MFSK' and submode == 'FT2':
+        return 'FT2'
+    return _MODE_SYNONYMES.get(mode, mode)
+
 # Tags ADIF explicitement mappés vers un champ interne ci-dessous — tout le
 # reste d'un record (ex. MY_RIG, COMMENT, un tag propriétaire d'un autre
 # logiciel) est préservé tel quel dans extra_fields plutôt que perdu en
@@ -117,9 +128,7 @@ def parse_adif_to_qsos(adif_text):
         qsos.append({
             'call': call,
             'band': band,
-            'mode': _MODE_SYNONYMES.get(
-                _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB',
-                _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB'),
+            'mode': _lire_mode(rec),
             'date': _clean_date(rec.get('QSO_DATE')),
             'time': _adif_time(rec),
             'rst_sent': _clean_text(rec.get('RST_SENT')),
@@ -149,8 +158,13 @@ def parse_adif_to_qsos(adif_text):
         # préservé dans extra_fields plutôt que perdu en silence — même
         # convention que l'éditeur de champs personnalisés côté client
         # (logx_logbook.js:editQSO/buildAdifText).
+        # SUBMODE=FT2 est déjà consommé en mode='FT2' : ne pas le laisser dans
+        # extra_fields (sinon il serait ré-écrit en double à l'export). Les
+        # AUTRES sous-modes (JS8, etc.) restent préservés dans extra_fields.
+        _est_ft2 = qsos[-1].get('mode') == 'FT2'
         extras = {k: _clean_text(v) for k, v in rec.items()
-                  if k not in _TAGS_MAPPES and _clean_text(v)}
+                  if k not in _TAGS_MAPPES and _clean_text(v)
+                  and not (_est_ft2 and k == 'SUBMODE')}
         if extras:
             qsos[-1]['extra_fields'] = extras
     return qsos, errors
