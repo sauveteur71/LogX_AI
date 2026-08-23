@@ -188,6 +188,12 @@ def main():
 
     print(f"\n==== SCORE GLOBAL : {total_ok}/{total} champs corrects "
           f"({100*total_ok//max(total,1)}%) ====")
+    if total == 0:
+        # Aucun champ évalué (filtre --only sans correspondance ou corpus vide) :
+        # un harnais qui n'a rien testé ne doit pas se lire comme un succès.
+        print("[!] Aucun champ évalué — échec (filtre --only sans correspondance "
+              "ou corpus vide).")
+        sys.exit(2)
     sys.exit(0 if total_ok == total else 1)
 
 if __name__ == '__main__':

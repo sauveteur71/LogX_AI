@@ -283,7 +283,7 @@ def _resolve_spotted_live(spotted, known_calls, cfg):
     if cfg is None or not spotted:
         return {}
     import logx_callbook as callbook
-    now = time.time()
+    now = time.monotonic()
     resolved = {}
     attempts = 0
     for call in spotted:

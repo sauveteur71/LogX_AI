@@ -76,9 +76,9 @@ def _sauver_locked():
 
 def _purger_locked(maintenant=None):
     now = time.time() if maintenant is None else maintenant
-    vivants = [s for s in _spots if now - float(s.get('ts', 0)) < DUREE_VIE_S]
+    vivants = [s for s in _spots if now - float(s.get('ts') or 0) < DUREE_VIE_S]
     if len(vivants) > MAX_SPOTS:
-        vivants.sort(key=lambda s: float(s.get('ts', 0)), reverse=True)
+        vivants.sort(key=lambda s: float(s.get('ts') or 0), reverse=True)
         vivants = vivants[:MAX_SPOTS]
     if len(vivants) != len(_spots):
         _spots[:] = vivants
@@ -158,9 +158,9 @@ def spots(maintenant=None):
         _purger_locked(maintenant)
         now = time.time() if maintenant is None else maintenant
         return sorted(
-            ({'call': s.get('call', ''), 'freq_khz': float(s.get('freq_khz', 0)),
+            ({'call': s.get('call', ''), 'freq_khz': float(s.get('freq_khz') or 0),
               'band': s.get('band', ''), 'mode': s.get('mode', ''),
               'note': s.get('note', ''), 'source': 'local',
-              'age_s': int(now - float(s.get('ts', 0)))}
+              'age_s': int(now - float(s.get('ts') or 0))}
              for s in _spots),
             key=lambda s: s['freq_khz'], reverse=True)
