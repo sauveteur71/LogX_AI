@@ -660,6 +660,35 @@ def cluster_spot_settings(cfg):
     return {'enabled': enabled, 'host': host, 'port': port, 'login': login}
 
 
+# Mots de refus — liste large, aussi peu dépendante de la langue que possible
+# (beaucoup de nœuds n'acceptent le spot que d'inscrits).
+_REFUS_SELF_SPOT = (
+    'not allowed', 'permission', 'register', 'not registered', 'registration',
+    'denied', 'rejected', 'ignored', 'invalid', 'not a user',
+    'set your location', 'sorry', 'duplicate', ' dup', 'error', 'interdit', 'refus')
+
+
+def _juger_self_spot(spot_echo, list_echo, spot_call, freq_khz):
+    """Décide du résultat d'un auto-spot à partir des DEUX échos séparés :
+    la réponse à NOTRE commande de spot (spot_echo) et la liste sh/dx/5
+    (list_echo). Le refus n'est cherché QUE dans spot_echo : la liste sh/dx/5
+    contient les spots d'AUTRES opérateurs, dont les commentaires ('dup',
+    'error', 'sorry'…) faisaient passer notre spot réussi pour refusé."""
+    spot_echo = spot_echo or ''
+    echo = spot_echo + (list_echo or '')
+    if any(k in spot_echo.lower() for k in _REFUS_SELF_SPOT):
+        return {'ok': False, 'confirmed': False, 'raw': echo[-500:],
+                'error': 'Le noeud a refuse le spot (inscription requise ?)'}
+    # Confirmation POSITIVE : notre spot figure-t-il dans la liste ? (indicatif + kHz)
+    freq_str = str(int(round(freq_khz)))
+    low = echo.lower()
+    confirmed = (spot_call.lower() in low) and (freq_str in echo)
+    if confirmed:
+        return {'ok': True, 'confirmed': True, 'raw': echo[-500:], 'error': None}
+    return {'ok': True, 'confirmed': False, 'raw': echo[-500:],
+            'error': 'Spot envoye mais non confirme par le noeud - verifie le cluster'}
+
+
 def publish_self_spot(host, port, login_call, spot_call, freq_khz,
                       comment='', timeout=10):
     """Publie 'DX <freq_kHz> <call> <comment>' sur un nœud DX Spider.
@@ -737,12 +766,15 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
             # Commande de spot DX Spider
             cmd = f'DX {freq_khz:.1f} {spot_call} {comment}'.strip()
             s.sendall((cmd + '\r\n').encode())
-            echo = read_until([b'spot', b'sent', b'>'], max_wait=3)
+            spot_echo = read_until([b'spot', b'sent', b'>'], max_wait=3)
             # Confirmation POSITIVE : redemander les derniers spots et y chercher le
             # nôtre (un succès ne peut PAS se déduire de la seule absence de refus).
+            # Écho SÉPARÉ : le refus ne doit pas être cherché dans cette liste
+            # (spots d'autres opérateurs).
+            list_echo = ''
             try:
                 s.sendall(b'sh/dx/5\r\n')
-                echo += read_until([b'>'], max_wait=3)
+                list_echo = read_until([b'>'], max_wait=3)
             except OSError:
                 pass
             try:
@@ -750,7 +782,7 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
             except OSError:
                 pass
             s.close()
-            return echo
+            return spot_echo, list_echo
 
         # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la
         # connexion — résolution DNS non couverte par settimeout(). On
@@ -759,26 +791,11 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
         # connect, bornée à `timeout`) : read_until(5)+sleep(1)+
         # read_until(3)+read_until(3)+read_until(3) = 15s ; timeout+5 y était
         # tout juste égal (pas strictement supérieur) — marge portée à +7.
-        echo = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 7)
-        low = echo.lower()
-        # Refus explicite — liste large, aussi peu dépendante de la langue que
-        # possible (beaucoup de nœuds n'acceptent le spot que d'inscrits).
-        refus = ('not allowed', 'permission', 'register', 'not registered',
-                 'registration', 'denied', 'rejected', 'ignored', 'invalid',
-                 'not a user', 'set your location', 'sorry', 'duplicate', ' dup',
-                 'error', 'interdit', 'refus')
-        if any(k in low for k in refus):
-            return {'ok': False, 'confirmed': False, 'raw': echo[-500:],
-                    'error': 'Le noeud a refuse le spot (inscription requise ?)'}
-        # Notre spot figure-t-il dans la liste renvoyée ? (indicatif + kHz)
-        freq_str = str(int(round(freq_khz)))
-        confirmed = (spot_call.lower() in low) and (freq_str in echo)
+        spot_echo, list_echo = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 7)
+        res = _juger_self_spot(spot_echo, list_echo, spot_call, freq_khz)
         print(f"[SELF-SPOT] {login_call} -> DX {freq_khz:.1f} {spot_call} @ {host} "
-              f"({'confirme' if confirmed else 'non confirme'})")
-        if confirmed:
-            return {'ok': True, 'confirmed': True, 'raw': echo[-500:], 'error': None}
-        return {'ok': True, 'confirmed': False, 'raw': echo[-500:],
-                'error': 'Spot envoye mais non confirme par le noeud - verifie le cluster'}
+              f"({'confirme' if res.get('confirmed') else 'non confirme'})")
+        return res
     except Exception as e:
         return {'ok': False, 'confirmed': False, 'raw': '',
                 'error': f'Connexion cluster impossible : {e}'}
