@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 """export CSV (complet) : échappement RFC-4180 + pas de « undefined ».
 
-exportCSV() assemblait chaque ligne par template literal SANS quoter ni
-échapper : un champ contenant une virgule (échange, locator, opérateur), un
-guillemet ou un retour-ligne décalait toutes les colonnes suivantes. De plus
-certains champs sans repli (q.mode, q.call…) imprimaient le texte 'undefined'
-quand ils étaient absents, là où d'autres avaient déjà un `||''`.
+Le CSV complet assemblait chaque ligne SANS quoter ni échapper : un champ
+contenant une virgule (échange, locator, opérateur), un guillemet ou un
+retour-ligne décalait toutes les colonnes suivantes. De plus certains champs
+sans repli imprimaient 'undefined' quand ils étaient absents.
 
 Correctif : helper _csvField() (quote si `" , CR LF`, guillemets doublés ;
-undefined/null -> ''), et assemblage par tableau .map(_csvField).join(',').
+undefined/null -> ''), assemblage par tableau .map(_csvField).join(',').
 
-Le VRAI code d'exportCSV() est extrait par comptage d'accolades et exécuté en V8
-(py_mini_racer), le Blob produit étant capturé pour inspecter le CSV réel.
+Depuis la refonte « export par activité » (23/08), la construction du CSV est
+isolée dans le builder SYNCHRONE _csvComplet(src) (les fonctions export* sont
+devenues async pour proposer le périmètre). On teste le builder directement,
+en V8 réel (py_mini_racer), sur le VRAI code extrait par comptage d'accolades.
 """
+import json
 import os
 import re
 
@@ -42,35 +44,20 @@ def _extract_function(src, name):
 
 with open(JS_PATH, encoding='utf-8') as _f:
     _SRC = _f.read()
-_EXPORTCSV_SRC = _extract_function(_SRC, 'exportCSV')
-_CSVFIELD_SRC = ''
-if re.search(r'^function _csvField\(', _SRC, re.M):
-    _CSVFIELD_SRC = _extract_function(_SRC, '_csvField')
-# exportCSV s'appuie désormais sur ces dépendances (refonte export « CSV valide ») :
 _HEADER_SRC = re.search(r"const _CSV_HEADER = '[^']*';", _SRC).group(0)
-_DEPS_SRC = '\n'.join(_extract_function(_SRC, n) for n in ('_csvBaseRow', '_downloadCsv'))
+_PIECES_SRC = '\n'.join(_extract_function(_SRC, n)
+                        for n in ('_csvField', '_csvBaseRow', '_csvComplet'))
 
 _PREAMBLE = r"""
-var _csv = null;
-function Blob(parts){ _csv = parts.join(''); }
-var URL = { createObjectURL: function(){ return 'blob:x'; } };
-var document = { createElement: function(){ return { click:function(){}, style:{} }; },
-                 getElementById: function(){ return null; } };
-var myCall = 'F4GLD';
 function _resolveOperatorCallsign(op){ return op ? String(op) : 'F4GLD'; }
 function isValidQSO(q){ return true; }
-var qsoLog = [];
 """
 
 
 def _csv_for(qso):
     c = py_mini_racer.MiniRacer()
-    c.eval(_PREAMBLE + '\n' + _HEADER_SRC + '\n' + _CSVFIELD_SRC + '\n'
-           + _DEPS_SRC + '\n' + _EXPORTCSV_SRC)
-    import json
-    c.eval('qsoLog = ' + json.dumps([qso]) + ';')
-    c.eval('exportCSV();')
-    return c.eval('_csv')
+    c.eval(_PREAMBLE + '\n' + _HEADER_SRC + '\n' + _PIECES_SRC)
+    return c.eval('_csvComplet(' + json.dumps([qso]) + ')')
 
 
 def _data_line(csv):
@@ -84,7 +71,6 @@ def test_champ_avec_virgule_est_quote():
 
 
 def test_champ_absent_ne_donne_pas_undefined():
-    # mode/call absents : ne doivent PAS imprimer 'undefined'
     csv = _csv_for({'date': '20260101', 'time': '1200', 'call': 'F5ABC', 'band': '20'})
     assert 'undefined' not in csv, csv
 
@@ -96,13 +82,11 @@ def test_guillemet_est_double():
 
 
 def test_colonnes_stables_avec_virgule():
-    # sans virgule : 14 colonnes ; avec une virgule quotée : toujours 14
     ref = _data_line(_csv_for({'date': '1', 'time': '2', 'call': 'X', 'band': '20',
                                'mode': 'CW', 'num_rcvd': 'AB'}))
     with_comma = _data_line(_csv_for({'date': '1', 'time': '2', 'call': 'X', 'band': '20',
                                       'mode': 'CW', 'num_rcvd': 'A,B'}))
-    # comptage naïf hors guillemets : la ligne à virgule ne doit pas avoir plus
-    # de virgules "nues" que la référence.
+
     def nues(s):
         out, q = 0, False
         for ch in s:
