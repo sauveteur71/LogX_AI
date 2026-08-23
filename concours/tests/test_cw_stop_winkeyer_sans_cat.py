@@ -24,8 +24,14 @@ _PREAMBLE = r"""
 var __panels = {};
 function ElProxy(id){
   var s = {style:{display:''}, textContent:''};
+  var cls = { toggle:function(){}, add:function(){}, remove:function(){}, contains:function(){return false;} };
   __panels[id] = s;
-  return new Proxy({}, { get:function(t,p){ if(p==='style') return s.style; return s[p]; },
+  return new Proxy({}, { get:function(t,p){
+                            if(p==='style') return s.style;
+                            if(p==='classList') return cls;
+                            if(p==='setAttribute' || p==='getAttribute') return function(){};
+                            return s[p];
+                          },
                           set:function(t,p,v){ s[p]=v; return true; } });
 }
 var document = { readyState: 'loading', addEventListener: function(){},

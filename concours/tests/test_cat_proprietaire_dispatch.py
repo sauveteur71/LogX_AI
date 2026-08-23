@@ -190,7 +190,9 @@ def test_rig_cw_refuse_proprement_pour_les_3_nouveaux_modes(server, monkeypatch,
     """Aucun des 3 modules n'expose send_cw — le dispatch doit refuser (400)
     plutôt que de lever une AttributeError."""
     monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode=mode))
-    status, d = _post(server, '/rig/cw', {'text': 'CQ TEST'})
+    # armed+mode CW : passer le garde-fou d'émission (logx_cw_guard) pour
+    # atteindre le dispatch backend, seul objet de ce test.
+    status, d = _post(server, '/rig/cw', {'text': 'CQ TEST', 'armed': True, 'mode': 'CW'})
     assert status == 400
     assert d['ok'] is False
     assert 'CW' in d['error']

@@ -465,7 +465,11 @@ def test_rig_cw_verrouille_avant_denvoyer():
     # 3000 reste DANS le même gestionnaire (/rig/qsy, /rig/cw, /rig/stop sont
     # traités ensemble) — la fenêtre existe pour ne pas valider sur le code
     # d'un AUTRE endpoint, pas pour compter des caractères.
-    bloc = bloc[:3000]
+    # Élargie de 3000 à 3600 le 23/08/2026 : le garde-fou d'émission CW
+    # (logx_cw_guard) ajoute des lignes AVANT la prise du verrou (un refus ne
+    # doit pas prendre le verrou) et repoussait la cible hors fenêtre — même
+    # raison que l'élargissement 2200→3000. Reste dans le même gestionnaire.
+    bloc = bloc[:3600]
     # Depuis le 20/08/2026 la prise de verrou porte SA SOURCE. Ce test est donc
     # plus strict qu'avant, pas plus laxiste : il ne se contente plus de voir
     # un verrou pris, il exige que ce soit celui du CW. Sans l'étiquette,
@@ -557,7 +561,7 @@ def test_rig_cw_echec_natif_icom_ne_laisse_pas_le_verrou_arme(_server, monkeypat
     monkeypatch.setattr(_httpmod, 'current_config', {
         'cat_enabled': '1', 'cat_mode': 'native', 'cat_brand': 'icom', 'cat_port': 'COM3',
     })
-    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST'})
+    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST', 'armed': True, 'mode': 'CW'})
     assert status == 400 and d['ok'] is False
     # Le verrou ne doit PAS être resté armé sur cet échec -- la radio 2 doit
     # pouvoir émettre immédiatement, sans attendre le timeout de 120s.
@@ -568,7 +572,7 @@ def test_rig_cw_echec_natif_icom_ne_laisse_pas_le_verrou_arme(_server, monkeypat
 def test_rig_cw_echec_cat_desactive_ne_laisse_pas_le_verrou_arme(_server, monkeypatch):
     """Même bug, chemin d'échec différent : radio CAT entièrement désactivée."""
     monkeypatch.setattr(_httpmod, 'current_config', {'cat_enabled': ''})
-    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST'})
+    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST', 'armed': True, 'mode': 'CW'})
     assert status == 400 and d['ok'] is False
     assert so2r.tx_actif()['radio'] is None
     assert so2r.verrouiller_tx(2)['ok'] is True
@@ -583,10 +587,23 @@ def test_rig_cw_succes_natif_laisse_le_verrou_arme(_server, monkeypatch):
     })
     import logx_cat as cat
     monkeypatch.setattr(cat, 'send_cw', lambda cfg, text: {'ok': True, 'text': text})
-    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST'})
+    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST', 'armed': True, 'mode': 'CW'})
     assert status == 200 and d['ok'] is True
     assert so2r.tx_actif()['radio'] == 1
     assert so2r.verrouiller_tx(2)['ok'] is False
+
+
+def test_rig_cw_non_arme_refuse_sans_prendre_le_verrou(_server, monkeypatch):
+    """Garde-fou d'émission (logx_cw_guard, keyer CW Phase 1) : une requête
+    /rig/cw NON armée est refusée (403) AVANT toute prise de verrou TX — la
+    radio 2 doit rester immédiatement disponible."""
+    monkeypatch.setattr(_httpmod, 'current_config', {
+        'cat_enabled': '1', 'cat_mode': 'native', 'cat_brand': 'elecraft', 'cat_port': 'COM3',
+    })
+    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST'})   # armed absent
+    assert status == 403 and d['ok'] is False and d.get('blocked') is True
+    assert so2r.tx_actif()['radio'] is None            # verrou JAMAIS pris
+    assert so2r.verrouiller_tx(2)['ok'] is True
 
 
 def test_rig_stop_libere_le_verrou_meme_apres_bascule_de_focus(_server, monkeypatch):
@@ -603,7 +620,7 @@ def test_rig_stop_libere_le_verrou_meme_apres_bascule_de_focus(_server, monkeypa
     import logx_cat as cat
     monkeypatch.setattr(cat, 'send_cw', lambda cfg, text: {'ok': True, 'text': text})
     monkeypatch.setattr(cat, 'stop_cw', lambda cfg: {'ok': True})
-    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST'})
+    status, d = _http_post(_server, '/rig/cw', {'text': 'CQ TEST', 'armed': True, 'mode': 'CW'})
     assert status == 200 and so2r.tx_actif()['radio'] == 1
     # Bascule de focus AVANT le stop -- le verrou reste sur la radio 1.
     so2r.basculer({'so2r_enabled': ''}, 2)
