@@ -30,10 +30,15 @@ historique qui survivrait au redémarrage n'apporterait rien.
 import threading
 import time
 
-from logx_clusters import fetch_all_vhf_spots
+from logx_clusters import fetch_all_vhf_spots, freq_en_khz
 from logx_utils import haversine, locator_to_latlon
 
 BANDES = ('50', '144')
+# Bornes de bande en kHz (IARU R1) pour écarter les spots d'une AUTRE bande :
+# 50 MHz = 50.000–52.000 ; 144 MHz = 144.000–146.000. Le champ 'freq' d'un spot
+# est d'unité mixte selon la source : on le ramène en kHz via freq_en_khz(freq,
+# band) (tranche par la bande) avant de comparer.
+_BANDES_KHZ = {'50': (50000.0, 52000.0), '144': (144000.0, 146000.0)}
 FENETRE_MIN = 15          # fenêtre « maintenant »
 BASELINE_MIN = 120        # fenêtre de référence, juste avant la fenêtre courante
 GARDE_MIN = FENETRE_MIN + BASELINE_MIN + 10   # marge avant purge de l'historique
@@ -71,9 +76,19 @@ def _fusionner(band, my_lat, my_lon, now, spots):
     bande pendant tout l'aller-retour réseau, alors que les deux bandes ont
     un historique totalement indépendant."""
     vus = set()
+    lo_khz, hi_khz = _BANDES_KHZ.get(band, (None, None))
     for s in spots:
         if not isinstance(s, dict):
             continue
+        # Filtre par BANDE : plusieurs sources (dxsummit/dxwatch/hamqth) rendent
+        # TOUT le trafic VHF/UHF. Sans ce filtre, des spots 144/432/1296
+        # entraient dans l'historique '50' et faussaient l'indice d'ouverture.
+        if lo_khz is not None:
+            fk = freq_en_khz(s.get('freq'), band)
+            # fk == 0 : fréquence absente -> on garde (source déjà filtrée par
+            # bande, ex. f5len/hamspirit). fk connue mais hors bande -> écarter.
+            if fk > 0 and not (lo_khz <= fk < hi_khz):
+                continue
         call = (s.get('call') or s.get('dx') or '').upper().strip()
         spotter = (s.get('spotter') or '').upper().strip()
         cle = (call, spotter)
