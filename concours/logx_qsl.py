@@ -76,14 +76,18 @@ def qsl_settings(cfg):
         'cloudlog_api_key': (cfg.get('cloudlog_api_key') or '').strip(),
         'cloudlog_station_id': (cfg.get('cloudlog_station_id') or '').strip(),
     }
-    if not any(s.values()):
-        try:
-            with open('config.json', encoding='utf-8') as f:
-                q = (json.load(f).get('qsl', {}) or {})
-            for k in s:
-                s[k] = s[k] or q.get(k, '')
-        except Exception:
-            pass
+    # Repli config.json PAR CLÉ (plus « tout-ou-rien ») : `s[k] or ...` ne
+    # remplit QUE les clés vides, donc on tente toujours le repli. Avant, un seul
+    # identifiant présent côté client (ex. eqsl_user) faisait sauter tout le
+    # repli, et les creds des AUTRES services stockés uniquement dans config.json
+    # n'étaient jamais chargés (LoTW/HRDLog annoncés « non configurés »).
+    try:
+        with open('config.json', encoding='utf-8') as f:
+            q = (json.load(f).get('qsl', {}) or {})
+        for k in s:
+            s[k] = s[k] or q.get(k, '')
+    except Exception:
+        pass
     s['eqsl_enabled'] = bool(s['eqsl_user'] and s['eqsl_password'])
     s['clublog_enabled'] = bool(s['clublog_email'] and s['clublog_callsign']
                                 and s['clublog_password'] and s['clublog_api_key'])
