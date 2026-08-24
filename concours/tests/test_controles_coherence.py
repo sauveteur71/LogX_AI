@@ -49,3 +49,50 @@ def test_heure_fin_avant_debut_signale():
 def test_heure_fin_normale_ok():
     assert ctrl.controle_heure_fin({'date': '20260824', 'time': '1215', 'time_off': '1230'}) is None
     assert ctrl.controle_heure_fin({'date': '20260824', 'time': '1215'}) is None
+
+
+# ─── RST / mode ──────────────────────────────────────────────────────────────
+
+def test_rst_59_sur_ft8_signale():
+    r = ctrl.controle_rst_mode({'mode': 'FT8', 'rst_sent': '599', 'rst_rcvd': '-12'})
+    assert r is not None and r[1] == 'rst_incoherent_mode'
+
+
+def test_rst_db_sur_ft8_ok():
+    assert ctrl.controle_rst_mode({'mode': 'FT8', 'rst_sent': '-08', 'rst_rcvd': '-12'}) is None
+
+
+def test_rst_599_sur_cw_ok():
+    assert ctrl.controle_rst_mode({'mode': 'CW', 'rst_sent': '599', 'rst_rcvd': '599'}) is None
+
+
+# ─── références d'activation ─────────────────────────────────────────────────
+
+def test_activation_sans_ref_signale():
+    rs = ctrl.controle_activation_ref({'my_sig': 'SOTA', 'my_sig_info': ''})
+    assert any(c == 'activation_sans_ref' for _, c, _ in rs)
+
+
+def test_activation_ref_mal_formee_signale():
+    rs = ctrl.controle_activation_ref({'my_sig': 'SOTA', 'my_sig_info': 'PAS-BON'})
+    assert any(c == 'ref_format_invalide' for _, c, _ in rs)
+
+
+def test_activation_ref_valide_ok():
+    rs = ctrl.controle_activation_ref({'my_sig': 'SOTA', 'my_sig_info': 'F/AB-123'})
+    assert rs == []
+
+
+def test_activation_programme_inconnu_ignore():
+    # un my_sig qui n'est pas un programme connu (ex. un club) n'est pas contrôlé
+    rs = ctrl.controle_activation_ref({'my_sig': 'MON-CLUB', 'my_sig_info': ''})
+    assert rs == []
+
+
+# ─── agrégateur ──────────────────────────────────────────────────────────────
+
+def test_aggregateur_reunit_les_findings():
+    q = {'freq': '7.0', 'band': '14', 'mode': 'FT8', 'rst_sent': '599',
+         'rst_rcvd': '599', 'date': '20260824'}
+    codes = {c for _, c, _ in ctrl.controles_coherence(q, '20260824')}
+    assert 'freq_bande_incoherente' in codes and 'rst_incoherent_mode' in codes

@@ -10,6 +10,17 @@ est injectée). Valeurs de domaine tirées des tables déjà sourcées du dépô
 import re
 
 from logx_scoring import _band_from_freq   # '14.075'/'14075' -> bande interne '14'
+from logx_activation import PROGRAM_SPECS, validate_ref
+
+# Modes WSJT-X à rapport de signal en dB (SNR), PAS en RST : un « 59 »/« 599 »
+# y trahit un RST par défaut oublié. Source : WSJT-X User Guide (§ Reporting,
+# le rapport échangé est le S/N en dB). Liste restreinte aux modes que LogX
+# manipule / qu'un import ADIF peut porter.
+_MODES_RAPPORT_DB = {'FT8', 'FT4', 'FT2', 'JT65', 'JT9', 'JT4', 'FST4',
+                     'FST4W', 'Q65', 'MSK144', 'JS8', 'WSPR'}
+# 2-3 chiffres nus : allure d'un RST (59/599). Un rapport dB porte un signe
+# (« -12 », « +03 ») ou n'est pas de cette forme -> non signalé.
+_RST_STYLE_RE = re.compile(r'^\d{2,3}$')
 
 
 def controle_freq_bande(q):
@@ -46,3 +57,50 @@ def controle_heure_fin(q):
         return ('info', 'heure_fin_avant_debut',
                 f"Heure de fin {t_off} avant l'heure de début {t_on}")
     return None
+
+
+def controle_rst_mode(q):
+    """RST de style 59/599 sur un mode à rapport dB (FT8…) : probable défaut
+    oublié. Conservateur : ne signale que ce cas net, jamais l'inverse."""
+    mode = str(q.get('mode', '') or '').upper().strip()
+    if mode not in _MODES_RAPPORT_DB:
+        return None
+    for champ in ('rst_sent', 'rst_rcvd'):
+        val = str(q.get(champ, '') or '').strip()
+        if val and _RST_STYLE_RE.match(val):
+            return ('info', 'rst_incoherent_mode',
+                    f"RST {val} en {mode} : ce mode se rapporte en dB (ex. -12), "
+                    f"pas en 59/599")
+    return None
+
+
+def controle_activation_ref(q):
+    """Références d'activation : programme déclaré sans référence, ou référence
+    au mauvais format. Côté station (my_sig) = attention ; côté correspondant
+    (sig) = info (on subit la réf de l'autre). Réutilise PROGRAM_SPECS."""
+    out = []
+    for prog_key, info_key, niveau, prefixe in (
+            ('my_sig', 'my_sig_info', 'attention', 'Ma référence'),
+            ('sig', 'sig_info', 'info', 'Référence correspondant')):
+        prog = str(q.get(prog_key, '') or '').upper().strip()
+        ref = str(q.get(info_key, '') or '').strip()
+        if not prog or prog not in PROGRAM_SPECS:
+            continue
+        if not ref:
+            out.append((niveau, 'activation_sans_ref',
+                        f"{prefixe} : programme {prog} déclaré sans référence"))
+        elif not validate_ref(prog, ref):
+            out.append((niveau, 'ref_format_invalide',
+                        f"{prefixe} {prog} « {ref} » : format invalide"))
+    return out
+
+
+def controles_coherence(q, maintenant_utc):
+    """Tous les findings de cohérence pour un QSO (liste de (level, code, msg))."""
+    res = []
+    for f in (controle_freq_bande(q), controle_date_future(q, maintenant_utc),
+              controle_heure_fin(q), controle_rst_mode(q)):
+        if f:
+            res.append(f)
+    res.extend(controle_activation_ref(q))
+    return res
