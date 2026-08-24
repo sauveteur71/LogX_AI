@@ -393,6 +393,25 @@ body.sans-concours .compass-pts{display:none}
    flex column parent (.saisie-panel). */
 .saisie-secondary{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 
+/* Onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) — enveloppent
+   les champs SECONDAIRES existants (source du QSO, commentaire, callbook/
+   compas...). Le chemin critique (indicatif/RST/N°/bande/mode/enregistrer)
+   reste hors de cette coquille, voir logx_entry_tabs.js. CSS de référence
+   validé jour+nuit (soulignement cuivre, pas de boîtes lourdes). */
+.entry-tabs{display:flex;gap:2px;margin:16px 0 0;border-bottom:1px solid var(--border)}
+.entry-tab{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;padding:8px 13px 9px;background:transparent;border:none;color:var(--muted);cursor:pointer;position:relative;transition:color .15s}
+.entry-tab:hover{color:var(--text)}
+.entry-tab.active{color:var(--accent)}
+.entry-tab.active::after{content:"";position:absolute;left:9px;right:9px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px 2px 0 0}
+.entry-tabpane{padding:13px 2px 4px;animation:entryFade .28s cubic-bezier(.16,1,.3,1)}
+@keyframes entryFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* Surfaces navigateur thématisées (scopées au panneau de saisie) */
+.saisie-panel ::selection{background:rgba(var(--accent-rgb),.30);color:var(--text)}
+.saisie-panel ::-webkit-scrollbar{width:10px}
+.saisie-panel ::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px}
+.saisie-panel ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.saisie-panel :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
 /* DERNIERS QSO — replié par défaut (voir toggleLastQso()), même schéma que REMARQUES EDI */
 .last-qso{padding:10px 16px;border-top:1px solid var(--border)}
 .last-qso-title{font-family:var(--font-mono);font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
@@ -1532,29 +1551,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="mode-picker-popup" id="modePickerPopup" style="display:none"></div>
       </div>
 
-      <!-- SOURCE DU QSO — d'où vient le contact qu'on est en train de noter.
-           POURQUOI CE RÉGLAGE EXISTE. Choisir une bande ou un mode ci-dessus
-           envoie un QSY à la radio pilotée (_qsyVersRadio, logx_logbook.js), et
-           le sondage CAT ramène en retour la bande de saisie sur celle de la
-           radio (syncBandModeFromRig, logx_hardware_cat.js). C'est le bon
-           comportement — et un correctif demandé — quand on note ce qu'on vient
-           de faire SUR cette radio.
-           Ça cesse de l'être dès qu'on note un QSO fait sur un poste que le PC
-           ne commande pas : préparer la fiche déplacerait alors la radio
-           pilotée, par exemple en pleine séquence FT8 automatique. Demandé par
-           F4GLD le 20/08/2026 (FT8 auto sur un poste en CAT, CW/phonie à la
-           main sur un second poste non connecté).
-           Masqué tant qu'aucune radio n'est pilotée : sans CAT il n'y a rien à
-           découpler, et un bouton sans objet est du bruit — même règle que le
-           cadenas de fréquence juste au-dessus. -->
-      <div class="field-group" id="posteSourceGroup" style="display:none">
-        <label class="field-label" for="posteSourceBtn">SOURCE DU QSO</label>
-        <button type="button" id="posteSourceBtn" onclick="basculerSaisieDecouplee()">
-          <span id="posteSourceIco" style="display:flex"></span>
-          <span id="posteSourceLabel">RADIO PILOTÉE</span>
-        </button>
-        <div id="posteSourceNote" style="margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)"></div>
-      </div>
+      <!-- SOURCE DU QSO — déplacé dans l'onglet QSO (.entry-tabpane[data-pane="qso"],
+           plus bas dans ce fichier), coquille d'onglets lot 1/6. Champ SECONDAIRE
+           (masqué tant qu'aucune radio n'est pilotée) : voir son commentaire complet
+           là où il vit désormais. -->
 
       <!-- Indicatif -->
       <div class="field-group">
@@ -1663,69 +1663,119 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="loc-hint" id="locHint"></div>
       </div>
 
-      <!-- Commentaire libre — PAS expert-only, délibérément.
-           C'est le champ du trafic COURANT par excellence (« antenne filaire »,
-           « premier QSO en CW », « QSL directe promise ») : ce qu'on relit six
-           mois plus tard. Le masquer en mode débutant reviendrait à le réserver
-           aux experts, alors que c'est justement l'opérateur qui débute qui a le
-           plus envie de noter ses premiers contacts.
-           En concours il reste vide et ne coûte rien : la saisie se fait au
-           clavier sur les champs précédents, on ne passe jamais ici. -->
-      <div class="field-group" id="commentGroup">
-        <label class="field-label" for="inputComment">COMMENTAIRE</label>
-        <input type="text" class="field-input" id="inputComment" maxlength="120"
-          placeholder="Antenne, conditions, remarque…" autocomplete="off">
+      <!-- Coquille d'onglets (sous-chantier A, lot 1/6) : les champs
+           SECONDAIRES existants ci-dessous (source du QSO, commentaire,
+           callbook/compas) vivent désormais dans des .entry-tabpane. Le
+           chemin critique (indicatif/RST/N°/bande/mode/enregistrer,
+           au-dessus et en dessous) n'est jamais dans cette coquille.
+           Bascule + mémorisation : entryTabSelect()/entryTabsInit() dans
+           logx_entry_tabs.js, chargé après logx_logbook.js. -->
+      <div class="entry-tabs">
+        <button type="button" class="entry-tab active" data-tab="qso">QSO</button>
+        <button type="button" class="entry-tab" data-tab="corr">CORRESPONDANT</button>
+        <button type="button" class="entry-tab" data-tab="mystation">MA STATION</button>
+        <button type="button" class="entry-tab" data-tab="qsl">QSL</button>
       </div>
 
-      <!-- Callbook (pays/historique) + boussole côte à côte, une fois le
-           locator connu : deux blocs jusque-là empilés pleine largeur qui
-           forçaient un scroll pendant la saisie (retour F4GLD 04/08/2026,
-           capture d'écran). Chaque colonne se réduit librement et peut
-           rester vide (l'un ou l'autre pas encore rempli) sans casser la
-           ligne — voir .callbook-compass-row/.callbook-compass-col. -->
-      <div class="callbook-compass-row" id="callbookCompassRow">
-        <div class="callbook-compass-col">
-          <div class="dxcc-badge" id="dxccBadge">
-            <span class="dxcc-flag" id="dxccFlag"></span>
-            <span class="dxcc-country" id="dxccCountry"></span>
-            <span class="dxcc-info" id="dxccInfo"></span>
-          </div>
-          <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
-          <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
-          <!-- Mini-grille bande×mode LoTW de l'entité en cours de saisie -- vue
-               d'ensemble en un coup d'œil, remplie par checkPrevQsos() (même
-               requête /call/history que #prevQsos, aucun appel réseau de plus). -->
-          <div id="lotwGrid" style="display:none;font-family:var(--font-mono);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px"></div>
+      <div class="entry-tabpane" data-pane="qso">
+        <!-- SOURCE DU QSO — d'où vient le contact qu'on est en train de noter.
+             POURQUOI CE RÉGLAGE EXISTE. Choisir une bande ou un mode dans le
+             bandeau ci-dessus envoie un QSY à la radio pilotée
+             (_qsyVersRadio, logx_logbook.js), et le sondage CAT ramène en
+             retour la bande de saisie sur celle de la radio
+             (syncBandModeFromRig, logx_hardware_cat.js). C'est le bon
+             comportement — et un correctif demandé — quand on note ce qu'on
+             vient de faire SUR cette radio.
+             Ça cesse de l'être dès qu'on note un QSO fait sur un poste que le
+             PC ne commande pas : préparer la fiche déplacerait alors la radio
+             pilotée, par exemple en pleine séquence FT8 automatique. Demandé
+             par F4GLD le 20/08/2026 (FT8 auto sur un poste en CAT, CW/phonie
+             à la main sur un second poste non connecté).
+             Masqué tant qu'aucune radio n'est pilotée : sans CAT il n'y a
+             rien à découpler, et un bouton sans objet est du bruit. -->
+        <div class="field-group" id="posteSourceGroup" style="display:none">
+          <label class="field-label" for="posteSourceBtn">SOURCE DU QSO</label>
+          <button type="button" id="posteSourceBtn" onclick="basculerSaisieDecouplee()">
+            <span id="posteSourceIco" style="display:flex"></span>
+            <span id="posteSourceLabel">RADIO PILOTÉE</span>
+          </button>
+          <div id="posteSourceNote" style="margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)"></div>
         </div>
-        <div class="callbook-compass-col">
-          <!-- Compas inline -->
-          <div class="compass-inline" id="compassInline">
-            <div class="compass-svg-wrap">
-              <svg id="compassSvg" width="60" height="60" viewBox="0 0 60 60">
-                <circle cx="30" cy="30" r="28" fill="var(--bg2)" stroke="var(--border)" stroke-width="1.5"/>
-                <text x="30" y="9"  text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">N</text>
-                <text x="30" y="56" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">S</text>
-                <text x="56" y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">E</text>
-                <text x="4"  y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">O</text>
-                <!-- aiguille — pivote autour du centre (30,30) via transform -->
-                <g id="compassNeedle" transform="rotate(0,30,30)">
-                  <polygon points="30,8 27,30 33,30" fill="var(--red)" opacity=".9"/>
-                  <polygon points="30,52 27,30 33,30" fill="var(--accent2)" opacity=".7"/>
-                </g>
-                <circle cx="30" cy="30" r="3" fill="var(--text)"/>
-              </svg>
+
+        <!-- Commentaire libre. Reste accessible en un clic (onglet QSO,
+             actif par défaut) — jamais expert-only : c'est le champ du
+             trafic COURANT par excellence (« antenne filaire », « premier
+             QSO en CW », « QSL directe promise »), celui qu'on relit six
+             mois plus tard. En concours il reste vide et ne coûte rien : la
+             saisie se fait au clavier sur les champs du bandeau, on ne
+             passe jamais ici. -->
+        <div class="field-group" id="commentGroup">
+          <label class="field-label" for="inputComment">COMMENTAIRE</label>
+          <input type="text" class="field-input" id="inputComment" maxlength="120"
+            placeholder="Antenne, conditions, remarque…" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="entry-tabpane" data-pane="corr" style="display:none">
+        <!-- Callbook (pays/historique) + boussole côte à côte, une fois le
+             locator connu : deux blocs jusque-là empilés pleine largeur qui
+             forçaient un scroll pendant la saisie (retour F4GLD 04/08/2026,
+             capture d'écran). Chaque colonne se réduit librement et peut
+             rester vide (l'un ou l'autre pas encore rempli) sans casser la
+             ligne — voir .callbook-compass-row/.callbook-compass-col. -->
+        <div class="callbook-compass-row" id="callbookCompassRow">
+          <div class="callbook-compass-col">
+            <div class="dxcc-badge" id="dxccBadge">
+              <span class="dxcc-flag" id="dxccFlag"></span>
+              <span class="dxcc-country" id="dxccCountry"></span>
+              <span class="dxcc-info" id="dxccInfo"></span>
             </div>
-            <div class="compass-data">
-              <span class="compass-deg" id="compassDeg">—°</span>
-              <span class="compass-card" id="compassCard">—</span>
-              <span class="compass-dist" id="compassDist">— km</span>
-              <span class="compass-pts"  id="compassPts">— pts</span>
+            <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
+            <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
+            <!-- Mini-grille bande×mode LoTW de l'entité en cours de saisie -- vue
+                 d'ensemble en un coup d'œil, remplie par checkPrevQsos() (même
+                 requête /call/history que #prevQsos, aucun appel réseau de plus). -->
+            <div id="lotwGrid" style="display:none;font-family:var(--font-mono);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px"></div>
+          </div>
+          <div class="callbook-compass-col">
+            <!-- Compas inline -->
+            <div class="compass-inline" id="compassInline">
+              <div class="compass-svg-wrap">
+                <svg id="compassSvg" width="60" height="60" viewBox="0 0 60 60">
+                  <circle cx="30" cy="30" r="28" fill="var(--bg2)" stroke="var(--border)" stroke-width="1.5"/>
+                  <text x="30" y="9"  text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">N</text>
+                  <text x="30" y="56" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">S</text>
+                  <text x="56" y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">E</text>
+                  <text x="4"  y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">O</text>
+                  <!-- aiguille — pivote autour du centre (30,30) via transform -->
+                  <g id="compassNeedle" transform="rotate(0,30,30)">
+                    <polygon points="30,8 27,30 33,30" fill="var(--red)" opacity=".9"/>
+                    <polygon points="30,52 27,30 33,30" fill="var(--accent2)" opacity=".7"/>
+                  </g>
+                  <circle cx="30" cy="30" r="3" fill="var(--text)"/>
+                </svg>
+              </div>
+              <div class="compass-data">
+                <span class="compass-deg" id="compassDeg">—°</span>
+                <span class="compass-card" id="compassCard">—</span>
+                <span class="compass-dist" id="compassDist">— km</span>
+                <span class="compass-pts"  id="compassPts">— pts</span>
+              </div>
+              <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
+                      style="display:none" title="Pointer l'antenne sur ce cap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><polygon points="9,4.5 11,9 9,13.5 7,9" fill="currentColor" stroke="none"/></svg> POINTER</button>
             </div>
-            <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
-                    style="display:none" title="Pointer l'antenne sur ce cap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><polygon points="9,4.5 11,9 9,13.5 7,9" fill="currentColor" stroke="none"/></svg> POINTER</button>
           </div>
         </div>
       </div>
+
+      <!-- Onglet MA STATION : vide au lot 1 (coquille seulement, aucun champ
+           nouveau) — peuplé au lot 2/6 (puissance, matériel, antenne, lieu
+           d'exploitation, cf. plan sous-chantier A). -->
+      <div class="entry-tabpane" data-pane="mystation" style="display:none"></div>
+
+      <!-- Onglet QSL : vide au lot 1 (coquille seulement) — peuplé au lot
+           6/6 (statuts QSL/LoTW/eQSL). -->
+      <div class="entry-tabpane" data-pane="qsl" style="display:none"></div>
 
       <!-- DUP check -->
       <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
@@ -2214,6 +2264,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      logx_configuration.js, voir logx_contest_rules.js pour le détail. -->
 <script src="logx_contest_rules.js"></script>
 <script src="logx_logbook.js"></script>
+<!-- Coquille d'onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) --
+     module dédié pour ne pas grossir logx_logbook.js (déjà ~4100 lignes).
+     APRÈS logx_logbook.js : ne dépend d'aucune fonction qu'il définit, mais
+     s'auto-initialise dès que le DOM est prêt (voir la fin du fichier). -->
+<script src="logx_entry_tabs.js"></script>
 
 <!-- PANNEAU STATISTIQUES / RATE CHART -->
 <div class="rate-overlay" id="rateOverlay" onclick="if(event.target===this)closeRatePanel()">
