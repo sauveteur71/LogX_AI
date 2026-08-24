@@ -23,6 +23,9 @@ import time
 import logx_storage as storage
 from logx_qsl import _parse_adif_records, _band_from_record
 from logx_utils import CALL_RE as _CALL_RE, clean_text as _clean_text
+# Sous-chantier B (lot 5) : tags ADIF dédiés par programme (SOTA_REF…), pour
+# reconstruire my_refs/refs à l'import — même source que l'export (lot 3).
+from logx_activation import ADIF_PROGRAM_TAGS
 
 # Synonymes de mode qu'un export ADIF d'un AUTRE logiciel peut porter sans
 # que ce soit un mode ADIF 3.1.7 officiel — "PH" (phonie) est la convention
@@ -50,19 +53,51 @@ def _lire_mode(rec):
 # logiciel) est préservé tel quel dans extra_fields plutôt que perdu en
 # silence, pour un aller-retour import/export fidèle (voir editQSO/
 # buildAdifText côté client, qui lisent/écrivent le même extra_fields).
+# Sous-chantier B (lot 5) : tag ADIF -> clé interne du log. Symétrique de
+# l'export (build_adif lit ces mêmes clés internes). Sans ce mapping, ces tags
+# atterrissaient dans extra_fields ; or l'export les liste dans _ADIF_STD_TAGS
+# (anti-duplication) et les saute donc à la réexportation tout en lisant une
+# clé interne restée vide -> perte au 2e export. FREQ/TIME_OFF étaient de plus
+# explicitement non mappés (commentaire historique retiré) : désormais relus.
+_ADIF_VERS_INTERNE = {
+    'NAME': 'name', 'QTH': 'qth', 'COMMENT': 'comment', 'DISTANCE': 'dist',
+    'PROP_MODE': 'prop_mode', 'FREQ': 'freq', 'TIME_OFF': 'time_off',
+    'TX_PWR': 'tx_pwr', 'FREQ_RX': 'freq_rx', 'CQZ': 'cqz', 'ITUZ': 'ituz',
+    'CNTY': 'cnty', 'EMAIL': 'email', 'QSL_VIA': 'qsl_via', 'ANT_AZ': 'ant_az',
+    'QSL_SENT': 'qsl_sent', 'LOTW_QSL_SENT': 'lotw_qsl_sent',
+    'EQSL_QSL_SENT': 'eqsl_qsl_sent', 'APP_LOGX_OPERATING': 'operating_location',
+}
+
 _TAGS_MAPPES = {
     'CALL', 'BAND', 'MODE', 'QSO_DATE', 'TIME_ON', 'RST_SENT',
     'RST_RCVD', 'STX_STRING', 'STX', 'SRX_STRING', 'SRX', 'GRIDSQUARE',
     'STATE', 'SAT_NAME', 'MY_GRIDSQUARE', 'OPERATOR', 'STATION_CALLSIGN',
     'CONTEST_ID', 'MY_SIG', 'MY_SIG_INFO', 'SIG', 'SIG_INFO',
     'ADIF_VER', 'PROGRAMID',
-    # FREQ n'est PAS mappé par ce parseur (pré-existant, hors scope de ce
-    # correctif) : exclu volontairement de cet ensemble pour qu'un FREQ
-    # importé atterrisse dans extra_fields plutôt que d'être perdu.
-    # TIME_OFF non plus : il figurait ici (donc exclu de extra_fields) SANS
-    # qu'aucune clé interne ne le reçoive -> détruit en silence. Il reste donc
-    # HORS de cet ensemble pour être préservé dans extra_fields et réexporté.
+    # Lot 5 : les scalaires désormais mappés vers une clé interne (ci-dessus)…
+    *_ADIF_VERS_INTERNE,
+    # …et les tags multi-références dédiés, consommés vers my_refs/refs (le
+    # générique MY_SIG/SIG l'est déjà). MY_ + tag côté station, tag nu côté
+    # correspondant.
+    *(t for tag in ADIF_PROGRAM_TAGS.values() for t in (tag, 'MY_' + tag)),
 }
+
+
+def _refs_depuis_record(rec, prefixe):
+    """Reconstruit une liste [{program, ref}] depuis les tags dédiés du record
+    (SOTA_REF/MY_SOTA_REF…) PLUS le générique SIG/SIG_INFO quand son programme
+    n'a pas de tag dédié. `prefixe` = '' (correspondant) ou 'MY_' (ma station).
+    Symétrique de logx_export._refs_pour_export (lot 3)."""
+    out, vus = [], set()
+    for prog, tag in ADIF_PROGRAM_TAGS.items():
+        val = _clean_text(rec.get(prefixe + tag))
+        if val:
+            out.append({'program': prog, 'ref': val})
+            vus.add(prog)
+    sig = _clean_text(rec.get(prefixe + 'SIG')).upper()
+    if sig and sig not in vus:
+        out.append({'program': sig, 'ref': _clean_text(rec.get(prefixe + 'SIG_INFO'))})
+    return out
 
 
 def _clean_date(v):
@@ -154,6 +189,22 @@ def parse_adif_to_qsos(adif_text):
             'points': 0,     # un import historique n'est pas noté dans un concours actif
             'source': 'adif_import',
         })
+        # Lot 5 : scalaires ADIF -> clés internes (aller-retour fidèle). Une
+        # valeur vide n'écrase rien (pas de clé interne vide parasite).
+        q_new = qsos[-1]
+        for tag, cle in _ADIF_VERS_INTERNE.items():
+            val = _clean_text(rec.get(tag))
+            if val:
+                q_new[cle] = val
+        # Lot 5 : reconstruction des références multiples (two-fer SOTA+POTA)
+        # depuis les tags dédiés + le générique SIG. Listes posées seulement si
+        # non vides — un QSO ordinaire ne porte pas de my_refs/refs vides.
+        my_refs = _refs_depuis_record(rec, 'MY_')
+        if my_refs:
+            q_new['my_refs'] = my_refs
+        their_refs = _refs_depuis_record(rec, '')
+        if their_refs:
+            q_new['refs'] = their_refs
         # Tout tag du record qui n'est PAS explicitement mappé ci-dessus est
         # préservé dans extra_fields plutôt que perdu en silence — même
         # convention que l'éditeur de champs personnalisés côté client
