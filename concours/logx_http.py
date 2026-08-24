@@ -4885,7 +4885,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = export.build_cabrillo(qsos, cdef, cfg_snap, qtc_series).encode('utf-8')
                 fname = f"{call}_{contest_id_safe}.cbr"
             else:
-                body = export.build_adif(qsos, cfg_snap).encode('utf-8')
+                # Lot 4 (cohérence ADIF) : l'export complet du log embarque les
+                # confirmations reçues (LoTW/eQSL/carte), pour qu'un log
+                # ré-importé ailleurs garde son statut « confirmé ».
+                import logx_awards as awards
+                body = export.build_adif(
+                    qsos, cfg_snap,
+                    confirmations=awards._load_confirmations()).encode('utf-8')
                 fname = f"{call}_{contest_id_safe}.adi"
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')

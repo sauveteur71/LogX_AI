@@ -173,7 +173,14 @@ def run_backup(cfg, shared_log=None):
             import logx_export as export
             qsos = list(shared_log) if shared_log is not None else _load_json('shared_log.json')
             if qsos:
-                adif = export.build_adif(qsos, cfg or {})
+                # Lot 4 : le backup ré-importable embarque aussi les
+                # confirmations reçues (statut « confirmé » préservé).
+                try:
+                    import logx_awards as awards
+                    _conf = awards._load_confirmations()
+                except Exception:
+                    _conf = None
+                adif = export.build_adif(qsos, cfg or {}, confirmations=_conf)
                 dst = os.path.join(folder, base + '.adi')
                 _write_atomic(dst, adif, newline='')
                 written.append(os.path.basename(dst))

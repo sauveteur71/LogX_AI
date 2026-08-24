@@ -99,8 +99,13 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared
         base = f"{_safe(call)}_{_safe(contest_id or 'ALL')}"
         _write(os.path.join(folder, base + '.cbr'),
                export.build_cabrillo(qsos, cdef, cfg, qtc_series, claimed_override=declared_score))
+        try:
+            import logx_awards as awards
+            _conf = awards._load_confirmations()
+        except Exception:
+            _conf = None
         _write(os.path.join(folder, base + '.adi'),
-               export.build_adif(qsos, cfg))
+               export.build_adif(qsos, cfg, confirmations=_conf))
         files += [base + '.cbr', base + '.adi']
     except Exception as e:
         print(f"[ARCHIVE] Exports non générés : {e}")

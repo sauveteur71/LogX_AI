@@ -310,7 +310,17 @@ _ADIF_STD_TAGS = {
     # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
     'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
     'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
+    # Sous-chantier B (lot 4) : confirmations reçues injectées à l'export.
+    'QSL_RCVD', 'QSLRDATE', 'LOTW_QSL_RCVD', 'LOTW_QSLRDATE',
+    'EQSL_QSL_RCVD', 'EQSL_QSLRDATE',
 }
+
+# Sous-chantier B (lot 4) : source d'une confirmation reçue -> tag ADIF RCVD
+# et tag de date associé (spec ADIF 3.1.5, adif.org/315). Toute source hors
+# LoTW/eQSL (carte papier, bureau, ClubLog…) retombe sur le générique
+# QSL_RCVD / QSLRDATE.
+_CONF_RCVD_TAGS = {'lotw': 'lotw_qsl_rcvd', 'eqsl': 'eqsl_qsl_rcvd'}
+_CONF_DATE_TAGS = {'lotw': 'lotw_qslrdate', 'eqsl': 'eqsl_qslrdate'}
 
 
 def _refs_pour_export(q, cle_liste, cle_sig, cle_info):
@@ -372,9 +382,17 @@ def _adif_mode(q):
     return _adif_field('mode', _norm_mode(q))
 
 
-def build_adif(qsos, cfg=None):
+def build_adif(qsos, cfg=None, confirmations=None):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
-    il sait maintenant l'écrire."""
+    il sait maintenant l'écrire.
+
+    `confirmations` (sous-chantier B, lot 4) : dict {clé: {source: date|True}}
+    des QSO CONFIRMÉS (LoTW/eQSL/carte), tel que produit par
+    logx_qsl.parse_confirmations / stocké dans qsl_confirmations.json. Clé =
+    logx_awards._confirm_key (CALL|band|MODE). Injecté par les appelants qui
+    veulent un log COMPLET (endpoints d'export, archive, backup) ; laissé à
+    None par les appelants d'UPLOAD (upload_lotw/upload_eqsl) — on ne renvoie
+    jamais à LoTW/eQSL sa propre confirmation reçue. None/{} => aucun tag RCVD."""
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
     # ADIF_VER : '3.1.4' était codé en dur alors que le reste du logiciel
@@ -477,6 +495,27 @@ def build_adif(qsos, cfg=None):
             tag = ADIF_PROGRAM_TAGS.get(prog)
             if tag and ref:
                 fields.append(_adif_field(tag.lower(), ref))
+        # Sous-chantier B (lot 4) : confirmations REÇUES (LoTW/eQSL/carte)
+        # depuis le store de confirmations, rapprochées par la clé des diplômes
+        # (même « confirmé » que l'UI). Émises seulement si l'appelant a injecté
+        # le dict (jamais pour les uploads). Une seule fois par tag RCVD (deux
+        # sources génériques ne dupliquent pas QSL_RCVD).
+        if confirmations:
+            from logx_awards import _confirm_key
+            conf = confirmations.get(_confirm_key(q)) or {}
+            rcvd_vus = set()
+            for source, when in conf.items():
+                s = str(source).lower()
+                rcvd_tag = _CONF_RCVD_TAGS.get(s, 'qsl_rcvd')
+                if rcvd_tag in rcvd_vus:
+                    continue
+                rcvd_vus.add(rcvd_tag)
+                fields.append(_adif_field(rcvd_tag, 'Y'))
+                # Date seulement si c'est une VRAIE Date ADIF (YYYYMMDD) —
+                # APP_LOTW_RXQSL vaut souvent un datetime "2026-01-15 14:30:00"
+                # qui n'est PAS une Date ADIF valide : on ne l'émet pas.
+                if isinstance(when, str) and re.fullmatch(r'\d{8}', when):
+                    fields.append(_adif_field(_CONF_DATE_TAGS.get(s, 'qslrdate'), when))
         # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
         # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
         # JS (logx_export_adif.js) mais PAS par cet export serveur, alors que
