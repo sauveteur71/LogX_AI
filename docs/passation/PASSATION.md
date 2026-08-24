@@ -88,7 +88,13 @@ supprimée du même fichier.
 
 ### En attente d'un essai sur l'air
 
-🔴 **PR #179 (22/08/2026) — le mode Automatique FT8, LE PLUS PRIORITAIRE des
+✅ **PR #179 — mode Automatique FT8 : ESSAI SUR L'AIR SUPERVISÉ FAIT
+(24/08/2026, confirmé par F4GLD).** Le blocage de publication est LEVÉ, et le
+mode Automatique est inclus dans le tag `v1.1-beta8` publié le 24/08/2026 (cf.
+« publication » plus bas). Le contexte d'origine est conservé ci-dessous —
+mais l'item n'est plus « en attente ».
+
+🔴 (historique, résolu) **PR #179 (22/08/2026) — le mode Automatique FT8, LE PLUS PRIORITAIRE des
 deux items de cette section.** Appelle CQ, décode qui répond, enchaîne
 l'échange complet (grille/report/RRR/73), logue, relance CQ — SANS aucune
 confirmation humaine à chaque étape, en boucle. C'est une dérogation
@@ -197,7 +203,7 @@ maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
 toujours pas** au premier lancement. Une invite au démarrage tant que le
 dossier est vide serait le vrai correctif, et elle n'existe pas.
 
-### ✅ RÉSOLU depuis — publication rattrapée, mais un nouveau décalage existe
+### ✅ RÉSOLU — publication à jour (`v1.1-beta8`, 24/08/2026)
 
 Le paragraphe original (19/08) alertait sur un décalage de 32 commits entre
 `main` et le dernier tag (`v1.1-beta4`), dont les garde-fous anti-perte de
@@ -206,17 +212,22 @@ carnet (PR #127) absents de tout binaire publié. **Rattrapé depuis** :
 vérifié le 22/08/2026 (`git describe --tags`). Les garde-fous du carnet sont
 dans cette version publiée.
 
-⚠️ **Mais un nouveau petit décalage existe, à surveiller** : 5 commits sont
-sur `main` depuis `v1.1-beta7` (vérifié `git rev-list --count
-v1.1-beta7..origin/main`), dont la PR #179 (mode Automatique FT8). **Ne pas
-publier de tag qui inclut la PR #179 avant l'essai supervisé sur l'air**
-décrit ci-dessus — le mode Automatique n'a encore jamais émis en dehors des
-tests et de la vérification navigateur.
+✅ **Publication `v1.1-beta8` — le 24/08/2026.** `concours/logx_version.py`
+passe à `1.1-beta8`, tag `v1.1-beta8` poussé, binaires Windows/macOS/Linux
+construits par `build-release.yml`. Cette bêta inclut le chantier AFFICHAGE
+(#234→#237), les correctifs sécurité/robustesse de la campagne du 24/08, ET le
+mode Automatique FT8 (#179) — publié **après** que son essai sur l'air
+supervisé a été confirmé fait par F4GLD (le blocage rouge précédent est donc
+levé, cf. « En attente d'un essai sur l'air » plus haut). Le build PyInstaller
+a été **vérifié en local d'abord** (EXIT 0, `LogXAI.exe` produit) avant de
+pousser le tag, comme l'exige la consigne ci-dessous.
 
-Avant de pousser un futur tag : **vérifier le build PyInstaller en local
-d'abord**. Un build de release est resté cassé deux jours sans que personne
-le sache (`Tree()` vs `Analysis()`), et seul un vrai build local l'avait
-révélé.
+> ⚠️ **Consigne permanente pour tout futur tag** : `APP_VERSION` doit être
+> bumpé AVANT le tag (sinon l'appli se croit en retard sur elle-même), et
+> **vérifier le build PyInstaller en local d'abord** — un build de release est
+> resté cassé deux jours sans que personne le sache (`Tree()` vs `Analysis()`),
+> et seul un vrai build local l'avait révélé. Le spec `concours/logx.spec`
+> gère le cas Tree()/Analysis() (TOC combiné à `a.datas` APRÈS Analysis).
 
 ### Ce qui reste ouvert
 
