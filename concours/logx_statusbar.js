@@ -1535,6 +1535,7 @@
     {id: 'opStatsBar', label: 'Classement opérateurs', default: true, layered: true, section: 'logbook'},
     {id: 'hourChartBar', label: 'Graphe du rythme', default: true, layered: true, section: 'logbook'},
     {id: 'bandmapPanel', label: 'Band map', default: true, layered: true, section: 'logbook'},
+    {id: 'pouncePanel', label: 'WAIT & POUNCE (S&P / appel auto)', default: true, layered: true, section: 'logbook'},
     {id: 'keyerDock', label: 'Outils CW / décodeurs (bas)', default: true, layered: true, section: 'logbook'},
   ];
   function getStatusbarPrefs(){

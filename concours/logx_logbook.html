@@ -1823,52 +1823,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div id="carresEntendus" style="font-family:var(--font-mono);font-size:12px"></div>
       </div>
 
-      <!-- WAIT-AND-POUNCE. Les quatre niveaux ne sont PAS de même nature, et
-           l'écran ne doit pas le cacher : 1 et 2 sont des comportements
-           permanents (alerter, rendre les lignes cliquables), 3 et 4 sont une
-           SESSION bornée dans le temps, exclusifs l'un de l'autre. Présenter
-           quatre interrupteurs identiques laisserait croire qu'on peut « armer »
-           le niveau 1, ou cumuler 3 et 4. -->
-      <div class="macro-panel expert-only" id="pouncePanel" style="display:none">
-        <div class="macro-panel-title" title="Appel automatique en FT8/FT4 via WSJT-X"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg> WAIT &amp; POUNCE
-          <span id="pounceMinuterie" style="display:none;margin-left:auto;color:var(--green);font-weight:700"></span>
-        </div>
-
-        <label class="bm-opt" style="margin-top:2px"><input type="checkbox" id="pounceN1" checked onchange="majPounceLocal()">
-          <span>1 · Signaler (son + couleur)</span></label>
-        <label class="bm-opt"><input type="checkbox" id="pounceN2" checked onchange="majPounceLocal()">
-          <span>2 · Armer au clic sur un indicatif</span></label>
-
-        <div class="bm-fl" style="margin-top:8px">Appel automatique</div>
-        <select id="pounceNiveau" onchange="majPounceUI()"
-                style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-family:inherit;font-size:12px">
-          <option value="0">— arrêté —</option>
-          <option value="3">3 · Appeler seul (je suis là)</option>
-          <option value="4">4 · Sans personne devant la radio</option>
-        </select>
-
-        <div id="pounceReglages" style="display:none">
-          <div class="bm-fl">Appeler quand…</div>
-          <label class="bm-opt"><input type="checkbox" id="pcNouveauPays" checked>entité jamais travaillée</label>
-          <label class="bm-opt"><input type="checkbox" id="pcBesoinLotw" checked>entité non confirmée LoTW ici</label>
-          <label class="bm-opt"><input type="checkbox" id="pcCarreNeuf">carré jamais travaillé</label>
-          <label class="bm-opt"><input type="checkbox" id="pcNouveauMult">nouveau multiplicateur</label>
-          <div class="bm-fl">Durée maximale (minutes)</div>
-          <input type="number" id="pounceDuree" value="30" min="1" max="480"
-                 style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-family:inherit;font-size:12px">
-          <!-- L'avertissement du niveau 4 n'apparaît QUE pour lui : un
-               avertissement permanent finit par ne plus être lu. -->
-          <div id="pounceAvertN4" style="display:none;margin-top:6px;padding:5px 7px;border:1px solid var(--red);border-radius:4px;color:var(--red);font-size:11px;line-height:1.35">
-            La station émettra sans personne devant elle. Elle s'arrête toute seule à la fin de la minuterie, et tout ce qui part est journalisé ci-dessous.
-          </div>
-          <button type="button" id="pounceBtnArmer" onclick="armerPounce()"
-                  style="width:100%;margin-top:7px;padding:4px;border-radius:4px;border:1px solid var(--green);background:transparent;color:var(--green);cursor:pointer;font-family:inherit;font-weight:700">▶ ARMER</button>
-        </div>
-
-        <button type="button" id="pounceBtnStop" onclick="desarmerPounce()" style="display:none;width:100%;margin-top:7px;padding:4px;border-radius:4px;border:1px solid var(--red);background:rgba(var(--accent-rgb),.12);color:var(--red);cursor:pointer;font-family:inherit;font-weight:700">⏹ ARRÊTER MAINTENANT</button>
-        <div id="pounceEtat" style="font-size:11px;color:var(--muted);margin-top:5px"></div>
-        <div id="pounceJournal" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px;max-height:110px;overflow-y:auto"></div>
-      </div>
+      <!-- WAIT & POUNCE : déplacé DANS le band map (fin de #bandmapPanel) —
+           il agit sur les spots du band map (alerte, clic pour armer) et
+           encombrait cette colonne de saisie en la forçant au défilement
+           (demande F4GLD 24/08). Masquable via le menu AFFICHAGE. -->
 
       <!-- KEYER VOCAL et DÉCODEUR CW : déplacés dans .keyer-dock (bandeau
            plein largeur sous .main, voir juste après la fermeture de .main
@@ -1987,6 +1945,52 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="bm-empty">en attente de spots…</div>
     </div>
     <div class="bm-masques" id="bmMasques" style="display:none"></div>
+
+    <!-- WAIT & POUNCE : rattaché au band map (il agit sur ses spots : alerte,
+         clic pour armer). Déplacé ici depuis la colonne de saisie (F4GLD 24/08).
+         Les quatre niveaux ne sont PAS de même nature : 1 et 2 sont permanents
+         (alerter, rendre les lignes cliquables), 3 et 4 une SESSION bornée dans
+         le temps, exclusifs. `layered` + masquable via le menu AFFICHAGE. -->
+    <div class="macro-panel expert-only" id="pouncePanel" style="display:none">
+      <div class="macro-panel-title" title="Appel automatique en FT8/FT4 via WSJT-X"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg> WAIT &amp; POUNCE
+        <span id="pounceMinuterie" style="display:none;margin-left:auto;color:var(--green);font-weight:700"></span>
+      </div>
+
+      <label class="bm-opt" style="margin-top:2px"><input type="checkbox" id="pounceN1" checked onchange="majPounceLocal()">
+        <span>1 · Signaler (son + couleur)</span></label>
+      <label class="bm-opt"><input type="checkbox" id="pounceN2" checked onchange="majPounceLocal()">
+        <span>2 · Armer au clic sur un indicatif</span></label>
+
+      <div class="bm-fl" style="margin-top:8px">Appel automatique</div>
+      <select id="pounceNiveau" onchange="majPounceUI()"
+              style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-family:inherit;font-size:12px">
+        <option value="0">— arrêté —</option>
+        <option value="3">3 · Appeler seul (je suis là)</option>
+        <option value="4">4 · Sans personne devant la radio</option>
+      </select>
+
+      <div id="pounceReglages" style="display:none">
+        <div class="bm-fl">Appeler quand…</div>
+        <label class="bm-opt"><input type="checkbox" id="pcNouveauPays" checked>entité jamais travaillée</label>
+        <label class="bm-opt"><input type="checkbox" id="pcBesoinLotw" checked>entité non confirmée LoTW ici</label>
+        <label class="bm-opt"><input type="checkbox" id="pcCarreNeuf">carré jamais travaillé</label>
+        <label class="bm-opt"><input type="checkbox" id="pcNouveauMult">nouveau multiplicateur</label>
+        <div class="bm-fl">Durée maximale (minutes)</div>
+        <input type="number" id="pounceDuree" value="30" min="1" max="480"
+               style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-family:inherit;font-size:12px">
+        <!-- L'avertissement du niveau 4 n'apparaît QUE pour lui : un
+             avertissement permanent finit par ne plus être lu. -->
+        <div id="pounceAvertN4" style="display:none;margin-top:6px;padding:5px 7px;border:1px solid var(--red);border-radius:4px;color:var(--red);font-size:11px;line-height:1.35">
+          La station émettra sans personne devant elle. Elle s'arrête toute seule à la fin de la minuterie, et tout ce qui part est journalisé ci-dessous.
+        </div>
+        <button type="button" id="pounceBtnArmer" onclick="armerPounce()"
+                style="width:100%;margin-top:7px;padding:4px;border-radius:4px;border:1px solid var(--green);background:transparent;color:var(--green);cursor:pointer;font-family:inherit;font-weight:700">▶ ARMER</button>
+      </div>
+
+      <button type="button" id="pounceBtnStop" onclick="desarmerPounce()" style="display:none;width:100%;margin-top:7px;padding:4px;border-radius:4px;border:1px solid var(--red);background:rgba(var(--accent-rgb),.12);color:var(--red);cursor:pointer;font-family:inherit;font-weight:700">⏹ ARRÊTER MAINTENANT</button>
+      <div id="pounceEtat" style="font-size:11px;color:var(--muted);margin-top:5px"></div>
+      <div id="pounceJournal" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px;max-height:110px;overflow-y:auto"></div>
+    </div>
   </div>
 
   <!-- LOG TABLE -->
