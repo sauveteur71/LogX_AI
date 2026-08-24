@@ -41,3 +41,13 @@ def test_version_dans_le_header_pas_dans_la_barre():
 def test_ids_uniques():
     for ident in ('netVersion', 'netVersionWarn', 'netUpdatePathBtn', 'netUpdatePathResult'):
         assert HTML.count('id="%s"' % ident) == 1, "id dupliqué : %s" % ident
+
+
+def test_terminal_cw_visible_seulement_en_mode_cw():
+    # Le terminal CW suit le mode CW dans updateKeyerPanels (comme les macros),
+    # au lieu de rester `expert-only` visible en SSB.
+    js = open(os.path.join(BASE, 'logx_logbook.js'), encoding='utf-8').read()
+    i = js.index('function updateKeyerPanels')
+    corps = js[i:i + 3000]
+    assert "getElementById('cwTerminalPanel')" in corps, "le terminal CW doit être piloté par updateKeyerPanels"
+    assert "cwTerm.style.display = cw ? '' : 'none'" in corps, "le terminal CW doit suivre le mode CW"
