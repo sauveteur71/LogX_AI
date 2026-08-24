@@ -163,7 +163,16 @@ def _refresh_tropo_async(lat, lon):
             tropo_forecast(lat, lon)
         finally:
             _tropo_refresh_lock.release()
-    threading.Thread(target=_run, daemon=True).start()
+    try:
+        threading.Thread(target=_run, daemon=True).start()
+    except Exception:
+        # Si le thread NE DÉMARRE PAS (épuisement des threads sur un run de
+        # 360 h en expédition, par ex.), _run ne s'exécutera jamais et ne
+        # libérera donc jamais le verrou : sans ce rattrapage, tout
+        # rafraîchissement tropo ultérieur serait bloqué DÉFINITIVEMENT
+        # (deadlock permanent). On relâche ici avant de propager.
+        _tropo_refresh_lock.release()
+        raise
 
 
 def get_tropo_cached(lat, lon):
