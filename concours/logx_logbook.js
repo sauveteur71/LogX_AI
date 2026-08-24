@@ -2749,6 +2749,26 @@ function addRefRow(containerId){
   box.appendChild(row);
 }
 
+// Auto-remplissage éditable (lot 5, sous-chantier A). PERSISTE l'azimut (bearing,
+// jusqu'ici affiché à la boussole mais jamais stocké) et remplit pays/continent/
+// zone CQ depuis l'indicatif (lookupDXCC), SANS écraser une saisie manuelle. Le
+// numéro DXCC et la zone ITU viennent du serveur (cty.dat) -> sous-chantier B.
+function autoFillQso(q){
+  if(q.locator && typeof bearing === 'function'){
+    const az = bearing(q.locator);
+    if(az != null && !isNaN(az)) q.ant_az = Math.round(az);
+  }
+  if(q.call && typeof lookupDXCC === 'function'){
+    const d = lookupDXCC(q.call);
+    if(d){
+      if(!q.country && d.c) q.country = d.c;
+      if(!q.cont && d.ct) q.cont = d.ct;
+      if(!q.cqz && d.cq != null) q.cqz = String(d.cq);
+    }
+  }
+  return q;
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
@@ -2871,6 +2891,10 @@ async function submitQSO(){
     const _tags = mergeTags(deriveActivityTags(qso), (typeof getManualTags === 'function' ? getManualTags() : []));
     if(_tags.length) qso.activity_tags = _tags;
   }
+
+  // Auto-remplissage éditable (lot 5) : azimut persisté + pays/continent/zone CQ
+  // depuis l'indicatif, sans écraser ce que l'opérateur a saisi à la main.
+  autoFillQso(qso);
 
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);
