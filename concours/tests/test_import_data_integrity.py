@@ -3,8 +3,12 @@
 
 1. TIME_OFF était listé dans _TAGS_MAPPES (donc exclu de extra_fields) SANS
    qu'aucune clé interne ne le reçoive -> détruit en silence, contredisant
-   l'aller-retour import/export fidèle. Correctif : sort de _TAGS_MAPPES ->
-   préservé dans extra_fields (comme FREQ).
+   l'aller-retour import/export fidèle. Correctif initial : sorti de
+   _TAGS_MAPPES -> préservé dans extra_fields.
+   ÉVOLUTION (sous-chantier B lot 5, symétrie import) : TIME_OFF est désormais
+   une CLÉ INTERNE de plein droit (`time_off`), mappée à l'import et ré-émise
+   à l'export -> aller-retour fidèle, plus propre que le repli extra_fields.
+   La donnée n'est toujours PAS perdue : elle a juste sa vraie place.
 
 2. _dedup_key incluait date+heure, mais _clean_date rend '' pour une date
    absente/malformée et _adif_time rend '0000' sans TIME_ON : deux QSO réels
@@ -22,12 +26,16 @@ if CONCOURS not in sys.path:
 import logx_import as imp  # noqa: E402
 
 
-def test_time_off_preserve_dans_extra_fields():
+def test_time_off_preserve_comme_champ_interne():
+    # Sous-chantier B lot 5 : TIME_OFF -> clé interne `time_off` (plus le repli
+    # extra_fields). La donnée reste préservée (non détruite en silence), et
+    # n'est PLUS dupliquée dans extra_fields (sinon double émission à l'export).
     adif = ("<CALL:5>F5ABC <BAND:3>20m <MODE:2>CW <QSO_DATE:8>20260101 "
             "<TIME_ON:6>101500 <TIME_OFF:6>103000 <EOR>")
     qsos, errors = imp.parse_adif_to_qsos(adif)
     assert len(qsos) == 1, (qsos, errors)
-    assert qsos[0].get('extra_fields', {}).get('TIME_OFF') == '103000', qsos[0]
+    assert qsos[0].get('time_off') == '103000', qsos[0]
+    assert 'TIME_OFF' not in qsos[0].get('extra_fields', {}), qsos[0]
 
 
 def test_deux_qso_sans_date_ne_fusionnent_pas():
