@@ -1766,9 +1766,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            dès qu'une émission CW est possible, par CAT ou par WinKeyer. -->
       <div class="rig-panel" id="cwStopPanel" style="display:none">
         <div class="rig-row">
-          <span class="rig-label">CW</span>
-          <button class="rig-arm" id="cwArmBtn" onclick="toggleCwTxArme()" aria-pressed="false" title="Interrupteur maître d'émission CW : aucune émission tant qu'il est désarmé">🔒 TX DÉSARMÉ</button>
-          <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours (Échap)">■ STOP CW</button>
+          <span class="rig-label">TX</span>
+          <button class="rig-arm" id="cwArmBtn" onclick="toggleCwTxArme()" aria-pressed="false" title="Interrupteur maître d'émission de la station (CW ET voix) : aucune émission tant qu'il est désarmé">🔒 TX DÉSARMÉ</button>
+          <button class="rig-stop" id="cwStopBtn" onclick="rigStopCW()" title="Stopper l'envoi CW en cours (Échap)">■ STOP CW</button>
         </div>
       </div>
 

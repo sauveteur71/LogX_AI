@@ -171,8 +171,12 @@ function _blobToBase64(blob){
 async function voicePlay(key){
   if(voiceSlots[key] === undefined) return;
   try{
+    // Interrupteur maître + mode + fréquence (txArmePayload) : sans ces champs,
+    // le garde-fou TX serveur (logx_tx_guard) refuse la voix (403). Une station
+    // désarmée n'émet pas — même règle que le CW.
     const res = await fetch('/voice/play', {method:'POST', headers:{'Content-Type':'application/json'},
-                                            body: JSON.stringify({slot: key})}).then(r=>r.json());
+                                            body: JSON.stringify(Object.assign({slot: key},
+                                              (typeof txArmePayload === 'function' ? txArmePayload() : {})))}).then(r=>r.json());
     if(!res.ok) notify(trF('❌ {err}', {err: res.error || 'émission impossible'}));
   }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
 }
