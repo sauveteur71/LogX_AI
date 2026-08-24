@@ -78,7 +78,10 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
   'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID',
   // Sous-chantier B : alignés sur logx_export._ADIF_STD_TAGS (jumeaux).
   'NAME','QTH','STATE','COMMENT','DISTANCE','PROP_MODE','SAT_NAME',
-  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO','SUBMODE']);
+  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO','SUBMODE',
+  // Lot 2 : clés de la refonte de saisie (A).
+  'TX_PWR','FREQ_RX','CQZ','ITUZ','CNTY','EMAIL','QSL_VIA','ANT_AZ','TIME_OFF',
+  'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING']);
 
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
@@ -131,6 +134,21 @@ function buildAdifText(qsos){
     adif += adifField('MY_SIG_INFO', q.my_sig_info);
     adif += adifField('SIG', q.sig);
     adif += adifField('SIG_INFO', q.sig_info);
+    // Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A) —
+    // mêmes tags que logx_export.build_adif. operating_location -> APP_LOGX_OPERATING.
+    adif += adifField('TX_PWR', q.tx_pwr);
+    adif += adifField('FREQ_RX', q.freq_rx);
+    adif += adifField('CQZ', q.cqz);
+    adif += adifField('ITUZ', q.ituz);
+    adif += adifField('CNTY', q.cnty);
+    adif += adifField('EMAIL', q.email);
+    adif += adifField('QSL_VIA', q.qsl_via);
+    adif += adifField('ANT_AZ', q.ant_az);
+    adif += adifField('TIME_OFF', q.time_off);
+    adif += adifField('QSL_SENT', q.qsl_sent);
+    adif += adifField('LOTW_QSL_SENT', q.lotw_qsl_sent);
+    adif += adifField('EQSL_QSL_SENT', q.eqsl_qsl_sent);
+    adif += adifField('APP_LOGX_OPERATING', q.operating_location);
     // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
     // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
     // tag déjà émis ci-dessus.

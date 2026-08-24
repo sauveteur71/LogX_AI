@@ -299,6 +299,10 @@ _ADIF_STD_TAGS = {
     'QTH', 'COMMENT', 'MY_GRIDSQUARE', 'CONTEST_ID', 'STATION_CALLSIGN',
     'OPERATOR', 'DISTANCE', 'PROP_MODE', 'SAT_NAME', 'MY_SIG', 'MY_SIG_INFO',
     'SIG', 'SIG_INFO', 'ADIF_VER', 'PROGRAMID',
+    # Sous-chantier B (lot 2) : clés de la refonte de saisie (A).
+    'TX_PWR', 'FREQ_RX', 'CQZ', 'ITUZ', 'CNTY', 'EMAIL', 'QSL_VIA', 'ANT_AZ',
+    'TIME_OFF', 'QSL_SENT', 'LOTW_QSL_SENT', 'EQSL_QSL_SENT', 'APP_LOGX_OPERATING',
+    'SUBMODE',
 }
 
 _OP_SLOT_RE = re.compile(r'^OP(\d+)$', re.IGNORECASE | re.ASCII)
@@ -419,6 +423,23 @@ def build_adif(qsos, cfg=None):
             _adif_field('my_sig_info', q.get('my_sig_info', '')),
             _adif_field('sig', q.get('sig', '')),
             _adif_field('sig_info', q.get('sig_info', '')),
+            # Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A).
+            # Tags de l'énumération/spec ADIF (citables) ; operating_location n'a
+            # pas de tag ADIF standard -> champ d'appli APP_LOGX_OPERATING (préfixe
+            # APP_, jamais rejeté par un lecteur ADIF conforme).
+            _adif_field('tx_pwr', q.get('tx_pwr', '')),
+            _adif_field('freq_rx', q.get('freq_rx', '')),
+            _adif_field('cqz', q.get('cqz', '')),
+            _adif_field('ituz', q.get('ituz', '')),
+            _adif_field('cnty', q.get('cnty', '')),
+            _adif_field('email', q.get('email', '')),
+            _adif_field('qsl_via', q.get('qsl_via', '')),
+            _adif_field('ant_az', q.get('ant_az', '')),
+            _adif_field('time_off', q.get('time_off', '')),
+            _adif_field('qsl_sent', q.get('qsl_sent', '')),
+            _adif_field('lotw_qsl_sent', q.get('lotw_qsl_sent', '')),
+            _adif_field('eqsl_qsl_sent', q.get('eqsl_qsl_sent', '')),
+            _adif_field('app_logx_operating', q.get('operating_location', '')),
         ]
         # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
         # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
