@@ -2864,6 +2864,14 @@ async function submitQSO(){
   if(_theirExtra.length) qso.refs = (qso.refs || []).concat(_theirExtra);
   refsToMySig(qso);
 
+  // Tags multi-activité (lot 4) : AUTO dérivés du QSO (mode, QRP, références,
+  // lieu, propagation) UNION les tags MANUELS de l'opérateur. Orthogonal au
+  // concours ; cherchable dans le carnet.
+  if(typeof deriveActivityTags === 'function'){
+    const _tags = mergeTags(deriveActivityTags(qso), (typeof getManualTags === 'function' ? getManualTags() : []));
+    if(_tags.length) qso.activity_tags = _tags;
+  }
+
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);
 
@@ -2981,6 +2989,13 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = _rstParDefaut(currentMode);
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  // Champs par-QSO des onglets (lot 2-4) : vidés comme les autres champs propres
+  // au contact. Les champs de MA station (puissance, matériel, antenne, lieu,
+  // mes références) PERSISTENT d'un QSO à l'autre -- on ne les touche pas ici.
+  ['inputEmail','inputQslVia','inputCqz','inputItuz','inputCnty','inputFreqRx','inputTimeOff','inputPropMode']
+    .forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var _refsCorr = document.getElementById('refsList'); if(_refsCorr) _refsCorr.innerHTML='';   // réf. correspondant (S2S/P2P)
+  if(typeof resetManualTags === 'function') resetManualTags();   // tags manuels : per-QSO
   // Commentaire vidé comme les autres champs propres au QSO : le laisser
   // traînerait la remarque du contact précédent sur le suivant — pire qu'un
   // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
