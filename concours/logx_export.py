@@ -14,6 +14,10 @@ from logx_utils import utcnow
 # multiplier (faux pour tout concours à multiplicateur : CQ WW, WPX, ARRL
 # DX, IARU HF, REF...).
 from logx_scoring import calc_total_score
+# Sous-chantier B (lot 3) : tags ADIF dédiés par programme d'activation
+# (SOTA_REF, POTA_REF…). Source unique = logx_activation (qui les dérive de
+# PROGRAM_SPECS). logx_activation n'importe que `re` : pas de cycle d'import.
+from logx_activation import ADIF_PROGRAM_TAGS
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -303,7 +307,26 @@ _ADIF_STD_TAGS = {
     'TX_PWR', 'FREQ_RX', 'CQZ', 'ITUZ', 'CNTY', 'EMAIL', 'QSL_VIA', 'ANT_AZ',
     'TIME_OFF', 'QSL_SENT', 'LOTW_QSL_SENT', 'EQSL_QSL_SENT', 'APP_LOGX_OPERATING',
     'SUBMODE',
+    # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
+    'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
+    'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
 }
+
+
+def _refs_pour_export(q, cle_liste, cle_sig, cle_info):
+    """Références (programme, ref) à émettre en tags ADIF dédiés. Préfère la
+    LISTE multi-références posée par la refonte de saisie A (two-fer SOTA+POTA,
+    my_refs/refs) ; à défaut retombe sur la paire mono-valuée SIG/SIG_INFO
+    (QSO anciens ou stockés côté serveur sans liste). Les couples au programme
+    vide ou sans référence sont écartés à l'émission (voir appelant)."""
+    liste = q.get(cle_liste)
+    if isinstance(liste, list) and liste:
+        return [(str(r.get('program', '')).upper().strip(), str(r.get('ref', '')).strip())
+                for r in liste if isinstance(r, dict)]
+    prog = str(q.get(cle_sig, '')).upper().strip()
+    if prog:
+        return [(prog, str(q.get(cle_info, '')).strip())]
+    return []
 
 _OP_SLOT_RE = re.compile(r'^OP(\d+)$', re.IGNORECASE | re.ASCII)
 
@@ -441,6 +464,19 @@ def build_adif(qsos, cfg=None):
             _adif_field('eqsl_qsl_sent', q.get('eqsl_qsl_sent', '')),
             _adif_field('app_logx_operating', q.get('operating_location', '')),
         ]
+        # Sous-chantier B (lot 3) : tags ADIF DÉDIÉS par programme, émis DEPUIS
+        # la liste multi-références (my_refs/refs) pour ne pas perdre le 2e
+        # programme d'un two-fer SOTA+POTA — MY_SIG/SIG ci-dessus ne portent
+        # qu'UNE référence. MY_ + tag côté station, tag nu côté correspondant.
+        # Un programme sans tag dédié (ARLHS/WCA) reste sur le générique SIG.
+        for prog, ref in _refs_pour_export(q, 'my_refs', 'my_sig', 'my_sig_info'):
+            tag = ADIF_PROGRAM_TAGS.get(prog)
+            if tag and ref:
+                fields.append(_adif_field('my_' + tag.lower(), ref))
+        for prog, ref in _refs_pour_export(q, 'refs', 'sig', 'sig_info'):
+            tag = ADIF_PROGRAM_TAGS.get(prog)
+            if tag and ref:
+                fields.append(_adif_field(tag.lower(), ref))
         # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
         # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
         # JS (logx_export_adif.js) mais PAS par cet export serveur, alors que

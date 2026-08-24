@@ -23,19 +23,27 @@ import re
 # (ex. USA-129H). WCA Rules (wcagroup.org) — « not less than 50 QSO » pour
 # qu'une activation compte dans les diplômes WCA-50/WCA-100 (min_qso=50),
 # format = préfixe indicatif pays + tiret + numéro sur 5 chiffres (ex. DL-00001).
+# adif_tag : tag ADIF DÉDIÉ du programme, côté correspondant (le côté « ma
+# station » est toujours 'MY_' + adif_tag). Présent UNIQUEMENT pour les
+# programmes que la spec ADIF 3.1.5 dote d'un champ propre (adif.org/315,
+# section Fields) : SOTA_REF/MY_SOTA_REF, POTA_REF/MY_POTA_REF,
+# WWFF_REF/MY_WWFF_REF, IOTA/MY_IOTA (IOTA n'a PAS de suffixe _REF dans la
+# norme). ARLHS et WCA n'ont AUCUN champ ADIF dédié -> pas de clé adif_tag :
+# ils passent par le mécanisme générique SIG/SIG_INFO (une seule référence,
+# my_refs[0]) — ne jamais inventer un MY_WCA_REF/MY_ARLHS_REF qui n'existe pas.
 PROGRAM_SPECS = {
     'POTA': {'name': 'Parks on the Air',        'sig': 'POTA',
              'ref_re': r'^[A-Z0-9]{1,4}-\d{3,5}$', 'min_qso': 10,
-             'p2p': 'Park-to-Park', 'example': 'FR-0123'},
+             'p2p': 'Park-to-Park', 'example': 'FR-0123', 'adif_tag': 'POTA_REF'},
     'SOTA': {'name': 'Summits on the Air',      'sig': 'SOTA',
              'ref_re': r'^[A-Z0-9]{1,3}/[A-Z]{2}-\d{3}$', 'min_qso': 4,
-             'p2p': 'Summit-to-Summit', 'example': 'F/AB-001'},
+             'p2p': 'Summit-to-Summit', 'example': 'F/AB-001', 'adif_tag': 'SOTA_REF'},
     'IOTA': {'name': 'Islands on the Air',      'sig': 'IOTA',
              'ref_re': r'^(AF|AN|AS|EU|NA|OC|SA)-\d{3}$', 'min_qso': 1,
-             'p2p': 'Island-to-Island', 'example': 'EU-064'},
+             'p2p': 'Island-to-Island', 'example': 'EU-064', 'adif_tag': 'IOTA'},
     'WWFF': {'name': 'World Wide Flora & Fauna', 'sig': 'WWFF',
              'ref_re': r'^[A-Z0-9]{1,3}FF-\d{4}$', 'min_qso': 44,
-             'p2p': 'Flora-to-Flora', 'example': 'FFF-0123'},
+             'p2p': 'Flora-to-Flora', 'example': 'FFF-0123', 'adif_tag': 'WWFF_REF'},
     'ARLHS': {'name': 'Amateur Radio Lighthouse Society', 'sig': 'ARLHS',
               'ref_re': r'^[A-Z]{2,3}-\d{3,4}[A-Z]?$', 'min_qso': 2,
               'p2p': 'Light-to-Light', 'example': 'FRA-113'},
@@ -43,6 +51,12 @@ PROGRAM_SPECS = {
             'ref_re': r'^[A-Z0-9]{1,4}-\d{4,5}$', 'min_qso': 50,
             'p2p': 'Castle-to-Castle', 'example': 'DL-00001'},
 }
+
+# Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
+# jumeau JS REF_ADIF_TAGS de logx_export_adif.js est comparé à celle-ci par
+# tests/test_adif_refs_multiples.py::test_parite_mapping_js_python).
+ADIF_PROGRAM_TAGS = {prog: spec['adif_tag']
+                     for prog, spec in PROGRAM_SPECS.items() if 'adif_tag' in spec}
 
 
 def normalize_ref(ref):

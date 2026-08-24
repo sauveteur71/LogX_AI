@@ -81,7 +81,29 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
   'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO','SUBMODE',
   // Lot 2 : clés de la refonte de saisie (A).
   'TX_PWR','FREQ_RX','CQZ','ITUZ','CNTY','EMAIL','QSL_VIA','ANT_AZ','TIME_OFF',
-  'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING']);
+  'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING',
+  // Lot 3 : tags dédiés multi-références (two-fer).
+  'SOTA_REF','MY_SOTA_REF','POTA_REF','MY_POTA_REF','WWFF_REF','MY_WWFF_REF',
+  'IOTA','MY_IOTA']);
+
+// Tag ADIF DÉDIÉ par programme d'activation (spec ADIF 3.1.5, adif.org/315 :
+// SOTA_REF/POTA_REF/WWFF_REF et IOTA — ce dernier SANS suffixe _REF). Jumeau
+// de logx_activation.ADIF_PROGRAM_TAGS (Python, source unique) : la parité est
+// figée par tests/test_adif_refs_multiples.py. ARLHS/WCA : pas de tag dédié
+// -> mécanisme générique SIG (my_refs[0]), aucun tag inventé.
+const REF_ADIF_TAGS = {POTA:'POTA_REF', SOTA:'SOTA_REF', WWFF:'WWFF_REF', IOTA:'IOTA'};
+
+// Références (programme, ref) à émettre en tags dédiés. Préfère la LISTE
+// multi-références (my_refs/refs, posée par la refonte de saisie A) ; à défaut
+// retombe sur la paire mono-valuée SIG/SIG_INFO (QSO anciens).
+function _refsPourExport(q, cleListe, cleSig, cleInfo){
+  const liste = q[cleListe];
+  if(Array.isArray(liste) && liste.length){
+    return liste.filter(r=>r).map(r=>[String(r.program||'').toUpperCase().trim(), String(r.ref||'').trim()]);
+  }
+  const prog = String(q[cleSig]||'').toUpperCase().trim();
+  return prog ? [[prog, String(q[cleInfo]||'').trim()]] : [];
+}
 
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
@@ -149,6 +171,14 @@ function buildAdifText(qsos){
     adif += adifField('LOTW_QSL_SENT', q.lotw_qsl_sent);
     adif += adifField('EQSL_QSL_SENT', q.eqsl_qsl_sent);
     adif += adifField('APP_LOGX_OPERATING', q.operating_location);
+    // Lot 3 : tags ADIF dédiés par programme, émis depuis la liste multi-
+    // références pour ne pas perdre le 2e programme d'un two-fer SOTA+POTA.
+    _refsPourExport(q, 'my_refs', 'my_sig', 'my_sig_info').forEach(([prog, ref]) => {
+      const tag = REF_ADIF_TAGS[prog]; if(tag && ref) adif += adifField('MY_' + tag, ref);
+    });
+    _refsPourExport(q, 'refs', 'sig', 'sig_info').forEach(([prog, ref]) => {
+      const tag = REF_ADIF_TAGS[prog]; if(tag && ref) adif += adifField(tag, ref);
+    });
     // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
     // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
     // tag déjà émis ci-dessus.
