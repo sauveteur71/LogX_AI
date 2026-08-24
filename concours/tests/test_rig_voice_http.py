@@ -68,7 +68,12 @@ def test_rig_voice_transmet_skip_ptt_au_module(server, monkeypatch):
 
 def test_rig_voice_sans_skip_ptt_reste_false(server, monkeypatch):
     """Le déclenchement réel (logx_logbook.js) n'envoie jamais skip_ptt —
-    absence de la clé doit se traduire par False, pas par une exception."""
+    absence de la clé doit se traduire par False, pas par une exception.
+
+    Depuis le garde-fou TX unifié (24/08/2026), un déclenchement RÉEL doit être
+    armé et en phonie pour aboutir : on fournit donc armed+mode, sinon la requête
+    est bloquée (403) avant d'atteindre send_voice_message — c'est justement ce
+    que couvre test_voice_tx_guard_http.py."""
     captured = {}
     def fake_send(cfg, text, lang='', skip_ptt=False, segments=None):
         captured['skip_ptt'] = skip_ptt
@@ -77,6 +82,7 @@ def test_rig_voice_sans_skip_ptt_reste_false(server, monkeypatch):
 
     status, d = _post(server, '/rig/voice', {
         'template': 'CQ CQ', 'call': 'F8TEST', 'mycall': 'F1TEST',
+        'armed': True, 'mode': 'USB',
     })
     assert status == 200 and d['ok'] is True
     assert captured['skip_ptt'] is False

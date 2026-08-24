@@ -238,6 +238,20 @@ function updateCwArmBtn(){
   btn.classList.toggle('armed', cwTxArme);
 }
 
+// Champs de sécurité communs à TOUTE émission déclenchée par macro (CW ET voix)
+// — source unique, pour que le CW et la voix envoient exactement le même triplet
+// au garde-fou TX serveur (logx_tx_guard) : interrupteur maître, mode et
+// fréquence du VFO qui ÉMET. cwTxArme est désormais l'interrupteur STATION
+// (plus seulement CW). Le mode n'est PAS jugé ici — le serveur tranche selon la
+// famille (CW vs phonie) ; le client ne fait que transmettre fidèlement.
+function txArmePayload(){
+  return {
+    armed: (typeof cwTxArme !== 'undefined' && cwTxArme),
+    mode: (typeof cwCurrentMode === 'function' ? cwCurrentMode() : ''),
+    freq_khz: (typeof rigState !== 'undefined' && rigState.freq_khz) || undefined,
+  };
+}
+
 // Appelée depuis refreshHardware(). Le bouton STOP CW vit dans son propre
 // conteneur (#cwStopPanel), hors de #rigPanel et JAMAIS expert-only : un
 // arrêt d'urgence ne se cache pas derrière un mode d'affichage.
@@ -246,12 +260,30 @@ function applyWinkeyerState(d){
   updateCwStopBtn();
 }
 
+// Le keyer vocal est-il activé (config) ? Si oui, la voix peut émettre — donc
+// l'opérateur doit pouvoir ARMER même sans pilote CW (CAT/WinKeyer). typeof
+// localStorage : sûr aussi hors navigateur (tests).
+function voiceEmissionPossible(){
+  try {
+    if(typeof localStorage === 'undefined') return false;
+    const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+    return !!cfg.voicekeyer_enabled;
+  } catch(e){ return false; }
+}
+
 function updateCwStopBtn(){
   const panel = document.getElementById('cwStopPanel');
-  // cwPiloteDisponible() et NON cwEmissionPossible() : voir la distinction
-  // ci-dessus. Le coupe-circuit reste offert tant qu'une manipulation est
-  // pilotable, même si le sélecteur de mode a bougé depuis l'envoi.
-  if(panel) panel.style.display = cwPiloteDisponible() ? 'block' : 'none';
+  const cwOk = cwPiloteDisponible();
+  // Ce panneau porte l'interrupteur maître TX — STATION (CW ET voix depuis
+  // l'unification du 24/08). Il apparaît dès qu'une émission par macro est
+  // possible : pilote CW OU keyer vocal actif. Sans le second cas, un opérateur
+  // voix par VOX (sans CAT) ne pourrait jamais armer et le garde-fou serveur
+  // bloquerait sa voix (régression). cwPiloteDisponible() reste indifférent au
+  // MODE (coupe-circuit jamais désarmé en pleine émission — revue 18/08).
+  if(panel) panel.style.display = (cwOk || voiceEmissionPossible()) ? 'block' : 'none';
+  // Le coupe-circuit STOP CW reste SPÉCIFIQUE au CW : masqué en voix-seule.
+  const stopBtn = document.getElementById('cwStopBtn');
+  if(stopBtn) stopBtn.style.display = cwOk ? '' : 'none';
   updateCwArmBtn();   // reflète l'état armé/désarmé quand le panneau apparaît
 }
 

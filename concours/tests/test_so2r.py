@@ -500,7 +500,10 @@ def test_rig_ptt_verrouille_avant_larmement():
 def test_rig_voice_verrouille_avant_denvoyer():
     src = _source_http()
     bloc = src[src.index("if self.path == '/rig/voice':"):]
-    bloc = bloc[:2600]
+    # 3100 : depuis l'ajout du garde-fou TX (24/08), deverrouiller_tx est à
+    # ~2750 et l'endpoint SUIVANT commence à ~3155 — la fenêtre couvre donc tout
+    # /rig/voice sans jamais déborder ailleurs.
+    bloc = bloc[:3100]
     assert "so2r.verrouiller_tx(radio_active, 'voix')" in bloc
     assert 'so2r.deverrouiller_tx(radio_active)' in bloc
 

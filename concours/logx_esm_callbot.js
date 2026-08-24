@@ -78,6 +78,9 @@ async function sendVoiceDynMacro(idx){
   const out = document.getElementById('voiceDynResult');
   if(out) out.textContent = '⏳…';
   try{
+    // Interrupteur maître + mode + fréquence (txArmePayload) : le garde-fou TX
+    // serveur refuse la voix dynamique sans `armed`/mode phonie (403).
+    if(typeof txArmePayload === 'function') Object.assign(payload, txArmePayload());
     const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)});
     const d = await r.json();

@@ -6360,6 +6360,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 res = vk.supprimer_message(slot)
             else:
                 import logx_so2r as so2r
+                # Garde-fou TX unifié (24/08/2026) : la voix (DVK WAV) passe par
+                # le MÊME contrôle que le CW -- TX-enable maître + mode phonie
+                # (jamais CW/data) + fréquence en bande -- AVANT de prendre le
+                # verrou, pour qu'un refus ne bloque pas l'autre radio. Refus
+                # BLOQUANT (403). Auparavant /voice/play n'avait aucun garde-fou.
+                import logx_tx_guard as txg
+                ok_tx, raison_tx = txg.tx_autorise(payload, 'phonie')
+                if not ok_tx:
+                    self._json({'ok': False, 'error': raison_tx, 'blocked': True}, 403)
+                    return
                 # Verrou TX (Phase 0 SO2R) : emettre_wav() est bloquant (PTT
                 # ON -> lecture -> PTT OFF), donc englobable directement --
                 # contrairement au CW WinKeyer/natif, fire-and-forget.
@@ -6410,6 +6420,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Verrou TX (Phase 0 SO2R) : pas d'émission réelle si skip_ptt
             # (bouton "Tester" de CONFIG, indicatif fictif) -- rien à verrouiller.
             if not skip_ptt:
+                # Garde-fou TX unifié (24/08/2026) : même contrôle que le CW
+                # (armé + mode phonie + bande) AVANT le verrou. Refus BLOQUANT
+                # (403). skip_ptt (bouton "Tester", indicatif fictif) exempté :
+                # aucune émission réelle -> rien à garder.
+                import logx_tx_guard as txg
+                ok_tx, raison_tx = txg.tx_autorise(payload, 'phonie')
+                if not ok_tx:
+                    self._json({'ok': False, 'error': raison_tx, 'blocked': True}, 403)
+                    return
                 verrou = so2r.verrouiller_tx(radio_active, 'voix')
                 if not verrou['ok']:
                     self._json(verrou, 409)
