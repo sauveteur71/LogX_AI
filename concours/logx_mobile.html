@@ -504,9 +504,17 @@ function updateQueueBadge(n){
   }
 }
 
+let _syncingQueue = false;   // verrou de réentrance (voir garde ci-dessous)
 async function syncOfflineQueue(){
+  // pollWall() (setInterval 5 s) rappelle cette fonction à chaque réseau OK.
+  // Si un POST dépasse 5 s (WiFi de terrain instable), une 2e passe relirait la
+  // MÊME file (pas encore ré-écrite) et re-posterait les mêmes QSO en
+  // force:true -> DOUBLONS. On refuse toute réentrance tant qu'une passe court.
+  if (_syncingQueue) return;
   const queue = loadOfflineQueue();
   if (!queue.length) return;
+  _syncingQueue = true;
+  try {
   const stillPending = [];
   let networkDown = false;
   for (let i = 0; i < queue.length; i++){
@@ -575,6 +583,7 @@ async function syncOfflineQueue(){
   }
   saveOfflineQueue(stillPending);
   if (stillPending.length < queue.length) pollWall();   // stats à jour après resync
+  } finally { _syncingQueue = false; }
 }
 
 // ─── Envoi du QSO ────────────────────────────────────────────────────────────
