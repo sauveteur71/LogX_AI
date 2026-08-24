@@ -2687,6 +2687,91 @@ async function _adopterIdServeur(res, qso){
   }catch(e){ /* réponse non JSON : on garde l'id proposé, comme avant */ }
 }
 
+// Collecte les champs SECONDAIRES des onglets de saisie (lot 2, sous-chantier A).
+// Chaque valeur NON VIDE devient une clé du QSO — persistée telle quelle via le
+// schéma ouvert de logx_storage (`extra`) ; l'export ADIF est le sous-chantier B.
+// `tx_pwr` est converti en NOMBRE ; les autres restent des chaînes.
+function collectExtraFields(){
+  const out = {};
+  const val = function(id){ const e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+  const map = {
+    inputEmail:'email', inputQslVia:'qsl_via', inputCqz:'cqz', inputItuz:'ituz',
+    inputCnty:'cnty', inputPropMode:'prop_mode', inputOperatingLocation:'operating_location',
+    inputFreqRx:'freq_rx', inputTimeOff:'time_off', inputMyRig:'my_rig', inputMyAntenna:'my_antenna',
+    inputQslSent:'qsl_sent', inputLotwSent:'lotw_qsl_sent', inputEqslSent:'eqsl_qsl_sent',
+  };
+  Object.keys(map).forEach(function(id){ const v = val(id); if(v) out[map[id]] = v; });
+  const pwr = val('inputTxPwr');
+  if(pwr) out.tx_pwr = Number(pwr);
+  return out;
+}
+
+// ── Références multiples (lot 3, sous-chantier A) ───────────────────────────
+// Une activation peut cumuler plusieurs programmes (SOTA + POTA « two-fer ») :
+// on stocke une LISTE {program, ref}. Rétro-compat mono-valué : la 1re ref reste
+// my_sig/my_sig_info (ce que l'export ADIF actuel émet, tant que B ne généralise
+// pas). mySigToRefs : reconstruit la liste depuis my_sig (à l'ÉDITION d'un vieux
+// QSO). refsToMySig : recopie my_refs[0] -> my_sig (avant ENVOI/export).
+function mySigToRefs(q){
+  if((!q.my_refs || !q.my_refs.length) && q.my_sig){ q.my_refs = [{program:q.my_sig, ref:q.my_sig_info||''}]; }
+  if((!q.refs || !q.refs.length) && q.sig){ q.refs = [{program:q.sig, ref:q.sig_info||''}]; }
+  return q;
+}
+function refsToMySig(q){
+  if(q.my_refs && q.my_refs.length){ q.my_sig = q.my_refs[0].program; q.my_sig_info = q.my_refs[0].ref; }
+  if(q.refs && q.refs.length){ q.sig = q.refs[0].program; q.sig_info = q.refs[0].ref; }
+  return q;
+}
+// Programmes proposés : source = logx_activation.PROGRAM_SPECS (jamais de mémoire).
+const REF_PROGRAMS = ['POTA','SOTA','WWFF','IOTA','WCA','ARLHS'];
+function collectRefs(containerId){
+  const box = document.getElementById(containerId);
+  if(!box) return [];
+  const out = [];
+  box.querySelectorAll('.ref-row').forEach(function(row){
+    const prog = row.querySelector('.ref-prog');
+    const ref = row.querySelector('.ref-val');
+    const p = prog ? String(prog.value).trim() : '';
+    const v = ref ? String(ref.value).trim().toUpperCase() : '';
+    if(p && v) out.push({program:p, ref:v});
+  });
+  return out;
+}
+function addRefRow(containerId){
+  const box = document.getElementById(containerId);
+  if(!box) return;
+  const row = document.createElement('div');
+  row.className = 'ref-row';
+  const opts = REF_PROGRAMS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+  row.innerHTML = '<select class="field-input field-compact ref-prog refdrop">'+opts+'</select>'+
+    '<input type="text" class="field-input field-compact ref-val" placeholder="réf. (F/AB-123, FR-1234…)" autocomplete="off">'+
+    '<button type="button" class="ref-del" title="Retirer cette référence">✕</button>';
+  var _refresh = function(){ if(typeof renderActivityTags === 'function') renderActivityTags(); };
+  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); _refresh(); });
+  row.querySelector('.ref-val').addEventListener('change', _refresh);   // ref saisie -> tag SOTA/POTA en aperçu
+  box.appendChild(row);
+}
+
+// Auto-remplissage éditable (lot 5, sous-chantier A). PERSISTE l'azimut (bearing,
+// jusqu'ici affiché à la boussole mais jamais stocké) et remplit pays/continent/
+// zone CQ depuis l'indicatif (lookupDXCC), SANS écraser une saisie manuelle. Le
+// numéro DXCC et la zone ITU viennent du serveur (cty.dat) -> sous-chantier B.
+function autoFillQso(q){
+  if(q.locator && typeof bearing === 'function'){
+    const az = bearing(q.locator);
+    if(az != null && !isNaN(az)) q.ant_az = Math.round(az);
+  }
+  if(q.call && typeof lookupDXCC === 'function'){
+    const d = lookupDXCC(q.call);
+    if(d){
+      if(!q.country && d.c) q.country = d.c;
+      if(!q.cont && d.ct) q.cont = d.ct;
+      if(!q.cqz && d.cq != null) q.cqz = String(d.cq);
+    }
+  }
+  return q;
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
@@ -2785,6 +2870,34 @@ async function submitQSO(){
     const tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
     if(tr){ qso.sig = activationProgram; qso.sig_info = tr; }
   }
+
+  // Champs secondaires des onglets (lot 2, sous-chantier A) : puissance, e-mail,
+  // QSL via, zones, comté, prop_mode, lieu d'exploitation, fréq RX, heure de fin,
+  // matériel, antenne. Fusionnés APRÈS l'activation pour ne rien écraser d'établi.
+  Object.assign(qso, collectExtraFields());
+
+  // Références multiples (lot 3) : la ref d'activation (my_sig, posée ci-dessus)
+  // devient la 1re d'une LISTE, complétée par les références SUPPLÉMENTAIRES
+  // saisies dans l'onglet (two-fer SOTA+POTA). refsToMySig garde ensuite
+  // my_sig = my_refs[0] pour que l'export ADIF actuel reste identique.
+  mySigToRefs(qso);
+  const _myExtra = collectRefs('myRefsList');
+  if(_myExtra.length) qso.my_refs = (qso.my_refs || []).concat(_myExtra);
+  const _theirExtra = collectRefs('refsList');
+  if(_theirExtra.length) qso.refs = (qso.refs || []).concat(_theirExtra);
+  refsToMySig(qso);
+
+  // Tags multi-activité (lot 4) : AUTO dérivés du QSO (mode, QRP, références,
+  // lieu, propagation) UNION les tags MANUELS de l'opérateur. Orthogonal au
+  // concours ; cherchable dans le carnet.
+  if(typeof deriveActivityTags === 'function'){
+    const _tags = mergeTags(deriveActivityTags(qso), (typeof getManualTags === 'function' ? getManualTags() : []));
+    if(_tags.length) qso.activity_tags = _tags;
+  }
+
+  // Auto-remplissage éditable (lot 5) : azimut persisté + pays/continent/zone CQ
+  // depuis l'indicatif, sans écraser ce que l'opérateur a saisi à la main.
+  autoFillQso(qso);
 
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);
@@ -2903,6 +3016,13 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = _rstParDefaut(currentMode);
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  // Champs par-QSO des onglets (lot 2-4) : vidés comme les autres champs propres
+  // au contact. Les champs de MA station (puissance, matériel, antenne, lieu,
+  // mes références) PERSISTENT d'un QSO à l'autre -- on ne les touche pas ici.
+  ['inputEmail','inputQslVia','inputCqz','inputItuz','inputCnty','inputFreqRx','inputTimeOff','inputPropMode']
+    .forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var _refsCorr = document.getElementById('refsList'); if(_refsCorr) _refsCorr.innerHTML='';   // réf. correspondant (S2S/P2P)
+  if(typeof resetManualTags === 'function') resetManualTags();   // tags manuels : per-QSO
   // Commentaire vidé comme les autres champs propres au QSO : le laisser
   // traînerait la remarque du contact précédent sur le suivant — pire qu'un
   // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
@@ -3372,7 +3492,10 @@ function renderLog(){
     if(currentFilter==='432' && q.band!=='432') return false;
     if(currentFilter==='hf' && !['14','7','3.5','1.8','21','28'].includes(q.band)) return false;
     if(currentFilter==='mine' && q.operator!==myOp) return false;
-    if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)) return false;
+    // Recherche : indicatif, locator, ET tags multi-activité (lot 6) — retrouver
+    // un QSO par « SOTA », « QRP », « FT8 »… sans dupliquer le contact.
+    if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)
+       && !(q.activity_tags||[]).join(' ').toUpperCase().includes(search)) return false;
     if(advancedFilter && !matchesAdvancedFilter(q, advancedFilter)) return false;
     return true;
   });
