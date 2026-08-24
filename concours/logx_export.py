@@ -306,13 +306,17 @@ _ADIF_STD_TAGS = {
     # Sous-chantier B (lot 2) : clés de la refonte de saisie (A).
     'TX_PWR', 'FREQ_RX', 'CQZ', 'ITUZ', 'CNTY', 'EMAIL', 'QSL_VIA', 'ANT_AZ',
     'TIME_OFF', 'QSL_SENT', 'LOTW_QSL_SENT', 'EQSL_QSL_SENT', 'APP_LOGX_OPERATING',
-    'SUBMODE',
     # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
     'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
     'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
-    # Sous-chantier B (lot 4) : confirmations reçues injectées à l'export.
-    'QSL_RCVD', 'QSLRDATE', 'LOTW_QSL_RCVD', 'LOTW_QSLRDATE',
-    'EQSL_QSL_RCVD', 'EQSL_QSLRDATE',
+    # NOTE (correctif de revue) : SUBMODE et les tags de confirmation REÇUE
+    # (LOTW_QSL_RCVD/QSLRDATE…) ne figurent VOLONTAIREMENT PAS dans cet ensemble.
+    # Ils sont émis conditionnellement (SUBMODE seulement pour FT2 via _adif_mode ;
+    # les RCVD seulement si `confirmations` est fourni). Les inscrire ici les
+    # faisait SAUTER depuis extra_fields à la réexportation quand ils n'étaient
+    # PAS ré-émis par ailleurs -> perte silencieuse d'un SUBMODE=JS8 importé ou
+    # d'un LOTW_QSL_RCVD importé (confirmations=None). La non-duplication avec les
+    # RCVD du store est gérée dynamiquement plus bas (_conf_tags_emis).
 }
 
 # Sous-chantier B (lot 4) : source d'une confirmation reçue -> tag ADIF RCVD
@@ -487,19 +491,32 @@ def build_adif(qsos, cfg=None, confirmations=None):
         # programme d'un two-fer SOTA+POTA — MY_SIG/SIG ci-dessus ne portent
         # qu'UNE référence. MY_ + tag côté station, tag nu côté correspondant.
         # Un programme sans tag dédié (ARLHS/WCA) reste sur le générique SIG.
+        # Un tag ADIF dédié n'existe qu'en un exemplaire par record : si deux
+        # références du MÊME programme sont présentes (activation multi-parcs),
+        # on n'émet le tag qu'UNE fois (la 1re) — un champ répété est non
+        # conforme (le lecteur n'en garde qu'un). `_progs_emis` par côté.
+        _progs_emis = set()
         for prog, ref in _refs_pour_export(q, 'my_refs', 'my_sig', 'my_sig_info'):
             tag = ADIF_PROGRAM_TAGS.get(prog)
-            if tag and ref:
+            if tag and ref and prog not in _progs_emis:
+                _progs_emis.add(prog)
                 fields.append(_adif_field('my_' + tag.lower(), ref))
+        _progs_emis = set()
         for prog, ref in _refs_pour_export(q, 'refs', 'sig', 'sig_info'):
             tag = ADIF_PROGRAM_TAGS.get(prog)
-            if tag and ref:
+            if tag and ref and prog not in _progs_emis:
+                _progs_emis.add(prog)
                 fields.append(_adif_field(tag.lower(), ref))
         # Sous-chantier B (lot 4) : confirmations REÇUES (LoTW/eQSL/carte)
         # depuis le store de confirmations, rapprochées par la clé des diplômes
         # (même « confirmé » que l'UI). Émises seulement si l'appelant a injecté
         # le dict (jamais pour les uploads). Une seule fois par tag RCVD (deux
         # sources génériques ne dupliquent pas QSL_RCVD).
+        # _conf_tags_emis : tags RCVD/date réellement émis DEPUIS le store pour
+        # CE record — sert à ne pas les redoubler s'ils traînent aussi dans
+        # extra_fields (QSO importé porteur du même tag). Comme ces tags ne sont
+        # PLUS dans _ADIF_STD_TAGS, c'est ce filtre-ci qui évite la duplication.
+        _conf_tags_emis = set()
         if confirmations:
             from logx_awards import _confirm_key
             conf = confirmations.get(_confirm_key(q)) or {}
@@ -511,11 +528,14 @@ def build_adif(qsos, cfg=None, confirmations=None):
                     continue
                 rcvd_vus.add(rcvd_tag)
                 fields.append(_adif_field(rcvd_tag, 'Y'))
+                _conf_tags_emis.add(rcvd_tag.upper())
                 # Date seulement si c'est une VRAIE Date ADIF (YYYYMMDD) —
                 # APP_LOTW_RXQSL vaut souvent un datetime "2026-01-15 14:30:00"
                 # qui n'est PAS une Date ADIF valide : on ne l'émet pas.
                 if isinstance(when, str) and re.fullmatch(r'\d{8}', when):
-                    fields.append(_adif_field(_CONF_DATE_TAGS.get(s, 'qslrdate'), when))
+                    date_tag = _CONF_DATE_TAGS.get(s, 'qslrdate')
+                    fields.append(_adif_field(date_tag, when))
+                    _conf_tags_emis.add(date_tag.upper())
         # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
         # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
         # JS (logx_export_adif.js) mais PAS par cet export serveur, alors que
@@ -526,7 +546,11 @@ def build_adif(qsos, cfg=None, confirmations=None):
             # minuscules : même convention que tous les autres appels
             # _adif_field() de cette fonction (ADIF est insensible à la casse
             # des tags, mais un fichier cohérent est plus facile à relire).
-            fields += [_adif_field(str(name).lower(), value) for name, value in extra_fields.items()
-                       if str(name).upper() not in _ADIF_STD_TAGS]
+            # Exclut les tags standard DÉJÀ émis (build) et les RCVD/date déjà
+            # émis depuis le store CE record (anti-duplication).
+            fields += [_adif_field(str(name).lower(), value)
+                       for name, value in extra_fields.items()
+                       if str(name).upper() not in _ADIF_STD_TAGS
+                       and str(name).upper() not in _conf_tags_emis]
         records.append(''.join(f for f in fields if f) + '<EOR>')
     return header + '\n'.join(records) + '\n'

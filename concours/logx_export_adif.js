@@ -78,7 +78,10 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
   'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID',
   // Sous-chantier B : alignés sur logx_export._ADIF_STD_TAGS (jumeaux).
   'NAME','QTH','STATE','COMMENT','DISTANCE','PROP_MODE','SAT_NAME',
-  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO','SUBMODE',
+  // SUBMODE VOLONTAIREMENT absent : buildAdifText ne l'émet que pour FT2
+  // (MODE=MFSK+SUBMODE=FT2) ; l'inscrire ici faisait sauter un SUBMODE=JS8/FT4
+  // conservé dans extra_fields -> perte au re-export (correctif de revue).
+  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO',
   // Lot 2 : clés de la refonte de saisie (A).
   'TX_PWR','FREQ_RX','CQZ','ITUZ','CNTY','EMAIL','QSL_VIA','ANT_AZ','TIME_OFF',
   'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING',
