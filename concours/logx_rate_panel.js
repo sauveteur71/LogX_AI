@@ -52,6 +52,15 @@ function renderRateChart(){
     const toDate = k => new Date(Date.UTC(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8), +k.slice(8,10)));
     let cur = toDate(keys[0]);
     const end = toDate(keys[keys.length-1]);
+    // Borne défensive : qsoLog est le carnet UNIQUE (toutes bandes/années). Deux
+    // QSO éloignés (reprise le lendemain, import d'un log ancien) ou une date
+    // corrompue (99991231) généreraient des milliers de barres vides, voire un
+    // gel du navigateur. Une session réelle n'approche jamais un mois d'heures ;
+    // au-delà, on n'affiche que la fenêtre la plus RÉCENTE (fin - MAX_HEURES).
+    const MAX_HEURES = 24 * 31;
+    if((end - cur) / 3600000 > MAX_HEURES - 1){
+      cur = new Date(end.getTime() - (MAX_HEURES - 1) * 3600000);
+    }
     while(cur <= end){
       const key = cur.getUTCFullYear() + String(cur.getUTCMonth()+1).padStart(2,'0')
                 + String(cur.getUTCDate()).padStart(2,'0') + String(cur.getUTCHours()).padStart(2,'0');
