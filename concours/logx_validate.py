@@ -58,7 +58,12 @@ def _check_scoring(sc, props):
             for i, rule in enumerate(rules):
                 when = rule.get('when', 'always')
                 when_list = when if isinstance(when, (list, tuple)) else [when]
-                unknown = [w for w in when_list if w not in PREDICATES]
+                # `not isinstance(w, str)` d'ABORD : un 'when' malformé (dict,
+                # liste imbriquée…) rendait `w not in PREDICATES` (un dict)
+                # TypeError: unhashable, faisant PLANTER la validation d'une
+                # définition importée/extraite par l'IA au lieu de la refuser
+                # proprement. Tout prédicat non-chaîne est simplement « inconnu ».
+                unknown = [w for w in when_list if not isinstance(w, str) or w not in PREDICATES]
                 if unknown:
                     errs.append(f"bricks.points[{i}].when {unknown} inconnu du moteur "
                                 f"(connus : {sorted(PREDICATES)})")
