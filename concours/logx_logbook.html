@@ -1702,6 +1702,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="loc-hint" id="locHint"></div>
       </div>
 
+      <!-- Commentaire libre : champ du trafic COURANT par excellence, TOUJOURS
+           visible et jamais réservé au mode avancé — HORS des onglets. Un
+           débutant le voit d'emblée (exigence figée par
+           test_lot2_carnet_generaliste). Il était passé dans l'onglet QSO au
+           lot 1 ; la revue finale + ce test ont rappelé qu'il doit rester au
+           bandeau. -->
+      <div class="field-group" id="commentGroup">
+        <label class="field-label" for="inputComment">COMMENTAIRE</label>
+        <input type="text" class="field-input" id="inputComment" maxlength="120"
+          placeholder="Antenne, conditions, remarque…" autocomplete="off">
+      </div>
+
       <!-- Coquille d'onglets (sous-chantier A, lot 1/6) : les champs
            SECONDAIRES existants ci-dessous (source du QSO, commentaire,
            callbook/compas) vivent désormais dans des .entry-tabpane. Le
@@ -1741,18 +1753,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div id="posteSourceNote" style="margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)"></div>
         </div>
 
-        <!-- Commentaire libre. Reste accessible en un clic (onglet QSO,
-             actif par défaut) — jamais expert-only : c'est le champ du
-             trafic COURANT par excellence (« antenne filaire », « premier
-             QSO en CW », « QSL directe promise »), celui qu'on relit six
-             mois plus tard. En concours il reste vide et ne coûte rien : la
-             saisie se fait au clavier sur les champs du bandeau, on ne
-             passe jamais ici. -->
-        <div class="field-group" id="commentGroup">
-          <label class="field-label" for="inputComment">COMMENTAIRE</label>
-          <input type="text" class="field-input" id="inputComment" maxlength="120"
-            placeholder="Antenne, conditions, remarque…" autocomplete="off">
-        </div>
         <!-- Détails QSO saisissables (lot 2). prop_mode : codes de l'énumération
              PROP_MODE de la SPÉCIFICATION ADIF (standard externe citable —
              adif.org/adif ; F2, ES, TR, EME, MS, AUR, RS, BS, SAT y figurent).
