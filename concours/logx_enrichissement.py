@@ -47,6 +47,36 @@ def enrichir(qso, cfg=None):
         if val not in (None, ''):
             out[interne] = str(val)
     out.update(_depuis_locators(qso, cfg))
+    out.update(_my_depuis_config(qso, cfg))
+    return out
+
+
+# (clé interne MY_* du QSO, clé logx_dxcc.lookup) — miroir « ma station » de
+# _CHAMPS_DEPUIS_INDICATIF, dérivé de l'indicatif de config (callsign_contest
+# prioritaire sur callsign, même règle que build_adif).
+_CHAMPS_MY = (
+    ('my_dxcc_country', 'country'),
+    ('my_continent', 'continent'),
+    ('my_cqz', 'cq_zone'),
+    ('my_ituz', 'itu_zone'),
+)
+
+
+def _my_depuis_config(qso, cfg):
+    cfg = cfg or {}
+    mon_call = str(cfg.get('callsign_contest') or cfg.get('callsign') or '').strip()
+    if not mon_call:
+        return {}
+    fiche = logx_dxcc.lookup(mon_call)
+    if not fiche:
+        return {}
+    out = {}
+    for interne, source in _CHAMPS_MY:
+        if str(qso.get(interne, '') or '').strip():
+            continue
+        val = fiche.get(source)
+        if val not in (None, ''):
+            out[interne] = str(val)
     return out
 
 

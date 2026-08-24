@@ -70,3 +70,31 @@ def test_distance_deja_saisie_non_ecrasee():
                       'dist': '42'})
     assert 'dist' not in d, d          # saisie respectée
     assert 'ant_az' in d               # l'azimut vide reste proposé
+
+
+# ─── Lot 3 : champs MY_* dérivés de l'indicatif de MA station (config) ───────
+
+def test_my_zones_depuis_indicatif_station_config():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'},
+                     {'callsign': 'W1AW'})
+    assert 'United States' in str(d.get('my_dxcc_country', '')) or \
+           'USA' in str(d.get('my_dxcc_country', '')), d
+    assert d.get('my_continent') == 'NA'
+    assert str(d.get('my_cqz', '')) != '' and str(d.get('my_ituz', '')) != ''
+
+
+def test_my_zones_privilegie_callsign_contest():
+    d = enr.enrichir({'call': 'F4ABC'},
+                     {'callsign': 'W1AW', 'callsign_contest': 'F4GLD'})
+    assert 'France' in str(d.get('my_dxcc_country', '')), d
+
+
+def test_my_zones_deja_saisies_non_ecrasees():
+    d = enr.enrichir({'call': 'F4ABC', 'my_cqz': '3'}, {'callsign': 'W1AW'})
+    assert 'my_cqz' not in d, d
+    assert 'my_continent' in d
+
+
+def test_pas_de_my_zones_sans_config():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'})
+    assert not any(k.startswith('my_') for k in d), d
