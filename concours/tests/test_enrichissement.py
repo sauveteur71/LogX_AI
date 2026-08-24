@@ -43,3 +43,30 @@ def test_portable_lieu_prime():
     # F/DL1ABC = DL1ABC opérant depuis la France -> pays France (préfixe de lieu).
     d = enr.enrichir({'call': 'F/DL1ABC'})
     assert 'France' in str(d.get('dxcc_country', '')), d
+
+
+# ─── Lot 2 : distance + azimut depuis les locators (dérivation pure) ─────────
+
+def test_distance_et_azimut_depuis_locators():
+    # correspondant JN18 (Paris), ma station JO01 (Londres) : dist>0, az 0-360.
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18', 'my_locator': 'JO01'})
+    assert int(d.get('dist', 0)) > 0, d
+    assert 0 <= int(d.get('ant_az', -1)) <= 360, d
+
+
+def test_distance_utilise_le_locator_config_a_defaut():
+    # pas de my_locator sur le QSO -> repli sur cfg['locator'].
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'}, {'locator': 'JO01'})
+    assert int(d.get('dist', 0)) > 0, d
+
+
+def test_pas_de_distance_sans_locator_correspondant():
+    d = enr.enrichir({'call': 'F4ABC', 'my_locator': 'JO01'})
+    assert 'dist' not in d and 'ant_az' not in d, d
+
+
+def test_distance_deja_saisie_non_ecrasee():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18', 'my_locator': 'JO01',
+                      'dist': '42'})
+    assert 'dist' not in d, d          # saisie respectée
+    assert 'ant_az' in d               # l'azimut vide reste proposé

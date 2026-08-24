@@ -13,6 +13,7 @@ deux ?) et QUELS champs activer restent des décisions de F4GLD (§4 de la
 proposition) : ce module ne fait que la DÉRIVATION, jamais l'application.
 """
 import logx_dxcc
+from logx_utils import locator_to_latlon, haversine, bearing
 
 # (clé interne du log, clé renvoyée par logx_dxcc.lookup). Les clés internes
 # dxcc_country / continent / cqz / ituz existent déjà dans le code (logbook,
@@ -45,4 +46,28 @@ def enrichir(qso, cfg=None):
         val = fiche.get(source)
         if val not in (None, ''):
             out[interne] = str(val)
+    out.update(_depuis_locators(qso, cfg))
+    return out
+
+
+def _depuis_locators(qso, cfg):
+    """DISTANCE (km) et azimut d'antenne ANT_AZ (deg) depuis le locator du
+    correspondant et celui de ma station (QSO puis, à défaut, config). Dérivation
+    PURE (géométrie), champs vides seulement. {} si un locator manque/est invalide."""
+    loc_dx = str(qso.get('locator', '') or '').strip()
+    if not loc_dx:
+        return {}
+    loc_moi = (str(qso.get('my_locator', '') or '').strip()
+               or str((cfg or {}).get('locator', '') or '').strip())
+    if not loc_moi:
+        return {}
+    lat1, lon1 = locator_to_latlon(loc_moi)
+    lat2, lon2 = locator_to_latlon(loc_dx)
+    if None in (lat1, lon1, lat2, lon2):
+        return {}
+    out = {}
+    if not str(qso.get('dist', '') or '').strip():
+        out['dist'] = str(haversine(lat1, lon1, lat2, lon2))
+    if not str(qso.get('ant_az', '') or '').strip():
+        out['ant_az'] = str(bearing(lat1, lon1, lat2, lon2))
     return out
