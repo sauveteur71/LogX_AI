@@ -2687,6 +2687,24 @@ async function _adopterIdServeur(res, qso){
   }catch(e){ /* réponse non JSON : on garde l'id proposé, comme avant */ }
 }
 
+// Collecte les champs SECONDAIRES des onglets de saisie (lot 2, sous-chantier A).
+// Chaque valeur NON VIDE devient une clé du QSO — persistée telle quelle via le
+// schéma ouvert de logx_storage (`extra`) ; l'export ADIF est le sous-chantier B.
+// `tx_pwr` est converti en NOMBRE ; les autres restent des chaînes.
+function collectExtraFields(){
+  const out = {};
+  const val = function(id){ const e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+  const map = {
+    inputEmail:'email', inputQslVia:'qsl_via', inputCqz:'cqz', inputItuz:'ituz',
+    inputCnty:'cnty', inputPropMode:'prop_mode', inputOperatingLocation:'operating_location',
+    inputFreqRx:'freq_rx', inputTimeOff:'time_off', inputMyRig:'my_rig', inputMyAntenna:'my_antenna',
+  };
+  Object.keys(map).forEach(function(id){ const v = val(id); if(v) out[map[id]] = v; });
+  const pwr = val('inputTxPwr');
+  if(pwr) out.tx_pwr = Number(pwr);
+  return out;
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
@@ -2785,6 +2803,11 @@ async function submitQSO(){
     const tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
     if(tr){ qso.sig = activationProgram; qso.sig_info = tr; }
   }
+
+  // Champs secondaires des onglets (lot 2, sous-chantier A) : puissance, e-mail,
+  // QSL via, zones, comté, prop_mode, lieu d'exploitation, fréq RX, heure de fin,
+  // matériel, antenne. Fusionnés APRÈS l'activation pour ne rien écraser d'établi.
+  Object.assign(qso, collectExtraFields());
 
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);

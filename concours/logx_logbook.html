@@ -278,6 +278,11 @@ body.sans-concours .compass-pts{display:none}
 .field-input.error{border-color:var(--red)}
 .field-input.ok{border-color:var(--green)}
 .field-input.field-readonly{background:var(--bg2)!important;color:var(--muted)!important;cursor:not-allowed;opacity:.75}
+/* Champs SECONDAIRES des onglets : plus petits que le chemin critique (hiérarchie
+   validée à la passe design impeccable), et sans majuscules forcées — un nom, un
+   e-mail, un QTH ne sont pas des indicatifs. */
+.field-input.field-compact{font-size:14px;padding:5px 10px;text-transform:none;letter-spacing:.3px;font-weight:400}
+select.field-input{cursor:pointer}
 
 .field-row{display:flex;gap:10px}
 .field-row>.field-group{flex:1;min-width:0}
@@ -1714,6 +1719,28 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <input type="text" class="field-input" id="inputComment" maxlength="120"
             placeholder="Antenne, conditions, remarque…" autocomplete="off">
         </div>
+        <!-- Détails QSO saisissables (lot 2). prop_mode : codes de l'énumération
+             ADIF PROP_MODE (source citable, pas de mémoire). SAT reste posé
+             automatiquement pour les QSO satellite (logx_satellites). -->
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputFreqRx">FRÉQ. RX (split, MHz)</label>
+            <input type="text" class="field-input field-compact" id="inputFreqRx" placeholder="—" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputTimeOff">HEURE DE FIN (UTC)</label>
+            <input type="text" class="field-input field-compact" id="inputTimeOff" placeholder="hhmmss" maxlength="6" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputPropMode">MODE DE PROPAGATION</label>
+            <select class="field-input field-compact" id="inputPropMode">
+              <option value="">—</option>
+              <option value="ES">Sporadic-E (ES)</option>
+              <option value="TR">Troposphérique (TR)</option>
+              <option value="F2">F2</option>
+              <option value="EME">EME (rebond lunaire)</option>
+              <option value="MS">Meteor scatter (MS)</option>
+              <option value="AUR">Aurore (AUR)</option>
+              <option value="RS">Rain scatter (RS)</option>
+              <option value="BS">Back scatter (BS)</option>
+              <option value="SAT">Satellite (SAT)</option>
+            </select></div>
+        </div>
       </div>
 
       <div class="entry-tabpane" data-pane="corr" style="display:none">
@@ -1766,12 +1793,48 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             </div>
           </div>
         </div>
+        <!-- Champs correspondant saisissables (lot 2). Zones CQ/ITU : pré-remplies
+             au lot 5 depuis l'indicatif/locator, mais éditables ici. -->
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputCqz">ZONE CQ</label>
+            <input type="text" class="field-input field-compact" id="inputCqz" maxlength="2" placeholder="14" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputItuz">ZONE ITU</label>
+            <input type="text" class="field-input field-compact" id="inputItuz" maxlength="3" placeholder="27" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputCnty">COMTÉ / SUBDIV.</label>
+            <input type="text" class="field-input field-compact" id="inputCnty" maxlength="24" placeholder="—" autocomplete="off"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputQslVia">QSL VIA</label>
+            <input type="text" class="field-input field-compact" id="inputQslVia" maxlength="30" placeholder="BUREAU, DIRECT, F5XYZ…" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputEmail">E-MAIL (optionnel)</label>
+            <input type="email" class="field-input field-compact" id="inputEmail" maxlength="80" placeholder="—" autocomplete="off"></div>
+        </div>
       </div>
 
-      <!-- Onglet MA STATION : vide au lot 1 (coquille seulement, aucun champ
-           nouveau) — peuplé au lot 2/6 (puissance, matériel, antenne, lieu
-           d'exploitation, cf. plan sous-chantier A). -->
-      <div class="entry-tabpane" data-pane="mystation" style="display:none"></div>
+      <!-- Onglet MA STATION — lot 2 : champs de MA station saisissables. Le
+           schéma de stockage est OUVERT (logx_storage.extra) : ces clés
+           persistent sans migration ; l'export ADIF est le sous-chantier B. -->
+      <div class="entry-tabpane" data-pane="mystation" style="display:none">
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputTxPwr">PUISSANCE (W)</label>
+            <input type="number" class="field-input field-compact" id="inputTxPwr" min="0" max="2000" placeholder="20" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputOperatingLocation">LIEU D'EXPLOITATION</label>
+            <select class="field-input field-compact" id="inputOperatingLocation">
+              <option value="">— fixe (QTH principal)</option>
+              <option value="PORTABLE">Portable</option>
+              <option value="MOBILE">Mobile</option>
+              <option value="MARITIME_MOBILE">Maritime mobile</option>
+              <option value="AERONAUTICAL_MOBILE">Aéronautique mobile</option>
+              <option value="REMOTE">Remote</option>
+            </select></div>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputMyRig">MATÉRIEL</label>
+            <input type="text" class="field-input field-compact" id="inputMyRig" maxlength="40" placeholder="IC-7300" autocomplete="off"></div>
+          <div class="field-group"><label class="field-label" for="inputMyAntenna">ANTENNE</label>
+            <input type="text" class="field-input field-compact" id="inputMyAntenna" maxlength="40" placeholder="Dipôle 20 m" autocomplete="off"></div>
+        </div>
+      </div>
 
       <!-- Onglet QSL : vide au lot 1 (coquille seulement) — peuplé au lot
            6/6 (statuts QSL/LoTW/eQSL). -->
