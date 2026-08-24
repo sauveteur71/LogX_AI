@@ -302,6 +302,9 @@
       #rcStatusBar a{color:inherit;text-decoration:none}
       #rcStatusBar a:hover{color:var(--accent2,#00D4FF)}
       @media (max-width:900px){ #rcStatusBar .rcsb-item{padding:4px 7px} }
+      /* Bascule AFFICHAGE OFF : verrou !important qui bat le display:inline
+         reposé par le JS des widgets dynamiques (météo, pont WSJT-X). */
+      .rcsb-aff-off{display:none!important}
       #rcsbLayoutDD, #rcsbDisplayDD{position:absolute;top:100%;left:0;z-index:2000;min-width:260px;
         background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
         box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px;font-size:13px;white-space:normal}
@@ -1504,6 +1507,13 @@
     {id: 'rcsbRateItem', label: 'QSO/heure (rate meter)', default: true},
     {id: 'rcsbRulesItem', label: 'Dernière vérification des règlements', default: true},
     {id: 'rcsbVersionItem', label: 'Version installée', default: false},
+    // Éléments PROPRES À CERTAINES PAGES (LOGBOOK) fusionnés dans AFFICHAGE
+    // (retour F4GLD 24/08 : « épurer à l'essentiel + développer AFFICHAGE ») :
+    // la bascule n'apparaît que si l'élément existe sur la page courante (voir
+    // renderDisplayDD). OFF par défaut = écran épuré ; rappelables d'un clic.
+    {id: 'weatherWidget', label: 'Météo (point haut)', default: false},
+    {id: 'wsjtxWidget', label: 'Pont WSJT-X (FT8/FT4)', default: false},
+    {id: 'soapboxPanel', label: 'Remarques EDI (soapbox)', default: false},
   ];
   function getStatusbarPrefs(){
     try { return JSON.parse(localStorage.getItem('rc_statusbar_prefs') || '{}'); }
@@ -1545,7 +1555,13 @@
     STATUSBAR_TOGGLES.forEach(function(t){
       if (t.id === 'rcsbRateItem') return; // composition spéciale, voir updateRateItemVisibility()
       const el = document.getElementById(t.id);
-      if (el) el.style.display = statusbarPrefShown(t.id) ? '' : 'none';
+      if (!el) return;
+      const shown = statusbarPrefShown(t.id);
+      el.style.display = shown ? '' : 'none';
+      // Verrou CSS !important : météo/pont WSJT-X sont ré-affichés dynamiquement
+      // par leur propre JS (setInterval) ; sans cette classe, ils
+      // réapparaîtraient malgré la préférence OFF.
+      el.classList.toggle('rcsb-aff-off', !shown);
     });
     updateRateItemVisibility();
   }
@@ -1553,7 +1569,11 @@
   function renderDisplayDD(){
     const dd = document.getElementById('rcsbDisplayDD');
     if (!dd) return;
-    const rows = STATUSBAR_TOGGLES.map(function(t){
+    const rows = STATUSBAR_TOGGLES.filter(function(t){
+      // La bascule n'apparaît que si l'élément existe sur CETTE page (météo/
+      // WSJT/soapbox sont propres au LOGBOOK ; version/solaire/backup partout).
+      return document.getElementById(t.id);
+    }).map(function(t){
       const checked = statusbarPrefShown(t.id) ? ' checked' : '';
       return '<label><input type="checkbox" data-toggle="' + t.id + '"' + checked + '> '
         + rcT(t.label) + '</label>';

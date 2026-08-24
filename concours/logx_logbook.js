@@ -1588,6 +1588,12 @@ function updateKeyerPanels(){
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
+  // Terminal CW : outil PROPRE au CW (comme les macros) — visible seulement en
+  // mode CW (retour terrain F4GLD 24/08 : `expert-only` l'affichait en SSB,
+  // « pas fonctionnel »). Le pounce/appel auto, lui, n'est pas un outil CW et
+  // n'est pas gaté ici.
+  const cwTerm=document.getElementById('cwTerminalPanel');
+  if(cwTerm) cwTerm.style.display = cw ? '' : 'none';
   // Bouton d'ARRÊT CW : rafraîchi ICI, et pas seulement au sondage matériel.
   // updateKeyerPanels() est appelée à chaque changement de mode (sélecteur du
   // carnet comme suivi de la radio) ; sans cet appel, passer en CW laissait le
