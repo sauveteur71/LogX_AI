@@ -319,9 +319,9 @@ function majCarte(liste){
     const fq = freqCourante();
     m.bindPopup(
       '<b>' + esc(s.nom) + '</b><br>' + esc(s.lieu || '') +
-      (s.snr != null ? '<br>SNR ' + s.snr + ' dB' : '') +
-      (s.users_max != null ? '<br>' + s.users + '/' + s.users_max + ' ' + T('auditeurs') : '') +
-      (s.dist_km != null ? '<br>' + s.dist_km + ' km · ' + s.azimut + '°' : '') +
+      (s.snr != null ? '<br>SNR ' + esc(s.snr) + ' dB' : '') +
+      (s.users_max != null ? '<br>' + esc(s.users) + '/' + esc(s.users_max) + ' ' + T('auditeurs') : '') +
+      (s.dist_km != null ? '<br>' + esc(s.dist_km) + ' km · ' + esc(s.azimut) + '°' : '') +
       '<br><a href="' + esc(urlEcoute(s, fq.khz, fq.mode)) +
       '" target="_blank" rel="noopener noreferrer">▶ ' + T('ÉCOUTER') + '</a>');
     m.addTo(couche);
@@ -383,9 +383,9 @@ function render(){
         <span class="sdr-badge ${et === 'inconnu' ? '' : et}">${badge}</span>
       </div>
       <div class="sdr-meta">
-        ${s.snr != null ? `<span>${ICO_SIGNAL}<span>SNR ${s.snr} dB</span></span>` : ''}
-        ${s.users_max != null ? `<span>${ICO_USERS}<span>${s.users}/${s.users_max}</span></span>` : ''}
-        ${s.dist_km != null ? `<span>${ICO_DIST}<span>${s.dist_km} km · ${s.azimut}°</span></span>` : ''}
+        ${s.snr != null ? `<span>${ICO_SIGNAL}<span>SNR ${esc(s.snr)} dB</span></span>` : ''}
+        ${s.users_max != null ? `<span>${ICO_USERS}<span>${esc(s.users)}/${esc(s.users_max)}</span></span>` : ''}
+        ${s.dist_km != null ? `<span>${ICO_DIST}<span>${esc(s.dist_km)} km · ${esc(s.azimut)}°</span></span>` : ''}
       </div>
       ${s.antenne ? `<div class="sdr-note">${ICO_ANTENNE} ${esc(s.antenne)}</div>` : ''}
       ${s.note ? `<div class="sdr-note">${esc(s.note)}</div>` : ''}
