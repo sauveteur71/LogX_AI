@@ -306,6 +306,12 @@ select.field-input{cursor:pointer}
 /* RS FIELD */
 .rs-field{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--yellow);font-family:var(--font-mono);font-size:26px;padding:6px 12px;outline:none;width:100%;text-align:center;font-weight:700}
 .rs-field:focus{border-color:var(--yellow)}
+/* Boutons rapides 59 / 599 à côté de chaque RST (chemin critique — spec §5) */
+.rst-wrap{display:flex;gap:6px;align-items:stretch}
+.rst-wrap .rs-field{flex:1;min-width:0}
+.rst-quick{display:flex;flex-direction:column;gap:4px}
+.rst-quick button{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--muted);background:transparent;border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer;transition:.12s}
+.rst-quick button:hover{color:var(--accent);border-color:var(--accent)}
 
 /* LOCATOR HINT */
 .loc-hint{font-family:var(--font-mono);font-size:14px;color:var(--green);padding:7px 10px;background:rgba(0,255,136,.07);border-radius:6px;border:1px solid rgba(0,255,136,.25);display:none}
@@ -1640,13 +1646,25 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="field-row">
         <div class="field-group">
           <label class="field-label" for="inputRSTsent">RST ENVOYÉ</label>
-          <input type="text" class="rs-field" id="inputRSTsent" value="59" maxlength="3" inputmode="numeric"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+          <div class="rst-wrap">
+            <input type="text" class="rs-field" id="inputRSTsent" value="59" maxlength="3" inputmode="numeric"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+            <div class="rst-quick">
+              <button type="button" title="Report phonie 59" onclick="document.getElementById('inputRSTsent').value='59'">59</button>
+              <button type="button" title="Report CW/RTTY 599" onclick="document.getElementById('inputRSTsent').value='599'">599</button>
+            </div>
+          </div>
         </div>
         <div class="field-group">
           <label class="field-label" for="inputRSTrcvd">RST REÇU</label>
-          <input type="text" class="rs-field" id="inputRSTrcvd" value="59" maxlength="3" inputmode="numeric"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+          <div class="rst-wrap">
+            <input type="text" class="rs-field" id="inputRSTrcvd" value="59" maxlength="3" inputmode="numeric"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+            <div class="rst-quick">
+              <button type="button" title="Report phonie 59" onclick="document.getElementById('inputRSTrcvd').value='59'">59</button>
+              <button type="button" title="Report CW/RTTY 599" onclick="document.getElementById('inputRSTrcvd').value='599'">599</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1736,8 +1754,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             placeholder="Antenne, conditions, remarque…" autocomplete="off">
         </div>
         <!-- Détails QSO saisissables (lot 2). prop_mode : codes de l'énumération
-             ADIF PROP_MODE (source citable, pas de mémoire). SAT reste posé
-             automatiquement pour les QSO satellite (logx_satellites). -->
+             PROP_MODE de la SPÉCIFICATION ADIF (standard externe citable —
+             adif.org/adif ; F2, ES, TR, EME, MS, AUR, RS, BS, SAT y figurent).
+             PAS un enum du dépôt (logx_adif_enums.py n'a que bandes/modes). SAT
+             reste posé automatiquement pour les QSO satellite (logx_satellites). -->
         <div class="field-row">
           <div class="field-group"><label class="field-label" for="inputFreqRx">FRÉQ. RX (split, MHz)</label>
             <input type="text" class="field-input field-compact" id="inputFreqRx" placeholder="—" autocomplete="off"></div>

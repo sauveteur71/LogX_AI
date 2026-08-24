@@ -59,14 +59,31 @@ function removeManualTag(name){
   var i = _manualTags.indexOf(name);
   if(i !== -1){ _manualTags.splice(i, 1); renderActivityTags(); }
 }
+// Instantané des champs du formulaire qui DÉRIVENT des tags auto (pour l'aperçu
+// live). Lit le mode courant, la puissance, le lieu, la propagation et les
+// références — exactement ce que deriveActivityTags() consomme.
+function _formQsoSnapshot(){
+  var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+  var q = {};
+  if(typeof currentMode !== 'undefined' && currentMode) q.mode = currentMode;
+  var p = g('inputTxPwr'); if(p) q.tx_pwr = Number(p);
+  var ol = g('inputOperatingLocation'); if(ol) q.operating_location = ol;
+  var pm = g('inputPropMode'); if(pm) q.prop_mode = pm;
+  if(typeof collectRefs === 'function'){ q.my_refs = collectRefs('myRefsList'); q.refs = collectRefs('refsList'); }
+  return q;
+}
 function renderActivityTags(){
   var box = document.getElementById('activityTags');
   if(!box) return;
-  var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){
-    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
-  var chips = _manualTags.map(function(t){
+  // escHtml() est la fonction d'échappement globale de la page (logx_logbook.js) ;
+  // repli inerte si elle n'est pas encore chargée.
+  var esc = (typeof escHtml === 'function') ? escHtml : function(s){ return String(s); };
+  // Tags AUTO dérivés du formulaire EN COURS (aperçu live), hors ceux déjà manuels.
+  var auto = deriveActivityTags(_formQsoSnapshot()).filter(function(t){ return _manualTags.indexOf(t) === -1; });
+  var autoChips = auto.map(function(t){ return '<span class="chip auto">' + esc(t) + '</span>'; }).join('');
+  var manChips = _manualTags.map(function(t){
     return '<span class="chip man" data-tag="'+esc(t)+'">'+esc(t)+' <span class="x">✕</span></span>'; }).join('');
-  box.innerHTML = '<span class="field-label" style="margin:0 4px 0 0">TAGS</span>' + chips +
+  box.innerHTML = '<span class="field-label" style="margin:0 4px 0 0">TAGS</span>' + autoChips + manChips +
     '<span class="chip add" id="addTagChip">+ tag</span>';
   var add = document.getElementById('addTagChip');
   if(add) add.addEventListener('click', function(){
@@ -77,4 +94,13 @@ function renderActivityTags(){
     x.addEventListener('click', function(){ removeManualTag(x.parentNode.getAttribute('data-tag')); });
   });
 }
-document.addEventListener('DOMContentLoaded', renderActivityTags);
+// Re-rendu de l'aperçu quand un champ qui dérive les tags change.
+function _bindTagPreview(){
+  ['inputTxPwr','inputOperatingLocation','inputPropMode'].forEach(function(id){
+    var e = document.getElementById(id);
+    if(e) e.addEventListener('change', renderActivityTags);
+  });
+  renderActivityTags();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _bindTagPreview);
+else _bindTagPreview();

@@ -2746,7 +2746,9 @@ function addRefRow(containerId){
   row.innerHTML = '<select class="field-input field-compact ref-prog refdrop">'+opts+'</select>'+
     '<input type="text" class="field-input field-compact ref-val" placeholder="réf. (F/AB-123, FR-1234…)" autocomplete="off">'+
     '<button type="button" class="ref-del" title="Retirer cette référence">✕</button>';
-  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); });
+  var _refresh = function(){ if(typeof renderActivityTags === 'function') renderActivityTags(); };
+  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); _refresh(); });
+  row.querySelector('.ref-val').addEventListener('change', _refresh);   // ref saisie -> tag SOTA/POTA en aperçu
   box.appendChild(row);
 }
 
