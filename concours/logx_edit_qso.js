@@ -49,6 +49,9 @@ function _onEditLocatorInput(){
 function editQSO(id, triggerEl){
   const q = qsoLog.find(x=>x.id===id);
   if(!q) return;
+  // Références multiples (lot 3) : reconstitue my_refs/refs depuis my_sig/sig
+  // d'un ancien QSO (mono-valué) pour garder le modèle cohérent à l'édition.
+  if(typeof mySigToRefs === 'function') mySigToRefs(q);
   // triggerEl : repli explicite pour les appelants qui masquent leur propre
   // overlay AVANT d'appeler editQSO() (ex. fixFromValidation()) -- à ce
   // moment-là document.activeElement a déjà été blur() vers <body> par le

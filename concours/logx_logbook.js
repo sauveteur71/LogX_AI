@@ -2705,6 +2705,50 @@ function collectExtraFields(){
   return out;
 }
 
+// ── Références multiples (lot 3, sous-chantier A) ───────────────────────────
+// Une activation peut cumuler plusieurs programmes (SOTA + POTA « two-fer ») :
+// on stocke une LISTE {program, ref}. Rétro-compat mono-valué : la 1re ref reste
+// my_sig/my_sig_info (ce que l'export ADIF actuel émet, tant que B ne généralise
+// pas). mySigToRefs : reconstruit la liste depuis my_sig (à l'ÉDITION d'un vieux
+// QSO). refsToMySig : recopie my_refs[0] -> my_sig (avant ENVOI/export).
+function mySigToRefs(q){
+  if((!q.my_refs || !q.my_refs.length) && q.my_sig){ q.my_refs = [{program:q.my_sig, ref:q.my_sig_info||''}]; }
+  if((!q.refs || !q.refs.length) && q.sig){ q.refs = [{program:q.sig, ref:q.sig_info||''}]; }
+  return q;
+}
+function refsToMySig(q){
+  if(q.my_refs && q.my_refs.length){ q.my_sig = q.my_refs[0].program; q.my_sig_info = q.my_refs[0].ref; }
+  if(q.refs && q.refs.length){ q.sig = q.refs[0].program; q.sig_info = q.refs[0].ref; }
+  return q;
+}
+// Programmes proposés : source = logx_activation.PROGRAM_SPECS (jamais de mémoire).
+const REF_PROGRAMS = ['POTA','SOTA','WWFF','IOTA','WCA','ARLHS'];
+function collectRefs(containerId){
+  const box = document.getElementById(containerId);
+  if(!box) return [];
+  const out = [];
+  box.querySelectorAll('.ref-row').forEach(function(row){
+    const prog = row.querySelector('.ref-prog');
+    const ref = row.querySelector('.ref-val');
+    const p = prog ? String(prog.value).trim() : '';
+    const v = ref ? String(ref.value).trim().toUpperCase() : '';
+    if(p && v) out.push({program:p, ref:v});
+  });
+  return out;
+}
+function addRefRow(containerId){
+  const box = document.getElementById(containerId);
+  if(!box) return;
+  const row = document.createElement('div');
+  row.className = 'ref-row';
+  const opts = REF_PROGRAMS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+  row.innerHTML = '<select class="field-input field-compact ref-prog refdrop">'+opts+'</select>'+
+    '<input type="text" class="field-input field-compact ref-val" placeholder="réf. (F/AB-123, FR-1234…)" autocomplete="off">'+
+    '<button type="button" class="ref-del" title="Retirer cette référence">✕</button>';
+  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); });
+  box.appendChild(row);
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
@@ -2808,6 +2852,17 @@ async function submitQSO(){
   // QSL via, zones, comté, prop_mode, lieu d'exploitation, fréq RX, heure de fin,
   // matériel, antenne. Fusionnés APRÈS l'activation pour ne rien écraser d'établi.
   Object.assign(qso, collectExtraFields());
+
+  // Références multiples (lot 3) : la ref d'activation (my_sig, posée ci-dessus)
+  // devient la 1re d'une LISTE, complétée par les références SUPPLÉMENTAIRES
+  // saisies dans l'onglet (two-fer SOTA+POTA). refsToMySig garde ensuite
+  // my_sig = my_refs[0] pour que l'export ADIF actuel reste identique.
+  mySigToRefs(qso);
+  const _myExtra = collectRefs('myRefsList');
+  if(_myExtra.length) qso.my_refs = (qso.my_refs || []).concat(_myExtra);
+  const _theirExtra = collectRefs('refsList');
+  if(_theirExtra.length) qso.refs = (qso.refs || []).concat(_theirExtra);
+  refsToMySig(qso);
 
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);

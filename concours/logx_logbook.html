@@ -283,6 +283,13 @@ body.sans-concours .compass-pts{display:none}
    e-mail, un QTH ne sont pas des indicatifs. */
 .field-input.field-compact{font-size:14px;padding:5px 10px;text-transform:none;letter-spacing:.3px;font-weight:400}
 select.field-input{cursor:pointer}
+/* Références multiples (two-fer SOTA+POTA) : lignes {programme, valeur} */
+.ref-row{display:flex;gap:6px;margin-bottom:6px}
+.ref-row .refdrop{max-width:110px;flex:0 0 auto}
+.ref-add{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.5px}
+.ref-add:hover{border-color:var(--accent)}
+.ref-del{font-family:var(--font-mono);font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--border);border-radius:6px;padding:0 9px;cursor:pointer}
+.ref-del:hover{color:var(--red);border-color:var(--red)}
 
 .field-row{display:flex;gap:10px}
 .field-row>.field-group{flex:1;min-width:0}
@@ -1809,6 +1816,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div class="field-group"><label class="field-label" for="inputEmail">E-MAIL (optionnel)</label>
             <input type="email" class="field-input field-compact" id="inputEmail" maxlength="80" placeholder="—" autocomplete="off"></div>
         </div>
+        <!-- Références du CORRESPONDANT (S2S / P2P) : lui aussi peut activer
+             plusieurs programmes en même temps. -->
+        <label class="field-label">SES RÉFÉRENCES (S2S / P2P)</label>
+        <div id="refsList"></div>
+        <button type="button" class="ref-add" onclick="addRefRow('refsList')">+ référence</button>
       </div>
 
       <!-- Onglet MA STATION — lot 2 : champs de MA station saisissables. Le
@@ -1834,6 +1846,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div class="field-group"><label class="field-label" for="inputMyAntenna">ANTENNE</label>
             <input type="text" class="field-input field-compact" id="inputMyAntenna" maxlength="40" placeholder="Dipôle 20 m" autocomplete="off"></div>
         </div>
+        <!-- Références multiples de MA station : une activation peut cumuler
+             SOTA + POTA + WWFF (« two-fer »). La 1re devient my_sig (rétro-compat
+             ADIF) ; les suivantes sont portées par my_refs. -->
+        <label class="field-label">MES RÉFÉRENCES SUPPL. (SOTA + POTA…)</label>
+        <div id="myRefsList"></div>
+        <button type="button" class="ref-add" onclick="addRefRow('myRefsList')">+ référence</button>
       </div>
 
       <!-- Onglet QSL : vide au lot 1 (coquille seulement) — peuplé au lot
