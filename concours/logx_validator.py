@@ -62,7 +62,14 @@ MAX_FINDINGS = 200
 
 
 def _f(findings, level, code, msg, q=None, index=None):
-    if len(findings) >= MAX_FINDINGS:
+    # Le plafond borne la liste, MAIS ne doit JAMAIS évincer une 'erreur' : ce
+    # sont les constats bloquants (0 point, QSO invalide) sur lesquels s'appuie
+    # `ok`/resume_controle. Sans cette exception, un volume de findings
+    # attention/info (IA-1 : contrôles de cohérence) pouvait remplir le plafond
+    # avant les erreurs de QSO plus tardifs -> resume_controle annonçait ok=True
+    # sur un log réellement en erreur. Les erreurs restent rares : la liste ne
+    # dépasse le plafond que de leur nombre.
+    if len(findings) >= MAX_FINDINGS and level != 'erreur':
         return
     item = {'level': level, 'code': code, 'msg': msg}
     if q is not None:

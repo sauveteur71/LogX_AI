@@ -32,9 +32,12 @@ def controle_freq_bande(q):
     bande_calc = _band_from_freq(freq)
     bande_log = str(q.get('band', '') or '').strip()
     if bande_calc and bande_log and bande_calc != bande_log:
+        # Pas d'unité codée en dur dans le libellé : `freq` peut être en MHz
+        # ('14.075') ou en kHz ('14075') — _band_from_freq gère les deux, mais
+        # une étiquette « MHz » serait fausse pour une valeur en kHz.
         return ('attention', 'freq_bande_incoherente',
-                f"Fréquence {freq} MHz incohérente avec la bande {bande_log} "
-                f"(attendu {bande_calc})")
+                f"Fréquence {freq} incohérente avec la bande {bande_log} MHz "
+                f"(attendu bande {bande_calc})")
     return None
 
 
@@ -59,10 +62,22 @@ def controle_heure_fin(q):
     return None
 
 
+def _mode_effectif(q):
+    """Mode réellement utilisé : le SOUS-MODE prime quand il est renseigné
+    (FT4/JS8 sont logués MODE=MFSK + SUBMODE=FT4 selon la norme ADIF). Le
+    sous-mode peut vivre en clé `submode` ou, pour un QSO importé, dans
+    extra_fields['SUBMODE']."""
+    sub = str(q.get('submode', '') or '').upper().strip()
+    if not sub:
+        sub = str((q.get('extra_fields') or {}).get('SUBMODE', '') or '').upper().strip()
+    return sub or str(q.get('mode', '') or '').upper().strip()
+
+
 def controle_rst_mode(q):
     """RST de style 59/599 sur un mode à rapport dB (FT8…) : probable défaut
-    oublié. Conservateur : ne signale que ce cas net, jamais l'inverse."""
-    mode = str(q.get('mode', '') or '').upper().strip()
+    oublié. Conservateur : ne signale que ce cas net, jamais l'inverse. Tient
+    compte du sous-mode (FT4/JS8 en MODE=MFSK)."""
+    mode = _mode_effectif(q)
     if mode not in _MODES_RAPPORT_DB:
         return None
     for champ in ('rst_sent', 'rst_rcvd'):
