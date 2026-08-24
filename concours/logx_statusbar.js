@@ -1966,7 +1966,12 @@
       if (b) geo.band = b;
       panels[cle] = geo;
     });
-    layouts[name] = {panels: panels};
+    // Une disposition = un ESPACE DE TRAVAIL COMPLET : fenêtres détachées ET
+    // affichage in-page (bascules AFFICHAGE). On capture aussi l'instantané des
+    // préférences pour que recharger la disposition restaure les deux (retour
+    // F4GLD 24/08). getStatusbarPrefs est défini dans la section AFFICHAGE.
+    var display = (typeof getStatusbarPrefs === 'function') ? getStatusbarPrefs() : {};
+    layouts[name] = {panels: panels, display: display};
     setLayouts(layouts);
     renderLayoutDD();
   }
@@ -1990,6 +1995,14 @@
       closePanel(cle);
       openPanel(id, geo);
     });
+    // Restaure aussi l'affichage IN-PAGE (bascules AFFICHAGE) mémorisé par la
+    // disposition -> espace de travail COMPLET (fenêtres + panneaux de page).
+    // Rétro-compat : une ancienne disposition sans `display` ne touche PAS
+    // l'affichage courant.
+    if (layout.display && typeof layout.display === 'object'){
+      try { localStorage.setItem('rc_statusbar_prefs', JSON.stringify(layout.display)); } catch(e){}
+      if (typeof applyStatusbarPrefs === 'function') applyStatusbarPrefs();
+    }
     renderLayoutDD();
   }
   function deleteLayout(name){
