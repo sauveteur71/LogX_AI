@@ -3488,7 +3488,7 @@ function applyContestFilters(contestId) {
       const el = document.querySelector(`[data-key="${m}"]`);
       return el ? el.textContent.trim() : m;
     }).join(' · ') : '';
-    note.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> <strong>${name}</strong>`
+    note.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> <strong>${escC(name)}</strong>`
       + (bandKeys ? ` — Bandes autorisées par le règlement : ${bandNames}` : '')
       + (modeKeys ? `<br>Modes autorisés : ${modeNames}` : '')
       + `<br><small style="opacity:.8">Seules les bandes/modes du règlement sont affichés. Tu peux en désactiver certains si tu ne les utilises pas.</small>`;
