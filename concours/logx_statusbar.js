@@ -322,6 +322,15 @@
       #rcsbDisplayDD .rcsb-dd-sub{color:var(--accent,#E8964A);letter-spacing:1px;font-size:10px;text-transform:uppercase;margin:8px 0 3px;border-top:1px solid var(--border,#34363A);padding-top:6px}
       #rcsbDisplayDD .rcsb-preset-btn{display:block;width:100%;margin-top:8px;padding:6px 8px;background:rgba(var(--accent-rgb,232,150,74),.12);border:1px solid var(--accent,#E8964A);color:var(--accent,#E8964A);border-radius:6px;font-family:inherit;font-size:11px;cursor:pointer;text-align:left}
       #rcsbDisplayDD .rcsb-preset-btn:hover{background:rgba(var(--accent-rgb,232,150,74),.22)}
+      #rcsbDisplayDD .rcsb-prof-row{display:flex;gap:4px;margin-top:3px}
+      #rcsbDisplayDD .rcsb-prof-load{flex:1;text-align:left;background:var(--bg3,#25272B);border:1px solid var(--border,#34363A);color:var(--text,#E9ECF5);border-radius:5px;padding:3px 7px;font-family:inherit;font-size:11px;cursor:pointer}
+      #rcsbDisplayDD .rcsb-prof-load:hover{border-color:var(--accent,#E8964A)}
+      #rcsbDisplayDD .rcsb-prof-del{background:none;border:1px solid var(--border,#34363A);color:var(--muted,#A9B0C8);border-radius:5px;cursor:pointer;font-size:11px;padding:0 6px}
+      #rcsbDisplayDD .rcsb-prof-empty{color:var(--muted,#A9B0C8);font-size:11px;font-style:italic;margin-top:3px}
+      #rcsbDisplayDD .rcsb-prof-actions{display:flex;gap:4px;margin-top:6px}
+      #rcsbDisplayDD .rcsb-prof-name{flex:1;min-width:0;background:var(--bg3,#25272B);border:1px solid var(--border,#34363A);color:var(--text,#E9ECF5);border-radius:5px;padding:3px 7px;font-family:inherit;font-size:11px}
+      #rcsbDisplayDD .rcsb-prof-save,#rcsbDisplayDD .rcsb-prof-mini{background:var(--bg3,#25272B);border:1px solid var(--border,#34363A);color:var(--text,#E9ECF5);border-radius:5px;cursor:pointer;font-size:11px;padding:3px 8px}
+      #rcsbDisplayDD .rcsb-prof-mini{flex:1}
       #rcsbDisplayDD label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text,#E9ECF5)}
       #rcsbDisplayDD input[type=checkbox]{cursor:pointer;accent-color:var(--accent2,#00D4FF)}
       #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
@@ -1631,6 +1640,84 @@
     try { localStorage.setItem('rc_preset_activity', act); } catch(e){}
   }
 
+  // ── Profils d'AFFICHAGE nommés + export/import JSON (incrément 3) ────────────
+  // Un profil = un instantané des préférences AFFICHAGE (rc_statusbar_prefs) sous
+  // un nom (« Concours F6KJS », « Home HF », « SOTA »…). Export/import JSON =
+  // partage entre postes / entre membres d'un club SANS serveur (robuste en zone
+  // blanche). Ne touche QUE l'affichage — jamais la config station ni les
+  // endpoints. « masquer ≠ bloquer ».
+  function getDisplayProfiles(){
+    try { return JSON.parse(localStorage.getItem('rc_display_profiles') || '{}'); } catch(e){ return {}; }
+  }
+  function setDisplayProfiles(o){
+    try { localStorage.setItem('rc_display_profiles', JSON.stringify(o)); } catch(e){}
+  }
+  function saveDisplayProfile(name){
+    name = String(name || '').trim();
+    if (!name) return false;
+    var p = getDisplayProfiles();
+    p[name] = { prefs: getStatusbarPrefs() };   // instantané des bascules courantes
+    setDisplayProfiles(p);
+    return true;
+  }
+  function loadDisplayProfile(name){
+    var prof = getDisplayProfiles()[name];
+    if (!prof || !prof.prefs) return false;
+    try { localStorage.setItem('rc_statusbar_prefs', JSON.stringify(prof.prefs)); } catch(e){}
+    applyStatusbarPrefs();
+    return true;
+  }
+  function deleteDisplayProfile(name){
+    var p = getDisplayProfiles();
+    delete p[name];
+    setDisplayProfiles(p);
+  }
+  function exportDisplayProfiles(name){
+    // name fourni -> ce profil seul ; sinon tous. Enveloppe balisée pour un
+    // import robuste (on reconnaît le format).
+    var src = getDisplayProfiles();
+    var out = {};
+    if (name && src[name]) out[name] = src[name]; else out = src;
+    return JSON.stringify({ logx_display_profiles: out }, null, 1);
+  }
+  function importDisplayProfiles(json){
+    var data;
+    try { data = JSON.parse(json); } catch(e){ return 0; }
+    // Accepte l'enveloppe {logx_display_profiles:{…}} ou un dict de profils brut.
+    var incoming = (data && data.logx_display_profiles) || data || {};
+    if (typeof incoming !== 'object') return 0;
+    var p = getDisplayProfiles(), n = 0;
+    Object.keys(incoming).forEach(function(k){
+      var v = incoming[k];
+      if (v && v.prefs && typeof v.prefs === 'object'){ p[k] = { prefs: v.prefs }; n++; }
+    });
+    if (n) setDisplayProfiles(p);
+    return n;   // nombre de profils importés (0 = format non reconnu)
+  }
+  function _downloadDisplayProfiles(){
+    try {
+      var blob = new Blob([exportDisplayProfiles()], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'logx_profils_affichage.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e){}
+  }
+  function _importDisplayProfilesViaFile(){
+    try {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/json,.json';
+      inp.onchange = function(){
+        var f = inp.files && inp.files[0]; if (!f) return;
+        var r = new FileReader();
+        r.onload = function(){ if (importDisplayProfiles(String(r.result || ''))) renderDisplayDD(); };
+        r.readAsText(f);
+      };
+      inp.click();
+    } catch(e){}
+  }
+
   function renderDisplayDD(){
     const dd = document.getElementById('rcsbDisplayDD');
     if (!dd) return;
@@ -1655,7 +1742,25 @@
       ? '<button type="button" class="rcsb-preset-btn" data-preset="' + act + '">↻ '
         + rcT('Preset d\'affichage') + ' « ' + (ACTIVITY_LABELS[act] || act) + ' »</button>'
       : '';
-    dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows + presetBtn;
+    // Section « Profils d'affichage » — les noms sont de la saisie utilisateur :
+    // ÉCHAPPÉS avant injection (esc), sinon injection HTML dans le menu.
+    var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
+    var profs = getDisplayProfiles();
+    var names = Object.keys(profs);
+    var list = names.length ? names.map(function(nm){
+      return '<div class="rcsb-prof-row"><button type="button" class="rcsb-prof-load" data-prof-load="'
+        + esc(nm) + '">' + esc(nm) + '</button><button type="button" class="rcsb-prof-del" data-prof-del="'
+        + esc(nm) + '" title="' + rcT('Supprimer') + '">✕</button></div>';
+    }).join('') : '<div class="rcsb-prof-empty">' + rcT('aucun profil enregistré') + '</div>';
+    var profSection = '<div class="rcsb-dd-sub">' + rcT('Profils d\'affichage') + '</div>' + list
+      + '<div class="rcsb-prof-actions"><input type="text" class="rcsb-prof-name" placeholder="'
+      + rcT('nom du profil') + '" maxlength="40"><button type="button" class="rcsb-prof-save" data-prof-save="1" title="'
+      + rcT('Enregistrer l\'affichage actuel') + '">💾</button></div>'
+      + '<div class="rcsb-prof-actions"><button type="button" class="rcsb-prof-mini" data-prof-export="1">⬇ '
+      + rcT('exporter') + '</button><button type="button" class="rcsb-prof-mini" data-prof-import="1">⬆ '
+      + rcT('importer') + '</button></div>';
+    dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows + presetBtn + profSection;
   }
 
   // Ouverture/fermeture au clic : calque exact du patron #rcsbLayoutItem/
@@ -1672,6 +1777,18 @@
       renderDisplayDD();
       return;
     }
+    // Profils d'affichage (charger / supprimer / enregistrer / export / import)
+    var pLoad = e.target.closest('[data-prof-load]');
+    if (pLoad){ loadDisplayProfile(pLoad.getAttribute('data-prof-load')); renderDisplayDD(); return; }
+    var pDel = e.target.closest('[data-prof-del]');
+    if (pDel){ deleteDisplayProfile(pDel.getAttribute('data-prof-del')); renderDisplayDD(); return; }
+    if (e.target.closest('[data-prof-save]')){
+      var inp = document.querySelector('#rcsbDisplayDD .rcsb-prof-name');
+      if (inp && saveDisplayProfile(inp.value)){ inp.value = ''; renderDisplayDD(); }
+      return;
+    }
+    if (e.target.closest('[data-prof-export]')){ _downloadDisplayProfiles(); return; }
+    if (e.target.closest('[data-prof-import]')){ _importDisplayProfilesViaFile(); return; }
     const displayItem = e.target.closest('#rcsbDisplayItem');
     const dd = document.getElementById('rcsbDisplayDD');
     if (displayItem && !e.target.closest('#rcsbDisplayDD')){
