@@ -609,7 +609,7 @@ async function loadPropagation(){
     const lignesN0NBH = Object.entries(s.bands || {}).map(([name, dn]) => {
       // Classe CSS (bc-good/bc-fair/bc-poor) sur la valeur BRUTE anglaise
       // (mapping visuel existant) ; texte affiché traduit via trN0nbh().
-      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase()}" title="${esc(rcT('Conditions de propagation N0NBH (mondiales, pas depuis ton QTH)'))}">${esc(trN0nbh(v) || '?')}</span>`;
+      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace(/[^a-z]/g,'')}" title="${esc(rcT('Conditions de propagation N0NBH (mondiales, pas depuis ton QTH)'))}">${esc(trN0nbh(v) || '?')}</span>`;
       return `<div class="bc-row"><span class="bc-name">${esc(name)}</span>
         ☀️${tag(dn.day)} 🌙${tag(dn.night)}</div>`;
     }).join('');

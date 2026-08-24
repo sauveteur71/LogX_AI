@@ -101,6 +101,12 @@ _HF_VHF_BANDS_SRC = re.search(r"const HF_BANDS\s*=.*?;\s*\nconst VHF_BANDS\s*=.*
                                _HTML_SRC, re.S).group(0)
 _RESOLVE_FILTERS_SRC = _extract_function(_HTML_SRC, '_resolveContestFilters')
 _APPLY_FILTERS_SRC = _extract_function(_HTML_SRC, 'applyContestFilters')
+# applyContestFilters compose désormais le libellé de filterAutoNote avec le nom
+# du concours échappé par escC() (correctif injection HTML, PR #228). escC est un
+# helper autonome défini ailleurs dans le fichier ; l'extraire aussi, sinon la
+# fonction évaluée isolément lève « escC is not defined » dès qu'elle applique un
+# filtre. Fonction pure (échappement de 5 caractères), sans dépendance globale.
+_ESC_C_SRC = _extract_function(_HTML_SRC, 'escC')
 
 # Extrait les VRAIS data-key band_/mode_ du fichier (grille de l'étape
 # FILTRES) — le DOM de test reste ainsi synchronisé avec le markup réel au
@@ -189,6 +195,7 @@ def _make_ctx():
     ctx.eval(_MODE_TOGGLE_KEY_SRC.replace('const MODE_TOGGLE_KEY', 'var MODE_TOGGLE_KEY', 1))
     ctx.eval(_HF_VHF_BANDS_SRC.replace('const HF_BANDS', 'var HF_BANDS', 1)
                                .replace('const VHF_BANDS', 'var VHF_BANDS', 1))
+    ctx.eval(_ESC_C_SRC)
     ctx.eval(_RESOLVE_FILTERS_SRC)
     ctx.eval(_APPLY_FILTERS_SRC)
     return ctx
