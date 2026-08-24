@@ -319,6 +319,7 @@
         padding:4px 6px;width:100%}
       #rcsbLayoutDD hr{border:none;border-top:1px solid var(--border,#2B2F4A);margin:8px 0}
       #rcsbLayoutDD .rcsb-dd-title,#rcsbDisplayDD .rcsb-dd-title{color:var(--muted,#A9B0C8);letter-spacing:1px;font-size:11px;margin-bottom:4px}
+      #rcsbDisplayDD .rcsb-dd-sub{color:var(--accent,#E8964A);letter-spacing:1px;font-size:10px;text-transform:uppercase;margin:8px 0 3px;border-top:1px solid var(--border,#34363A);padding-top:6px}
       #rcsbDisplayDD label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text,#E9ECF5)}
       #rcsbDisplayDD input[type=checkbox]{cursor:pointer;accent-color:var(--accent2,#00D4FF)}
       #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
@@ -1507,13 +1508,23 @@
     {id: 'rcsbRateItem', label: 'QSO/heure (rate meter)', default: true},
     {id: 'rcsbRulesItem', label: 'Dernière vérification des règlements', default: true},
     {id: 'rcsbVersionItem', label: 'Version installée', default: false},
-    // Éléments PROPRES À CERTAINES PAGES (LOGBOOK) fusionnés dans AFFICHAGE
-    // (retour F4GLD 24/08 : « épurer à l'essentiel + développer AFFICHAGE ») :
-    // la bascule n'apparaît que si l'élément existe sur la page courante (voir
-    // renderDisplayDD). OFF par défaut = écran épuré ; rappelables d'un clic.
-    {id: 'weatherWidget', label: 'Météo (point haut)', default: false},
-    {id: 'wsjtxWidget', label: 'Pont WSJT-X (FT8/FT4)', default: false},
-    {id: 'soapboxPanel', label: 'Remarques EDI (soapbox)', default: false},
+    // ── Éléments PROPRES AU LOGBOOK, fusionnés dans AFFICHAGE (retour F4GLD
+    // 24/08 : « épurer + développer AFFICHAGE »). `section:'logbook'` = groupés
+    // sous un sous-titre dédié ; la bascule n'apparaît que si l'élément existe
+    // sur la page (renderDisplayDD). `layered:true` = d'autres règles pilotent
+    // aussi la visibilité -> on ne force pas display (voir applyStatusbarPrefs),
+    // seul OFF verrouille le masquage.
+    {id: 'weatherWidget', label: 'Météo (point haut)', default: false, layered: true, section: 'logbook'},
+    {id: 'wsjtxWidget', label: 'Pont WSJT-X (FT8/FT4)', default: false, layered: true, section: 'logbook'},
+    {id: 'soapboxPanel', label: 'Remarques EDI (soapbox)', default: false, layered: true, section: 'logbook'},
+    // Panneaux du LOGBOOK — ON PAR DÉFAUT (aucun changement de comportement) ;
+    // l'opérateur masque ce qu'il ne veut pas voir. Le chemin critique (saisie
+    // QSO) n'est JAMAIS listé.
+    {id: 'bandRecapBar', label: 'Récap par bande', default: true, layered: true, section: 'logbook'},
+    {id: 'opStatsBar', label: 'Classement opérateurs', default: true, layered: true, section: 'logbook'},
+    {id: 'hourChartBar', label: 'Graphe du rythme', default: true, layered: true, section: 'logbook'},
+    {id: 'bandmapPanel', label: 'Band map', default: true, layered: true, section: 'logbook'},
+    {id: 'keyerDock', label: 'Outils CW / décodeurs (bas)', default: true, layered: true, section: 'logbook'},
   ];
   function getStatusbarPrefs(){
     try { return JSON.parse(localStorage.getItem('rc_statusbar_prefs') || '{}'); }
@@ -1557,10 +1568,13 @@
       const el = document.getElementById(t.id);
       if (!el) return;
       const shown = statusbarPrefShown(t.id);
-      el.style.display = shown ? '' : 'none';
-      // Verrou CSS !important : météo/pont WSJT-X sont ré-affichés dynamiquement
-      // par leur propre JS (setInterval) ; sans cette classe, ils
-      // réapparaîtraient malgré la préférence OFF.
+      // `layered` : d'AUTRES règles pilotent aussi cet élément (mode radio,
+      // mode d'usage, disponibilité des données pour météo/WSJT). On ne force
+      // alors PAS son display (sinon on écraserait ces règles) — seul le verrou
+      // OFF (classe !important) s'applique. Un panneau ON laisse les règles
+      // décider ; OFF = masqué quoi qu'il arrive. Les items exclusifs de la
+      // barre de statut (non `layered`) gardent le pilotage direct par display.
+      if (!t.layered) el.style.display = shown ? '' : 'none';
       el.classList.toggle('rcsb-aff-off', !shown);
     });
     updateRateItemVisibility();
@@ -1569,13 +1583,20 @@
   function renderDisplayDD(){
     const dd = document.getElementById('rcsbDisplayDD');
     if (!dd) return;
-    const rows = STATUSBAR_TOGGLES.filter(function(t){
-      // La bascule n'apparaît que si l'élément existe sur CETTE page (météo/
-      // WSJT/soapbox sont propres au LOGBOOK ; version/solaire/backup partout).
-      return document.getElementById(t.id);
-    }).map(function(t){
-      const checked = statusbarPrefShown(t.id) ? ' checked' : '';
-      return '<label><input type="checkbox" data-toggle="' + t.id + '"' + checked + '> '
+    // La bascule n'apparaît que si l'élément existe sur CETTE page (météo/WSJT/
+    // soapbox et les panneaux propres au LOGBOOK ; version/solaire/backup partout).
+    var present = STATUSBAR_TOGGLES.filter(function(t){ return document.getElementById(t.id); });
+    var lastSection = null;
+    var rows = present.map(function(t){
+      var head = '';
+      var sec = t.section || 'statut';
+      if (sec !== lastSection){
+        lastSection = sec;
+        // Sous-titre pour séparer la barre de statut des panneaux de la page.
+        if (sec === 'logbook') head = '<div class="rcsb-dd-sub">' + rcT('Panneaux de la page') + '</div>';
+      }
+      var checked = statusbarPrefShown(t.id) ? ' checked' : '';
+      return head + '<label><input type="checkbox" data-toggle="' + t.id + '"' + checked + '> '
         + rcT(t.label) + '</label>';
     }).join('');
     dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows;
