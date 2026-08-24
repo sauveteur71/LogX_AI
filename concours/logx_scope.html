@@ -257,7 +257,7 @@ if(localStorage.getItem('rc_theme') === null){
         const col=s.new_mult?'var(--green)':(PCOL[s.priority]||'var(--text)');
         const st=`color:${col}`+(s.already_done?';opacity:.45;text-decoration:line-through':'');
         return `<div class="srow"><span class="sf">${f.toFixed(3)}</span><span class="sc" style="${st}">${s.new_mult?'★':''}${esc(s.call)}</span><span class="si">${esc(s.info||s.spotter||'')}</span></div>`;
-      }).join('') : '<div class="empty">' + Tf('Aucun spot sur {bande}', {bande: bandLabel(band)}) + '</div>';
+      }).join('') : '<div class="empty">' + Tf('Aucun spot sur {bande}', {bande: esc(bandLabel(band))}) + '</div>';
     }catch(e){}
   }
 
