@@ -75,7 +75,10 @@ function adifField(name, value){
 // (fltExportFiltered), sans dupliquer le corps du générateur.
 const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE','RST_SENT',
   'RST_RCVD','STX_STRING','SRX_STRING','GRIDSQUARE','MY_GRIDSQUARE','STATION_CALLSIGN',
-  'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID']);
+  'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID',
+  // Sous-chantier B : alignés sur logx_export._ADIF_STD_TAGS (jumeaux).
+  'NAME','QTH','STATE','COMMENT','DISTANCE','PROP_MODE','SAT_NAME',
+  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO','SUBMODE']);
 
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
@@ -114,6 +117,20 @@ function buildAdifText(qsos){
     adif += adifField('STATION_CALLSIGN', String(q.my_call || myCall || '').toUpperCase());
     adif += adifField('OPERATOR', _resolveOperatorCallsign(q.operator));
     adif += adifField('CONTEST_ID', q.contest);
+    // Sous-chantier B (lot 1) : tags que le serveur (build_adif) émet et que
+    // l'export CLIENT omettait -> perte de données à l'export déclenché côté
+    // client. Mêmes champs, même ordre que logx_export.build_adif (jumeaux).
+    adif += adifField('NAME', q.name);
+    adif += adifField('QTH', q.qth);
+    adif += adifField('STATE', q.state);
+    adif += adifField('COMMENT', q.comment);
+    adif += adifField('DISTANCE', q.dist);
+    adif += adifField('PROP_MODE', q.prop_mode);
+    adif += adifField('SAT_NAME', q.sat_name);
+    adif += adifField('MY_SIG', q.my_sig);
+    adif += adifField('MY_SIG_INFO', q.my_sig_info);
+    adif += adifField('SIG', q.sig);
+    adif += adifField('SIG_INFO', q.sig_info);
     // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
     // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
     // tag déjà émis ci-dessus.
