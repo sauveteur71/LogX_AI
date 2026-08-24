@@ -1863,9 +1863,28 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button type="button" class="ref-add" onclick="addRefRow('myRefsList')">+ référence</button>
       </div>
 
-      <!-- Onglet QSL : vide au lot 1 (coquille seulement) — peuplé au lot
-           6/6 (statuts QSL/LoTW/eQSL). -->
-      <div class="entry-tabpane" data-pane="qsl" style="display:none"></div>
+      <!-- Onglet QSL (lot 6) : statuts d'ENVOI que l'opérateur pose lui-même
+           (valeurs ADIF Y/N/R). Les statuts REÇUS (LoTW/eQSL/papier) viennent du
+           sous-système de synchro (logx_qsl.py, qsl_confirmations.json) et ne se
+           saisissent pas ici. L'émission de ces tags en ADIF = sous-chantier B. -->
+      <div class="entry-tabpane" data-pane="qsl" style="display:none">
+        <div class="field-row">
+          <div class="field-group"><label class="field-label" for="inputQslSent">QSL PAPIER ENVOYÉE</label>
+            <select class="field-input field-compact" id="inputQslSent">
+              <option value="">—</option><option value="N">Non</option>
+              <option value="Y">Oui</option><option value="R">Demandée</option>
+            </select></div>
+          <div class="field-group"><label class="field-label" for="inputLotwSent">LoTW ENVOYÉ</label>
+            <select class="field-input field-compact" id="inputLotwSent">
+              <option value="">—</option><option value="N">Non</option><option value="Y">Oui</option>
+            </select></div>
+          <div class="field-group"><label class="field-label" for="inputEqslSent">eQSL ENVOYÉ</label>
+            <select class="field-input field-compact" id="inputEqslSent">
+              <option value="">—</option><option value="N">Non</option><option value="Y">Oui</option>
+            </select></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4">Les confirmations REÇUES (LoTW, eQSL, papier) apparaissent depuis la synchronisation, pas ici.</div>
+      </div>
 
       <!-- Tags multi-activité (lot 4) : dimension cherchable orthogonale au
            concours. Les tags AUTO (mode, QRP, références, lieu, propagation)

@@ -2698,6 +2698,7 @@ function collectExtraFields(){
     inputEmail:'email', inputQslVia:'qsl_via', inputCqz:'cqz', inputItuz:'ituz',
     inputCnty:'cnty', inputPropMode:'prop_mode', inputOperatingLocation:'operating_location',
     inputFreqRx:'freq_rx', inputTimeOff:'time_off', inputMyRig:'my_rig', inputMyAntenna:'my_antenna',
+    inputQslSent:'qsl_sent', inputLotwSent:'lotw_qsl_sent', inputEqslSent:'eqsl_qsl_sent',
   };
   Object.keys(map).forEach(function(id){ const v = val(id); if(v) out[map[id]] = v; });
   const pwr = val('inputTxPwr');
@@ -3489,7 +3490,10 @@ function renderLog(){
     if(currentFilter==='432' && q.band!=='432') return false;
     if(currentFilter==='hf' && !['14','7','3.5','1.8','21','28'].includes(q.band)) return false;
     if(currentFilter==='mine' && q.operator!==myOp) return false;
-    if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)) return false;
+    // Recherche : indicatif, locator, ET tags multi-activité (lot 6) — retrouver
+    // un QSO par « SOTA », « QRP », « FT8 »… sans dupliquer le contact.
+    if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)
+       && !(q.activity_tags||[]).join(' ').toUpperCase().includes(search)) return false;
     if(advancedFilter && !matchesAdvancedFilter(q, advancedFilter)) return false;
     return true;
   });
