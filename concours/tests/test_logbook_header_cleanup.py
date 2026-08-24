@@ -23,9 +23,18 @@ def test_barre_etat_sur_une_ligne():
     assert 'flex-wrap:nowrap' in regle and 'overflow-x:auto' in regle
 
 
-def test_meteo_wsjtx_soapbox_masques():
-    assert '#weatherWidget,#wsjtxWidget{display:none!important}' in HTML
-    assert '#soapboxPanel{display:none!important}' in HTML
+def test_meteo_wsjtx_soapbox_bascules_affichage():
+    # Fusionnés dans le menu ⚙ AFFICHAGE (retour F4GLD) : bascules OFF par
+    # défaut = écran épuré, rappelables. Plus de masquage EN DUR dans le HTML.
+    assert '#weatherWidget,#wsjtxWidget{display:none!important}' not in HTML
+    js = open(os.path.join(BASE, 'logx_statusbar.js'), encoding='utf-8').read()
+    for tid in ('weatherWidget', 'wsjtxWidget', 'soapboxPanel'):
+        assert ("id: '%s'" % tid) in js and 'default: false' in js, tid
+    # la bascule n'apparaît que si l'élément existe sur la page
+    assert 'STATUSBAR_TOGGLES.filter(function(t){' in js
+    # verrou !important pour battre le display:inline reposé par le JS dynamique
+    assert "el.classList.toggle('rcsb-aff-off', !shown)" in js
+    assert '.rcsb-aff-off{display:none!important}' in js
 
 
 def test_version_dans_le_header_pas_dans_la_barre():

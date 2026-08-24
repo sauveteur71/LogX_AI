@@ -632,13 +632,10 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,160,.2)}
 /* CONNEXION RÉSEAU */
 .net-status{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:14px;color:var(--muted);padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:nowrap;white-space:nowrap;overflow-x:auto}
-/* Retour terrain F4GLD (24/08) : la barre d'état doit tenir sur UNE ligne.
-   Météo (pertinente seulement SOTA/expédition), pont WSJT-X « en attente »
-   (inutile hors mode numérique) et la soapbox EDI sont retirés de l'écran
-   LOGBOOK. Masquage CSS pur (« masquer ≠ bloquer ») — le JS partagé n'est pas
-   touché, la fonction reste disponible ailleurs. */
-#weatherWidget,#wsjtxWidget{display:none!important}
-#soapboxPanel{display:none!important}
+/* Retour terrain F4GLD (24/08) : barre d'état sur UNE ligne. Météo, pont
+   WSJT-X et soapbox EDI ne sont plus cachés EN DUR ici — ils sont devenus des
+   bascules du menu ⚙ AFFICHAGE (OFF par défaut = écran épuré, rappelables d'un
+   clic), voir STATUSBAR_TOGGLES dans logx_statusbar.js. « Masquer ≠ bloquer ». */
 /* Version : compacte, dans l'en-tête à côté du logo (voir #hdrVersion). */
 .hdr-version{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:10px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .hdr-version .net-version{color:var(--accent2)}
