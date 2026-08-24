@@ -20,7 +20,12 @@ Aucune écriture : lecture seule, appelable à tout moment.
 """
 import re
 
-from logx_utils import locator_to_latlon, haversine, _LOCATOR_RE
+from logx_utils import locator_to_latlon, haversine, _LOCATOR_RE, utcnow
+# IA-1 : contrôles de cohérence DÉTERMINISTES indépendants de l'activité
+# (freq/bande, date/heure, RST/mode, réf d'activation), appliqués à TOUT QSO
+# — y compris hors concours et en mode simple. logx_controles n'importe que
+# logx_scoring/logx_activation : pas de cycle avec ce module.
+from logx_controles import controles_coherence as _controles_coherence
 
 # Indicatif de BASE : préfixe 1-3 alphanum + un chiffre + suffixe lettres.
 _BASE_CALL_RE = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,5}[A-Z]$')
@@ -133,6 +138,9 @@ def validate_log(qsos, contest_id='', cfg=None):
 
     findings = []
     seen = {}   # (call, band) -> premier index
+    # IA-1 : jour UTC courant (YYYYMMDD) pour controle_date_future — calculé UNE
+    # fois ici (fonction pure : l'horloge est injectée, jamais lue dedans).
+    _auj_utc = utcnow().strftime('%Y%m%d')
 
     for i, q in enumerate(qsos):
         call = str(q.get('call', '')).strip().upper()
@@ -143,6 +151,12 @@ def validate_log(qsos, contest_id='', cfg=None):
             _f(findings, 'erreur', 'indicatif_vide',
                "QSO sans indicatif", q, i)
             continue
+
+        # IA-1 : contrôles de cohérence indépendants de l'activité — s'appliquent
+        # à CHAQUE QSO, sans garde contest_id/simple_mode (ils ne dépendent
+        # d'aucun règlement). `_auj_utc` calculé une seule fois avant la boucle.
+        for level, code, msg in _controles_coherence(q, _auj_utc):
+            _f(findings, level, code, msg, q, i)
 
         # Doublon même station + même bande (règle REF : 1 QSO/station/bande
         # PENDANT le concours) — n'a pas de sens en logbook simple, où l'on
