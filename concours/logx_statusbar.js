@@ -320,6 +320,8 @@
       #rcsbLayoutDD hr{border:none;border-top:1px solid var(--border,#2B2F4A);margin:8px 0}
       #rcsbLayoutDD .rcsb-dd-title,#rcsbDisplayDD .rcsb-dd-title{color:var(--muted,#A9B0C8);letter-spacing:1px;font-size:11px;margin-bottom:4px}
       #rcsbDisplayDD .rcsb-dd-sub{color:var(--accent,#E8964A);letter-spacing:1px;font-size:10px;text-transform:uppercase;margin:8px 0 3px;border-top:1px solid var(--border,#34363A);padding-top:6px}
+      #rcsbDisplayDD .rcsb-preset-btn{display:block;width:100%;margin-top:8px;padding:6px 8px;background:rgba(var(--accent-rgb,232,150,74),.12);border:1px solid var(--accent,#E8964A);color:var(--accent,#E8964A);border-radius:6px;font-family:inherit;font-size:11px;cursor:pointer;text-align:left}
+      #rcsbDisplayDD .rcsb-preset-btn:hover{background:rgba(var(--accent-rgb,232,150,74),.22)}
       #rcsbDisplayDD label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text,#E9ECF5)}
       #rcsbDisplayDD input[type=checkbox]{cursor:pointer;accent-color:var(--accent2,#00D4FF)}
       #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
@@ -383,7 +385,7 @@
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>
-    <div class="rcsb-item" id="rcsbDisplayItem" style="cursor:pointer;position:relative"
+    <div class="rcsb-item expert-only" id="rcsbDisplayItem" style="cursor:pointer;position:relative"
       title="Choisir les informations affichées dans cette barre">
       ⚙ <span class="rcsb-val">AFFICHAGE</span>
       <div id="rcsbDisplayDD" style="display:none"></div>
@@ -1580,6 +1582,55 @@
     updateRateItemVisibility();
   }
 
+  // ── Presets d'affichage PAR ACTIVITÉ (retour F4GLD 24/08, incrément 2) ──────
+  // Une activité (choisie à l'accueil -> localStorage.logx_activity) propose un
+  // jeu d'affichage sensé : un POINT DE DÉPART, jamais imposé. L'opérateur clique
+  // « appliquer » puis ajuste ses bascules. Le CONTENU ci-dessous est une DONNÉE
+  // à ajuster librement (aucune valeur réglementaire) ; on n'indique que les
+  // bascules qui DIFFÈRENT d'un usage normal, les autres gardent l'état courant.
+  const ACTIVITY_LABELS = {
+    normal:'LOG normal', '6m':'LOG 6 m', vuhf:'LOG V/UHF', shf:'LOG SHF',
+    sat:'LOG Satellites', concours:'LOG Concours', dxp:'LOG DXp',
+    special:'LOG Call spéciaux', iota_pota:'LOG IOTA/POTA', qrp:'LOG QRP',
+  };
+  const ACTIVITY_DISPLAY_PRESETS = {
+    // Concours = tableau de bord de performance : classement op + rythme + règlements.
+    concours:  {weatherWidget:false, opStatsBar:true, rcsbRateItem:true, rcsbRulesItem:true},
+    // Terrain / portable : la « météo du point haut » (sécurité du mât) revient ;
+    // pas de classement multi-op ni de soapbox en activation solo.
+    iota_pota: {weatherWidget:true, opStatsBar:false, soapboxPanel:false},
+    dxp:       {weatherWidget:true, opStatsBar:false},
+    '6m':      {weatherWidget:true},
+    vuhf:      {weatherWidget:true},
+    shf:       {weatherWidget:true},
+    qrp:       {weatherWidget:true},
+    // Satellite : la band map HF n'a pas de sens ; météo (portable) revient.
+    sat:       {weatherWidget:true, bandmapPanel:false},
+    // normal / special : pas de preset -> la « base proposée » (les défauts).
+  };
+  function currentActivity(){
+    try { return localStorage.getItem('logx_activity') || ''; } catch(e){ return ''; }
+  }
+  function applyActivityDisplayPreset(id){
+    const preset = ACTIVITY_DISPLAY_PRESETS[id];
+    if (!preset) return;
+    Object.keys(preset).forEach(function(tid){ setStatusbarPref(tid, preset[tid]); });
+    applyStatusbarPrefs();
+  }
+  // Auto-application quand l'ACTIVITÉ CHANGE (une seule fois par changement) :
+  // un DÉBUTANT qui choisit « SOTA »/« Concours » obtient d'emblée un affichage
+  // adapté SANS toucher au menu expert (directive F4GLD 24/08 : simple minimal
+  // en débutant, tout en expert). On n'applique QUE si l'activité diffère de la
+  // dernière vue -> les réglages MANUELS de l'opérateur persistent tant qu'il
+  // reste sur la même activité. « masquer ≠ bloquer » : rien n'est verrouillé,
+  // l'expert peut tout re-régler ensuite.
+  function maybeApplyActivityPresetOnChange(){
+    var act = currentActivity(), last = '';
+    try { last = localStorage.getItem('rc_preset_activity') || ''; } catch(e){}
+    if (act && act !== last && ACTIVITY_DISPLAY_PRESETS[act]) applyActivityDisplayPreset(act);
+    try { localStorage.setItem('rc_preset_activity', act); } catch(e){}
+  }
+
   function renderDisplayDD(){
     const dd = document.getElementById('rcsbDisplayDD');
     if (!dd) return;
@@ -1599,7 +1650,12 @@
       return head + '<label><input type="checkbox" data-toggle="' + t.id + '"' + checked + '> '
         + rcT(t.label) + '</label>';
     }).join('');
-    dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows;
+    var act = currentActivity();
+    var presetBtn = ACTIVITY_DISPLAY_PRESETS[act]
+      ? '<button type="button" class="rcsb-preset-btn" data-preset="' + act + '">↻ '
+        + rcT('Preset d\'affichage') + ' « ' + (ACTIVITY_LABELS[act] || act) + ' »</button>'
+      : '';
+    dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows + presetBtn;
   }
 
   // Ouverture/fermeture au clic : calque exact du patron #rcsbLayoutItem/
@@ -1608,6 +1664,14 @@
   // checkboxes : pas de re-bind à chaque rendu, la dropdown est régénérée à
   // chaque ouverture.
   bar.addEventListener('click', function(e){
+    const presetBtn = e.target.closest('[data-preset]');
+    if (presetBtn){
+      // Preset d'affichage d'activité : appliquer (JAMAIS forcé — clic
+      // délibéré de l'opérateur) puis rafraîchir les cases du menu.
+      applyActivityDisplayPreset(presetBtn.getAttribute('data-preset'));
+      renderDisplayDD();
+      return;
+    }
     const displayItem = e.target.closest('#rcsbDisplayItem');
     const dd = document.getElementById('rcsbDisplayDD');
     if (displayItem && !e.target.closest('#rcsbDisplayDD')){
@@ -1934,6 +1998,7 @@
     insert();
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
     refreshGuideLink();     // idem, purement local
+    maybeApplyActivityPresetOnChange();     // preset de l'activité si elle a changé
     applyStatusbarPrefs();  // idem : menu ⚙ AFFICHAGE, éléments absents avant insert()
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();
