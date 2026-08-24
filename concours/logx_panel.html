@@ -97,6 +97,15 @@ if(localStorage.getItem('rc_theme') === null){
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
   // ─── COACH ──────────────────────────────────────────────────────────────
+  // Décompose un reste d'heures décimal en {h, m} SANS jamais afficher "1h60" :
+  // Math.round peut porter les minutes à 60 (ex. 1.999 h -> 1 h + round(59.94)
+  // = 60) ; on propage alors la retenue sur l'heure.
+  function _resteHM(remaining_h){
+    let h = Math.floor(remaining_h || 0);
+    let m = Math.round(((remaining_h || 0) - h) * 60);
+    if(m === 60){ h++; m = 0; }
+    return {h, m};
+  }
   async function tickCoach(){
     const body = document.getElementById('panelBody');
     try{
@@ -106,7 +115,7 @@ if(localStorage.getItem('rc_theme') === null){
       const c = d.clock || {}, s = d.stats || {};
       let clockTxt = '—';
       if(c.status === 'en_cours'){
-        const h = Math.floor(c.remaining_h || 0), m = Math.round(((c.remaining_h || 0) - h) * 60);
+        const {h, m} = _resteHM(c.remaining_h);
         clockTxt = '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="6"/><line x1="9" y1="10" x2="9" y2="6.5"/><line x1="9" y1="10" x2="11.5" y2="11.5"/><line x1="7" y1="2" x2="11" y2="2"/></svg> ' + Tf('reste {h}h{m} ({pct}%)',
           {h: h, m: String(m).padStart(2,'0'), pct: c.pct_done || 0});
       } else if(c.status === 'avant')

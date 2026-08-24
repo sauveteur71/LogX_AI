@@ -957,6 +957,10 @@ setInterval(drawGreyLine, 5*60*1000);
 function refreshTiles(){
   if(!leafletTile) return;
   const t = getTileConfig();
+  // Les fonds jour/nuit n'ont pas les mêmes sous-domaines (ex. 'abc' vs 'abcd')
+  // — sans resynchroniser options.subdomains, setUrl garde les anciens {s} et
+  // certaines tuiles tombent en 404 après bascule nuit->jour.
+  leafletTile.options.subdomains = t.sub;
   leafletTile.setUrl(t.url);
 }
 
@@ -1668,7 +1672,7 @@ function removeThinking(){const el=document.getElementById('thinking');if(el)el.
 function parseScores(text){
   const tot=text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
   if(tot)document.getElementById('scoreTotal').textContent=parseInt(tot[1].replace(/[\s,]/g,'')).toLocaleString()+' '+rcT('pts');
-  const dx=text.match(/(\d{3,4})\s*km/g);
+  const dx=text.match(/(\d{3,5})\s*km/g);  // 3-5 chiffres : un DX >= 10000 km (jusqu'à ~20000 antipode) doit être lu entier, pas tronqué à 4 chiffres
   if(dx){const m=Math.max(...dx.map(d=>parseInt(d)));if(m>100)document.getElementById('scoreBestDX').textContent=m+' km';}
   const qso=text.match(/(\d+)\s*QSO/i);
   if(qso)document.getElementById('scoreQSO').textContent=qso[1];
