@@ -251,6 +251,17 @@ def validate_log(qsos, contest_id='', cfg=None):
     }
 
 
+def resume_controle(qsos, contest_id='', cfg=None):
+    """Résumé compact des contrôles pour le PRÉ-VOL avant export/LoTW :
+    {erreurs, attentions, infos, ok}. INFORMATIF — ne bloque rien (masquer !=
+    bloquer). S'appuie sur validate_log : même vérité que le panneau VÉRIFIER
+    (même portée), pas une 2e définition. `ok` = aucune erreur bloquante."""
+    res = validate_log(qsos, contest_id, cfg)
+    c = res['counts']
+    return {'erreurs': c.get('erreur', 0), 'attentions': c.get('attention', 0),
+            'infos': c.get('info', 0), 'ok': c.get('erreur', 0) == 0}
+
+
 # ─── AUDIT IA DU LOG AVANT DÉPÔT ─────────────────────────────────────────────
 # En COMPLÉMENT de validate_log (déterministe), une passe IA relit le log scopé
 # et repère ce qu'aucune règle ne code. Les constats sortent au MÊME format que
