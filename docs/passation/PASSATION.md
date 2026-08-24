@@ -10,6 +10,11 @@ nouvel item en attente d'essai sur l'air), mémoire condensée recopiée dans le
 dépôt (§4). Le reste du document (méthode, conventions) n'a pas eu besoin de
 changer.
 
+**Mise à jour le 24/08/2026** : chantier **AFFICHAGE** (rendre configurable ce
+que montre chaque page) mené étapes 1→4 et FUSIONNÉ — voir la sous-section
+dédiée dans la section 1. Un piège de rebase y est consigné (une PR branchée
+avant sa précédente aurait effacé le travail de celle-ci).
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -26,10 +31,48 @@ travail et la méthode — les deux sont archivées ici.
 | #117 | **Décimation audio 48 → 12 kHz** avant décodage FT8. Blocage du thread principal divisé par 4 (10 319 → 2 576 ms par créneau, mesuré en vrai Chrome). |
 | #178 | **Page d'accueil par activité** (`logx_accueil.html`) : remplace le mode simple/expert comme axe premier de l'UI, décision F4GLD du 19/08. Seule LOG V/UHF filtre réellement à ce stade (doctrine : valider sur une activité avant les 18 autres). Inclut aussi le lien profond PROPAG depuis LOGBOOK. |
 | #179 | **FT8 : mode Automatique** (CQ + QSO en totale autonomie, 22/08) + panneau QSO en cours séparé de l'activité de bande. Voir « En attente d'un essai sur l'air » ci-dessous — **c'est le nouvel item le plus important de cette section**. |
+| #234 | **AFFICHAGE étape 1** : panneaux du LOGBOOK togglables (base + aménageable). |
+| #235 | **AFFICHAGE étape 2** : presets d'affichage PAR ACTIVITÉ (`ACTIVITY_DISPLAY_PRESETS` dans `logx_statusbar.js`) — débutant minimal, expert = tout. |
+| #236 | **AFFICHAGE étape 3** : profils d'affichage NOMMÉS + export/import JSON (partage entre postes/club, sans serveur). Noms utilisateur échappés (anti-injection). |
+| #237 | **AFFICHAGE étape 4** : une DISPOSITION capture aussi l'affichage in-page (bascules AFFICHAGE), pas seulement les fenêtres détachées → « espace de travail » complet. Rétro-compat : une ancienne disposition sans champ `display` ne touche pas l'affichage courant. |
+
+#### Chantier AFFICHAGE (étapes 1→4) — FAIT et FUSIONNÉ le 24/08/2026
+
+Rendre configurable ce que chaque page affiche, dans l'esprit « l'axe est
+l'activité, pas un niveau déclaré » (cf. `CLAUDE.md`). Tout se joue dans
+`concours/logx_statusbar.js` (le menu ⚙ AFFICHAGE, partagé sur les 15 pages) et
+dans `localStorage` — **aucun endpoint serveur, aucun `.py`**. Les quatre
+incréments (#234→#237) coexistent sur `main`, vérifié : presets #235, profils
+#236 et capture-affichage #237 présents ensemble, sans régression.
+
+Vérifications faites (méthode du dépôt, section 2) : témoin vert + contre-épreuve
+par mutation avec contrôle md5 sur #236 et #237, `ruff` propre, et **rendu réel
+capturé en Chrome headless dans les DEUX thèmes** (jour ET nuit) pour #236 — le
+nom de profil `SOTA <portable>` s'affiche littéralement, ce qui prouve
+visuellement l'échappement anti-injection.
+
+> 🚨 **Piège de rebase, à retenir.** #237 avait été branché depuis l'étape 1
+> (#234), AVANT que l'étape 2 (#235) soit fusionnée. Son diff CONTRE `main`
+> « supprimait » donc tout le bloc des presets d'activité de #235 — **pur
+> artefact de base périmée**, pas une intention. Le fusionner tel quel aurait
+> effacé #235 (régression réelle et silencieuse). Diagnostic : comparer le
+> commit à SON PROPRE parent (`git diff 3f51d18~1 3f51d18`) montrait que le
+> vrai changement n'était que 2 hunks (saveLayout/loadLayout). Correctif :
+> rebase sur `origin/main` → conflit nul (les 2 hunks ne touchent pas les zones
+> de #235/#236), diff net réduit aux 2 vrais hunks, presets #235 et
+> `expert-only` intacts. **Toujours lire le diff d'une PR contre son parent
+> réel, pas seulement contre `main`, avant de juger ce qu'elle change.**
+
+⚠️ **Après le resync de la branche live du 24/08** : le merge `origin/main` a
+tiré bien plus que ces 4 PR (≈38 commits : tropo, validate, winkeyer, parsers
+SOTA/WWFF, etc.), dont **11 `.py` de production** — donc le serveur 8080 DOIT
+être redémarré pour les prendre (les `.py` ne sont pas relus à chaud). Les 4 PR
+AFFICHAGE seules n'auraient pas exigé de redémarrage (JS/HTML uniquement).
 
 La branche d'intégration locale est `local/live-8080-combined` — c'est celle
 que sert le serveur sur le port 8080. Elle est à jour (diff vide avec
-`origin/main`, vérifié le 22/08/2026).
+`origin/main`, resynchronisée et vérifiée le 24/08/2026 — mais voir
+l'avertissement « 11 `.py` » ci-dessus : redémarrage du serveur requis).
 
 ⚠️ `.claude/launch.json` (config `logx-serveur` pour l'aperçu navigateur)
 pointait vers un chemin périmé (`RADIOAMATEUR/Programme pour contest`,
