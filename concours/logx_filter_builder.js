@@ -59,6 +59,14 @@ function fltRemoveCond(gi, ci){
 function fltUpdateCond(gi, ci, key, value){
   const cond = fltBuilder.groups[gi][ci];
   cond[key] = value;
+  if(key === 'value'){
+    // Ne PAS reconstruire le DOM à chaque frappe : wrap.innerHTML détruirait
+    // l'<input> en cours de saisie et ferait perdre le focus (la frappe
+    // s'interrompt). La valeur est déjà dans le modèle ; seul le compteur doit
+    // se rafraîchir. field/op gardent le re-rendu (le type/l'opérateur change).
+    fltUpdateCount();
+    return;
+  }
   if(key === 'field'){
     // Changer de champ peut changer de type (texte/nombre/booléen) — l'opérateur
     // choisi pour l'ancien type n'a pas forcément de sens pour le nouveau.
@@ -96,6 +104,10 @@ function fltRenderGroups(){
     h += `<button class="flt-add-cond" onclick="fltAddCond(${gi})">+ CONDITION</button></div>`;
   });
   wrap.innerHTML = h;
+  fltUpdateCount();
+}
+
+function fltUpdateCount(){
   const cnt = document.getElementById('fltCount');
   if(cnt) cnt.textContent = `${fltCurrentMatches().length} QSO correspondent`;
 }
