@@ -79,6 +79,16 @@ def test_prepare_payload_reprend_l_apercu():
     assert ctx.eval("p.operator") == 'F4GLD'
 
 
+def test_prepare_payload_inclut_voice_source():
+    # choix WAV/TTS pour la phonie : transmis au serveur (/tx/prepare)
+    ctx = _ctx()
+    ctx.eval("var p = window.LogxTxBar.preparePayload({frequency_hz:14074000, mode:'USB', voice_source:'tts'});")
+    assert ctx.eval("p.voice_source") == 'tts'
+    # défaut = 'auto' (le serveur choisit selon accès internet/IA dispo)
+    ctx.eval("var q = window.LogxTxBar.preparePayload({frequency_hz:14074000, mode:'USB'});")
+    assert ctx.eval("q.voice_source") == 'auto'
+
+
 def test_authorize_payload_borne_duree():
     ctx = _ctx()
     # duree_max OBLIGATOIRE (garde-fou serveur : émission bornée) + armed

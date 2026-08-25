@@ -66,6 +66,11 @@ class TxConsent:
     cancelled: bool = False
     ptt_method: str = 'CAT'
     consent_mode: str = 'single_transmission'
+    # Source voix pour une émission PHONIE : 'wav' (slot pré-enregistré),
+    # 'tts' (synthèse du texte) ou 'auto' (TTS si dispo, sinon WAV). Sans objet
+    # pour le CW. Le « selon ce que je dispose » (IA cloud → Piper → voix locale)
+    # est géré dans logx_voicekeyer.synthesize_to_wav.
+    voice_source: str = 'auto'
     created_at: datetime.datetime = field(default_factory=_now)
 
     def is_valid(self, now=None) -> bool:
@@ -75,7 +80,7 @@ class TxConsent:
 
 
 def create_tx_consent(operator_callsign, radio_id, frequency_hz, mode, power_w,
-                      message, ptt_method='CAT', now=None) -> TxConsent:
+                      message, ptt_method='CAT', voice_source='auto', now=None) -> TxConsent:
     """Crée un consentement à partir de ce que l'humain vient de VOIR et de
     valider (aperçu de l'émission). `now` injectable pour les tests."""
     now = now or _now()
@@ -84,7 +89,23 @@ def create_tx_consent(operator_callsign, radio_id, frequency_hz, mode, power_w,
         radio_id=str(radio_id or ''), frequency_hz=int(frequency_hz),
         mode=str(mode or ''), power_w=float(power_w), message=str(message or ''),
         expires_at=now + datetime.timedelta(seconds=CONSENT_TTL_S),
-        ptt_method=str(ptt_method or 'CAT'), created_at=now)
+        ptt_method=str(ptt_method or 'CAT'),
+        voice_source=str(voice_source or 'auto'), created_at=now)
+
+
+def voice_source_effectif(source, tts_dispo) -> str:
+    """Résout la source voix EFFECTIVE d'une émission phonie (offline-first) :
+      - 'wav'  -> 'wav' toujours (l'opérateur veut SA voix enregistrée) ;
+      - 'tts'  -> 'tts' si un moteur de synthèse existe, sinon repli 'wav' ;
+      - 'auto'/absent -> 'tts' si dispo, sinon 'wav'.
+    `tts_dispo` : au moins un moteur TTS utilisable (IA cloud activée, Piper
+    local, ou voix système) — calculé côté serveur depuis la config voice keyer.
+    Le CHOIX du moteur parmi ceux disponibles est fait par synthesize_to_wav."""
+    src = str(source or 'auto').lower()
+    if src == 'wav':
+        return 'wav'
+    # 'tts' ou 'auto' : synthèse si possible, sinon repli hors-ligne sur le WAV.
+    return 'tts' if tts_dispo else 'wav'
 
 
 def register(consent) -> None:

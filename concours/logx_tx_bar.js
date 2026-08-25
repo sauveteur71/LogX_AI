@@ -58,7 +58,10 @@
       mode: em.mode || '',
       power_w: em.power_w,
       message: em.message || '',
-      ptt_method: em.ptt_method || 'CAT'
+      ptt_method: em.ptt_method || 'CAT',
+      // Source voix phonie choisie (WAV enregistré / TTS / auto). Le serveur
+      // tranche « selon ce que je dispose » (internet + IA). Sans objet en CW.
+      voice_source: em.voice_source || 'auto'
     };
   }
 
@@ -82,7 +85,8 @@
     fmtFreqKhz: fmtFreqKhz, secondsLeft: secondsLeft, ringPct: ringPct,
     preparePayload: preparePayload, authorizePayload: authorizePayload,
     nextState: nextState,
-    state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true
+    state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
+    _voiceSource: 'auto'   // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
   };
 
   // ── DOM + réseau (non testés unitairement, comme les autres modules) ──────
@@ -121,6 +125,13 @@
     'background:rgba(var(--red-rgb,229,84,75),.12);color:var(--red,#E5544B);font-weight:800;',
     'font-family:var(--font-body,sans-serif);text-transform:uppercase;font-size:.8rem;',
     'border-radius:10px;padding:11px 16px}',
+    '.txbar .vsel{display:flex;border:1px solid var(--border,#34363A);border-radius:8px;overflow:hidden;flex-shrink:0}',
+    '.txbar .vsel button{background:transparent;border:none;border-right:1px solid var(--border,#34363A);',
+    'color:var(--ink-dim,#9A968C);font-family:var(--font-mono,monospace);font-size:.6rem;',
+    'letter-spacing:.5px;padding:7px 9px;cursor:pointer;white-space:nowrap}',
+    '.txbar .vsel button:last-child{border-right:none}',
+    '.txbar .vsel button.on{background:rgba(var(--accent-rgb,232,150,74),.18);color:var(--accent,#E8964A)}',
+    '.txbar .vsel button:focus-visible{outline:2px solid var(--accent,#E8964A);outline-offset:-2px}',
     '.txbar .msgline{max-width:1400px;margin:0 auto;padding:0 16px 9px;font-family:var(--font-mono,monospace);',
     'font-size:.8rem}',
     '.txbar .msgline.blocked{color:var(--red,#E5544B)}',
@@ -165,6 +176,14 @@
 
   // ── API publique : l'IA appelle ceci pour PROPOSER une émission ──────────
   LogxTxBar.proposer = function (em) {
+    em = em || {};
+    // La source voix choisie via le sélecteur s'applique si l'appelant (IA)
+    // n'en impose pas une explicitement.
+    if (!em.voice_source && LogxTxBar._voiceSource) {
+      var merged = {};
+      for (var k in em) { if (Object.prototype.hasOwnProperty.call(em, k)) { merged[k] = em[k]; } }
+      merged.voice_source = LogxTxBar._voiceSource; em = merged;
+    }
     return _post('/tx/prepare', preparePayload(em)).then(function (r) {
       if (r.status !== 200 || !r.json.ok) {
         _line((r.json && r.json.error) || 'Préparation refusée', 'blocked'); return null;
@@ -205,6 +224,17 @@
 
   LogxTxBar.setArmed = function (b) { LogxTxBar._armed = !!b; };
 
+  function _renderVoiceSel() {
+    var sel = _q('rcTxVSel'); if (!sel || !sel.querySelectorAll) { return; }
+    var btns = sel.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', btns[i].getAttribute('data-vs') === LogxTxBar._voiceSource);
+    }
+  }
+  LogxTxBar.setVoiceSource = function (v) {
+    if (v === 'wav' || v === 'tts' || v === 'auto') { LogxTxBar._voiceSource = v; _renderVoiceSel(); }
+  };
+
   LogxTxBar.mount = function () {
     if (_q('rcTxBar') || !document.body) { return; }
     var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
@@ -219,6 +249,10 @@
       '<div class="sep"></div>',
       '<div class="kv" style="flex:1;min-width:0"><span class="k">Message préparé par l’IA</span>',
       '<span class="v msg" id="rcTxMsg">—</span></div></div>',
+      '<div class="vsel" id="rcTxVSel" title="Source voix (phonie) — auto : selon internet/IA dispo">',
+      '<button type="button" data-vs="auto">Auto</button>',
+      '<button type="button" data-vs="tts">Voix IA</button>',
+      '<button type="button" data-vs="wav">Mon WAV</button></div>',
       '<div class="count"><span class="n" id="rcTxCount">0</span><span class="l">jeton s</span></div>',
       '<button class="emit" id="rcTxEmit" disabled>ÉMETTRE<small>geste requis</small></button>',
       '<button class="stop" id="rcTxStop">STOP TX</button>',
@@ -227,6 +261,14 @@
     document.body.appendChild(bar);
     var e = _q('rcTxEmit'); if (e) { e.addEventListener('click', LogxTxBar._emettre); }
     var s = _q('rcTxStop'); if (s) { s.addEventListener('click', LogxTxBar._stop); }
+    var sel = _q('rcTxVSel');
+    if (sel) {
+      sel.addEventListener('click', function (ev) {
+        var vs = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-vs');
+        if (vs) { LogxTxBar.setVoiceSource(vs); }
+      });
+    }
+    _renderVoiceSel();
   };
 
   window.LogxTxBar = LogxTxBar;

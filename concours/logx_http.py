@@ -6294,7 +6294,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     mode=payload.get('mode', ''),
                     power_w=float(payload.get('power_w') or 0),
                     message=payload.get('message', ''),
-                    ptt_method=payload.get('ptt_method', 'CAT'))
+                    ptt_method=payload.get('ptt_method', 'CAT'),
+                    voice_source=payload.get('voice_source', 'auto'))
             except (TypeError, ValueError) as e:
                 self._json({'ok': False, 'error': f"Paramètres d'émission invalides ({e})"}, 400)
                 return
@@ -6364,7 +6365,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             def _cw_send(msg):
                 return wk.envoyer(cfg_snap, msg)
             def _voice_send(msg):
-                return vk.envoyer_message(cfg_snap, msg)
+                # Choix WAV pré-enregistré / TTS « selon ce que je dispose »
+                # (accès internet + compte IA) — offline-first : le programme
+                # marche sans réseau (Piper local / voix système / WAV), et
+                # profite de l'IA cloud si elle est configurée. Le CHOIX du
+                # moteur parmi les dispos est fait dans synthesize_to_wav.
+                vs = vk.voicekeyer_settings(cfg_snap)
+                tts_dispo = bool(vs['ai']['enabled'] or vs['piper']['enabled']
+                                 or vk.list_tts_voices())
+                eff = txc.voice_source_effectif(c.voice_source, tts_dispo)
+                if eff == 'tts':
+                    return vk.send_voice_message(cfg_snap, msg)   # msg = TEXTE à dire
+                return vk.envoyer_message(cfg_snap, msg)          # msg = SLOT WAV
             try:
                 res = txc.emettre_message(famille, c.message, _cw_send, _voice_send)
             except Exception as e:   # noqa: BLE001 — un défaut d'émission ne doit pas planter le serveur
