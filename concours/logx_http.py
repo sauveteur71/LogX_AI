@@ -7218,6 +7218,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 400)
             return
 
+        # Enrichir la base interne depuis le JOURNAL : les QSO déjà loggués
+        # portent souvent un prénom/locator (annuaire, saisie passée). On en
+        # alimente calldb.json pour que l'auto-remplissage du prénom (#268)
+        # marche IMMÉDIATEMENT et HORS LIGNE pour tout correspondant déjà
+        # contacté. Lecture-modification-écriture sous calldb_lock EN ENTIER.
+        if self.path == '/calldb/enrich_from_log':
+            try:
+                import logx_departments as _dep
+                calldb_path = os.path.join(os.getcwd(), 'calldb.json')
+                with log_lock:
+                    log_copy = list(shared_log)
+                n = 0
+                with calldb_lock:
+                    db = {}
+                    if os.path.exists(calldb_path):
+                        with open(calldb_path, 'r', encoding='utf-8') as f:
+                            db = json.load(f)
+                    calls2, n = _dep.enrich_calldb_from_log(log_copy, db.get('calls', {}))
+                    if n:
+                        db['calls'] = calls2
+                        save_json_atomic(calldb_path, db, lock=None, compact=True)
+                self._json({'ok': True, 'updated': n, 'scanned': len(log_copy)})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
         # Import MASTER.SCP (Super Check Partial N1MM) : fusionné dans l'index
         # de logx_callhistory.py, jamais un second système de suggestion.
         # Calcul 100% local (parsing texte) : pas d'appel réseau, donc pas
