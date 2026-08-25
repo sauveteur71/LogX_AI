@@ -341,6 +341,10 @@ function applyCallData(dbData, clusterData, logEntry){
   if(nameField && nm && !nameField.value){ nameField.value = nm; }
 
   if(callField) callField.classList.add('ok');
+  // Copilote CW/SSB : l'indicatif est RÉSOLU (enrichi) -> PRÉPARER l'échange
+  // dans la barre de consentement (propose-only, opt-in, jamais d'émission
+  // seule). typeof : le module/câblage vit dans logx_macros.js (chargé après).
+  if(typeof proposerEchangeCopilote === 'function') proposerEchangeCopilote();
 }
 
 // ─── MISE À JOUR DE LA BASE D'INDICATIFS ──────────────────────────────────────

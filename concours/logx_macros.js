@@ -233,3 +233,86 @@ function editMacro(idx){
   saveMacros(macros); renderMacroPanel();
 }
 
+
+// ─── COPILOTE CW/SSB (logx_cwssb_copilote.js) ────────────────────────────────
+// Quand un indicatif est RÉSOLU (applyCallData, logx_lookup.js), l'IA PRÉPARE le
+// message d'échange dans la barre de consentement ; l'humain confirme via
+// ÉMETTRE (PROPOSE-ONLY, jamais d'émission seule). Opt-in (éteint par défaut) :
+// jamais de surprise sur le chemin critique. Contenu = TA macro d'échange
+// configurée (zéro invention) ; tu vois le texte exact avant d'émettre.
+function copiloteCwSsbActif(){
+  try{ return localStorage.getItem('rc_copilote_cwssb') === '1'; }catch(e){ return false; }
+}
+function _majBoutonCopiloteCwSsb(on){
+  const b = document.getElementById('copiloteCwSsbBtn');
+  if(!b) return;
+  b.textContent = 'Copilote ' + (on ? '●' : '○');
+  b.style.color = on ? 'var(--green)' : 'var(--muted)';
+  b.style.borderColor = on ? 'var(--green)' : 'var(--border)';
+}
+function toggleCopiloteCwSsb(){
+  const on = !copiloteCwSsbActif();
+  try{ localStorage.setItem('rc_copilote_cwssb', on ? '1' : '0'); }catch(e){}
+  _majBoutonCopiloteCwSsb(on);
+  if(typeof notify === 'function'){
+    notify(on ? trT('Copilote CW/SSB activé : l’IA prépare l’échange à l’indicatif résolu (tu confirmes via ÉMETTRE).')
+              : trT('Copilote CW/SSB désactivé.'));
+  }
+}
+// Macro d'ÉCHANGE configurée par l'opérateur : F2 par convention (comme esmSend),
+// sinon la première dont le label évoque l'échange. Null si introuvable.
+function _macroEchangeCw(){
+  const ms = getMacros();
+  return ms.find(m => m && m.key === 'F2')
+      || ms.find(m => m && /ÉCHANGE|ECHANGE|EXCHANGE/i.test(m.label || ''))
+      || null;
+}
+// Émission phonie de l'échange : synthèse vocale serveur (/rig/voice, nombres en
+// toutes lettres) + garde-fou TX (txArmePayload). Template standard call+report
+// [+n° série] ; l'opérateur a validé le texte affiché avant ÉMETTRE.
+function _voixEchangeCopilote(call, rst, nr){
+  const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+  const payload = {
+    template: '{CALL} {RST_SENT}' + (nr ? ' {NR}' : ''),
+    call: call, mycall: cfg.callsign_contest || cfg.callsign || (typeof myCall !== 'undefined' ? myCall : '') || '',
+    rst_sent: rst, rst_rcvd: '', nr: nr
+  };
+  if(typeof txArmePayload === 'function') Object.assign(payload, txArmePayload());
+  fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)}).catch(()=>{});
+}
+// Point d'accroche appelé par applyCallData() (indicatif résolu). PROPOSE-ONLY :
+// la SEULE émission (cwEnvoyerTexte / _voixEchangeCopilote) est DANS le callback
+// passé à LogxTxBar.proposer (déclenché par ÉMETTRE), jamais un appel direct.
+function proposerEchangeCopilote(){
+  if(typeof LogxCwSsbCopilote === 'undefined' || typeof LogxTxBar === 'undefined') return;
+  if(!copiloteCwSsbActif()) return;                       // opt-in
+  const call = _hisCall();
+  const mode = (typeof currentMode !== 'undefined') ? currentMode : '';
+  if(!LogxCwSsbCopilote.doitProposer(true, call, mode)) return;
+  const famille = LogxCwSsbCopilote.familleMode(mode);
+  const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+  const monCall = cfg.callsign_contest || cfg.callsign || (typeof myCall !== 'undefined' ? myCall : '') || '';
+  const freqHz = (typeof rigState !== 'undefined' && rigState.freq_khz) ? Math.round(rigState.freq_khz * 1000) : undefined;
+  let txt, emettre;
+  if(famille === 'cw'){
+    const ex = _macroEchangeCw(); if(!ex) return;
+    txt = expandMacro('{HISCALL} ' + ex.text);           // ex. "F4ABC 59 042 JN18"
+    if(!String(txt).trim()) return;
+    emettre = function(){ cwEnvoyerTexte(txt); };         // keyer (WinKeyer ou soundcard)
+  } else {
+    const rst = ((document.getElementById('inputRSTsent') || {}).value || '').trim();
+    const nr  = ((document.getElementById('inputNumSent')  || {}).value || '').trim();
+    txt = (call + ' ' + (rst || '59') + (nr ? ' ' + nr : '')).trim();   // aperçu client
+    emettre = function(){ _voixEchangeCopilote(call, rst || '59', nr); };
+  }
+  const k = LogxCwSsbCopilote.cle(call, txt);
+  if(k === LogxCwSsbCopilote._dernierePropose) return;    // anti-spam (résolutions répétées)
+  LogxCwSsbCopilote._dernierePropose = k;
+  const em = LogxCwSsbCopilote.messagePropose(txt, call, mode, freqHz, monCall);
+  LogxTxBar.proposer(em, emettre);                        // propose-only : ÉMETTRE déclenche `emettre`
+}
+document.addEventListener('DOMContentLoaded', function(){
+  _majBoutonCopiloteCwSsb(copiloteCwSsbActif());
+});
+
