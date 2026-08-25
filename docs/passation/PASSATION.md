@@ -237,6 +237,39 @@ qu'un agent ne peut pas taper) : `/plugin marketplace add bradautomates/
 claude-video` puis `/plugin install watch@claude-video`, puis **redémarrer la
 session** pour que `watch` ET `radio-video-analysis` soient découverts.
 
+#### Nuit du 26→27/08/2026 — travail autonome continu (F4GLD absent, « ne t'arrête pas »)
+
+Série de PR, une par item, TDD + contre-épreuve par mutation + CI, sur retours
+et bugs de F4GLD. Toutes mergées sauf mention.
+
+| PR | Ce que ça fait |
+|---|---|
+| #277 | **MODE NUMÉRIQUE : pleine largeur + FT2 sous les modes.** La page était la SEULE à plafonner à 1100 px (vs 1780 des sœurs) → conteneur 1780 px + grille `auto-fit`. Réordonnancement : FT8/RTTY/SSTV **au-dessus** du panneau expérimental FT2 (échange de blocs `<div>` par script déterministe). |
+| #278 | **Panadapter : click-to-tune.** Clic n'importe où sur le spectre/waterfall → QSY (pas seulement les spots cluster). `freqAuClic` pur, inversion-safe (réutilise `plageHzActuelle`) ; QSY seulement si vraie plage RF (pas de QSY accidentel en audio brut), sans toucher l'indicatif. |
+| #279 | **PROPAG : spots à l'ouverture** (bug F4GLD). `/data/focus` lisait le cache de spots sans jamais le remplir hors concours → « Aucun spot » sur 80 m. `_warm_band_spots` réchauffe le cache de la bande regardée (throttle 45 s, non bloquant). |
+| #280 | **Panadapter : contraste réglable** (waterfall relative vs calibrée). Remap client `remapContraste` (0-255 commun aux 3 sources) ; mode relatif (min/max trame) ou calibré (plancher/plafond fixes). |
+| #281→#286 | **Moteur de priorité CHASSE** (doc F4GLD). #281 module pur `logx_chasse_priorite` (classe ATNO/nouvelle bande/nouveau mode/confirmation manquante + score configurable, profil d'objectifs). #283 `annoter_credit(spots)` compose l'index bande×mode de `logx_awards` en 1 scan. #285 câblage serveur (`/data/focus` + `/data/spots_ranked`). #286 affichage sur la page CHASSE (badge « pourquoi » + score). *(#286 en CI au moment d'écrire.)* |
+| #282 | **i18n : 77 traductions manquantes** (de/es/it/pt/nl/pl) + **test garde-fou permanent** de complétude (le dict `T` avait 12-13 chaînes traduites en EN seulement). |
+| #284 | **Panadapter : fréquence au survol** (⌖) — complément du click-to-tune. |
+| #287 | **Panadapter : peak hold** (maintien de crête, décroissance lente). *(en CI.)* |
+
+**Audits (vérification, sans PR)** : largeurs des pages (aucun autre défaut type
+MODE NUMÉRIQUE — rtty/sstv/cw volontairement étroits) ; textes FR en dur (~399
+chaînes visibles hors `T`, mais l'essentiel est de la prose/aide **délibérément
+FR** — app FR-first ; le vrai reliquat traduisible = une poignée de libellés à
+faire choisir par F4GLD).
+
+**Présentation radioclub** (`docs/presentation_f6kjs.html`, non git-tracké) :
+rafraîchie pour samedi — version 1.2-beta1, 30 min, ajout copilote FT8/CW/SSB +
+crédit CHASSE, tableau d'état à jour. **Laissé à F4GLD** : la date (diapo 1) et
+l'anecdote « ce matin, carnet perdu » (à passer au passé). Le `.docx` jumeau
+n'est pas éditable par l'agent.
+
+**Note de méthode (retour F4GLD en pleine nuit)** : ne pas terminer un tour pour
+« laisser verdir la CI » — les creux ressemblent à du sommeil. Pipeliner :
+enchaîner des items **non-conflictuels** pendant que la CI tourne, merger au
+passage. Ne jamais franchir les verrous gated (audit 547, #244/#245).
+
 ### En attente d'un essai sur l'air
 
 ✅ **PR #179 — mode Automatique FT8 : ESSAI SUR L'AIR SUPERVISÉ FAIT
