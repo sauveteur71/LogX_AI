@@ -14,6 +14,10 @@ from logx_utils import utcnow
 # multiplier (faux pour tout concours à multiplicateur : CQ WW, WPX, ARRL
 # DX, IARU HF, REF...).
 from logx_scoring import calc_total_score
+# Sous-chantier B (lot 3) : tags ADIF dédiés par programme d'activation
+# (SOTA_REF, POTA_REF…). Source unique = logx_activation (qui les dérive de
+# PROGRAM_SPECS). logx_activation n'importe que `re` : pas de cycle d'import.
+from logx_activation import ADIF_PROGRAM_TAGS
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -299,7 +303,44 @@ _ADIF_STD_TAGS = {
     'QTH', 'COMMENT', 'MY_GRIDSQUARE', 'CONTEST_ID', 'STATION_CALLSIGN',
     'OPERATOR', 'DISTANCE', 'PROP_MODE', 'SAT_NAME', 'MY_SIG', 'MY_SIG_INFO',
     'SIG', 'SIG_INFO', 'ADIF_VER', 'PROGRAMID',
+    # Sous-chantier B (lot 2) : clés de la refonte de saisie (A).
+    'TX_PWR', 'FREQ_RX', 'CQZ', 'ITUZ', 'CNTY', 'EMAIL', 'QSL_VIA', 'ANT_AZ',
+    'TIME_OFF', 'QSL_SENT', 'LOTW_QSL_SENT', 'EQSL_QSL_SENT', 'APP_LOGX_OPERATING',
+    # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
+    'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
+    'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
+    # NOTE (correctif de revue) : SUBMODE et les tags de confirmation REÇUE
+    # (LOTW_QSL_RCVD/QSLRDATE…) ne figurent VOLONTAIREMENT PAS dans cet ensemble.
+    # Ils sont émis conditionnellement (SUBMODE seulement pour FT2 via _adif_mode ;
+    # les RCVD seulement si `confirmations` est fourni). Les inscrire ici les
+    # faisait SAUTER depuis extra_fields à la réexportation quand ils n'étaient
+    # PAS ré-émis par ailleurs -> perte silencieuse d'un SUBMODE=JS8 importé ou
+    # d'un LOTW_QSL_RCVD importé (confirmations=None). La non-duplication avec les
+    # RCVD du store est gérée dynamiquement plus bas (_conf_tags_emis).
 }
+
+# Sous-chantier B (lot 4) : source d'une confirmation reçue -> tag ADIF RCVD
+# et tag de date associé (spec ADIF 3.1.5, adif.org/315). Toute source hors
+# LoTW/eQSL (carte papier, bureau, ClubLog…) retombe sur le générique
+# QSL_RCVD / QSLRDATE.
+_CONF_RCVD_TAGS = {'lotw': 'lotw_qsl_rcvd', 'eqsl': 'eqsl_qsl_rcvd'}
+_CONF_DATE_TAGS = {'lotw': 'lotw_qslrdate', 'eqsl': 'eqsl_qslrdate'}
+
+
+def _refs_pour_export(q, cle_liste, cle_sig, cle_info):
+    """Références (programme, ref) à émettre en tags ADIF dédiés. Préfère la
+    LISTE multi-références posée par la refonte de saisie A (two-fer SOTA+POTA,
+    my_refs/refs) ; à défaut retombe sur la paire mono-valuée SIG/SIG_INFO
+    (QSO anciens ou stockés côté serveur sans liste). Les couples au programme
+    vide ou sans référence sont écartés à l'émission (voir appelant)."""
+    liste = q.get(cle_liste)
+    if isinstance(liste, list) and liste:
+        return [(str(r.get('program', '')).upper().strip(), str(r.get('ref', '')).strip())
+                for r in liste if isinstance(r, dict)]
+    prog = str(q.get(cle_sig, '')).upper().strip()
+    if prog:
+        return [(prog, str(q.get(cle_info, '')).strip())]
+    return []
 
 _OP_SLOT_RE = re.compile(r'^OP(\d+)$', re.IGNORECASE | re.ASCII)
 
@@ -345,9 +386,17 @@ def _adif_mode(q):
     return _adif_field('mode', _norm_mode(q))
 
 
-def build_adif(qsos, cfg=None):
+def build_adif(qsos, cfg=None, confirmations=None):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
-    il sait maintenant l'écrire."""
+    il sait maintenant l'écrire.
+
+    `confirmations` (sous-chantier B, lot 4) : dict {clé: {source: date|True}}
+    des QSO CONFIRMÉS (LoTW/eQSL/carte), tel que produit par
+    logx_qsl.parse_confirmations / stocké dans qsl_confirmations.json. Clé =
+    logx_awards._confirm_key (CALL|band|MODE). Injecté par les appelants qui
+    veulent un log COMPLET (endpoints d'export, archive, backup) ; laissé à
+    None par les appelants d'UPLOAD (upload_lotw/upload_eqsl) — on ne renvoie
+    jamais à LoTW/eQSL sa propre confirmation reçue. None/{} => aucun tag RCVD."""
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
     # ADIF_VER : '3.1.4' était codé en dur alors que le reste du logiciel
@@ -419,7 +468,74 @@ def build_adif(qsos, cfg=None):
             _adif_field('my_sig_info', q.get('my_sig_info', '')),
             _adif_field('sig', q.get('sig', '')),
             _adif_field('sig_info', q.get('sig_info', '')),
+            # Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A).
+            # Tags de l'énumération/spec ADIF (citables) ; operating_location n'a
+            # pas de tag ADIF standard -> champ d'appli APP_LOGX_OPERATING (préfixe
+            # APP_, jamais rejeté par un lecteur ADIF conforme).
+            _adif_field('tx_pwr', q.get('tx_pwr', '')),
+            _adif_field('freq_rx', q.get('freq_rx', '')),
+            _adif_field('cqz', q.get('cqz', '')),
+            _adif_field('ituz', q.get('ituz', '')),
+            _adif_field('cnty', q.get('cnty', '')),
+            _adif_field('email', q.get('email', '')),
+            _adif_field('qsl_via', q.get('qsl_via', '')),
+            _adif_field('ant_az', q.get('ant_az', '')),
+            _adif_field('time_off', q.get('time_off', '')),
+            _adif_field('qsl_sent', q.get('qsl_sent', '')),
+            _adif_field('lotw_qsl_sent', q.get('lotw_qsl_sent', '')),
+            _adif_field('eqsl_qsl_sent', q.get('eqsl_qsl_sent', '')),
+            _adif_field('app_logx_operating', q.get('operating_location', '')),
         ]
+        # Sous-chantier B (lot 3) : tags ADIF DÉDIÉS par programme, émis DEPUIS
+        # la liste multi-références (my_refs/refs) pour ne pas perdre le 2e
+        # programme d'un two-fer SOTA+POTA — MY_SIG/SIG ci-dessus ne portent
+        # qu'UNE référence. MY_ + tag côté station, tag nu côté correspondant.
+        # Un programme sans tag dédié (ARLHS/WCA) reste sur le générique SIG.
+        # Un tag ADIF dédié n'existe qu'en un exemplaire par record : si deux
+        # références du MÊME programme sont présentes (activation multi-parcs),
+        # on n'émet le tag qu'UNE fois (la 1re) — un champ répété est non
+        # conforme (le lecteur n'en garde qu'un). `_progs_emis` par côté.
+        _progs_emis = set()
+        for prog, ref in _refs_pour_export(q, 'my_refs', 'my_sig', 'my_sig_info'):
+            tag = ADIF_PROGRAM_TAGS.get(prog)
+            if tag and ref and prog not in _progs_emis:
+                _progs_emis.add(prog)
+                fields.append(_adif_field('my_' + tag.lower(), ref))
+        _progs_emis = set()
+        for prog, ref in _refs_pour_export(q, 'refs', 'sig', 'sig_info'):
+            tag = ADIF_PROGRAM_TAGS.get(prog)
+            if tag and ref and prog not in _progs_emis:
+                _progs_emis.add(prog)
+                fields.append(_adif_field(tag.lower(), ref))
+        # Sous-chantier B (lot 4) : confirmations REÇUES (LoTW/eQSL/carte)
+        # depuis le store de confirmations, rapprochées par la clé des diplômes
+        # (même « confirmé » que l'UI). Émises seulement si l'appelant a injecté
+        # le dict (jamais pour les uploads). Une seule fois par tag RCVD (deux
+        # sources génériques ne dupliquent pas QSL_RCVD).
+        # _conf_tags_emis : tags RCVD/date réellement émis DEPUIS le store pour
+        # CE record — sert à ne pas les redoubler s'ils traînent aussi dans
+        # extra_fields (QSO importé porteur du même tag). Comme ces tags ne sont
+        # PLUS dans _ADIF_STD_TAGS, c'est ce filtre-ci qui évite la duplication.
+        _conf_tags_emis = set()
+        if confirmations:
+            from logx_awards import _confirm_key
+            conf = confirmations.get(_confirm_key(q)) or {}
+            rcvd_vus = set()
+            for source, when in conf.items():
+                s = str(source).lower()
+                rcvd_tag = _CONF_RCVD_TAGS.get(s, 'qsl_rcvd')
+                if rcvd_tag in rcvd_vus:
+                    continue
+                rcvd_vus.add(rcvd_tag)
+                fields.append(_adif_field(rcvd_tag, 'Y'))
+                _conf_tags_emis.add(rcvd_tag.upper())
+                # Date seulement si c'est une VRAIE Date ADIF (YYYYMMDD) —
+                # APP_LOTW_RXQSL vaut souvent un datetime "2026-01-15 14:30:00"
+                # qui n'est PAS une Date ADIF valide : on ne l'émet pas.
+                if isinstance(when, str) and re.fullmatch(r'\d{8}', when):
+                    date_tag = _CONF_DATE_TAGS.get(s, 'qslrdate')
+                    fields.append(_adif_field(date_tag, when))
+                    _conf_tags_emis.add(date_tag.upper())
         # Champs ADIF personnalisés saisis par l'opérateur (editQSO,
         # q['extra_fields'] côté client) — jusqu'ici exportés par le générateur
         # JS (logx_export_adif.js) mais PAS par cet export serveur, alors que
@@ -430,7 +546,11 @@ def build_adif(qsos, cfg=None):
             # minuscules : même convention que tous les autres appels
             # _adif_field() de cette fonction (ADIF est insensible à la casse
             # des tags, mais un fichier cohérent est plus facile à relire).
-            fields += [_adif_field(str(name).lower(), value) for name, value in extra_fields.items()
-                       if str(name).upper() not in _ADIF_STD_TAGS]
+            # Exclut les tags standard DÉJÀ émis (build) et les RCVD/date déjà
+            # émis depuis le store CE record (anti-duplication).
+            fields += [_adif_field(str(name).lower(), value)
+                       for name, value in extra_fields.items()
+                       if str(name).upper() not in _ADIF_STD_TAGS
+                       and str(name).upper() not in _conf_tags_emis]
         records.append(''.join(f for f in fields if f) + '<EOR>')
     return header + '\n'.join(records) + '\n'

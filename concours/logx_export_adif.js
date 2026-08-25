@@ -75,7 +75,38 @@ function adifField(name, value){
 // (fltExportFiltered), sans dupliquer le corps du générateur.
 const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE','RST_SENT',
   'RST_RCVD','STX_STRING','SRX_STRING','GRIDSQUARE','MY_GRIDSQUARE','STATION_CALLSIGN',
-  'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID']);
+  'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID',
+  // Sous-chantier B : alignés sur logx_export._ADIF_STD_TAGS (jumeaux).
+  'NAME','QTH','STATE','COMMENT','DISTANCE','PROP_MODE','SAT_NAME',
+  // SUBMODE VOLONTAIREMENT absent : buildAdifText ne l'émet que pour FT2
+  // (MODE=MFSK+SUBMODE=FT2) ; l'inscrire ici faisait sauter un SUBMODE=JS8/FT4
+  // conservé dans extra_fields -> perte au re-export (correctif de revue).
+  'MY_SIG','MY_SIG_INFO','SIG','SIG_INFO',
+  // Lot 2 : clés de la refonte de saisie (A).
+  'TX_PWR','FREQ_RX','CQZ','ITUZ','CNTY','EMAIL','QSL_VIA','ANT_AZ','TIME_OFF',
+  'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING',
+  // Lot 3 : tags dédiés multi-références (two-fer).
+  'SOTA_REF','MY_SOTA_REF','POTA_REF','MY_POTA_REF','WWFF_REF','MY_WWFF_REF',
+  'IOTA','MY_IOTA']);
+
+// Tag ADIF DÉDIÉ par programme d'activation (spec ADIF 3.1.5, adif.org/315 :
+// SOTA_REF/POTA_REF/WWFF_REF et IOTA — ce dernier SANS suffixe _REF). Jumeau
+// de logx_activation.ADIF_PROGRAM_TAGS (Python, source unique) : la parité est
+// figée par tests/test_adif_refs_multiples.py. ARLHS/WCA : pas de tag dédié
+// -> mécanisme générique SIG (my_refs[0]), aucun tag inventé.
+const REF_ADIF_TAGS = {POTA:'POTA_REF', SOTA:'SOTA_REF', WWFF:'WWFF_REF', IOTA:'IOTA'};
+
+// Références (programme, ref) à émettre en tags dédiés. Préfère la LISTE
+// multi-références (my_refs/refs, posée par la refonte de saisie A) ; à défaut
+// retombe sur la paire mono-valuée SIG/SIG_INFO (QSO anciens).
+function _refsPourExport(q, cleListe, cleSig, cleInfo){
+  const liste = q[cleListe];
+  if(Array.isArray(liste) && liste.length){
+    return liste.filter(r=>r).map(r=>[String(r.program||'').toUpperCase().trim(), String(r.ref||'').trim()]);
+  }
+  const prog = String(q[cleSig]||'').toUpperCase().trim();
+  return prog ? [[prog, String(q[cleInfo]||'').trim()]] : [];
+}
 
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
@@ -114,6 +145,43 @@ function buildAdifText(qsos){
     adif += adifField('STATION_CALLSIGN', String(q.my_call || myCall || '').toUpperCase());
     adif += adifField('OPERATOR', _resolveOperatorCallsign(q.operator));
     adif += adifField('CONTEST_ID', q.contest);
+    // Sous-chantier B (lot 1) : tags que le serveur (build_adif) émet et que
+    // l'export CLIENT omettait -> perte de données à l'export déclenché côté
+    // client. Mêmes champs, même ordre que logx_export.build_adif (jumeaux).
+    adif += adifField('NAME', q.name);
+    adif += adifField('QTH', q.qth);
+    adif += adifField('STATE', q.state);
+    adif += adifField('COMMENT', q.comment);
+    adif += adifField('DISTANCE', q.dist);
+    adif += adifField('PROP_MODE', q.prop_mode);
+    adif += adifField('SAT_NAME', q.sat_name);
+    adif += adifField('MY_SIG', q.my_sig);
+    adif += adifField('MY_SIG_INFO', q.my_sig_info);
+    adif += adifField('SIG', q.sig);
+    adif += adifField('SIG_INFO', q.sig_info);
+    // Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A) —
+    // mêmes tags que logx_export.build_adif. operating_location -> APP_LOGX_OPERATING.
+    adif += adifField('TX_PWR', q.tx_pwr);
+    adif += adifField('FREQ_RX', q.freq_rx);
+    adif += adifField('CQZ', q.cqz);
+    adif += adifField('ITUZ', q.ituz);
+    adif += adifField('CNTY', q.cnty);
+    adif += adifField('EMAIL', q.email);
+    adif += adifField('QSL_VIA', q.qsl_via);
+    adif += adifField('ANT_AZ', q.ant_az);
+    adif += adifField('TIME_OFF', q.time_off);
+    adif += adifField('QSL_SENT', q.qsl_sent);
+    adif += adifField('LOTW_QSL_SENT', q.lotw_qsl_sent);
+    adif += adifField('EQSL_QSL_SENT', q.eqsl_qsl_sent);
+    adif += adifField('APP_LOGX_OPERATING', q.operating_location);
+    // Lot 3 : tags ADIF dédiés par programme, émis depuis la liste multi-
+    // références pour ne pas perdre le 2e programme d'un two-fer SOTA+POTA.
+    _refsPourExport(q, 'my_refs', 'my_sig', 'my_sig_info').forEach(([prog, ref]) => {
+      const tag = REF_ADIF_TAGS[prog]; if(tag && ref) adif += adifField('MY_' + tag, ref);
+    });
+    _refsPourExport(q, 'refs', 'sig', 'sig_info').forEach(([prog, ref]) => {
+      const tag = REF_ADIF_TAGS[prog]; if(tag && ref) adif += adifField(tag, ref);
+    });
     // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
     // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
     // tag déjà émis ci-dessus.
