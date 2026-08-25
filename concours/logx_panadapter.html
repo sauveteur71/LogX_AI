@@ -122,6 +122,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <option value="192000" selected>192 kHz</option>
     <option value="384000">384 kHz</option>
   </select>
+  <label class="niveau" style="display:flex;align-items:center;gap:5px">Contraste
+    <select id="paContraste" title="Relatif : contraste auto sur l'activité courante (plus punchy, waterfall « relative »). Calibré : échelle FIXE, comparable d'une trame à l'autre (waterfall « calibrée » — pour juger un niveau, pas seulement le voir).">
+      <option value="relatif">auto (relatif)</option>
+      <option value="calibre">calibré (fixe)</option>
+    </select>
+  </label>
+  <span id="paContrasteFixe" style="display:none;align-items:center;gap:8px">
+    <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plancher : tout ce qui est en dessous devient noir (coupe le bruit de fond)">plancher<input type="range" id="paFloor" min="0" max="200" step="5" style="width:80px"></label>
+    <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plafond : tout ce qui est au-dessus est au maximum (sature les signaux forts)">plafond<input type="range" id="paCeil" min="55" max="255" step="5" style="width:80px"></label>
+  </span>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="clock">--:--:--</span>
 </header>
@@ -359,6 +369,27 @@ if(localStorage.getItem('rc_theme') === null){
     return [Math.round(232 + k*23), Math.round(150 + k*64), Math.round(74 - k*20)];    // accent -> jaune
   }
 
+  // Contraste réglable (waterfall relative vs calibrée). Les 3 sources
+  // (audio/CI-V/TCI) produisent toutes du 0-255, donc un remap CLIENT commun
+  // suffit — pas besoin de toucher chaque chaîne DSP. `remapContraste` est PUR.
+  //  - relatif : plancher/plafond = min/max de la trame courante (contraste
+  //    auto, punchy, s'adapte à l'activité) ;
+  //  - calibré : plancher/plafond FIXES (échelle comparable d'une trame à
+  //    l'autre — pour juger un niveau, pas juste le voir).
+  let contrasteMode = localStorage.getItem('rc_pa_contraste') || 'relatif';
+  let contrasteFloor = parseInt(localStorage.getItem('rc_pa_floor'), 10); if(!isFinite(contrasteFloor)) contrasteFloor = 40;
+  let contrasteCeil  = parseInt(localStorage.getItem('rc_pa_ceil'),  10); if(!isFinite(contrasteCeil))  contrasteCeil  = 230;
+  function remapContraste(v, lo, hi){
+    if(hi <= lo) return v;
+    return Math.max(0, Math.min(255, Math.round((v - lo) / (hi - lo) * 255)));
+  }
+  function bornesContraste(arr){
+    if(contrasteMode === 'calibre') return [contrasteFloor, contrasteCeil];
+    let lo = 255, hi = 0;
+    for(let i = 0; i < arr.length; i++){ const v = arr[i]; if(v < lo) lo = v; if(v > hi) hi = v; }
+    return [lo, Math.max(lo + 1, hi)];   // hi>lo garanti -> jamais de division par 0
+  }
+
   function binsAffiches(maxHz){
     const nyquist = ctx.sampleRate / 2;
     const total = analyser.frequencyBinCount;
@@ -573,11 +604,12 @@ if(localStorage.getItem('rc_theme') === null){
     const nBins = nBinsActuel();
     if(nBins <= 0 || !dataArray) return;   // ex. CI-V hors plage : rien à tracer cette ligne
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E8964A';
+    const [_lo, _hi] = bornesContraste(dataArray);
     g.beginPath();
     g.moveTo(0, h);
     for(let x = 0; x < w; x++){
       const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
-      const v = dataArray[bin] / 255;
+      const v = remapContraste(dataArray[bin], _lo, _hi) / 255;
       g.lineTo(x, h - v * h);
     }
     g.lineTo(w, h);
@@ -602,9 +634,10 @@ if(localStorage.getItem('rc_theme') === null){
     const g = cv.getContext('2d');
     g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
     const ligne = g.createImageData(w, 1);
+    const [_lo, _hi] = bornesContraste(dataArray);
     for(let x = 0; x < w; x++){
       const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
-      const [r, gg, b] = couleurNiveau(dataArray[bin]);
+      const [r, gg, b] = couleurNiveau(remapContraste(dataArray[bin], _lo, _hi));
       const o = x * 4;
       ligne.data[o] = r; ligne.data[o+1] = gg; ligne.data[o+2] = b; ligne.data[o+3] = 255;
     }
@@ -829,6 +862,26 @@ if(localStorage.getItem('rc_theme') === null){
   const _waterCv = document.getElementById('waterCanvas');
   if(_specCv){ _specCv.style.cursor = 'crosshair'; _specCv.addEventListener('click', e => clicCanvas(e, _specCv)); }
   if(_waterCv){ _waterCv.style.cursor = 'crosshair'; _waterCv.addEventListener('click', e => clicCanvas(e, _waterCv)); }
+
+  // Contraste : init des contrôles + handlers (persistés). Le rendu
+  // (dessinerSpectre/dessinerWaterfall) lit contrasteMode/Floor/Ceil via
+  // bornesContraste() à chaque trame — rien à re-brancher côté boucle.
+  (function initContraste(){
+    const sel = document.getElementById('paContraste');
+    const fixe = document.getElementById('paContrasteFixe');
+    const floor = document.getElementById('paFloor');
+    const ceil = document.getElementById('paCeil');
+    if(!sel || !fixe || !floor || !ceil) return;
+    sel.value = contrasteMode; floor.value = contrasteFloor; ceil.value = contrasteCeil;
+    const majFixe = () => { fixe.style.display = (contrasteMode === 'calibre') ? 'flex' : 'none'; };
+    majFixe();
+    sel.onchange = () => { contrasteMode = (sel.value === 'calibre') ? 'calibre' : 'relatif';
+      localStorage.setItem('rc_pa_contraste', contrasteMode); majFixe(); };
+    floor.oninput = () => { contrasteFloor = Math.min(parseInt(floor.value, 10) || 0, contrasteCeil - 5);
+      floor.value = contrasteFloor; localStorage.setItem('rc_pa_floor', String(contrasteFloor)); };
+    ceil.oninput = () => { contrasteCeil = Math.max(parseInt(ceil.value, 10) || 255, contrasteFloor + 5);
+      ceil.value = contrasteCeil; localStorage.setItem('rc_pa_ceil', String(contrasteCeil)); };
+  })();
 
   window.addEventListener('beforeunload', arreter);
 })();
