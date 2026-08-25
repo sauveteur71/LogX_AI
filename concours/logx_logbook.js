@@ -2752,7 +2752,7 @@ function collectExtraFields(){
   const map = {
     inputEmail:'email', inputQslVia:'qsl_via', inputCqz:'cqz', inputItuz:'ituz',
     inputCnty:'cnty', inputPropMode:'prop_mode', inputOperatingLocation:'operating_location',
-    inputFreqRx:'freq_rx', inputTimeOff:'time_off', inputMyRig:'my_rig', inputMyAntenna:'my_antenna',
+    inputFreqRx:'freq_rx', inputMyRig:'my_rig', inputMyAntenna:'my_antenna',
     inputQslSent:'qsl_sent', inputLotwSent:'lotw_qsl_sent', inputEqslSent:'eqsl_qsl_sent',
   };
   Object.keys(map).forEach(function(id){ const v = val(id); if(v) out[map[id]] = v; });
@@ -2938,6 +2938,13 @@ async function submitQSO(){
   // matériel, antenne. Fusionnés APRÈS l'activation pour ne rien écraser d'établi.
   Object.assign(qso, collectExtraFields());
 
+  // Heure de fin (time_off) AUTOMATIQUE : plus de saisie manuelle. Un QSO de
+  // concours est instantané -> fin = début (heure du QSO), en chiffres nus
+  // (« 12:15 » -> « 1215 ») comme TIME_ON à l'export et comme le format attendu
+  // par le contrôle de cohérence. time_off reste une clé interne exportée
+  // (symétrie ADIF) ; seule la frappe disparaît. Demande F4GLD.
+  qso.time_off = qso.time.replace(':', '');
+
   // Références multiples (lot 3) : la ref d'activation (my_sig, posée ci-dessus)
   // devient la 1re d'une LISTE, complétée par les références SUPPLÉMENTAIRES
   // saisies dans l'onglet (two-fer SOTA+POTA). refsToMySig garde ensuite
@@ -3086,7 +3093,7 @@ function clearForm(){
   // Champs par-QSO des onglets (lot 2-4) : vidés comme les autres champs propres
   // au contact. Les champs de MA station (puissance, matériel, antenne, lieu,
   // mes références) PERSISTENT d'un QSO à l'autre -- on ne les touche pas ici.
-  ['inputEmail','inputQslVia','inputCqz','inputItuz','inputCnty','inputFreqRx','inputTimeOff','inputPropMode']
+  ['inputEmail','inputQslVia','inputCqz','inputItuz','inputCnty','inputFreqRx','inputPropMode']
     .forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
   var _refsCorr = document.getElementById('refsList'); if(_refsCorr) _refsCorr.innerHTML='';   // réf. correspondant (S2S/P2P)
   if(typeof resetManualTags === 'function') resetManualTags();   // tags manuels : per-QSO
