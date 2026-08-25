@@ -4446,6 +4446,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'spotter': s.get('spotter', ''),
                     'dist_km': s.get('dist_km', 0),
                     'dx_country': sc.get('dx_country', ''),
+                    # Locator DX (DXLocator cluster) : sert au crédit « carré
+                    # neuf » VHF/UHF calculé par annoter_credit ci-dessous.
+                    'locator': s.get('locator', ''),
                     'new_mult': bool(sc.get('new_mult')),
                     'already_done': bool(sc.get('already_done')),
                     'value': s.get('value_total', 0),
@@ -4614,6 +4617,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'dx_country': sc.get('dx_country', ''),
                     'dx_continent': sc.get('dx_continent', ''),
                     'dx_cq_zone': sc.get('dx_cq_zone'),
+                    # NB : 'locator' est déjà porté en tête de cette entrée
+                    # (crédit « carré neuf » VHF/UHF via annoter_credit).
                 }
                 if my_ll[0] and dx_ll[0]:
                     from logx_utils import bearing, cardinal

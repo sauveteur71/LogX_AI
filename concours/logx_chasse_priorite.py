@@ -18,6 +18,7 @@ CLASSE_ATNO = 'atno'                    # entité jamais travaillée (All Time N
 CLASSE_NEW_BAND = 'new_band'            # entité déjà faite, jamais sur CETTE bande
 CLASSE_NEW_MODE = 'new_mode'            # déjà sur cette bande, jamais dans CE mode
 CLASSE_NEEDED_CONFIRM = 'needed_confirm'  # ce créneau travaillé mais pas confirmé LoTW
+CLASSE_NEW_GRID = 'new_grid'            # carré Maidenhead VHF/UHF jamais travaillé
 CLASSE_CONFIRMED = 'confirmed'          # ce créneau déjà confirmé (doublon confirmé)
 CLASSE_INCONNU = 'inconnu'             # entité DXCC non résolue
 
@@ -52,6 +53,7 @@ _OBJECTIF_POUR_CLASSE = {
     CLASSE_NEW_BAND: 'dxcc_new_band',
     CLASSE_NEW_MODE: 'dxcc_new_mode',
     CLASSE_NEEDED_CONFIRM: 'lotw_confirmation_priority',
+    CLASSE_NEW_GRID: 'vucc',            # chasse aux carrés VHF/UHF (award VUCC)
 }
 
 _RAISON = {
@@ -59,6 +61,7 @@ _RAISON = {
     CLASSE_NEW_BAND: "Entité déjà faite, mais nouvelle sur cette bande",
     CLASSE_NEW_MODE: "Entité déjà faite sur cette bande, mais nouveau mode",
     CLASSE_NEEDED_CONFIRM: "Déjà contactée sur ce créneau, mais pas confirmée LoTW",
+    CLASSE_NEW_GRID: "Nouveau carré Maidenhead (VHF/UHF, jamais travaillé)",
     CLASSE_CONFIRMED: "Déjà confirmée sur cette bande et ce mode (doublon)",
     CLASSE_INCONNU: "Entité DXCC inconnue",
 }
@@ -132,3 +135,15 @@ def evaluer(grille_lotw, band, mode_cat, poids=None, objectifs=None):
     return {'classe': classe,
             'score': score_classe(classe, poids, objectifs),
             'raison': raison(classe)}
+
+
+def evaluer_grid(neuf_a_vie, poids=None, objectifs=None):
+    """Crédit d'un carré VHF/UHF entendu : {'classe', 'score', 'raison'} si le
+    carré est neuf à vie, sinon None. PURE — le test « neuf » est fait par
+    l'appelant (logx_awards, qui tient l'index des carrés du carnet). Le score
+    suit les poids/objectifs comme les crédits DXCC (objectif 'vucc')."""
+    if not neuf_a_vie:
+        return None
+    return {'classe': CLASSE_NEW_GRID,
+            'score': score_classe(CLASSE_NEW_GRID, poids, objectifs),
+            'raison': raison(CLASSE_NEW_GRID)}

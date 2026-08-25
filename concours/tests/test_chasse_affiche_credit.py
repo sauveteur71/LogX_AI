@@ -49,6 +49,12 @@ def test_needed_confirm_affiche():
     assert 'cr-needed_confirm' in ctx.eval("creditBadge(%s)" % _spot('needed_confirm', 'x', 200))
 
 
+def test_badge_new_grid():
+    ctx = _ctx()
+    html = ctx.eval("creditBadge(%s)" % _spot('new_grid', 'Nouveau carré', 450))
+    assert 'cr-new_grid' in html and 'CARR' in html.upper() and '+450' in html
+
+
 def test_confirme_et_inconnu_rien():
     ctx = _ctx()
     assert ctx.eval("creditBadge(%s)" % _spot('confirmed', 'déjà fait', 0)) == ''
@@ -60,3 +66,4 @@ def test_cable_dans_le_gabarit_et_css():
     src = _lire()
     assert '${creditBadge(s)}' in src                        # appelé dans la ligne de spot
     assert '.sr-credit-badge' in src and '.cr-atno' in src   # styles présents
+    assert '.cr-new_grid' in src                             # style du crédit carré VHF

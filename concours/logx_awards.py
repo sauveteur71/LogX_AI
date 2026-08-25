@@ -549,6 +549,9 @@ def annoter_credit(spots, shared_log=None, poids=None, objectifs=None):
     worked = {(q.get('dxcc_country'), str(q.get('band', '') or ''),
                _mode_category(q.get('mode'), q.get('freq')))
               for q in qsos if q.get('dxcc_country')}
+    # Carrés Maidenhead déjà travaillés À VIE (même scan) : sert au crédit
+    # « nouveau carré » VHF/UHF. On tronque au CARRÉ (4 car., cf. _grid).
+    grids_a_vie = {g for g in (_grid(q, 4) for q in qsos) if g}
     try:
         import logx_dxcc as dxcc
     except Exception:
@@ -591,6 +594,20 @@ def annoter_credit(spots, shared_log=None, poids=None, objectifs=None):
             r = cp.evaluer(grille_pour(pays), str(s.get('band', '') or ''),
                            _mode_category(s.get('mode'), s.get('freq')),
                            poids, objectifs)
+        # Crédit « carré neuf » VHF/UHF : au-dessus de 30 MHz, un carré jamais
+        # travaillé à vie vaut la chasse (award VUCC). On COMBINE au crédit DXCC
+        # par le meilleur score — les poids de F4GLD tranchent (ATNO 1000 et
+        # nouvelle bande 600 priment ; new_grid 450 ne remonte que là où le
+        # DXCC ne dit rien de plus fort). Locator porté par le spot (DXLocator
+        # cluster), factice écarté.
+        band_s = str(s.get('band', '') or '')
+        loc = str(s.get('locator') or s.get('grid') or '').strip().upper()
+        g4 = loc[:4]
+        if (g4 and _est_vhf(band_s)
+                and not _locator_factice(loc) and not _locator_factice(g4)):
+            rg = cp.evaluer_grid(g4 not in grids_a_vie, poids, objectifs)
+            if rg and rg['score'] > r['score']:
+                r = rg
         s['credit_classe'] = r['classe']
         s['credit_score'] = r['score']
         s['credit_raison'] = r['raison']
@@ -788,6 +805,17 @@ LOCATORS_FACTICES = frozenset({'JJ00AA', 'AA00AA', 'AA00', 'JJ00'})
 def _locator_factice(loc):
     l = str(loc or '').strip().upper()
     return l in LOCATORS_FACTICES
+
+
+def _est_vhf(band):
+    """Bande VHF/UHF (> 30 MHz) : le crédit « carré neuf » ne s'applique
+    qu'au-dessus de la HF, où la chasse est centrée sur les carrés Maidenhead
+    (doc F4GLD). Un libellé de bande non numérique -> False (pas de crédit à
+    tort). '50'/'144'/'432'... -> True ; '1.8'..'28' -> False."""
+    try:
+        return float(str(band).strip()) > 30
+    except (TypeError, ValueError):
+        return False
 
 
 def _grid(q, n):
