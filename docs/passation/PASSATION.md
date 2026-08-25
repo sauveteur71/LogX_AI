@@ -134,10 +134,32 @@ navigateur de la barre = déclencher `LogxTxBar.proposer(...)` sur l'instance li
 sur un test réseau (~65 %, jamais identifié précisément) ; la CI (« harnais
 mock », env propre) fait foi pour le vert de la suite complète, comme depuis #251.
 
-**Suite (roadmap copilote IA, encore à faire)** : (a) le **déclencheur IA réel**
-(l'IA qui PROPOSE les émissions ; aujourd'hui `proposer()` est appelé à la main) ;
-(b) le **message par mode** (que `/tx/authorize` envoie le CONTENU — texte CW via
-WinKeyer, WAV voix — pas juste le PTT) ; (c) FT8 Roundup ; (d) programme GMA.
+#### Après-midi du 25/08/2026 — chaîne d'émission complète + concours/activations
+
+Suite de « enchaîne ». Toujours TDD + mutation md5 + ruff + CI verte avant merge.
+
+| PR | Ce que ça fait |
+|---|---|
+| #256 | **Barre d'émission du LOGBOOK** (`logx_tx_bar.js`) — surface client validée par F4GLD (« magnifique »). Barre en pied de page, identité graphite & cuivre. `LogxTxBar.proposer()`→prepare, ÉMETTRE→authorize, STOP TX→stop. Logique pure testée V8. Maquette : `docs/maquettes/tx_barre_emission.html`. |
+| #257 | **`/tx/authorize` émet le CONTENU par mode** : CW → `wk.envoyer` (keyer), phonie → `vk.envoyer_message` (slot WAV). Dispatcher pur `emettre_message`. Verrou SO2R par famille. |
+| #258 | **Choix voix WAV/TTS (offline-first)** + sélecteur dans la barre. `voice_source` ('wav'/'tts'/'auto') + `voice_source_effectif`. La cascade IA cloud→Piper local→voix système est DÉJÀ dans `logx_voicekeyer.synthesize_to_wav` — on ne branche que le choix. « Marche sans accès, profite d'internet/IA si présents » (principe zone blanche). |
+| #259 | **Concours FT Roundup** (FT4/FT8) — SOURCE rttycontesting.com. Même barème que l'ARRL RTTY Roundup (kind `rtty_ru`). DISCONTINUÉ (logs historiques). Corrige la note ARRL (mult automatisé depuis #254). |
+| #260 | **Activation GMA** (Global Mountain Activity) — sommets hiérarchiques, 4 QSO min, réf format SOTA (SOURCE cqgma.org). *(en attente CI au moment d'écrire)* |
+| #261 | **Concours FT Challenge** (successeur ACTIF du FT Roundup) — barème DIFFÉRENT : points 1+1/3000 km, mult champ de grille 2 car par bande. 2 briques neuves (`per_grid_3000`, kind `grid_field`). *(en attente CI)* |
+
+**La chaîne « émission unique » est complète de bout en bout** : l'IA prépare
+(`proposer`) → la barre affiche (avec choix voix) → l'humain valide (ÉMETTRE) →
+contrôle CAT réel + garde-fou → PTT + émission du CONTENU (CW texte / WAV /
+TTS selon accès) → journal d'audit. **Stop TX** coupe tout. Le **test sur l'air
+reste le geste de F4GLD**.
+
+**Reste de la roadmap copilote IA** : le **déclencheur IA réel** — l'IA qui
+DÉCIDE *quand* proposer une émission (aujourd'hui `proposer()` est appelé à la
+main). C'est le cœur de la vision copilote (4 niveaux d'autorisation, ordre de
+dév défini par F4GLD, cf. mémoire) — demande sa direction produit, pas à
+construire à l'aveugle. Autres : câblage endpoints TX au PTT réel déjà fait
+(#255/#257) ; UI de confirmation faite (#256) ; FT Challenge/FT Roundup/GMA
+faits ci-dessus.
 
 ### En attente d'un essai sur l'air
 
