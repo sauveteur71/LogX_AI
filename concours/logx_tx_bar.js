@@ -87,7 +87,9 @@
     nextState: nextState,
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
     _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
-    _onConfirm: null       // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
+    _onConfirm: null,      // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
+    _autoAt: 0,            // ms (Date.now) d'auto-émission (niveau 2 copilote_auto) ; 0 = jamais
+    _tick: _tick           // exposé pour test (pilotage du compte à rebours en V8)
   };
 
   // ── DOM + réseau (non testés unitairement, comme les autres modules) ──────
@@ -163,6 +165,13 @@
   function _tick() {
     var secs = secondsLeft(LogxTxBar._expires, Date.now());
     var n = _q('rcTxCount'); if (n) { n.textContent = secs; }
+    // Niveau 2 : le délai d'auto-émission est écoulé -> émet UNE fois (sauf
+    // annulation via STOP TX, qui remet _autoAt à 0 et coupe le timer).
+    if (LogxTxBar._autoAt && Date.now() >= LogxTxBar._autoAt && LogxTxBar.state === 'prepared') {
+      LogxTxBar._autoAt = 0;
+      LogxTxBar._emettre();
+      return;
+    }
     if (secs <= 0 && LogxTxBar.state === 'prepared') {
       LogxTxBar.state = nextState(LogxTxBar.state, 'EXPIRE');
       _clearTimer(); _render();
@@ -180,7 +189,7 @@
   // place du chemin serveur /tx/authorize. Requis pour les modes dont
   // l'émission est CÔTÉ CLIENT (ex. FT8 : audio natif + envoyerMessage()),
   // que le garde-fou serveur voix/CW ne gère pas (modes data refusés).
-  LogxTxBar.proposer = function (em, onConfirm) {
+  LogxTxBar.proposer = function (em, onConfirm, autoMs) {
     em = em || {};
     // La source voix choisie via le sélecteur s'applique si l'appelant (IA)
     // n'en impose pas une explicitement.
@@ -193,6 +202,9 @@
     if (typeof onConfirm === 'function') {
       LogxTxBar._onConfirm = onConfirm;
       LogxTxBar._em = em; LogxTxBar._token = null;
+      // Niveau 2 (copilote_auto) : arme une auto-émission après `autoMs` ms.
+      // Sinon 0 = geste humain requis. STOP TX (ou ÉMETTRE) l'annule.
+      LogxTxBar._autoAt = (Number(autoMs) > 0) ? Date.now() + Number(autoMs) : 0;
       LogxTxBar._expires = new Date(Date.now() + TTL * 1000).toISOString();
       LogxTxBar.state = nextState('idle', 'PREPARE');
       _clearTimer(); LogxTxBar._timer = setInterval(_tick, 500); _tick();
@@ -200,7 +212,7 @@
       _render();
       return Promise.resolve('client');
     }
-    LogxTxBar._onConfirm = null;
+    LogxTxBar._onConfirm = null; LogxTxBar._autoAt = 0;
     return _post('/tx/prepare', preparePayload(em)).then(function (r) {
       if (r.status !== 200 || !r.json.ok) {
         _line((r.json && r.json.error) || 'Préparation refusée', 'blocked'); return null;
@@ -215,6 +227,7 @@
 
   LogxTxBar._emettre = function () {
     if (LogxTxBar.state !== 'prepared') { return; }
+    LogxTxBar._autoAt = 0;   // émission en cours : plus d'auto-émission en attente
     LogxTxBar.state = nextState(LogxTxBar.state, 'EMIT'); _render();
     // Chemin CLIENT : exécute le callback local (ex. FT8 envoyerMessage()) ; le
     // garde-fou/PTT réel est celui du chemin d'émission client (déjà en place).
@@ -247,6 +260,7 @@
 
   LogxTxBar._stop = function () {
     _clearTimer();
+    LogxTxBar._autoAt = 0;         // annule l'auto-émission en attente (niveau 2)
     LogxTxBar._onConfirm = null;   // annule aussi une proposition client (ex. FT8)
     return _post('/tx/stop', {}).then(function () {
       LogxTxBar.state = nextState(LogxTxBar.state, 'STOP');

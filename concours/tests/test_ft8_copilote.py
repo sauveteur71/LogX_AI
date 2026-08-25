@@ -38,6 +38,7 @@ def test_api_exposee():
 def test_doit_proposer_seulement_au_niveau_copilote():
     ctx = _ctx()
     assert ctx.eval("window.LogxFt8Copilote.doitProposer('copilote')") is True
+    assert ctx.eval("window.LogxFt8Copilote.doitProposer('copilote_auto')") is True  # niveau 2 propose aussi
     # les autres niveaux gardent leur comportement (auto/manuel/etc.) : PAS de proposition
     for niv in ('manuel', 'assiste', 'sequenceur', 'auto', ''):
         assert ctx.eval(f"window.LogxFt8Copilote.doitProposer('{niv}')") is False, niv
@@ -190,6 +191,19 @@ def test_file_attente_retirer():
     # station absente -> file inchangée
     ctx.eval("f = window.LogxFt8Copilote.retirerFile(f, 'XX9XX');")
     assert ctx.eval("f.join(',')") == 'F4ABC,ON4XX'
+
+
+def test_delai_auto_selon_niveau():
+    # Niveau 2 « copilote_auto » : auto-émission après un délai FIXE (F4GLD).
+    # Les autres niveaux : 0 = pas d'auto (confirmation à la main / comportement
+    # historique). Invariant : SEUL 'copilote_auto' arme le délai.
+    ctx = _ctx()
+    D = lambda niv: ctx.eval(f"window.LogxFt8Copilote.delaiAutoMs({niv!r}, 8000)")
+    assert D('copilote_auto') == 8000                 # armé au niveau 2
+    for niv in ('copilote', 'manuel', 'assiste', 'sequenceur', 'auto', ''):
+        assert D(niv) == 0, niv                        # jamais ailleurs
+    # défaut : si delaiDefautMs omis -> 0 (pas d'auto tant qu'aucun délai fourni)
+    assert ctx.eval("window.LogxFt8Copilote.delaiAutoMs('copilote_auto')") == 0
 
 
 def test_cle_anti_spam_idempotente():

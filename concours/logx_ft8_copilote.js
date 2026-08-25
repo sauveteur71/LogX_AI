@@ -18,10 +18,19 @@
 (function () {
   'use strict';
 
-  // Ne proposer (au lieu d'auto-émettre) QU'au niveau 'copilote'. Les niveaux
-  // historiques (manuel/assisté/séquenceur/auto) gardent leur comportement.
+  // Proposer (barre de consentement) aux niveaux copilote : 'copilote'
+  // (confirmation à la main) ET 'copilote_auto' (niveau 2 : émet après un délai
+  // fixe sauf annulation). Les niveaux historiques (manuel/assisté/séquenceur/
+  // auto) gardent leur comportement.
   function doitProposer(seqNiveau) {
-    return seqNiveau === 'copilote';
+    return seqNiveau === 'copilote' || seqNiveau === 'copilote_auto';
+  }
+
+  // Délai (ms) d'AUTO-ÉMISSION après proposition. Niveau 2 'copilote_auto' ->
+  // `delaiDefautMs` (l'IA émet sauf annulation) ; tout autre niveau -> 0 (jamais
+  // d'auto, confirmation humaine requise). delaiDefautMs omis -> 0.
+  function delaiAutoMs(seqNiveau, delaiDefautMs) {
+    return seqNiveau === 'copilote_auto' ? (Number(delaiDefautMs) || 0) : 0;
   }
 
   // Emballe le message CALCULÉ PAR LE SÉQUENCEUR pour LogxTxBar.proposer().
@@ -177,6 +186,7 @@
 
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
+    delaiAutoMs: delaiAutoMs,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,

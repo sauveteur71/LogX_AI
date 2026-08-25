@@ -547,6 +547,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="manuel">Manuel — un double-clic, un message</option>
             <option value="assiste">Assisté — prépare la réponse, n'émet jamais seul</option>
             <option value="copilote">Copilote — l'IA propose sur un appel reçu, tu confirmes chaque émission</option>
+            <option value="copilote_auto">Copilote auto — l'IA propose puis émet après un délai, sauf si tu annules (STOP TX)</option>
             <option value="sequenceur">Séquenceur — déroule le QSO et le logue</option>
             <option value="auto">Automatique — appelle CQ et enchaîne les QSO sans confirmation</option>
           </select>
@@ -993,7 +994,7 @@ if(localStorage.getItem('rc_theme') === null){
     // prochain créneau. La suite du QSO est prise par le hook auto de
     // ajouterDecodage (reponseFt8). Propose-only : le seul envoyerMessage est
     // dans le callback de confirmation.
-    if(seqNiveau === 'copilote' && typeof LogxFt8Copilote !== 'undefined'
+    if(typeof LogxFt8Copilote !== 'undefined' && LogxFt8Copilote.doitProposer(seqNiveau)
        && typeof LogxTxBar !== 'undefined'){
       afficherAppelSelectionne(text);
       if(slotEntendu !== undefined) retenirPariteCorrespondant(slotEntendu);
@@ -1012,7 +1013,7 @@ if(localStorage.getItem('rc_theme') === null){
       LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(cible, msg);
       const p = LogxFt8Copilote.messagePropose(msg, cible,
                   Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-      LogxTxBar.proposer(p, function(){ envoyerMessage(msg); });
+      LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
       return;
     }
     // MODE D'ENVOI autre que « manuel » : le double-clic ne prépare plus un
@@ -2096,7 +2097,7 @@ if(localStorage.getItem('rc_theme') === null){
     LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(dx, msg);
     const p = LogxFt8Copilote.messagePropose(msg, dx,
                 Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-    LogxTxBar.proposer(p, function(){ envoyerMessage(msg); });
+    LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
   }
 
   // Démarre/rattache le suivi à `cible` (réponse à un CQ : on connaît déjà la
@@ -2160,7 +2161,7 @@ if(localStorage.getItem('rc_theme') === null){
     LogxFt8Copilote._dernierePropose = k;
     const p = LogxFt8Copilote.messagePropose(r.message, r.dxCall,
                 Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-    LogxTxBar.proposer(p, function(){ envoyerMessage(r.message); });
+    LogxTxBar.proposer(p, function(){ envoyerMessage(r.message); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
   }
 
   function ajouterDecodage(slotMs, text, freqHz, snrDb, dt){
@@ -3806,6 +3807,13 @@ if(localStorage.getItem('rc_theme') === null){
   // demandé — c'est le genre de défaut qu'on ne découvre que sur l'air.
   let seqNiveau = 'manuel';
 
+  // Niveau 2 du copilote (« copilote_auto ») : délai fixe avant AUTO-ÉMISSION,
+  // sauf annulation (STOP TX) — décision F4GLD (« Délai fixe puis émet sauf
+  // annulation »). 8 s par défaut ; la barre affiche le compte à rebours du
+  // jeton et STOP TX coupe tout. L'émission passe TOUJOURS par le même callback
+  // de confirmation que le niveau 1 (propose-only) : seul le déclencheur change.
+  const COPILOTE_AUTO_DELAI_MS = 8000;
+
   // Plafond de relances par défaut (0 = ILLIMITÉ, jusqu'à confirmation du
   // contact). Décision d'opérateur titulaire de F4GLD, pas un oubli : une
   // station appelée en FT8 peut mettre dix minutes à répondre, et s'arrêter au
@@ -5039,6 +5047,11 @@ if(localStorage.getItem('rc_theme') === null){
       etatEl.textContent = 'Manuel : un double-clic prépare et envoie UN message.';
     } else if(seqNiveau === 'assiste'){
       etatEl.textContent = "Assisté : le double-clic prépare la réponse, c'est toi qui envoies.";
+    } else if(seqNiveau === 'copilote'){
+      etatEl.textContent = "Copilote : sur un appel reçu, l'IA prépare la réponse ; ÉMETTRE (ton geste) l'envoie.";
+    } else if(seqNiveau === 'copilote_auto'){
+      etatEl.textContent = "Copilote auto : l'IA prépare puis émet après "
+        + Math.round(COPILOTE_AUTO_DELAI_MS / 1000) + " s — STOP TX pour annuler.";
     } else if(seqNiveau === 'auto'){
       etatEl.textContent = cqAutoActif
         ? 'Automatique : en attente du prochain créneau CQ…'
@@ -5065,7 +5078,7 @@ if(localStorage.getItem('rc_theme') === null){
       // chaque chargement, exactement comme `seq` lui-même ne survit jamais
       // à un rechargement. Un rechargement de page en mode Automatique ne
       // relance JAMAIS l'appel CQ tout seul.
-      if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
+      if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'copilote_auto' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
       const memoR = parseInt(localStorage.getItem('rc_ft8_seq_relances'), 10);
       if(isFinite(memoR) && memoR >= 0) seqMaxRelancesDefaut = memoR;
     }catch(e){}

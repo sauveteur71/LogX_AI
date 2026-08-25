@@ -19,7 +19,8 @@ def _src():
 
 def test_option_copilote_et_inclusions_presentes():
     src = _src()
-    assert '<option value="copilote">' in src            # niveau proposé à l'opérateur
+    assert '<option value="copilote">' in src            # niveau 1 : confirmation à la main
+    assert '<option value="copilote_auto">' in src       # niveau 2 : émet après délai sauf annulation
     assert 'logx_tx_bar.js' in src                       # barre de consentement incluse
     assert 'logx_ft8_copilote.js' in src                 # module copilote inclus
 
@@ -66,10 +67,12 @@ def test_prendre_suivant_file_ne_peut_pas_auto_emettre():
 
 
 def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
-    """Même invariant pour la branche 'copilote' de repondreEtEnvoyer (réponse
-    à un CQ au double-clic) : le seul envoyerMessage est dans le callback ÉMETTRE."""
+    """Même invariant pour la branche copilote de repondreEtEnvoyer (réponse à un
+    CQ au double-clic, gatée par doitProposer -> couvre 'copilote' ET
+    'copilote_auto') : le seul envoyerMessage est dans le callback ÉMETTRE.
+    Ancrée sur appelInitial(cible, unique à cette branche."""
     src = _src()
-    m = re.search(r"if\(seqNiveau === 'copilote'.*?LogxTxBar\.proposer\(.*?\n      return;\n    \}", src, re.S)
+    m = re.search(r"LogxFt8Copilote\.appelInitial\(cible.*?LogxTxBar\.proposer\(.*?\n      return;\n    \}", src, re.S)
     assert m, "branche copilote de repondreEtEnvoyer introuvable"
     branche = m.group(0)
     assert 'LogxTxBar.proposer(' in branche
@@ -78,3 +81,18 @@ def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
             assert 'function(){' in ligne or 'function () {' in ligne, (
                 "réponse CQ copilote : envoyerMessage doit être DANS le callback "
                 "ÉMETTRE, jamais un appel direct : %r" % ligne.strip())
+
+
+def test_copilote_auto_passe_le_delai_aux_trois_sites():
+    """Niveau 2 : chaque proposition copilote (réponse auto, réponse CQ, station
+    suivante de la file) passe le délai d'auto-émission via delaiAutoMs(seqNiveau,
+    …) en 3e argument de LogxTxBar.proposer — sinon copilote_auto n'émettrait
+    jamais tout seul. delaiAutoMs renvoie 0 hors 'copilote_auto' (niveau 1
+    inchangé), la sûreté est donc préservée."""
+    src = _src()
+    sites = [ligne.strip() for ligne in src.splitlines()
+             if 'LogxTxBar.proposer(p, function(){' in ligne]
+    assert len(sites) == 3, "attendu 3 sites de proposition copilote, vu %d" % len(sites)
+    for ligne in sites:
+        assert 'LogxFt8Copilote.delaiAutoMs(seqNiveau' in ligne, (
+            "proposition copilote sans délai d'auto-émission (3e arg) : %r" % ligne)

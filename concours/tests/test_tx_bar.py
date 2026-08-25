@@ -60,6 +60,41 @@ def test_proposer_avec_callback_client_declenche_le_callback():
     assert ctx.eval("window.LogxTxBar._onConfirm") is None  # consommé (usage unique)
 
 
+def test_proposer_auto_emet_apres_delai():
+    # Niveau 2 copilote : proposer(em, cb, autoMs) arme une auto-émission après
+    # `autoMs` ms. _tick l'exécute UNE fois le délai écoulé (sauf annulation).
+    ctx = _ctx()
+    ctx.eval("""
+      window.LogxTxBar.state = 'idle';
+      globalThis.__emis = 0;
+      window.LogxTxBar.proposer({mode:'FT8', message:'F4ABC F1XYZ -12'},
+                                function(){ globalThis.__emis++; }, 8000);
+    """)
+    assert ctx.eval("window.LogxTxBar._autoAt > 0") is True   # auto-émission armée
+    # délai NON écoulé -> aucun _tick n'émet
+    ctx.eval("window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 0
+    # délai écoulé (_autoAt dans le passé) -> auto-émission UNE fois
+    ctx.eval("window.LogxTxBar._autoAt = 1; window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 1
+    ctx.eval("window.LogxTxBar._tick();")                     # pas de ré-émission
+    assert ctx.eval("globalThis.__emis") == 1
+
+
+def test_proposer_sans_delai_n_auto_emet_jamais():
+    # Niveau 1 'copilote' (autoMs omis) : jamais d'auto-émission, geste humain requis.
+    ctx = _ctx()
+    ctx.eval("""
+      window.LogxTxBar.state = 'idle';
+      globalThis.__emis = 0;
+      window.LogxTxBar.proposer({mode:'FT8', message:'x'},
+                                function(){ globalThis.__emis++; });
+    """)
+    assert ctx.eval("window.LogxTxBar._autoAt") == 0          # pas armée
+    ctx.eval("window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 0
+
+
 def test_fmt_freq_khz_francais():
     ctx = _ctx()
     # 14 074 000 Hz -> "14 074,0" kHz (espace milliers, virgule décimale FR)
