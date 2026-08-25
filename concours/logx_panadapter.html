@@ -132,6 +132,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plancher : tout ce qui est en dessous devient noir (coupe le bruit de fond)">plancher<input type="range" id="paFloor" min="0" max="200" step="5" style="width:80px"></label>
     <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plafond : tout ce qui est au-dessus est au maximum (sature les signaux forts)">plafond<input type="range" id="paCeil" min="55" max="255" step="5" style="width:80px"></label>
   </span>
+  <button class="pa-btn" id="paPeak" title="Maintien de crête (peak hold) : garde le maximum de chaque bin, qui redescend lentement — révèle une porteuse brève ou un pic de pile-up manqué">◠ CRÊTE</button>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="paHoverFreq" title="Fréquence sous le curseur (survol du spectre/waterfall)"></span>
   <span class="clock" id="clock">--:--:--</span>
@@ -391,6 +392,21 @@ if(localStorage.getItem('rc_theme') === null){
     return [lo, Math.max(lo + 1, hi)];   // hi>lo garanti -> jamais de division par 0
   }
 
+  // Peak hold (maintien de crête) : garde le maximum de chaque bin, qui
+  // redescend LENTEMENT (decay/trame) — révèle une porteuse brève ou un pic de
+  // pile-up qu'on aurait raté. PUR : monte instantanément à tout nouveau
+  // maximum, décroît sinon. Source-agnostique (opère sur le 0-255 commun).
+  let peakHoldOn = localStorage.getItem('rc_pa_peak') === '1';
+  let peakArr = null;
+  const PEAK_DECAY = 1.5;
+  function majPeak(peak, data, decay){
+    for(let i = 0; i < data.length; i++){
+      const d = data[i];
+      peak[i] = (peak[i] == null || d >= peak[i]) ? d : Math.max(d, peak[i] - decay);
+    }
+    return peak;
+  }
+
   function binsAffiches(maxHz){
     const nyquist = ctx.sampleRate / 2;
     const total = analyser.frequencyBinCount;
@@ -634,6 +650,20 @@ if(localStorage.getItem('rc_theme') === null){
     g.strokeStyle = accent;
     g.lineWidth = 1.4 * (window.devicePixelRatio||1);
     g.stroke();
+    // Ligne de maintien de crête (peak hold), au-dessus du spectre courant.
+    if(peakHoldOn){
+      if(!peakArr || peakArr.length !== dataArray.length) peakArr = new Float32Array(dataArray.length);
+      majPeak(peakArr, dataArray, PEAK_DECAY);
+      g.beginPath();
+      for(let x = 0; x < w; x++){
+        const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
+        const y = h - (remapContraste(peakArr[bin], _lo, _hi) / 255) * h;
+        if(x === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim() || '#FFD600';
+      g.lineWidth = 1 * (window.devicePixelRatio || 1);
+      g.stroke();
+    }
   }
 
   // Chute d'eau : on décale l'image entière d'une ligne vers le bas puis on
@@ -899,6 +929,20 @@ if(localStorage.getItem('rc_theme') === null){
       floor.value = contrasteFloor; localStorage.setItem('rc_pa_floor', String(contrasteFloor)); };
     ceil.oninput = () => { contrasteCeil = Math.max(parseInt(ceil.value, 10) || 255, contrasteFloor + 5);
       ceil.value = contrasteCeil; localStorage.setItem('rc_pa_ceil', String(contrasteCeil)); };
+  })();
+
+  // Peak hold : bouton bascule (persisté). Réinitialise la crête à chaque
+  // (dés)activation pour ne pas garder un maximum périmé.
+  (function initPeak(){
+    const b = document.getElementById('paPeak');
+    if(!b) return;
+    if(peakHoldOn) b.classList.add('on');
+    b.onclick = () => {
+      peakHoldOn = !peakHoldOn;
+      peakArr = null;
+      b.classList.toggle('on', peakHoldOn);
+      localStorage.setItem('rc_pa_peak', peakHoldOn ? '1' : '0');
+    };
   })();
 
   window.addEventListener('beforeunload', arreter);
