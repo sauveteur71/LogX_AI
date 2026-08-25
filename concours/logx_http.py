@@ -4474,9 +4474,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Crédit CHASSE : ce que chaque spot apporte de NOUVEAU (ATNO,
             # nouvelle bande/mode, confirmation LoTW manquante) + score, en UNE
             # passe (voir logx_awards.annoter_credit / logx_chasse_priorite).
-            # objectifs = profil d'objectifs opérateur (None -> tout actif).
+            # objectifs = profil d'objectifs opérateur PERSISTÉ (stockage dédié,
+            # source de vérité partagée avec l'UI CHASSE — jamais la config).
             try:
-                _aw.annoter_credit(spots, log_copy, objectifs=cfg_snap.get('operator_goals'))
+                import logx_operator_goals as _og
+                _aw.annoter_credit(spots, log_copy, objectifs=_og.charger())
             except Exception:
                 pass
 
@@ -4560,6 +4562,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'carres_manquants': carres[:60],
                 'contest_actif': (meta or {}).get('contest_actif', False),
             })
+            return
+
+        # Profil d'OBJECTIFS opérateur (option b, F4GLD 26/08/2026) : source de
+        # vérité PARTAGÉE avec le moteur de crédit CHASSE, dans un fichier DÉDIÉ
+        # (jamais la config critique). Lecture seule ici ; l'écriture passe par
+        # le POST /data/operator_goals.
+        if path == '/data/operator_goals':
+            import logx_operator_goals as _og
+            self._json({'goals': _og.charger()})
             return
 
         if path == '/data/spots_ranked':
@@ -4647,9 +4658,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 awards.annoter_besoin_lotw(full_entries, log_copy)
                 # Crédit CHASSE : ATNO / nouvelle bande / nouveau mode /
                 # confirmation manquante + score, en UNE passe (le meme
-                # log_copy). objectifs = profil operateur (None -> tout actif).
+                # log_copy). objectifs = profil operateur PERSISTE (stockage
+                # dedie, meme verite que l'UI CHASSE).
+                import logx_operator_goals as _og
                 awards.annoter_credit(full_entries, log_copy,
-                                      objectifs=cfg_snap.get('operator_goals'))
+                                      objectifs=_og.charger())
             except Exception:
                 pass
             alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
@@ -5771,6 +5784,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Réglage partagé entre postes à dessein — en multi-op, deux écrans qui
         # affichent des listes de spots différentes sans que personne ne sache
         # pourquoi, c'est la garantie d'un multiplicateur perdu.
+        # Profil d'objectifs opérateur — écriture (option b). Stockage DÉDIÉ,
+        # isolé de current_config : un payload client fautif ne peut pas
+        # corrompre la config. normaliser() (dans le module) jette les clés
+        # inconnues et coerce en booléens ; on renvoie l'état réellement écrit.
+        if self.path == '/data/operator_goals':
+            try:
+                import logx_operator_goals as _og
+                payload = json.loads(body) if body else {}
+                goals = _og.enregistrer(payload.get('goals', payload))
+                self._json({'ok': True, 'goals': goals})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
         if self.path == '/spots/filter':
             try:
                 import logx_spotfilter as spotfilter
