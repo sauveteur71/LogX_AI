@@ -963,6 +963,33 @@ if(localStorage.getItem('rc_theme') === null){
   // chemin manuel la donne à retenirPariteCorrespondant. Un seul paramètre
   // sert les deux — en garder deux aurait été le début d'une divergence.
   function repondreEtEnvoyer(text, slotEntendu){
+    // COPILOTE : un double-clic sur un CQ (ou une station) PROPOSE l'appel
+    // initial « CIBLE MONCALL MAGRILLE » dans la barre de consentement, il
+    // n'émet JAMAIS seul — ÉMETTRE (geste humain) déclenche l'émission au
+    // prochain créneau. La suite du QSO est prise par le hook auto de
+    // ajouterDecodage (reponseFt8). Propose-only : le seul envoyerMessage est
+    // dans le callback de confirmation.
+    if(seqNiveau === 'copilote' && typeof LogxFt8Copilote !== 'undefined'
+       && typeof LogxTxBar !== 'undefined'){
+      afficherAppelSelectionne(text);
+      if(slotEntendu !== undefined) retenirPariteCorrespondant(slotEntendu);
+      const cible = seqCibleDepuisDecodage(text);
+      if(!cible){
+        proposerReponse(text);
+        const el = document.getElementById('seqEtat');
+        if(el){ el.textContent = "Ce message n'appelle personne à qui répondre "
+                               + "(QSO entre deux autres stations) : rien n'a été proposé.";
+                el.className = 'tx-status wait'; }
+        return;
+      }
+      const msg = LogxFt8Copilote.appelInitial(cible, myCall, myGrid);
+      if(!msg) return;
+      LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(cible, msg);
+      const p = LogxFt8Copilote.messagePropose(msg, cible,
+                  Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
+      LogxTxBar.proposer(p, function(){ envoyerMessage(msg); });
+      return;
+    }
     // MODE D'ENVOI autre que « manuel » : le double-clic ne prépare plus un
     // message isolé, il désigne une STATION à contacter. La cible est
     // extraite par seqCibleDepuisDecodage(), jamais recopiée du message :
