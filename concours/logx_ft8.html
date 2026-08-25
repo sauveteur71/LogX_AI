@@ -199,6 +199,18 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   border-radius:6px;padding:7px 9px;font-family:var(--font-mono);font-size:13px}
 .seq-barre .tx-status{flex:1;min-width:200px;padding-bottom:8px}
 .tx-status{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.copilote-file{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2)}
+.copilote-file .cf-titre{font-family:var(--font-mono);font-size:11px;color:var(--muted);
+  letter-spacing:.5px;margin-right:2px}
+.copilote-file .cf-item{font-family:var(--font-mono);font-size:12px;cursor:pointer;
+  padding:4px 9px;border-radius:999px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--fg,#E9E6DF)}
+.copilote-file .cf-item:hover{border-color:var(--accent)}
+.copilote-file .cf-item.cf-neuf{color:var(--green);border-color:rgba(var(--green-rgb,87,184,95),.5)}
+.copilote-file .cf-item.cf-manuel{background:rgba(var(--accent-rgb),.18);color:var(--accent);
+  border-color:var(--accent)}
+.copilote-file .cf-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 /* accent-color plutôt qu'un curseur redessiné : le cuivre de la charte suit
    les deux thèmes tout seul, et on garde le rendu natif — donc le clavier,
    le focus et le tactile du navigateur, sans les réécrire.
@@ -547,6 +559,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           RRR/73 SANS validation humaine à chaque étape. ■ STOP SÉQUENCE ou Échap
           arrêtent tout, immédiatement.
         </div>
+        <!-- File d'attente du copilote (pile-up) : stations en attente, prises à
+             la suite. ★ = nouveau DXCC (priorisé). Clic = prioriser manuellement. -->
+        <div class="copilote-file" id="copiloteFile" style="display:none"></div>
       </div>
       <!-- Alarme de dernier recours : affichée UNIQUEMENT quand le relâchement
            du PTT a échoué malgré les réessais. À ce stade le logiciel ne peut
@@ -1990,6 +2005,68 @@ if(localStorage.getItem('rc_theme') === null){
   // la boucle du séquenceur, il trace lui-même reports/grille au fil des
   // décodes). {dxCall, rst_sent, rst_rcvd, locator} ou null.
   let _copiloteQso = null;
+  let _copiloteFile = [];        // file d'attente pile-up (max 10, pris à la suite)
+  let _copiloteManuel = '';      // station cliquée par l'opérateur -> priorité absolue
+  let _copiloteNouveauxDxcc = []; // indicatifs marqués « nouveau DXCC » (enhancement en ligne)
+
+  // Rendu de la file d'attente (liste cliquable : un clic priorise la station).
+  // Nouveau DXCC marqué. textContent partout (indicatifs = données décodées).
+  function _rendreFile(){
+    const el = document.getElementById('copiloteFile');
+    if(!el) return;
+    if(!_copiloteFile.length){ el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = '';
+    el.textContent = '';
+    const titre = document.createElement('span');
+    titre.className = 'cf-titre';
+    titre.textContent = 'File (' + _copiloteFile.length + '/' + LogxFt8Copilote.FILE_MAX + ') :';
+    el.appendChild(titre);
+    _copiloteFile.forEach(function(dx){
+      const b = document.createElement('button');
+      b.className = 'cf-item';
+      const nouv = _copiloteNouveauxDxcc.indexOf(dx) !== -1;
+      if(nouv) b.classList.add('cf-neuf');
+      if(_copiloteManuel === dx) b.classList.add('cf-manuel');
+      b.textContent = (nouv ? '★ ' : '') + dx;              // ★ = nouveau DXCC
+      b.title = (nouv ? 'Nouveau DXCC — priorisé. ' : '') + 'Clic : prioriser cette station';
+      b.addEventListener('click', function(){ _copiloteManuel = dx; _rendreFile(); });
+      el.appendChild(b);
+    });
+  }
+
+  // Marque `dx` nouveau DXCC si le serveur le confirme (besoin LoTW « jamais
+  // confirmé »). ENHANCEMENT EN LIGNE : hors ligne / endpoint muet -> pas de
+  // marque -> la file reste en FIFO (offline-first). Ne bloque jamais.
+  function _marquerNouveauDxcc(dx){
+    try{
+      const bande = (typeof rigFreqKhz === 'number' && rigFreqKhz) ? bandeDepuisKhz(rigFreqKhz) : '';
+      fetch('/dxcc/besoin?call=' + encodeURIComponent(dx) + '&band=' + encodeURIComponent(bande||'') + '&mode=FT8')
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if(j && j.besoin && j.raison === 'jamais_confirme' && _copiloteNouveauxDxcc.indexOf(dx) === -1){
+            _copiloteNouveauxDxcc.push(dx); _rendreFile();
+          }
+        }).catch(function(){});   // hors ligne : on reste en FIFO
+    }catch(e){}
+  }
+
+  // Prend la station suivante de la file (priorité : manuel > nouveau DXCC >
+  // FIFO) et PROPOSE l'appel initial. Propose-only : émission dans le callback.
+  function _prendreSuivantFile(){
+    const dx = LogxFt8Copilote.prochainFile(_copiloteFile, _copiloteNouveauxDxcc, _copiloteManuel);
+    if(!dx){ _rendreFile(); return; }
+    _copiloteFile = LogxFt8Copilote.retirerFile(_copiloteFile, dx);
+    if(_copiloteManuel === dx) _copiloteManuel = '';
+    _copiloteNouveauxDxcc = _copiloteNouveauxDxcc.filter(function(x){ return x !== dx; });
+    _rendreFile();
+    const msg = LogxFt8Copilote.appelInitial(dx, myCall, myGrid);
+    if(!msg) return;
+    _copiloteQsoInit(dx, '');
+    LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(dx, msg);
+    const p = LogxFt8Copilote.messagePropose(msg, dx,
+                Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
+    LogxTxBar.proposer(p, function(){ envoyerMessage(msg); });
+  }
 
   // Démarre/rattache le suivi à `cible` (réponse à un CQ : on connaît déjà la
   // grille). Repart à zéro si on change de station.
@@ -2023,6 +2100,7 @@ if(localStorage.getItem('rc_theme') === null){
                         locator: _copiloteQso.locator, dist: dist});
     }
     _copiloteQso = null;
+    _prendreSuivantFile();   // QSO fini -> station suivante de la file (à la suite)
   }
 
   function _copiloteProposer(text, snrDb){
@@ -2032,7 +2110,14 @@ if(localStorage.getItem('rc_theme') === null){
     // on reste dessus (premier appelant d'abord) plutôt que d'écraser la barre.
     const _dx = (String(text).trim().toUpperCase().split(/\s+/)[1]) || '';
     if(LogxFt8Copilote.doitIgnorerPileup(LogxTxBar.state === 'prepared',
-         _copiloteQso ? _copiloteQso.dxCall : '', _dx)) return;
+         _copiloteQso ? _copiloteQso.dxCall : '', _dx)){
+      // Pile-up : on met l'appelant EN FILE (max 10), pris à la suite après le
+      // QSO en cours. On interroge le serveur pour le prioriser si nouveau DXCC.
+      const avant = _copiloteFile.length;
+      _copiloteFile = LogxFt8Copilote.ajouterFile(_copiloteFile, _dx);
+      if(_copiloteFile.length !== avant){ _marquerNouveauDxcc(_dx); _rendreFile(); }
+      return;
+    }
     _copiloteTracer(text);                             // journalisation (maj état + log si clôture)
     const r = LogxFt8Copilote.reponseFt8(text, snrDb, myCall);
     if(!r) return;                                     // rien à proposer (pas pour moi / QSO fini)

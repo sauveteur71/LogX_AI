@@ -132,12 +132,59 @@
     return !!(barPreparee && a && a !== d);
   }
 
+  // File d'attente pile-up (max 10) : les autres appelants sont mis en file
+  // pendant un QSO et pris À LA SUITE (F4GLD). FIFO, dédup insensible à la
+  // casse, plafond FILE_MAX. Fonctions PURES (renvoient une nouvelle liste).
+  var FILE_MAX = 10;
+  function ajouterFile(file, dx, max) {
+    max = max || FILE_MAX;
+    var d = String(dx || '').trim().toUpperCase();
+    var out = (file || []).slice();
+    if (!d || out.length >= max) { return out; }              // vide ou file pleine
+    for (var i = 0; i < out.length; i++) {
+      if (String(out[i]).toUpperCase() === d) { return out; } // déjà en file
+    }
+    out.push(d);
+    return out;
+  }
+  function retirerFile(file, dx) {
+    var d = String(dx || '').trim().toUpperCase();
+    return (file || []).filter(function (x) { return String(x).toUpperCase() !== d; });
+  }
+
+  // Prochaine station à prendre dans la file, par ordre de PRIORITÉ :
+  //   1. `manuel` — station cliquée par l'opérateur (ex. un copain), bat tout ;
+  //   2. NOUVEAU DXCC (`prioritaires`) — F4GLD « toujours prioriser les
+  //      nouveaux DXCC » ; à égalité le premier arrivé (FIFO) ;
+  //   3. sinon pur FIFO (à la suite).
+  // `prioritaires` vide (hors ligne / info absente) -> FIFO, offline-first.
+  // '' si file vide. `manuel`/`prioritaires` absents de la file -> ignorés.
+  function prochainFile(file, prioritaires, manuel) {
+    file = file || [];
+    if (!file.length) { return ''; }
+    var m = String(manuel || '').toUpperCase();
+    if (m) {
+      for (var j = 0; j < file.length; j++) {
+        if (String(file[j]).toUpperCase() === m) { return file[j]; }
+      }
+    }
+    var prio = (prioritaires || []).map(function (c) { return String(c).toUpperCase(); });
+    for (var i = 0; i < file.length; i++) {
+      if (prio.indexOf(String(file[i]).toUpperCase()) !== -1) { return file[i]; }
+    }
+    return file[0];
+  }
+
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
     doitIgnorerPileup: doitIgnorerPileup,
+    ajouterFile: ajouterFile,
+    retirerFile: retirerFile,
+    prochainFile: prochainFile,
+    FILE_MAX: FILE_MAX,
     extraireReport: extraireReport,
     extraireGrille: extraireGrille,
     estFinQso: estFinQso,
