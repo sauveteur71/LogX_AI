@@ -161,6 +161,11 @@ def _points_value(rule, ctx, scoring):
         # kilometers »). Ex. 1750 km -> 4 pts. per_km (km bruts) reste réservé
         # aux concours VHF/THF où le point EST la distance.
         return 1 + int(ctx['dist_km'] // 500)
+    if v == 'per_grid_3000':
+        # International FT Challenge : « one (1) point plus one (1) point for each
+        # 3000 km between Grid Square centers » (rttycontesting.com/ft-challenge).
+        # Locator manquant (ZZ00) -> distance nulle -> 1 pt seulement.
+        return 1 + int(ctx['dist_km'] // 3000)
     return v
 
 def _eval_points(rules, ctx, scoring):
@@ -567,6 +572,13 @@ LEGACY_SCORING_PRESETS = {
         'points': [{'when': 'always', 'points': 1}],
         'multiplier': {'kind': 'rtty_ru'},
     },
+    # International FT Challenge — 1 pt + 1 pt par tranche de 3000 km entre
+    # centres de locators ; multiplicateur = CHAMP de grille (2 car) PAR BANDE
+    # (rttycontesting.com/ft-challenge). ZZ ne compte pas.
+    'grid_field_distance': {
+        'points': [{'when': 'always', 'points': 'per_grid_3000'}],
+        'multiplier': {'kind': 'grid_field'},
+    },
     # pts × préfixes uniques (CQ WPX) — les définitions déclarent 3/1/1
     'prefix_multiplier': {
         'points': [
@@ -730,6 +742,13 @@ def _mult_entries(kind, q):
     if kind == 'large_square':
         sq = get_large_locator(q.get('locator', ''))
         return [('square', sq)] if sq else []
+    if kind == 'grid_field':
+        # FT Challenge : multiplicateur = CHAMP de grille (2 premiers caractères
+        # du locator, ex. 'FN'), PAR BANDE. 'ZZ' (grille manquante, ZZ00) ne
+        # compte pas (« ZZ does not count as a multiplier »).
+        loc = str(q.get('locator', '')).strip().upper()
+        field = loc[:2] if len(loc) >= 2 else ''
+        return [('field', field)] if field and field != 'ZZ' else []
     if kind == 'dept_dxcc':
         c = dxcc.country_key(base)
         if PREDICATES['is_french']({'dx_country': c}):
