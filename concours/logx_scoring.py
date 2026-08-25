@@ -549,6 +549,17 @@ LEGACY_SCORING_PRESETS = {
         ],
         'multiplier': {'kind': 'zone_dxcc'},
     },
+    # ARRL RTTY Roundup — 1 pt/QSO (arrl.org, vérifié 25/08). Multiplicateur =
+    # états US + provinces VE + entités DXCC (hors US/Canada), comptés UNE FOIS
+    # AU TOTAL (« Each multiplier counts once, not once per band »). Cette
+    # structure ALL-BAND n'existe pas dans le moteur per-band : on laisse
+    # multiplier=None (points corrects, aucun mult AUTOMATIQUE) plutôt que de mal
+    # compter avec un multiplicateur par bande. Le mult all-band est un
+    # RAFFINEMENT à ajouter (mécanisme de mult toutes-bandes).
+    'rtty_roundup': {
+        'points': [{'when': 'always', 'points': 1}],
+        'multiplier': None,
+    },
     # pts × préfixes uniques (CQ WPX) — les définitions déclarent 3/1/1
     'prefix_multiplier': {
         'points': [

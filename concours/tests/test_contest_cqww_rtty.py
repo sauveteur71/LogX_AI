@@ -39,3 +39,20 @@ def test_bareme_rtty_1_2_3_sans_regle_wve():
     assert pts.get('same_continent') == 2
     assert pts.get('always') == 3
     assert 'na_w_ve' not in pts                            # pas de bonus W/VE
+
+
+# ─── ARRL RTTY Roundup ───────────────────────────────────────────────────────
+
+def test_rtty_roundup_present_et_valide():
+    assert 'ARRL_RTTY_ROUNDUP' in CONTEST_DEFINITIONS
+    d = CONTEST_DEFINITIONS['ARRL_RTTY_ROUNDUP']
+    assert d['bands'] == ['3.5', '7', '14', '21', '28'] and d['modes'] == ['RTTY']
+    assert d['cabrillo_name'] == 'ARRL-RTTY'
+    erreurs = validate.validate_definition(d, 'ARRL_RTTY_ROUNDUP')
+    assert erreurs == [], erreurs
+
+
+def test_rtty_roundup_bareme_1_point():
+    preset = scoring.LEGACY_SCORING_PRESETS['rtty_roundup']
+    assert preset['points'] == [{'when': 'always', 'points': 1}]
+    assert preset['multiplier'] is None                   # mult all-band non auto

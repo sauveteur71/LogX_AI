@@ -454,6 +454,31 @@ CONTEST_DEFINITIONS = {
         'log_deadline': '5_days_after',
         'log_submit': 'https://cqwwrtty.com/logcheck/',
     },
+    'ARRL_RTTY_ROUNDUP': {
+        'name': 'ARRL RTTY Roundup',
+        'organizer': 'ARRL',
+        'check_url': 'http://www.arrl.org/rtty-roundup',
+        'rules_url': 'https://contests.arrl.org/ContestRules/RTTY-RU-Rules.pdf',
+        'date_rule': 'first_full_weekend_january',
+        'duration_h': 24, 'start_utc': '18:00',
+        'bands': ['3.5', '7', '14', '21', '28'],
+        'modes': ['RTTY'],
+        # W/VE : RST + état/province ; DX : RST + n° de série (règlement ARRL).
+        'exchange': 'RST + état/province (W/VE) ou RST + N°série (DX)',
+        'cabrillo_name': 'ARRL-RTTY',
+        'cabrillo_exchange': ['rst', 'exch'],
+        'scoring': {
+            'type': 'rtty_roundup',
+            'multiplier': ('états US + provinces VE + entités DXCC (hors US/Canada), '
+                           'comptés UNE FOIS au total (pas par bande)'),
+            'unit': 'QSO_pts (1/QSO) × (états + provinces + DXCC hors US/VE, all-band)',
+            'note': ('1 pt/QSO SOURCÉ arrl.org. Le mult all-band (compté une fois, '
+                     'pas par bande) n\'est pas encore automatisé — moteur per-band ; '
+                     'refinement : mécanisme de multiplicateur toutes-bandes.'),
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '7_days_after',
+    },
 
     # ── World Wide Award (hamaward.cloud) ──────────────────────────────────
     # PAS un concours classique : les hunters ne marquent des points qu'en
