@@ -221,6 +221,22 @@ qui bouge selon la fréquence du poste) et #273 (plus de champ heure de fin,
 heure gravée à l'enregistrement) non encore vérifiés en navigateur dans les
 deux thèmes — à faire avant de considérer clos côté UI.
 
+#### 26/08/2026 — autonomie zone blanche + outillage vidéo
+
+| PR | Ce que ça fait |
+|---|---|
+| #274 | **Repli CDN local** (demande F4GLD, lève le verrou de la fiche « ne pas corriger sans demande »). Leaflet 1.9.4 + Chart.js 4.5.1 **vendorisés** dans `concours/vendor/` (leaflet.min.js/css + images/, chart.umd.min.js), stockés verbatim (`.gitattributes : concours/vendor/** binary`). 5 pages (carte, départements, logbook, wall, websdr) repointées local (`/vendor/…`, sans SRI — même origine) → **zéro CDN externe .js/.css** (une station /P en zone blanche charge la carte + les stats au lieu de mourir sur `L`/`Chart` undefined). `logx_sw.js` précache les 3 libs (SHELL, CACHE v1→v2). **Vérifié ≠ cru** : la « regex cassée sw.js:29 » de la fiche était FAUSSE pour le code actuel (`logx_sw.js`, regex ancrée `(\/|$)`, déjà corrigée) → non touchée. `test_sri_cdn_externe` repurposé : contre-épreuve « ≥5 CDN » → invariant PLUS FORT « zéro CDN externe ». Hors scope assumé : Google Fonts `@import`. |
+| #275 | **Skill projet `radio-video-analysis`** (`.claude/skills/`, git-tracké, même convention que `adif-validation`/`tx-human-consent`). Complément métier du plugin `watch` (`bradautomates/claude-video`, `/watch` = téléchargement + frames horodatées + transcription) : `watch` fait VOIR/ENTENDRE la vidéo, ce skill dit QUOI extraire (radio/firmware/logiciel/CAT/série/CI-V/mode/PTT/split/audio/FT8/câblage/menus/erreurs + timestamps) et COMMENT le restituer. Garde-fous : CONFIRMÉ/PROBABLE/INCONNU, jamais une commande CAT universelle, comparer au manuel officiel, JAMAIS de PTT/RF, jamais de secret copié. `disable-model-invocation: true` → `/radio-video-analysis` seulement. |
+
+**Outillage `watch` (hors dépôt, poste F4GLD)** : dépendances préparées —
+`ffmpeg` déjà présent (winget v9.0, PATH), `yt-dlp` installé (pip 2026.08.19)
+et son dossier ajouté au **PATH utilisateur** (winget bloqué par une erreur de
+certificat = interception réseau locale, même artefact que le reset des grosses
+réponses localhost). **Reste à la main de F4GLD** (commandes TUI `/plugin`
+qu'un agent ne peut pas taper) : `/plugin marketplace add bradautomates/
+claude-video` puis `/plugin install watch@claude-video`, puis **redémarrer la
+session** pour que `watch` ET `radio-video-analysis` soient découverts.
+
 ### En attente d'un essai sur l'air
 
 ✅ **PR #179 — mode Automatique FT8 : ESSAI SUR L'AIR SUPERVISÉ FAIT
