@@ -50,6 +50,14 @@ PROGRAM_SPECS = {
     'WCA': {'name': 'World Castles Award',      'sig': 'WCA',
             'ref_re': r'^[A-Z0-9]{1,4}-\d{4,5}$', 'min_qso': 50,
             'p2p': 'Castle-to-Castle', 'example': 'DL-00001'},
+    # WWBOTA (World Wide Bunkers on the Air) — vérifié sur wwbota.net : réf
+    # « B/<code pays>-nnnn » (le code pays fait 1 à 3 caractères : G, US, E7…),
+    # activation HF valide à 25 QSO (10 en VHF, non modélisé ici — seuil HF
+    # retenu, comme POTA=10). Pas de champ ADIF dédié aux bunkers -> mécanisme
+    # générique SIG/SIG_INFO, comme ARLHS et WCA.
+    'WWBOTA': {'name': 'World Wide Bunkers on the Air', 'sig': 'WWBOTA',
+               'ref_re': r'^B/[A-Z0-9]{1,3}-\d{4}$', 'min_qso': 25,
+               'p2p': 'Bunker-to-Bunker', 'example': 'B/G-0001'},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
