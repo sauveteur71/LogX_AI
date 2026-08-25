@@ -312,6 +312,9 @@ _ADIF_STD_TAGS = {
     # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
     'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
     'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
+    # IA-2 (lot 5) : pays/continent/zones dérivables (émis + mappés à l'import
+    # -> pas de perte via extra_fields, cf. revue B).
+    'COUNTRY', 'CONT', 'MY_COUNTRY', 'MY_CQ_ZONE', 'MY_ITU_ZONE',
     # NOTE (correctif de revue) : SUBMODE et les tags de confirmation REÇUE
     # (LOTW_QSL_RCVD/QSLRDATE…) ne figurent VOLONTAIREMENT PAS dans cet ensemble.
     # Ils sont émis conditionnellement (SUBMODE seulement pour FT2 via _adif_mode ;
@@ -487,6 +490,16 @@ def build_adif(qsos, cfg=None, confirmations=None, completer=False):
             _adif_field('my_sig_info', q.get('my_sig_info', '')),
             _adif_field('sig', q.get('sig', '')),
             _adif_field('sig_info', q.get('sig_info', '')),
+            # IA-2 (lot 5) : pays/continent/zones — émis dès qu'ils sont présents
+            # sur le QSO (saisis ou complétés par `completer`). Noms ADIF sourcés
+            # adif.org/315 : côté correspondant COUNTRY/CONT ; côté station
+            # MY_COUNTRY/MY_CQ_ZONE/MY_ITU_ZONE (l'asymétrie CQZ/ITUZ vs
+            # MY_CQ_ZONE/MY_ITU_ZONE est celle de la norme, pas une coquille).
+            _adif_field('country', q.get('dxcc_country', '')),
+            _adif_field('cont', q.get('continent', '')),
+            _adif_field('my_country', q.get('my_dxcc_country', '')),
+            _adif_field('my_cq_zone', q.get('my_cqz', '')),
+            _adif_field('my_itu_zone', q.get('my_ituz', '')),
             # Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A).
             # Tags de l'énumération/spec ADIF (citables) ; operating_location n'a
             # pas de tag ADIF standard -> champ d'appli APP_LOGX_OPERATING (préfixe

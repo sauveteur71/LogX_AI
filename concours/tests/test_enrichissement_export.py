@@ -81,3 +81,30 @@ def test_archive_et_backup_completent():
     for module in ('logx_archive.py', 'logx_backup.py'):
         appels = _appels_build_adif(module)
         assert appels and all('completer' in kw for kw in appels), (module, appels)
+
+
+# ─── Lot 5 : COUNTRY/CONT + MY_COUNTRY/MY_CQ_ZONE/MY_ITU_ZONE ────────────────
+# Noms de tags ADIF sourcés adif.org/315 (asymétrie CQZ/ITUZ vs MY_CQ_ZONE/
+# MY_ITU_ZONE confirmée).
+
+def test_completer_emet_country_et_continent():
+    adif = export.build_adif([_q()], {}, completer=True).upper()   # W1AW -> USA / NA
+    assert '<COUNTRY:' in adif and '<CONT:2>NA' in adif, adif
+
+
+def test_completer_emet_my_country_et_zones_avec_config():
+    adif = export.build_adif([_q()], {'callsign': 'W1AW'}, completer=True).upper()
+    assert '<MY_COUNTRY:' in adif, adif
+    assert '<MY_CQ_ZONE:' in adif and '<MY_ITU_ZONE:' in adif, adif
+
+
+def test_country_importe_survit_au_reexport():
+    # symétrie : COUNTRY importé -> clé interne -> ré-émis (pas de perte via
+    # extra_fields, leçon de la revue B).
+    import logx_import as imp
+    adif_in = ("<CALL:4>W1AW<BAND:3>20m<MODE:3>SSB<QSO_DATE:8>20260101"
+               "<TIME_ON:4>1200<COUNTRY:13>United States<CONT:2>NA<EOR>")
+    qsos, err = imp.parse_adif_to_qsos(adif_in)
+    assert not err and qsos[0].get('dxcc_country') == 'United States', qsos
+    adif_out = export.build_adif(qsos, {}).upper()      # sans completer
+    assert '<COUNTRY:13>UNITED STATES' in adif_out, adif_out
