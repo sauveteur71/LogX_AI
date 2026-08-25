@@ -2160,6 +2160,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'entries': cwj.entrees(limite)})
             return
 
+        # Journal d'audit d'émission (consentement « émission unique ») : ce qui
+        # a été RÉELLEMENT autorisé+émis + les Stop TX. En mémoire, UTC.
+        if path == '/tx/audit':
+            from urllib.parse import parse_qs, urlparse
+            import logx_tx_consent as txc
+            limite = parse_qs(urlparse(self.path).query).get('n', ['200'])[0]
+            self._json({'ok': True, 'tx_locked': txc.is_tx_locked(),
+                        'entries': txc.audit_entries(limite)})
+            return
+
         # Info réseau (IP locale pour les clients WiFi)
         if path == '/network/info':
             import socket as _sock
@@ -6263,6 +6273,125 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # dans les deux cas, le verrou pris pour CETTE radio doit retomber.
                 so2r.deverrouiller_tx(radio_active)
             self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # ── Consentement d'émission « ÉMISSION UNIQUE » (logx_tx_consent) ────
+        # Politique F4GLD : l'IA PRÉPARE une émission, l'HUMAIN la déclenche.
+        # /tx/prepare crée un jeton à partir de l'aperçu que l'humain vient de
+        # VALIDER ; /tx/authorize relit l'état radio RÉEL, contrôle le jeton +
+        # le garde-fou mode/bande, PUIS seulement déclenche le PTT.
+        if self.path == '/tx/prepare':
+            import logx_tx_consent as txc
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            try:
+                c = txc.create_tx_consent(
+                    operator_callsign=payload.get('operator', ''),
+                    radio_id=payload.get('radio_id', ''),
+                    frequency_hz=int(payload.get('frequency_hz') or 0),
+                    mode=payload.get('mode', ''),
+                    power_w=float(payload.get('power_w') or 0),
+                    message=payload.get('message', ''),
+                    ptt_method=payload.get('ptt_method', 'CAT'))
+            except (TypeError, ValueError) as e:
+                self._json({'ok': False, 'error': f"Paramètres d'émission invalides ({e})"}, 400)
+                return
+            txc.register(c)
+            self._json({'ok': True, 'token': c.token,
+                        'expires_at': c.expires_at.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        'preview': {'frequency_hz': c.frequency_hz, 'mode': c.mode,
+                                    'power_w': c.power_w, 'message': c.message}}, 200)
+            return
+
+        if self.path == '/tx/authorize':
+            import logx_tx_consent as txc
+            import logx_tx_guard as txg
+            import logx_so2r as so2r
+            import logx_voicekeyer as vk
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            c = txc.get(str(payload.get('token', '')))
+            if not c:
+                self._json({'ok': False, 'error': "Jeton d'autorisation inconnu, "
+                            "expiré ou déjà consommé"}, 404)
+                return
+            # Émission BORNÉE obligatoire (garde-fou : jamais de porteuse sans fin).
+            duree = payload.get('duree_max')
+            try:
+                duree_ok = duree not in (None, '') and float(duree) > 0
+            except (TypeError, ValueError):
+                duree_ok = False
+            if not duree_ok:
+                self._json({'ok': False, 'error': "Durée d'émission (duree_max) "
+                            "requise et bornée pour une émission unique"}, 400)
+                return
+            radio_active = so2r.focus()['focus']
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
+            cat_state = _rig_state_dict(cfg_snap)
+            # 1) Garde-fou mode/bande (READ-ONLY) — état RÉEL du VFO qui émet, pas
+            #    la requête. Fait AVANT authorize_transmission qui, lui, CONSOMME
+            #    le jeton : un refus de garde-fou ne doit pas brûler le jeton.
+            famille = 'cw' if str(c.mode).upper().startswith('CW') else 'phonie'
+            guard_payload = {'armed': payload.get('armed'),
+                             'mode': cat_state.get('mode') or c.mode,
+                             'freq_khz': cat_state.get('freq_khz')}
+            ok_g, raison_g = txg.tx_autorise(guard_payload, famille)
+            if not ok_g:
+                self._json({'ok': False, 'error': raison_g, 'blocked': True}, 403)
+                return
+            # 2) Contrôle de consentement : relit l'état CAT réel, le compare au
+            #    jeton (freq/mode/CAT/verrou), et CONSOMME le jeton (usage unique).
+            rs = txc.radio_state_from_cat(cat_state, c, locked=txc.is_tx_locked())
+            try:
+                entry = txc.authorize_transmission(c, rs)
+            except (PermissionError, ConnectionError) as e:
+                self._json({'ok': False, 'error': str(e), 'blocked': True}, 403)
+                return
+            # 3) Déclenchement PTT RÉEL (émission unique bornée) via le chemin PTT
+            #    existant (verrou SO2R + chien de garde série du voicekeyer).
+            verrou = so2r.verrouiller_tx(radio_active, 'ptt')
+            if not verrou.get('ok'):
+                self._json(verrou, 409)
+                return
+            res = vk.set_ptt(cfg_snap, True, duree_max_s=duree)
+            if not res.get('ok'):
+                so2r.deverrouiller_tx(radio_active)
+                self._json({'ok': False, 'error': res.get('error', 'PTT refusé par la radio')}, 400)
+                return
+            txc.journal_audit(entry)   # audit UTC de ce qui a RÉELLEMENT été autorisé+émis
+            self._json({'ok': True, 'audit': entry}, 200)
+            return
+
+        if self.path == '/tx/stop':
+            # Arrêt d'urgence : annule tous les consentements, pose le verrou TX
+            # serveur ET coupe le PTT matériel immédiatement.
+            import logx_tx_consent as txc
+            import logx_so2r as so2r
+            import logx_voicekeyer as vk
+            n = txc.stop_tx()
+            ptt_err = None
+            try:
+                radio_active = so2r.focus()['focus']
+                cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
+                vk.set_ptt(cfg_snap, False)
+                so2r.deverrouiller_tx(radio_active)
+            except Exception as e:
+                ptt_err = str(e)
+            out = {'ok': True, 'cancelled': n, 'tx_locked': True}
+            if ptt_err:
+                out['ptt_cut_error'] = ptt_err
+            self._json(out, 200)
+            return
+
+        if self.path == '/tx/rearm':
+            # Réarmement HUMAIN explicite après un Stop TX (jamais automatique).
+            import logx_tx_consent as txc
+            txc.unlock_tx()
+            self._json({'ok': True, 'tx_locked': False}, 200)
             return
 
         # Puissance TX auto par mode (protection du final en numérique 100%
