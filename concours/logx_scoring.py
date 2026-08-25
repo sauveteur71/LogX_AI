@@ -1075,7 +1075,7 @@ def _band_from_freq(freq):
     # (logx_wsjtx.py) l'a déjà — sans elle, un spot/décodage 4m tombait dans
     # le repli str(int(mhz)) au lieu de la clé '70' attendue par
     # _MAX_PLAUSIBLE_KM et le reste du scoring par bande.
-    for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
+    for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (5.06, 5.45, '5'), (7.0, 7.3, '7'),
                       (10.1, 10.15, '10.1'), (14.0, 14.35, '14'), (18.0, 18.2, '18'),
                       (21.0, 21.45, '21'), (24.8, 25.0, '24'), (28.0, 29.7, '28'),
                       (50, 54, '50'), (70, 71, '70'), (144, 148, '144'), (430, 440, '432')):

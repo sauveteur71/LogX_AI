@@ -80,7 +80,7 @@ const LEGACY_CONTEST_FILTERS = {
 
 // Correspondance valeur bande serveur (MHz brut, ex. '144') → clé toggle.
 const BAND_TOGGLE_KEY = {
-  '1.8':   'band_160m', '3.5':   'band_80m',  '7':     'band_40m',
+  '1.8':   'band_160m', '3.5':   'band_80m',  '5':     'band_60m',  '7':     'band_40m',
   '10.1':  'band_30m',  '14':    'band_20m',  '18':    'band_17m',
   '21':    'band_15m',  '24':    'band_12m',  '28':    'band_10m',
   '50':    'band_6m',   '70':    'band_4m',    '144':   'band_2m',
