@@ -86,7 +86,8 @@
     preparePayload: preparePayload, authorizePayload: authorizePayload,
     nextState: nextState,
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
-    _voiceSource: 'auto'   // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
+    _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
+    _onConfirm: null       // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
   };
 
   // ── DOM + réseau (non testés unitairement, comme les autres modules) ──────
@@ -175,7 +176,11 @@
   }
 
   // ── API publique : l'IA appelle ceci pour PROPOSER une émission ──────────
-  LogxTxBar.proposer = function (em) {
+  // `onConfirm` (optionnel) : callback CLIENT à exécuter sur ÉMETTRE, à la
+  // place du chemin serveur /tx/authorize. Requis pour les modes dont
+  // l'émission est CÔTÉ CLIENT (ex. FT8 : audio natif + envoyerMessage()),
+  // que le garde-fou serveur voix/CW ne gère pas (modes data refusés).
+  LogxTxBar.proposer = function (em, onConfirm) {
     em = em || {};
     // La source voix choisie via le sélecteur s'applique si l'appelant (IA)
     // n'en impose pas une explicitement.
@@ -184,6 +189,18 @@
       for (var k in em) { if (Object.prototype.hasOwnProperty.call(em, k)) { merged[k] = em[k]; } }
       merged.voice_source = LogxTxBar._voiceSource; em = merged;
     }
+    // Chemin CLIENT : émission déclenchée par le callback local (pas le serveur).
+    if (typeof onConfirm === 'function') {
+      LogxTxBar._onConfirm = onConfirm;
+      LogxTxBar._em = em; LogxTxBar._token = null;
+      LogxTxBar._expires = new Date(Date.now() + TTL * 1000).toISOString();
+      LogxTxBar.state = nextState('idle', 'PREPARE');
+      _clearTimer(); LogxTxBar._timer = setInterval(_tick, 500); _tick();
+      _line('Émission préparée par l’IA — à toi de valider.', '');
+      _render();
+      return Promise.resolve('client');
+    }
+    LogxTxBar._onConfirm = null;
     return _post('/tx/prepare', preparePayload(em)).then(function (r) {
       if (r.status !== 200 || !r.json.ok) {
         _line((r.json && r.json.error) || 'Préparation refusée', 'blocked'); return null;
@@ -199,6 +216,22 @@
   LogxTxBar._emettre = function () {
     if (LogxTxBar.state !== 'prepared') { return; }
     LogxTxBar.state = nextState(LogxTxBar.state, 'EMIT'); _render();
+    // Chemin CLIENT : exécute le callback local (ex. FT8 envoyerMessage()) ; le
+    // garde-fou/PTT réel est celui du chemin d'émission client (déjà en place).
+    if (typeof LogxTxBar._onConfirm === 'function') {
+      var cb = LogxTxBar._onConfirm; LogxTxBar._onConfirm = null;
+      _clearTimer();
+      try {
+        cb();
+        LogxTxBar.state = nextState('emitting', 'DONE');
+        _line('Émis (copilote).', 'ok');
+      } catch (e) {
+        LogxTxBar.state = nextState('emitting', 'BLOCKED');
+        _line('Émission refusée : ' + e, 'blocked');
+      }
+      _render();
+      return Promise.resolve();
+    }
     var body = authorizePayload(LogxTxBar._token, DUREE_MAX_DEFAUT, LogxTxBar._armed);
     return _post('/tx/authorize', body).then(function (r) {
       if (r.status === 200 && r.json.ok) {
@@ -214,6 +247,7 @@
 
   LogxTxBar._stop = function () {
     _clearTimer();
+    LogxTxBar._onConfirm = null;   // annule aussi une proposition client (ex. FT8)
     return _post('/tx/stop', {}).then(function () {
       LogxTxBar.state = nextState(LogxTxBar.state, 'STOP');
       LogxTxBar._token = null;
