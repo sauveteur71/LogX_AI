@@ -211,6 +211,19 @@ function _majDeptGrid(){
       f.addEventListener('input', function(){ LogxDeptGrid.surligner(grid, f.value); });
     }
   }
+  if(_deptCibleId) _rafraichirDeptTravailles();                    // colore fait / à faire (mult)
+}
+// Colore la grille : départements DÉJÀ travaillés estompés, à faire visibles
+// (aide au multiplicateur). Lecture seule (/data/departments_worked), aucune
+// incidence sur le score. N'interroge le serveur QUE si la grille est visible.
+function _rafraichirDeptTravailles(){
+  if(!_deptCibleId || !window.LogxDeptGrid) return;
+  const grid = document.getElementById('deptGrid');
+  if(!grid) return;
+  fetch('/data/departments_worked')
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(d && Array.isArray(d.worked)) LogxDeptGrid.marquerTravailles(grid, d.worked); })
+    .catch(function(){});
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
@@ -3069,6 +3082,7 @@ function clearForm(){
   document.getElementById('inputLocator').value = '';
   const _dp = document.getElementById('inputDept'); if(_dp) _dp.value = '';   // override dept : propre au contact
   if(window.LogxDeptGrid) LogxDeptGrid.surligner(document.getElementById('deptGrid'), '');   // grille : plus rien de sélectionné
+  if(typeof _rafraichirDeptTravailles === 'function') _rafraichirDeptTravailles();   // QSO loggué -> maj fait/à faire
   // Champs par-QSO des onglets (lot 2-4) : vidés comme les autres champs propres
   // au contact. Les champs de MA station (puissance, matériel, antenne, lieu,
   // mes références) PERSISTENT d'un QSO à l'autre -- on ne les touche pas ici.

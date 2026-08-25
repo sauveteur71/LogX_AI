@@ -49,3 +49,16 @@ def test_override_vhf_persiste_et_prime():
     assert re.search(r"dept:\s*\(\(document\.getElementById\('inputDept'\)", js)
     # vidé au nouveau contact
     assert re.search(r"getElementById\('inputDept'\); if\(_dp\) _dp\.value = ''", js)
+
+
+def test_grille_marque_les_departements_travailles():
+    """Aide au multiplicateur : la grille estompe les dept déjà travaillés (lecture
+    seule /data/departments_worked). Aucune incidence sur le score."""
+    html = _lire('logx_logbook.html')
+    assert '.dept-cell.fait' in html                        # style « déjà fait »
+    js = _lire('logx_logbook.js')
+    assert "fetch('/data/departments_worked')" in js        # source lecture seule
+    assert 'LogxDeptGrid.marquerTravailles(' in js          # coloration
+    # rafraîchi après un QSO loggué (nouveau dept = nouveau mult)
+    m = re.search(r'function clearForm\(.*?\n\}', js, re.S)
+    assert m and '_rafraichirDeptTravailles()' in m.group(0)

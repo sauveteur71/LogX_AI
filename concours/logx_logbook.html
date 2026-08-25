@@ -274,6 +274,10 @@ body.sans-concours .compass-pts{display:none}
   border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--fg,#E9E6DF)}
 .dept-grid .dept-cell:hover{border-color:var(--accent);color:var(--accent)}
 .dept-grid .dept-cell.on{background:rgba(var(--accent-rgb),.20);border-color:var(--accent);color:var(--accent)}
+/* Déjà travaillé (diplôme départements) : estompé -> les dept À FAIRE (nouveaux
+   multiplicateurs) ressortent. Le vert sémantique dit « acquis ». */
+.dept-grid .dept-cell.fait{color:var(--green);border-color:rgba(var(--green-rgb,87,184,95),.35);opacity:.55}
+.dept-grid .dept-cell.fait.on{opacity:1}
 .dept-grid .dept-cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .op-btn{font-family:var(--font-mono);font-size:16px;padding:7px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;letter-spacing:1px;font-weight:600}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}

@@ -71,11 +71,26 @@
     }
   }
 
+  // Marque les départements DÉJÀ TRAVAILLÉS (classe 'fait', estompés) pour que
+  // les départements À FAIRE (= nouveaux multiplicateurs) ressortent d'un coup
+  // d'œil. `worked` : liste de codes (GET /data/departments_worked). Lecture
+  // seule, aucune incidence sur le score.
+  function marquerTravailles(container, worked) {
+    if (!container || !container.querySelectorAll) { return; }
+    var set = {};
+    (worked || []).forEach(function (c) { set[String(c).toUpperCase()] = 1; });
+    var cells = container.querySelectorAll('.dept-cell');
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].classList.toggle('fait', !!set[cells[i].getAttribute('data-dept')]);
+    }
+  }
+
   window.LogxDeptGrid = {
     codesMetro: codesMetro,
     doitAfficher: doitAfficher,
     champCible: champCible,
     render: render,
-    surligner: surligner
+    surligner: surligner,
+    marquerTravailles: marquerTravailles
   };
 })();
