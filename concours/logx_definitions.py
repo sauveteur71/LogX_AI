@@ -472,9 +472,40 @@ CONTEST_DEFINITIONS = {
             'multiplier': ('états US + provinces VE + entités DXCC (hors US/Canada), '
                            'comptés UNE FOIS au total (pas par bande)'),
             'unit': 'QSO_pts (1/QSO) × (états + provinces + DXCC hors US/VE, all-band)',
-            'note': ('1 pt/QSO SOURCÉ arrl.org. Le mult all-band (compté une fois, '
-                     'pas par bande) n\'est pas encore automatisé — moteur per-band ; '
-                     'refinement : mécanisme de multiplicateur toutes-bandes.'),
+            'note': ('1 pt/QSO SOURCÉ arrl.org. Multiplicateur all-band (états + '
+                     'provinces + DXCC hors US/Canada, compté une fois) AUTOMATISÉ '
+                     'depuis #254 via le kind rtty_ru.'),
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '7_days_after',
+    },
+
+    # ── FT Roundup (rttycontesting.com) ────────────────────────────────────
+    # DISCONTINUÉ (remplacé par le FT Challenge, un concours DIFFÉRENT à barème
+    # grille + distance). Conservé pour les logs historiques. Structure identique
+    # à l'ARRL RTTY Roundup mais en FT4/FT8 : 1 pt/QSO × (états US + DC + provinces
+    # VE + DXCC hors US/Canada), compté UNE FOIS toutes bandes (kind rtty_ru).
+    # W/VE : RST + état/province ; DX : RST + n° de série. KH6/KL7 = DXCC.
+    'FT_ROUNDUP': {
+        'name': 'FT Roundup',
+        'organizer': 'RTTY Contesting (rttycontesting.com)',
+        'check_url': 'https://www.rttycontesting.com/ft-roundup/rules/',
+        'rules_url': 'https://www.rttycontesting.com/ft-roundup/rules/',
+        'date_rule': 'first_full_weekend_december',
+        'duration_h': 30, 'start_utc': '18:00',
+        'bands': ['3.5', '7', '14', '21', '28'],
+        'modes': ['FT4', 'FT8'],
+        'exchange': 'RST + état/province (W/VE) ou RST + N°série (DX)',
+        'cabrillo_name': 'FT-ROUNDUP',
+        'cabrillo_exchange': ['rst', 'exch'],
+        'scoring': {
+            'type': 'rtty_roundup',
+            'multiplier': ('états US + DC + provinces VE + entités DXCC (hors '
+                           'US/Canada ; KH6/KL7 comptent en DXCC), comptés UNE FOIS'),
+            'unit': 'QSO_pts (1/QSO) × (états + provinces + DXCC, all-band)',
+            'note': ('SOURCÉ rttycontesting.com/ft-roundup. Concours DISCONTINUÉ '
+                     '(remplacé par le FT Challenge, barème grille + distance). '
+                     'Même barème que l\'ARRL RTTY Roundup (kind rtty_ru) mais FT4/FT8.'),
         },
         'log_format': 'CABRILLO',
         'log_deadline': '7_days_after',
