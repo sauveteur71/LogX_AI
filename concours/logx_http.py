@@ -6454,7 +6454,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            entry = txc.journal_copilote_emission(payload)   # ne lève jamais
+            # kind='qso' : QSO copilote RÉELLEMENT écrit au carnet (lien
+            # émission↔log) ; sinon : trace d'une émission copilote. Les deux
+            # atterrissent dans le même journal d'audit (ne lèvent jamais).
+            if payload.get('kind') == 'qso':
+                entry = txc.journal_copilote_qso(payload)
+            else:
+                entry = txc.journal_copilote_emission(payload)
             self._json({'ok': True, 'audit': entry}, 200)
             return
 

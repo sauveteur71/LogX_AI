@@ -222,6 +222,30 @@ def journal_copilote_emission(details) -> dict:
     return entry
 
 
+def journal_copilote_qso(details) -> dict:
+    """Grave le LIEN entre la chaîne d'émissions copilote et le QSO RÉELLEMENT
+    écrit au carnet. Posé au moment de l'écriture confirmée par l'humain (jamais
+    de log sans geste) : l'audit montre alors, pour un même indicatif, les
+    TX_COPILOTE_EMISSION puis ce TX_COPILOTE_QSO_LOGGED — la boucle
+    consentement→émission→QSO est tracée de bout en bout. Ne lève JAMAIS."""
+    d = dict(details or {})
+    entry = {
+        'event': 'TX_COPILOTE_QSO_LOGGED',
+        'timestamp_utc': _now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'operator_callsign': str(d.get('operator_callsign') or ''),
+        'radio_id': str(d.get('radio_id') or ''),        # DX loggé
+        'band': str(d.get('band') or ''),
+        'mode': str(d.get('mode') or ''),
+        'rst_sent': str(d.get('rst_sent') or ''),
+        'rst_rcvd': str(d.get('rst_rcvd') or ''),
+        'locator': str(d.get('locator') or ''),
+        'declencheur': str(d.get('declencheur') or 'copilote'),
+        'human_action': 'QSO_LOGGED',
+    }
+    journal_audit(entry)
+    return entry
+
+
 def audit_entries(limite=50):
     """Les `limite` dernières entrées d'audit (la plus récente en dernier)."""
     try:

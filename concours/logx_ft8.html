@@ -2026,6 +2026,30 @@ if(localStorage.getItem('rc_theme') === null){
   let _copiloteFile = [];        // file d'attente pile-up (max 10, pris à la suite)
   let _copiloteManuel = '';      // station cliquée par l'opérateur -> priorité absolue
   let _copiloteNouveauxDxcc = []; // indicatifs marqués « nouveau DXCC » (enhancement en ligne)
+  let _copiloteFileVu = {};      // { CALL: dernier ms où la station m'a (ré)appelé } -> péremption
+  let _copiloteFicheEnAttente = null;  // fiche copilote proposée au log (lien trace↔QSO à l'écriture)
+
+  // Épure la file des stations qui ont cessé d'appeler (non réentendues depuis
+  // FILE_AGE_MAX_MS) : elles ont renoncé / travaillé ailleurs, les rappeler
+  // gâcherait des créneaux. Nettoie aussi les métadonnées. Re-rend si ça change.
+  function _epurerFileCopilote(){
+    if(typeof LogxFt8Copilote === 'undefined' || !_copiloteFile.length) return;
+    const avant = _copiloteFile.length;
+    const gardees = LogxFt8Copilote.epurerFile(_copiloteFile, _copiloteFileVu, Date.now());
+    if(gardees.length === avant) return;
+    const set = {};
+    gardees.forEach(function(c){ set[String(c).toUpperCase()] = 1; });
+    _copiloteFile.forEach(function(c){                 // purge des métadonnées des retirées
+      const k = String(c).toUpperCase();
+      if(!set[k]){
+        delete _copiloteFileVu[k];
+        if(_copiloteManuel === c) _copiloteManuel = '';
+        _copiloteNouveauxDxcc = _copiloteNouveauxDxcc.filter(function(x){ return x !== c; });
+      }
+    });
+    _copiloteFile = gardees;
+    _rendreFile();
+  }
 
   // Rendu de la file d'attente (liste cliquable : un clic priorise la station).
   // Nouveau DXCC marqué. textContent partout (indicatifs = données décodées).
@@ -2061,7 +2085,8 @@ if(localStorage.getItem('rc_theme') === null){
     vider.className = 'cf-vider'; vider.textContent = 'Vider';
     vider.title = 'Vider toute la file d’attente';
     vider.addEventListener('click', function(){
-      _copiloteFile = []; _copiloteManuel = ''; _copiloteNouveauxDxcc = []; _rendreFile();
+      _copiloteFile = []; _copiloteManuel = ''; _copiloteNouveauxDxcc = [];
+      _copiloteFileVu = {}; _rendreFile();
     });
     el.appendChild(vider);
   }
@@ -2071,6 +2096,7 @@ if(localStorage.getItem('rc_theme') === null){
     _copiloteFile = LogxFt8Copilote.retirerFile(_copiloteFile, dx);
     if(_copiloteManuel === dx) _copiloteManuel = '';
     _copiloteNouveauxDxcc = _copiloteNouveauxDxcc.filter(function(x){ return x !== dx; });
+    delete _copiloteFileVu[String(dx).toUpperCase()];
     _rendreFile();
   }
 
@@ -2098,6 +2124,7 @@ if(localStorage.getItem('rc_theme') === null){
     _copiloteFile = LogxFt8Copilote.retirerFile(_copiloteFile, dx);
     if(_copiloteManuel === dx) _copiloteManuel = '';
     _copiloteNouveauxDxcc = _copiloteNouveauxDxcc.filter(function(x){ return x !== dx; });
+    delete _copiloteFileVu[String(dx).toUpperCase()];
     _rendreFile();
     const msg = LogxFt8Copilote.appelInitial(dx, myCall, myGrid);
     if(!msg) return;
@@ -2135,6 +2162,17 @@ if(localStorage.getItem('rc_theme') === null){
     let dist = 0;
     try{ const moi = gridVersLatLon(myGrid), lui = gridVersLatLon(_copiloteQso.locator);
          if(moi && lui) dist = distanceKm(moi, lui); }catch(e){}
+    // Marque cette fiche EN ATTENTE comme d'origine copilote (keyée par
+    // indicatif) : à la CONFIRMATION humaine (écriture réelle au carnet),
+    // confirmerLogQso POSTera /tx/trace kind:'qso' pour relier la chaîne
+    // d'émissions au QSO loggé. La CONFIRMATION reste un geste humain — le
+    // copilote ne logue jamais tout seul.
+    _copiloteFicheEnAttente = {
+      dx: String(dx).toUpperCase(),
+      declencheur: (typeof LogxTxBar !== 'undefined' && LogxTxBar._declencheur) || 'copilote',
+      rst_sent: _copiloteQso.rst_sent, rst_rcvd: _copiloteQso.rst_rcvd,
+      locator: _copiloteQso.locator
+    };
     if(typeof offrirLogQso === 'function'){
       offrirLogQso(dx, {rst_sent: _copiloteQso.rst_sent, rst_rcvd: _copiloteQso.rst_rcvd,
                         locator: _copiloteQso.locator, dist: dist});
@@ -2149,6 +2187,7 @@ if(localStorage.getItem('rc_theme') === null){
     // Pile-up : si une proposition est déjà en attente pour une AUTRE station,
     // on reste dessus (premier appelant d'abord) plutôt que d'écraser la barre.
     const _dx = (String(text).trim().toUpperCase().split(/\s+/)[1]) || '';
+    if(_dx) _copiloteFileVu[_dx] = Date.now();          // il vient de m'appeler -> réarme sa péremption
     if(LogxFt8Copilote.doitIgnorerPileup(LogxTxBar.state === 'prepared',
          _copiloteQso ? _copiloteQso.dxCall : '', _dx)){
       // Pile-up : on met l'appelant EN FILE (max 10), pris à la suite après le
@@ -2182,6 +2221,7 @@ if(localStorage.getItem('rc_theme') === null){
     if(adresseAMoi) tr.className = 'tome';
     else if(estCQ) tr.className = 'cq';
     if(adresseAMoi) _copiloteProposer(text, snrDb);   // niveau 'copilote' : propose (jamais n'émet seul)
+    _epurerFileCopilote();                             // pile-up : retire les stations qui ne rappellent plus
     const tdH = document.createElement('td'); tdH.textContent = heure;
     const tdF = document.createElement('td'); tdF.textContent = Math.round(freqHz);
     // SNR en dB, signe TOUJOURS affiché : c'est la convention des reports
@@ -3659,6 +3699,7 @@ if(localStorage.getItem('rc_theme') === null){
     qsoEchecEcriture = false;
     qsoEnAttente = null;
     qsoInfosEnAttente = null;
+    _copiloteFicheEnAttente = null;   // l'offre est close (loggée ou ignorée)
     document.getElementById('qsoPrompt').style.display = 'none';
   };
   window.confirmerLogQso = async function(){
@@ -3718,6 +3759,17 @@ if(localStorage.getItem('rc_theme') === null){
         dejaEcrits.push({cle: cleFiche(qsoEnAttente, qso.band),
                          call: qsoEnAttente, band: qso.band,
                          heure: qso.time, ts: Date.now()});
+        // Lien trace↔QSO : fiche COPILOTE réellement écrite (pas un doublon) ->
+        // grave TX_COPILOTE_QSO_LOGGED, reliant la chaîne d'émissions au QSO
+        // loggé. Fire-and-forget : une trace ratée ne défait jamais le log.
+        if(!doublon && _copiloteFicheEnAttente && _copiloteFicheEnAttente.dx === qsoEnAttente){
+          try{
+            fetch('/tx/trace', {method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({kind:'qso', operator_callsign: myCall, radio_id: qsoEnAttente,
+                band: qso.band, mode: qso.mode, rst_sent: qso.rst_sent, rst_rcvd: qso.rst_rcvd,
+                locator: qso.locator, declencheur: _copiloteFicheEnAttente.declencheur})});
+          }catch(e3){}
+        }
       } else {
         detail = 'erreur ' + r.status;
       }

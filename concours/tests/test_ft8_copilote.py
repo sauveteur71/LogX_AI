@@ -223,6 +223,26 @@ def test_delai_valide_ms_parse_et_borne():
     assert V("null") == 8000             # absent -> défaut
 
 
+def test_epurer_file_retire_les_stations_perimees():
+    # Pile-up : une station qui a cessé d'appeler (plus réentendue depuis N cycles)
+    # a renoncé / travaillé quelqu'un d'autre — on l'épure de la file plutôt que
+    # de la rappeler dans le vide. `vu` = dernier instant (ms) où la station nous
+    # a (ré)appelé ; épurée si (now - vu) > maxAge. Fonction PURE.
+    ctx = _ctx()
+    file = "['F4ABC','DL1XYZ','G0ABC']"
+    vu = "{F4ABC:1000, DL1XYZ:100000, G0ABC:200000}"   # now=200000, max=90000
+    ctx.eval(f"var out = window.LogxFt8Copilote.epurerFile({file}, {vu}, 200000, 90000);")
+    assert ctx.eval("out.join(',')") == 'G0ABC'          # seule la station récente reste
+    # sans info d'âge (vu absent) -> on GARDE (prudence, offline-first)
+    ctx.eval("var o2 = window.LogxFt8Copilote.epurerFile(['NEW1'], {}, 200000, 90000);")
+    assert ctx.eval("o2.join(',')") == 'NEW1'
+    # file vide / nulle -> []
+    assert ctx.eval("window.LogxFt8Copilote.epurerFile(null, {}, 0, 90000).length") == 0
+    # pure : n'altère pas la liste d'entrée
+    ctx.eval("var src=['F4ABC']; window.LogxFt8Copilote.epurerFile(src,{F4ABC:0},999999,90000);")
+    assert ctx.eval("src.length") == 1
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

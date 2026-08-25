@@ -134,6 +134,23 @@ def test_journal_copilote_emission_grave_dans_l_audit():
     assert derniere['message'] == 'F4ABC F1XYZ R-12'
 
 
+def test_journal_copilote_qso_relie_l_emission_au_log():
+    """Lien trace <-> QSO loggé : quand un QSO copilote est RÉELLEMENT écrit au
+    carnet (geste humain de confirmation), on grave une entrée dédiée qui relie
+    la chaîne d'émissions (TX_COPILOTE_EMISSION, même indicatif) au QSO loggé."""
+    consent.vider_audit()
+    entry = consent.journal_copilote_qso({
+        'operator_callsign': 'F1XYZ', 'radio_id': 'F4ABC', 'band': '20m', 'mode': 'FT8',
+        'rst_sent': '-12', 'rst_rcvd': '-08', 'locator': 'JN18', 'declencheur': 'copilote_auto'})
+    assert entry['event'] == 'TX_COPILOTE_QSO_LOGGED'
+    assert entry['radio_id'] == 'F4ABC'                 # le DX loggé
+    assert entry['rst_sent'] == '-12' and entry['rst_rcvd'] == '-08'
+    assert entry['locator'] == 'JN18'
+    assert entry['human_action'] == 'QSO_LOGGED'        # écrit au carnet par geste humain
+    assert 'timestamp_utc' in entry
+    assert consent.audit_entries(1)[-1]['event'] == 'TX_COPILOTE_QSO_LOGGED'
+
+
 def test_journal_copilote_declencheur_par_defaut_et_ne_leve_jamais():
     consent.vider_audit()
     # déclencheur absent -> 'copilote' (confirmation manuelle) par défaut

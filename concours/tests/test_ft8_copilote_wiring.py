@@ -100,6 +100,32 @@ def test_copilote_auto_passe_le_delai_aux_trois_sites():
             "proposition copilote sans délai d'auto-émission réglable (3e arg) : %r" % ligne)
 
 
+def test_pileup_peremption_cablee():
+    """Fiabilisation pile-up : une station qui ne rappelle plus est épurée de la
+    file. Vérifie que le suivi du dernier appel + la purge périodique sont câblés
+    (la logique pure epurerFile est testée côté module)."""
+    src = _src()
+    assert 'LogxFt8Copilote.epurerFile(' in src            # péremption (module pur) utilisée
+    assert '_copiloteFileVu' in src                         # dernier instant d'appel suivi
+    # la purge tourne à CHAQUE décodage (même pour un décode pas adressé à moi),
+    # sinon une station qui se tait ne serait jamais réévaluée.
+    assert re.search(r'_copiloteProposer\(text, snrDb\);.*\n\s*_epurerFileCopilote\(\);', src), \
+        "la purge doit être appelée à chaque décodage, après _copiloteProposer"
+
+
+def test_lien_trace_qso_logge_cable():
+    """Lien trace↔QSO : à l'écriture RÉELLE d'un QSO copilote (confirmation
+    humaine, non-doublon), la page POSTe /tx/trace kind:'qso'. Le log reste un
+    geste humain : le copilote ne logue jamais seul."""
+    src = _src()
+    assert '_copiloteFicheEnAttente' in src                 # origine copilote suivie
+    assert "kind:'qso'" in src                              # POST du lien émission↔log
+    # posté UNIQUEMENT pour une fiche copilote réellement écrite (pas un doublon)
+    assert re.search(
+        r"!doublon && _copiloteFicheEnAttente && _copiloteFicheEnAttente\.dx === qsoEnAttente", src), \
+        "le lien QSO ne doit être tracé que pour une fiche copilote fraîchement écrite"
+
+
 def test_reglage_delai_auto_present_et_persiste():
     """Le délai d'auto-émission est réglable par l'opérateur (F4GLD : ajustable) :
     un sélecteur dédié, borné via delaiValideMs, persisté en localStorage."""

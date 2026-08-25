@@ -173,6 +173,23 @@
     return (file || []).filter(function (x) { return String(x).toUpperCase() !== d; });
   }
 
+  // Péremption pile-up : une station qui a cessé d'appeler (plus réentendue
+  // depuis `maxAgeMs`) a renoncé ou travaillé quelqu'un d'autre — la rappeler
+  // dans le vide gâche des créneaux. `vu` = { CALL: dernier_ms_où_elle_m'a
+  // appelé }. On GARDE une station sans info d'âge (prudence, offline-first) et
+  // celles vues récemment. Fonction PURE (nouvelle liste). ~6 cycles FT8 (15 s)
+  // par défaut : assez patient pour un pile-up, assez court pour ne pas traîner.
+  var FILE_AGE_MAX_MS = 90000;
+  function epurerFile(file, vu, nowMs, maxAgeMs) {
+    var max = Number(maxAgeMs) || FILE_AGE_MAX_MS;
+    vu = vu || {};
+    return (file || []).filter(function (c) {
+      var t = vu[String(c).toUpperCase()];
+      if (t == null) { return true; }               // pas d'âge connu -> on garde
+      return (nowMs - t) <= max;                     // réentendue récemment -> on garde
+    });
+  }
+
   // Prochaine station à prendre dans la file, par ordre de PRIORITÉ :
   //   1. `manuel` — station cliquée par l'opérateur (ex. un copain), bat tout ;
   //   2. NOUVEAU DXCC (`prioritaires`) — F4GLD « toujours prioriser les
@@ -207,8 +224,10 @@
     doitIgnorerPileup: doitIgnorerPileup,
     ajouterFile: ajouterFile,
     retirerFile: retirerFile,
+    epurerFile: epurerFile,
     prochainFile: prochainFile,
     FILE_MAX: FILE_MAX,
+    FILE_AGE_MAX_MS: FILE_AGE_MAX_MS,
     extraireReport: extraireReport,
     extraireGrille: extraireGrille,
     estFinQso: estFinQso,
