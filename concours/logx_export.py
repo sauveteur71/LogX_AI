@@ -18,6 +18,9 @@ from logx_scoring import calc_total_score
 # (SOTA_REF, POTA_REF…). Source unique = logx_activation (qui les dérive de
 # PROGRAM_SPECS). logx_activation n'importe que `re` : pas de cycle d'import.
 from logx_activation import ADIF_PROGRAM_TAGS
+# IA-2 : enrichissement déterministe (dérive pays/zones/distance des champs
+# vides). logx_enrichissement n'importe que logx_dxcc/logx_utils : pas de cycle.
+from logx_enrichissement import enrichir as _enrichir
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -386,9 +389,17 @@ def _adif_mode(q):
     return _adif_field('mode', _norm_mode(q))
 
 
-def build_adif(qsos, cfg=None, confirmations=None):
+def build_adif(qsos, cfg=None, confirmations=None, completer=False):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
     il sait maintenant l'écrire.
+
+    `completer` (IA-2) : si True, chaque QSO voit ses champs DÉRIVABLES vides
+    complétés avant émission (pays/zones depuis l'indicatif via cty.dat,
+    distance/azimut depuis les locators) — sur une COPIE, le log stocké n'est
+    jamais modifié, et une saisie existante n'est jamais écrasée. Passé à True
+    par les exports/archives/backups (log complet pour les diplômes) ; laissé à
+    False par les uploads (LoTW/eQSL recalculent leurs propres zones — on ne
+    modifie pas la donnée sortante).
 
     `confirmations` (sous-chantier B, lot 4) : dict {clé: {source: date|True}}
     des QSO CONFIRMÉS (LoTW/eQSL/carte), tel que produit par
@@ -410,6 +421,14 @@ def build_adif(qsos, cfg=None, confirmations=None):
     import logx_satellites as sat
     records = []
     for q in qsos:
+        # IA-2 : complète les champs dérivables VIDES sur une COPIE (le log
+        # stocké reste intact). enrichir() ne renvoie que le vide -> pas
+        # d'écrasement. Rebinding local de q : la liste d'origine n'est pas
+        # touchée.
+        if completer:
+            derives = _enrichir(q, cfg)
+            if derives:
+                q = {**q, **derives}
         date, time = _qso_datetime(q)
         # Calculé UNE fois : les deux champs satellite vont ensemble ou pas du
         # tout (voir logx_satellites.champs_adif).

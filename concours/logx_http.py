@@ -4889,9 +4889,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # confirmations reçues (LoTW/eQSL/carte), pour qu'un log
                 # ré-importé ailleurs garde son statut « confirmé ».
                 import logx_awards as awards
+                # IA-2 : completer=True -> pays/zones/distance dérivés complètent
+                # les champs vides (log prêt pour les diplômes), sur copie.
                 body = export.build_adif(
                     qsos, cfg_snap,
-                    confirmations=awards._load_confirmations()).encode('utf-8')
+                    confirmations=awards._load_confirmations(),
+                    completer=True).encode('utf-8')
                 fname = f"{call}_{contest_id_safe}.adi"
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
