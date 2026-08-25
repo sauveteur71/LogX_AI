@@ -105,7 +105,7 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared
         except Exception:
             _conf = None
         _write(os.path.join(folder, base + '.adi'),
-               export.build_adif(qsos, cfg, confirmations=_conf))
+               export.build_adif(qsos, cfg, confirmations=_conf, completer=True))
         files += [base + '.cbr', base + '.adi']
     except Exception as e:
         print(f"[ARCHIVE] Exports non générés : {e}")

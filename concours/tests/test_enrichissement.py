@@ -1,0 +1,117 @@
+# -*- coding: utf-8 -*-
+"""IA-2 lot 1 — enrichissement DÉTERMINISTE : dérive du PAYS/CONTINENT/ZONES
+depuis le seul indicatif (via logx_dxcc, cty.dat). Fonction PURE, ne remplit
+QUE les cases vides, ne renvoie que ce qu'elle dérive. Décision-free : les
+valeurs viennent de cty.dat, aucune table inventée, aucune décision produit."""
+import os
+import sys
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE)
+os.chdir(BASE)
+
+import logx_enrichissement as enr   # noqa: E402
+
+
+def test_derive_pays_continent_zones_depuis_indicatif():
+    d = enr.enrichir({'call': 'W1AW'})
+    # États-Unis, Amérique du Nord ; les zones sont renseignées (valeurs cty.dat).
+    assert 'United States' in str(d.get('dxcc_country', '')) or 'USA' in str(d.get('dxcc_country', ''))
+    assert d.get('continent') == 'NA'
+    assert str(d.get('cqz', '')) != ''
+    assert str(d.get('ituz', '')) != ''
+
+
+def test_ne_remplit_que_les_cases_vides():
+    # cqz déjà saisi -> intouché ; les autres dérivés.
+    d = enr.enrichir({'call': 'W1AW', 'cqz': '99'})
+    assert 'cqz' not in d, d      # ne propose PAS d'écraser une saisie
+    assert 'continent' in d       # les vides restent proposés
+
+
+def test_indicatif_inconnu_ne_derive_rien():
+    # QQ n'est attribué à aucune entité dans cty.dat -> lookup None -> {}.
+    d = enr.enrichir({'call': 'QQ1XYZ'})
+    assert d == {}, d
+
+
+def test_sans_indicatif_rien():
+    assert enr.enrichir({}) == {}
+
+
+def test_portable_lieu_prime():
+    # F/DL1ABC = DL1ABC opérant depuis la France -> pays France (préfixe de lieu).
+    d = enr.enrichir({'call': 'F/DL1ABC'})
+    assert 'France' in str(d.get('dxcc_country', '')), d
+
+
+# ─── Lot 2 : distance + azimut depuis les locators (dérivation pure) ─────────
+
+def test_distance_et_azimut_depuis_locators():
+    # correspondant JN18 (Paris), ma station JO01 (Londres) : dist>0, az 0-360.
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18', 'my_locator': 'JO01'})
+    assert int(d.get('dist', 0)) > 0, d
+    assert 0 <= int(d.get('ant_az', -1)) <= 360, d
+
+
+def test_distance_utilise_le_locator_config_a_defaut():
+    # pas de my_locator sur le QSO -> repli sur cfg['locator'].
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'}, {'locator': 'JO01'})
+    assert int(d.get('dist', 0)) > 0, d
+
+
+def test_pas_de_distance_sans_locator_correspondant():
+    d = enr.enrichir({'call': 'F4ABC', 'my_locator': 'JO01'})
+    assert 'dist' not in d and 'ant_az' not in d, d
+
+
+def test_distance_deja_saisie_non_ecrasee():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18', 'my_locator': 'JO01',
+                      'dist': '42'})
+    assert 'dist' not in d, d          # saisie respectée
+    assert 'ant_az' in d               # l'azimut vide reste proposé
+
+
+# ─── Lot 3 : champs MY_* dérivés de l'indicatif de MA station (config) ───────
+
+def test_my_zones_depuis_indicatif_station_config():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'},
+                     {'callsign': 'W1AW'})
+    assert 'United States' in str(d.get('my_dxcc_country', '')) or \
+           'USA' in str(d.get('my_dxcc_country', '')), d
+    assert str(d.get('my_cqz', '')) != '' and str(d.get('my_ituz', '')) != ''
+
+
+def test_my_zones_privilegie_callsign_contest():
+    d = enr.enrichir({'call': 'F4ABC'},
+                     {'callsign': 'W1AW', 'callsign_contest': 'F4GLD'})
+    assert 'France' in str(d.get('my_dxcc_country', '')), d
+
+
+def test_my_zones_deja_saisies_non_ecrasees():
+    d = enr.enrichir({'call': 'F4ABC', 'my_cqz': '3'}, {'callsign': 'W1AW'})
+    assert 'my_cqz' not in d, d           # saisie respectée
+    assert 'my_dxcc_country' in d         # les vides restent proposés
+
+
+def test_pas_de_my_zones_sans_config():
+    d = enr.enrichir({'call': 'F4ABC', 'locator': 'JN18'})
+    assert not any(k.startswith('my_') for k in d), d
+
+
+# ─── Revue : dérivations locator/MY_ indépendantes du DXCC du correspondant ──
+
+def test_distance_et_my_derives_meme_si_indicatif_inconnu():
+    # indicatif spécial absent de cty.dat, MAIS locators + config présents :
+    # dist/azimut et MY_* NE dépendent PAS du DXCC du correspondant -> dérivés.
+    d = enr.enrichir({'call': 'QQ1XYZ', 'locator': 'JN39', 'my_locator': 'JN18'},
+                     {'callsign': 'W1AW'})
+    assert int(d.get('dist', 0)) > 0 and 'ant_az' in d, d
+    assert 'United States' in str(d.get('my_dxcc_country', '')), d
+    assert str(d.get('my_cqz', '')) != '', d
+
+
+def test_pas_de_champ_mort_my_continent():
+    # my_continent n'a pas de tag ADIF (pas de MY_CONT) -> ne doit pas être dérivé.
+    d = enr.enrichir({'call': 'F4ABC'}, {'callsign': 'W1AW'})
+    assert 'my_continent' not in d, d

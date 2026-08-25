@@ -66,6 +66,12 @@ _ADIF_VERS_INTERNE = {
     'CNTY': 'cnty', 'EMAIL': 'email', 'QSL_VIA': 'qsl_via', 'ANT_AZ': 'ant_az',
     'QSL_SENT': 'qsl_sent', 'LOTW_QSL_SENT': 'lotw_qsl_sent',
     'EQSL_QSL_SENT': 'eqsl_qsl_sent', 'APP_LOGX_OPERATING': 'operating_location',
+    # IA-2 (lot 5) : pays/continent/zones -> clés internes, symétrique de
+    # l'émission (build_adif). Sans ça, un COUNTRY importé dormirait dans
+    # extra_fields et serait sauté au re-export (leçon de la revue B).
+    'COUNTRY': 'dxcc_country', 'CONT': 'continent',
+    'MY_COUNTRY': 'my_dxcc_country', 'MY_CQ_ZONE': 'my_cqz',
+    'MY_ITU_ZONE': 'my_ituz',
 }
 
 _TAGS_MAPPES = {

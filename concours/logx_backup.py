@@ -180,7 +180,7 @@ def run_backup(cfg, shared_log=None):
                     _conf = awards._load_confirmations()
                 except Exception:
                     _conf = None
-                adif = export.build_adif(qsos, cfg or {}, confirmations=_conf)
+                adif = export.build_adif(qsos, cfg or {}, confirmations=_conf, completer=True)
                 dst = os.path.join(folder, base + '.adi')
                 _write_atomic(dst, adif, newline='')
                 written.append(os.path.basename(dst))

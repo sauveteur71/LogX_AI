@@ -18,6 +18,9 @@ from logx_scoring import calc_total_score
 # (SOTA_REF, POTA_REF…). Source unique = logx_activation (qui les dérive de
 # PROGRAM_SPECS). logx_activation n'importe que `re` : pas de cycle d'import.
 from logx_activation import ADIF_PROGRAM_TAGS
+# IA-2 : enrichissement déterministe (dérive pays/zones/distance des champs
+# vides). logx_enrichissement n'importe que logx_dxcc/logx_utils : pas de cycle.
+from logx_enrichissement import enrichir as _enrichir
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -309,6 +312,9 @@ _ADIF_STD_TAGS = {
     # Sous-chantier B (lot 3) : tags dédiés multi-références (two-fer).
     'SOTA_REF', 'MY_SOTA_REF', 'POTA_REF', 'MY_POTA_REF',
     'WWFF_REF', 'MY_WWFF_REF', 'IOTA', 'MY_IOTA',
+    # IA-2 (lot 5) : pays/continent/zones dérivables (émis + mappés à l'import
+    # -> pas de perte via extra_fields, cf. revue B).
+    'COUNTRY', 'CONT', 'MY_COUNTRY', 'MY_CQ_ZONE', 'MY_ITU_ZONE',
     # NOTE (correctif de revue) : SUBMODE et les tags de confirmation REÇUE
     # (LOTW_QSL_RCVD/QSLRDATE…) ne figurent VOLONTAIREMENT PAS dans cet ensemble.
     # Ils sont émis conditionnellement (SUBMODE seulement pour FT2 via _adif_mode ;
@@ -401,9 +407,17 @@ def _adif_mode(q):
     return _adif_field('mode', m)
 
 
-def build_adif(qsos, cfg=None, confirmations=None):
+def build_adif(qsos, cfg=None, confirmations=None, completer=False):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
     il sait maintenant l'écrire.
+
+    `completer` (IA-2) : si True, chaque QSO voit ses champs DÉRIVABLES vides
+    complétés avant émission (pays/zones depuis l'indicatif via cty.dat,
+    distance/azimut depuis les locators) — sur une COPIE, le log stocké n'est
+    jamais modifié, et une saisie existante n'est jamais écrasée. Passé à True
+    par les exports/archives/backups (log complet pour les diplômes) ; laissé à
+    False par les uploads (LoTW/eQSL recalculent leurs propres zones — on ne
+    modifie pas la donnée sortante).
 
     `confirmations` (sous-chantier B, lot 4) : dict {clé: {source: date|True}}
     des QSO CONFIRMÉS (LoTW/eQSL/carte), tel que produit par
@@ -425,6 +439,14 @@ def build_adif(qsos, cfg=None, confirmations=None):
     import logx_satellites as sat
     records = []
     for q in qsos:
+        # IA-2 : complète les champs dérivables VIDES sur une COPIE (le log
+        # stocké reste intact). enrichir() ne renvoie que le vide -> pas
+        # d'écrasement. Rebinding local de q : la liste d'origine n'est pas
+        # touchée.
+        if completer:
+            derives = _enrichir(q, cfg)
+            if derives:
+                q = {**q, **derives}
         date, time = _qso_datetime(q)
         # Calculé UNE fois : les deux champs satellite vont ensemble ou pas du
         # tout (voir logx_satellites.champs_adif).
@@ -483,6 +505,16 @@ def build_adif(qsos, cfg=None, confirmations=None):
             _adif_field('my_sig_info', q.get('my_sig_info', '')),
             _adif_field('sig', q.get('sig', '')),
             _adif_field('sig_info', q.get('sig_info', '')),
+            # IA-2 (lot 5) : pays/continent/zones — émis dès qu'ils sont présents
+            # sur le QSO (saisis ou complétés par `completer`). Noms ADIF sourcés
+            # adif.org/315 : côté correspondant COUNTRY/CONT ; côté station
+            # MY_COUNTRY/MY_CQ_ZONE/MY_ITU_ZONE (l'asymétrie CQZ/ITUZ vs
+            # MY_CQ_ZONE/MY_ITU_ZONE est celle de la norme, pas une coquille).
+            _adif_field('country', q.get('dxcc_country', '')),
+            _adif_field('cont', q.get('continent', '')),
+            _adif_field('my_country', q.get('my_dxcc_country', '')),
+            _adif_field('my_cq_zone', q.get('my_cqz', '')),
+            _adif_field('my_itu_zone', q.get('my_ituz', '')),
             # Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A).
             # Tags de l'énumération/spec ADIF (citables) ; operating_location n'a
             # pas de tag ADIF standard -> champ d'appli APP_LOGX_OPERATING (préfixe
