@@ -528,15 +528,41 @@ if(localStorage.getItem('rc_theme') === null){
   // onglet des QSO) : ce panneau est une fenêtre DÉTACHÉE (window.open), pas
   // d'accès direct au DOM de l'opener sans dépendre de window.opener, qui
   // peut être coupé (fenêtre rouverte, ouverture directe par URL...).
-  function clicSpotOverlay(call, freqHz, mode){
+  // QSY brut vers une fréquence (Hz) — même endpoint que bandmapClick() dans
+  // logx_logbook.js. Réutilisé par le clic sur un spot ET par le clic direct
+  // sur le spectre/waterfall (voir clicCanvas).
+  function qsyHz(freqHz, mode){
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({freq_khz: Math.round(freqHz/1000), mode: mode || undefined})
     }).catch(()=>{});
+  }
+
+  function clicSpotOverlay(call, freqHz, mode){
+    qsyHz(freqHz, mode);
     try{
       const bc = new BroadcastChannel('logx_log');
       bc.postMessage({type:'prefill_call', data:{call: call || ''}});
       bc.close();
     }catch(e){}
+  }
+
+  // Clic n'importe où sur le spectre ou la chute d'eau -> QSY sur la fréquence
+  // pointée (LA fonction phare d'un panadapter). Mapping PUR et inversion-safe :
+  // hzW peut être < hz0 en LSB (axe décroissant), l'interpolation le gère sans
+  // cas particulier — voir plageHzActuelle().
+  function freqAuClic(frac, plage){
+    return plage.hz0 + frac * (plage.hzW - plage.hz0);
+  }
+  // Ne QSY QUE si une vraie plage RF absolue existe (plageHzActuelle() != null) :
+  // en audio brut sans échelle RF, un clic ne déplace RIEN (aucun QSY
+  // accidental). Ne touche PAS l'indicatif saisi (contrairement au clic sur un
+  // spot) : un signal simplement vu n'a pas d'indicatif à pré-remplir.
+  function clicCanvas(ev, cv){
+    const plage = plageHzActuelle();
+    if(!plage) return;
+    const rect = cv.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    qsyHz(freqAuClic(frac, plage), rigMode || undefined);
   }
 
   function dessinerSpectre(){
@@ -795,6 +821,14 @@ if(localStorage.getItem('rc_theme') === null){
       btn.disabled = false;
     });
   };
+
+  // Click-to-tune : cliquer le spectre OU la chute d'eau QSY sur la fréquence
+  // pointée (l'overlay des spots est en pointer-events:none, il laisse passer
+  // les clics au canvas ; les marqueurs de spots gardent leur propre clic).
+  const _specCv = document.getElementById('specCanvas');
+  const _waterCv = document.getElementById('waterCanvas');
+  if(_specCv){ _specCv.style.cursor = 'crosshair'; _specCv.addEventListener('click', e => clicCanvas(e, _specCv)); }
+  if(_waterCv){ _waterCv.style.cursor = 'crosshair'; _waterCv.addEventListener('click', e => clicCanvas(e, _waterCv)); }
 
   window.addEventListener('beforeunload', arreter);
 })();
