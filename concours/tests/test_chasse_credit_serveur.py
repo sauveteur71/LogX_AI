@@ -12,8 +12,10 @@ SRC = open(os.path.join(CONCOURS, 'logx_http.py'), encoding='utf-8').read()
 
 def _handler(nom_path):
     """Corps du handler `if path == '/data/<x>'` (ou startswith) jusqu'au
-    prochain `if path`/`if path.startswith`."""
-    m = re.search(r"if path(?:\.startswith\(| == )'%s'.*?(?=\n            if path)"
+    prochain `if path`/`if path.startswith`. Les handlers sont indentés de 8
+    espaces (borne exacte : sur-capturer engloberait le handler suivant et
+    rendrait les assertions vacantes)."""
+    m = re.search(r"if path(?:\.startswith\(| == )'%s'.*?(?=\n        if path)"
                   % re.escape(nom_path), SRC, re.S)
     assert m, 'handler %s introuvable' % nom_path
     return m.group(0)
@@ -34,3 +36,17 @@ def test_spots_ranked_annoté():
 def test_annoter_credit_existe_bien():
     aw = open(os.path.join(CONCOURS, 'logx_awards.py'), encoding='utf-8').read()
     assert 'def annoter_credit(' in aw
+
+
+def test_focus_porte_le_locator():
+    """Sans le locator dans l'entrée, le crédit « carré neuf » VHF ne peut pas
+    être calculé (annoter_credit lit s['locator'])."""
+    h = _handler('/data/focus')
+    assert re.search(r"'locator':\s*s\.get\('locator'", h), \
+        "/data/focus ne porte pas le locator dans l'entrée"
+
+
+def test_spots_ranked_porte_le_locator():
+    h = _handler('/data/spots_ranked')
+    assert re.search(r"'locator':\s*s\.get\('locator'", h), \
+        "/data/spots_ranked ne porte pas le locator dans l'entrée"

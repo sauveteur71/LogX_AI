@@ -100,3 +100,28 @@ def test_evaluer_compose_classe_score_raison():
     assert r['classe'] == cp.CLASSE_NEW_MODE
     assert r['score'] == 500
     assert 'mode' in r['raison'].lower()
+
+
+# ─── evaluer_grid (crédit carré VHF/UHF) ───────────────────────────────────
+
+def test_grid_neuf_donne_credit_new_grid():
+    r = cp.evaluer_grid(True)
+    assert r is not None
+    assert r['classe'] == cp.CLASSE_NEW_GRID
+    assert r['score'] == 450
+    assert r['raison']
+
+
+def test_grid_deja_fait_ne_donne_aucun_credit():
+    assert cp.evaluer_grid(False) is None
+
+
+def test_grid_objectif_vucc_desactive_annule_le_credit():
+    r = cp.evaluer_grid(True, objectifs={'vucc': False})
+    assert r['classe'] == cp.CLASSE_NEW_GRID     # classe inchangée
+    assert r['score'] == 0                        # crédit annulé
+
+
+def test_grid_poids_surchargeable():
+    r = cp.evaluer_grid(True, poids={'new_grid': 777})
+    assert r['score'] == 777
