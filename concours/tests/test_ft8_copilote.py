@@ -80,6 +80,18 @@ def test_reponse_ft8_selon_le_protocole():
     assert rep('CQ F4ABC JN03', -12) is None
 
 
+def test_appel_initial_repondre_a_un_cq():
+    # Répondre à un CQ (ou appeler une station) : message initial standard
+    # « CIBLE MONCALL MONGRILLE4 ». La grille est tronquée à 4 caractères.
+    ctx = _ctx()
+    assert ctx.eval("window.LogxFt8Copilote.appelInitial('F4ABC', 'F1XYZ', 'JN18DT')") == 'F4ABC F1XYZ JN18'
+    # sans grille configurée : appel valide sans grille (indicatifs seuls)
+    assert ctx.eval("window.LogxFt8Copilote.appelInitial('F4ABC', 'F1XYZ', '')") == 'F4ABC F1XYZ'
+    # cible ou mon indicatif manquant -> null (rien à proposer)
+    assert ctx.eval("window.LogxFt8Copilote.appelInitial('', 'F1XYZ', 'JN18') === null") is True
+    assert ctx.eval("window.LogxFt8Copilote.appelInitial('F4ABC', '', 'JN18') === null") is True
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

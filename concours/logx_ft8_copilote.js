@@ -77,10 +77,23 @@
     return null;
   }
 
+  // Message INITIAL pour répondre à un CQ / appeler une station : « CIBLE
+  // MONCALL MONGRILLE4 » (grille tronquée à 4 car ; omise si absente — un appel
+  // sans grille reste un message FT8 valide). null si cible ou mon indicatif
+  // manquant. La suite du QSO (report, RR73…) est gérée par reponseFt8 (auto).
+  function appelInitial(cible, monCall, monGrid) {
+    cible = String(cible || '').trim().toUpperCase();
+    monCall = String(monCall || '').trim().toUpperCase();
+    if (!cible || !monCall) { return null; }
+    var g = String(monGrid || '').trim().toUpperCase().slice(0, 4);
+    return cible + ' ' + monCall + (g ? ' ' + g : '');
+  }
+
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
+    appelInitial: appelInitial,
     fmtSnr: fmtSnr,
     cle: cle,
     _dernierePropose: null   // clé de la dernière proposition émise/en cours (anti-spam runtime)

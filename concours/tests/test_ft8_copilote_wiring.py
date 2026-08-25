@@ -48,3 +48,18 @@ def test_copilote_ne_peut_pas_auto_emettre():
             assert 'function(){' in ligne or 'function () {' in ligne, (
                 "envoyerMessage doit être DANS le callback ÉMETTRE, pas un appel "
                 "direct (sinon auto-émission) : %r" % ligne.strip())
+
+
+def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
+    """Même invariant pour la branche 'copilote' de repondreEtEnvoyer (réponse
+    à un CQ au double-clic) : le seul envoyerMessage est dans le callback ÉMETTRE."""
+    src = _src()
+    m = re.search(r"if\(seqNiveau === 'copilote'.*?LogxTxBar\.proposer\(.*?\n      return;\n    \}", src, re.S)
+    assert m, "branche copilote de repondreEtEnvoyer introuvable"
+    branche = m.group(0)
+    assert 'LogxTxBar.proposer(' in branche
+    for ligne in branche.splitlines():
+        if 'envoyerMessage(' in ligne:
+            assert 'function(){' in ligne or 'function () {' in ligne, (
+                "réponse CQ copilote : envoyerMessage doit être DANS le callback "
+                "ÉMETTRE, jamais un appel direct : %r" % ligne.strip())
