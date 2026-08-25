@@ -299,6 +299,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_reglages_poste.js"></script>
 <script src="logx_ft8_codec.js"></script>
 <script src="logx_ft8_dsp.js"></script>
+<script src="logx_tx_bar.js"></script>
+<script src="logx_ft8_copilote.js"></script>
 
 <div class="wrap">
   <h1>Décodeur/émetteur FT8 natif</h1>
@@ -523,6 +525,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <select id="seqNiveauSel" title="Décide de ce qu'un double-clic sur une station déclenche">
             <option value="manuel">Manuel — un double-clic, un message</option>
             <option value="assiste">Assisté — prépare la réponse, n'émet jamais seul</option>
+            <option value="copilote">Copilote — l'IA propose sur un appel reçu, tu confirmes chaque émission</option>
             <option value="sequenceur">Séquenceur — déroule le QSO et le logue</option>
             <option value="auto">Automatique — appelle CQ et enchaîne les QSO sans confirmation</option>
           </select>
@@ -1949,6 +1952,25 @@ if(localStorage.getItem('rc_theme') === null){
     el.textContent = parts.join(' · ');
   }
 
+  // COPILOTE (niveau 'copilote') : sur un décode qui M'EST ADRESSÉ, l'IA
+  // calcule la réponse standard (logx_ft8_copilote.reponseFt8) et la PROPOSE
+  // dans la barre de consentement — elle N'ÉMET JAMAIS seule. ÉMETTRE (geste
+  // humain) déclenche l'émission FT8 sur le prochain créneau (envoyerMessage,
+  // chemin d'émission existant + ses garde-fous). Ne fait rien aux autres
+  // niveaux. Propose seulement (aucune auto-émission possible ici).
+  function _copiloteProposer(text, snrDb){
+    if(typeof LogxFt8Copilote === 'undefined' || typeof LogxTxBar === 'undefined') return;
+    if(!LogxFt8Copilote.doitProposer(seqNiveau)) return;
+    const r = LogxFt8Copilote.reponseFt8(text, snrDb, myCall);
+    if(!r) return;                                     // rien à proposer (pas pour moi / QSO fini)
+    const k = LogxFt8Copilote.cle(r.dxCall, r.message);
+    if(k === LogxFt8Copilote._dernierePropose) return; // anti-spam (re-décodes d'un même cycle)
+    LogxFt8Copilote._dernierePropose = k;
+    const p = LogxFt8Copilote.messagePropose(r.message, r.dxCall,
+                Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
+    LogxTxBar.proposer(p, function(){ envoyerMessage(r.message); });
+  }
+
   function ajouterDecodage(slotMs, text, freqHz, snrDb, dt){
     document.getElementById('decodesVide').style.display = 'none';
     const d = new Date(slotMs);
@@ -1958,6 +1980,7 @@ if(localStorage.getItem('rc_theme') === null){
     const estCQ = text.startsWith('CQ ');
     if(adresseAMoi) tr.className = 'tome';
     else if(estCQ) tr.className = 'cq';
+    if(adresseAMoi) _copiloteProposer(text, snrDb);   // niveau 'copilote' : propose (jamais n'émet seul)
     const tdH = document.createElement('td'); tdH.textContent = heure;
     const tdF = document.createElement('td'); tdF.textContent = Math.round(freqHz);
     // SNR en dB, signe TOUJOURS affiché : c'est la convention des reports
@@ -4850,7 +4873,7 @@ if(localStorage.getItem('rc_theme') === null){
       // chaque chargement, exactement comme `seq` lui-même ne survit jamais
       // à un rechargement. Un rechargement de page en mode Automatique ne
       // relance JAMAIS l'appel CQ tout seul.
-      if(memo === 'manuel' || memo === 'assiste' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
+      if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
       const memoR = parseInt(localStorage.getItem('rc_ft8_seq_relances'), 10);
       if(isFinite(memoR) && memoR >= 0) seqMaxRelancesDefaut = memoR;
     }catch(e){}
