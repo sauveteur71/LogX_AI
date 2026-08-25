@@ -94,5 +94,17 @@ def test_copilote_auto_passe_le_delai_aux_trois_sites():
              if 'LogxTxBar.proposer(p, function(){' in ligne]
     assert len(sites) == 3, "attendu 3 sites de proposition copilote, vu %d" % len(sites)
     for ligne in sites:
-        assert 'LogxFt8Copilote.delaiAutoMs(seqNiveau' in ligne, (
-            "proposition copilote sans délai d'auto-émission (3e arg) : %r" % ligne)
+        # délai RÉGLABLE : la valeur courante (copiloteDelaiMs) est passée en
+        # `delaiDefautMs` ; delaiAutoMs ne l'applique qu'au niveau copilote_auto.
+        assert 'LogxFt8Copilote.delaiAutoMs(seqNiveau, copiloteDelaiMs)' in ligne, (
+            "proposition copilote sans délai d'auto-émission réglable (3e arg) : %r" % ligne)
+
+
+def test_reglage_delai_auto_present_et_persiste():
+    """Le délai d'auto-émission est réglable par l'opérateur (F4GLD : ajustable) :
+    un sélecteur dédié, borné via delaiValideMs, persisté en localStorage."""
+    src = _src()
+    assert 'id="copiloteDelaiSel"' in src                       # sélecteur présent
+    assert 'id="copiloteDelaiLabel"' in src                     # visible seulement en copilote_auto
+    assert 'rc_ft8_copilote_delai_s' in src                     # clé de persistance
+    assert 'LogxFt8Copilote.delaiValideMs(' in src              # parse + borne (jamais brut)

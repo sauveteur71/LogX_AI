@@ -559,6 +559,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="10">10 puis abandon</option>
           </select>
         </label>
+        <label id="copiloteDelaiLabel" style="display:none">DÉLAI AVANT ÉMISSION
+          <select id="copiloteDelaiSel" title="Temps dont tu disposes pour annuler (STOP TX) avant que l'IA émette au niveau Copilote auto">
+            <option value="3">3 s</option>
+            <option value="5">5 s</option>
+            <option value="8">8 s</option>
+            <option value="12">12 s</option>
+          </select>
+        </label>
         <button id="cqAutoBtn" style="display:none" onclick="cqAutoDemarrer()"
                 title="Démarrer l'appel CQ automatique : répète CQ, décode qui répond, enchaîne le QSO">▶ DÉMARRER APPEL CQ</button>
         <button id="seqStopBtn" class="danger" style="display:none" onclick="seqStop()"
@@ -1013,7 +1021,7 @@ if(localStorage.getItem('rc_theme') === null){
       LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(cible, msg);
       const p = LogxFt8Copilote.messagePropose(msg, cible,
                   Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-      LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
+      LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, copiloteDelaiMs));
       return;
     }
     // MODE D'ENVOI autre que « manuel » : le double-clic ne prépare plus un
@@ -2097,7 +2105,7 @@ if(localStorage.getItem('rc_theme') === null){
     LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(dx, msg);
     const p = LogxFt8Copilote.messagePropose(msg, dx,
                 Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-    LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
+    LogxTxBar.proposer(p, function(){ envoyerMessage(msg); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, copiloteDelaiMs));
   }
 
   // Démarre/rattache le suivi à `cible` (réponse à un CQ : on connaît déjà la
@@ -2161,7 +2169,7 @@ if(localStorage.getItem('rc_theme') === null){
     LogxFt8Copilote._dernierePropose = k;
     const p = LogxFt8Copilote.messagePropose(r.message, r.dxCall,
                 Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
-    LogxTxBar.proposer(p, function(){ envoyerMessage(r.message); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, COPILOTE_AUTO_DELAI_MS));
+    LogxTxBar.proposer(p, function(){ envoyerMessage(r.message); }, LogxFt8Copilote.delaiAutoMs(seqNiveau, copiloteDelaiMs));
   }
 
   function ajouterDecodage(slotMs, text, freqHz, snrDb, dt){
@@ -3812,7 +3820,10 @@ if(localStorage.getItem('rc_theme') === null){
   // annulation »). 8 s par défaut ; la barre affiche le compte à rebours du
   // jeton et STOP TX coupe tout. L'émission passe TOUJOURS par le même callback
   // de confirmation que le niveau 1 (propose-only) : seul le déclencheur change.
-  const COPILOTE_AUTO_DELAI_MS = 8000;
+  const COPILOTE_AUTO_DELAI_MS = 8000;          // défaut (F4GLD)
+  // Délai courant, RÉGLABLE par l'opérateur (sélecteur + localStorage). Sert de
+  // `delaiDefautMs` à delaiAutoMs() : c'est le NIVEAU qui décide s'il s'applique.
+  let copiloteDelaiMs = COPILOTE_AUTO_DELAI_MS;
 
   // Plafond de relances par défaut (0 = ILLIMITÉ, jusqu'à confirmation du
   // contact). Décision d'opérateur titulaire de F4GLD, pas un oubli : une
@@ -5012,6 +5023,10 @@ if(localStorage.getItem('rc_theme') === null){
     // promet « n'émet jamais seul » sème le doute sur la seule question qui
     // compte sur cette page : est-ce que ma station va émettre sans moi ?
     if(relancesEl) relancesEl.style.display = _seqAutoContinu() ? '' : 'none';
+    // Réglage du délai visible UNIQUEMENT au niveau où il pilote quelque chose
+    // (copilote_auto). Ailleurs il n'a aucun effet et brouillerait la lecture.
+    const delaiEl = document.getElementById('copiloteDelaiLabel');
+    if(delaiEl) delaiEl.style.display = (seqNiveau === 'copilote_auto') ? '' : 'none';
     const stopBtn = document.getElementById('seqStopBtn');
     // (seq || cqAutoActif) : le bouton d'arrêt doit rester atteignable
     // pendant l'attente entre deux appels CQ automatiques (aucun `seq`
@@ -5051,7 +5066,7 @@ if(localStorage.getItem('rc_theme') === null){
       etatEl.textContent = "Copilote : sur un appel reçu, l'IA prépare la réponse ; ÉMETTRE (ton geste) l'envoie.";
     } else if(seqNiveau === 'copilote_auto'){
       etatEl.textContent = "Copilote auto : l'IA prépare puis émet après "
-        + Math.round(COPILOTE_AUTO_DELAI_MS / 1000) + " s — STOP TX pour annuler.";
+        + Math.round(copiloteDelaiMs / 1000) + " s — STOP TX pour annuler.";
     } else if(seqNiveau === 'auto'){
       etatEl.textContent = cqAutoActif
         ? 'Automatique : en attente du prochain créneau CQ…'
@@ -5081,6 +5096,11 @@ if(localStorage.getItem('rc_theme') === null){
       if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'copilote_auto' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
       const memoR = parseInt(localStorage.getItem('rc_ft8_seq_relances'), 10);
       if(isFinite(memoR) && memoR >= 0) seqMaxRelancesDefaut = memoR;
+      // Délai d'auto-émission réglable : restauré en SECONDES, borné par le
+      // module (valeur erronée -> défaut). Ne change RIEN à la sûreté : c'est le
+      // NIVEAU (copilote_auto) qui décide si ce délai s'applique.
+      copiloteDelaiMs = LogxFt8Copilote.delaiValideMs(
+        localStorage.getItem('rc_ft8_copilote_delai_s'), COPILOTE_AUTO_DELAI_MS);
     }catch(e){}
     if(selNiveau){
       selNiveau.value = seqNiveau;
@@ -5111,6 +5131,16 @@ if(localStorage.getItem('rc_theme') === null){
         try{ localStorage.setItem('rc_ft8_seq_relances', String(seqMaxRelancesDefaut)); }catch(e){}
         if(seq) seq.maxRelances = seqMaxRelancesDefaut;
         seqMajUI();
+      });
+    }
+    const selDelai = document.getElementById('copiloteDelaiSel');
+    if(selDelai){
+      selDelai.value = String(Math.round(copiloteDelaiMs / 1000));
+      selDelai.addEventListener('change', () => {
+        copiloteDelaiMs = LogxFt8Copilote.delaiValideMs(selDelai.value, COPILOTE_AUTO_DELAI_MS);
+        try{ localStorage.setItem('rc_ft8_copilote_delai_s',
+                                  String(Math.round(copiloteDelaiMs / 1000))); }catch(e){}
+        seqMajUI();   // rafraîchit le libellé « émet après N s »
       });
     }
     seqMajUI();

@@ -206,6 +206,23 @@ def test_delai_auto_selon_niveau():
     assert ctx.eval("window.LogxFt8Copilote.delaiAutoMs('copilote_auto')") == 0
 
 
+def test_delai_valide_ms_parse_et_borne():
+    # Délai d'auto-émission RÉGLABLE par l'opérateur (F4GLD : « 8 s par défaut,
+    # ajustable »). delaiValideMs(secondes, defautMs) : parse + borne [2,30] s,
+    # renvoie des ms ; toute valeur hors bornes / illisible -> defautMs.
+    ctx = _ctx()
+    V = lambda v: ctx.eval(f"window.LogxFt8Copilote.delaiValideMs({v}, 8000)")
+    assert V(5) == 5000
+    assert V("'8'") == 8000              # chaîne numérique (localStorage)
+    assert V(2) == 2000                  # borne basse incluse
+    assert V(30) == 30000                # borne haute incluse
+    assert V(1) == 8000                  # sous la borne -> défaut
+    assert V(31) == 8000                 # au-dessus -> défaut
+    assert V(0) == 8000                  # 0 -> défaut (pas « jamais »)
+    assert V("'abc'") == 8000            # illisible -> défaut
+    assert V("null") == 8000             # absent -> défaut
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

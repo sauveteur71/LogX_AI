@@ -33,6 +33,18 @@
     return seqNiveau === 'copilote_auto' ? (Number(delaiDefautMs) || 0) : 0;
   }
 
+  // Délai d'auto-émission RÉGLABLE (F4GLD : « 8 s par défaut, ajustable »).
+  // Parse une valeur opérateur en SECONDES (sélecteur / localStorage) et la
+  // borne à [DELAI_MIN_S, DELAI_MAX_S] ; renvoie des MS. Toute valeur hors
+  // bornes ou illisible retombe sur `defautMs` — jamais 0 ici (0 = « jamais »
+  // est décidé par delaiAutoMs selon le NIVEAU, pas par une saisie erronée).
+  var DELAI_MIN_S = 2, DELAI_MAX_S = 30;
+  function delaiValideMs(valeurS, defautMs) {
+    var v = Math.round(Number(valeurS));
+    if (!isFinite(v) || v < DELAI_MIN_S || v > DELAI_MAX_S) { return Number(defautMs) || 0; }
+    return v * 1000;
+  }
+
   // Emballe le message CALCULÉ PAR LE SÉQUENCEUR pour LogxTxBar.proposer().
   // `txMsg` est le message FT8 tel quel (ex. 'F4ABC F1XYZ -12'), jamais
   // recalculé ici. `monCall` = MON indicatif (opérateur). voice_source neutre :
@@ -187,6 +199,8 @@
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     delaiAutoMs: delaiAutoMs,
+    delaiValideMs: delaiValideMs,
+    DELAI_MIN_S: DELAI_MIN_S, DELAI_MAX_S: DELAI_MAX_S,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
