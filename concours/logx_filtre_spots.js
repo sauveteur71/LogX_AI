@@ -196,6 +196,29 @@ async function refreshBandMap(){
       .filter(inBand)
       .sort((a,b) => parseFloat(b.freq) - parseFloat(a.freq));   // fréquence haute en haut
     _bmSpots = spots;   // memorise pour la navigation clavier
+    // Stations spottées dans un DÉPARTEMENT PAS ENCORE FAIT (demande F4GLD) :
+    // croisées par indicatif avec /departments/targets (qui résout le dept via
+    // le cluster ou le locator). Colorées distinctement + badge dept -> un clic
+    // QSY + pré-remplit (bandmapClick, déjà en place). Seulement quand les
+    // départements comptent (VHF/UHF ou échange-département) : aucun surcoût sinon.
+    let _deptManquantParCall = {};
+    const _deptPertinent = (typeof BANDES_THF !== 'undefined' && BANDES_THF.indexOf(currentBand) !== -1)
+      || (window.LogxDeptGrid && typeof currentExchange !== 'undefined'
+          && LogxDeptGrid.doitAfficher(currentExchange.label_r));
+    if(_deptPertinent){
+      try{
+        const rt = await fetch('/departments/targets');
+        if(rt.ok){
+          const dt = await rt.json();
+          (dt.targets || []).forEach(function(t){
+            (t.spotted || []).forEach(function(sp){
+              _deptManquantParCall[String(sp.call || '').toUpperCase()] = t.dept;
+            });
+          });
+        }
+      }catch(e){ /* band map utilisable sans l'info dept */ }
+      if(_gen !== _bandmapGen) return;   // un refresh plus récent a démarré
+    }
     const rig = (typeof rigState !== 'undefined') ? rigState : {};
     const txMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz/1000 : null;
     const rows = [];
@@ -214,12 +237,15 @@ async function refreshBandMap(){
       // onclick (contexte chaîne JS DANS un attribut HTML), escHtml ne suffit pas :
       // on restreint l'indicatif aux seuls caractères d'indicatif valides. Le texte
       // affiché et le title passent par escHtml.
+      // Département PAS ENCORE FAIT pour cette station spottée -> à chasser.
+      const _deptM = _deptManquantParCall[String(s.call || '').toUpperCase()] || '';
       const jsCall = String(s.call || '').replace(/[^A-Za-z0-9/]/g, '');
       // Repêché par une alerte alors que le filtre l'écartait : il DOIT rester
       // visible, sinon l'alerte sonnerait pour un spot introuvable dans la
       // liste — la meilleure façon de faire couper les alertes.
-      const cls = 'bm-spot' + (s.hors_filtre ? ' hors' : '');
+      const cls = 'bm-spot' + (s.hors_filtre ? ' hors' : '') + (_deptM ? ' bm-dept-manquant' : '');
       const infoBulle = (s.explanation || '')
+        + (_deptM ? ' — DÉPARTEMENT ' + _deptM + ' pas encore fait : à chasser' : '')
         + (s.hors_filtre ? ' — hors filtre, gardé par une règle d\'alerte' : '')
         + (s.spotter ? ' — spotté par ' + s.spotter : '');
       // « Écouter ce spot » : mêmes règles d'hygiène que jsCall — mode et
@@ -241,6 +267,7 @@ async function refreshBandMap(){
       rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f},'${modeSpot}')" title="${escHtml(infoBulle)}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
         + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span>`
+        + (_deptM ? `<span class="bm-dept" title="Département ${escHtml(_deptM)} pas encore fait">${escHtml(_deptM)}</span>` : '')
         + `<span class="bm-ear${dxSitue ? '' : ' flou'}" onclick="event.stopPropagation();`
         + `ecouterSpot(${(f * 1000).toFixed(1)},${earLat},${earLon},'${modeSpot}','${grilleSpot}')"`
         + ` title="${escHtml(titreOreille)}">🔊</span></div>`);

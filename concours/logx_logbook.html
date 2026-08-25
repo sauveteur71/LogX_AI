@@ -2151,6 +2151,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      dire à la fois « le filtre coupe tout » et « le cluster est muet ». */
   .bm-masques{padding:3px 8px;font-size:10px;color:var(--yellow);border-top:1px dashed var(--border)}
   .bm-spot.hors{border-left:2px solid var(--yellow)}
+  /* Station dans un DÉPARTEMENT PAS ENCORE FAIT (à chasser) : surbrillance bien
+     définie (cuivre = actionable) + badge dept. Clic -> QSY + QSO pré-rempli. */
+  .bm-spot.bm-dept-manquant{background:rgba(var(--accent-rgb),.14);border-left:3px solid var(--accent)}
+  .bm-spot.bm-dept-manquant:hover{background:rgba(var(--accent-rgb),.22)}
+  .bm-dept{font-family:var(--font-mono);font-size:10px;font-weight:700;color:#1a1205;
+    background:#C9822E;border-radius:3px;padding:1px 5px;margin-left:6px;flex-shrink:0}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
