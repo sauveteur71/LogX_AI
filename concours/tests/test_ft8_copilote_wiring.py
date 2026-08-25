@@ -50,6 +50,21 @@ def test_copilote_ne_peut_pas_auto_emettre():
                 "direct (sinon auto-émission) : %r" % ligne.strip())
 
 
+def test_prendre_suivant_file_ne_peut_pas_auto_emettre():
+    """La prise de la station suivante en file (pile-up) est aussi propose-only :
+    le seul envoyerMessage est dans le callback ÉMETTRE."""
+    src = _src()
+    m = re.search(r'function _prendreSuivantFile\(.*?\n  \}', src, re.S)
+    assert m, "_prendreSuivantFile introuvable"
+    corps = m.group(0)
+    assert 'LogxTxBar.proposer(' in corps
+    for ligne in corps.splitlines():
+        if 'envoyerMessage(' in ligne:
+            assert 'function(){' in ligne or 'function () {' in ligne, (
+                "file d'attente : envoyerMessage doit être DANS le callback "
+                "ÉMETTRE, jamais un appel direct : %r" % ligne.strip())
+
+
 def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
     """Même invariant pour la branche 'copilote' de repondreEtEnvoyer (réponse
     à un CQ au double-clic) : le seul envoyerMessage est dans le callback ÉMETTRE."""

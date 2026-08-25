@@ -203,14 +203,23 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2)}
 .copilote-file .cf-titre{font-family:var(--font-mono);font-size:11px;color:var(--muted);
   letter-spacing:.5px;margin-right:2px}
+.copilote-file .cf-wrap{display:inline-flex;align-items:center;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg3);overflow:hidden}
+.copilote-file .cf-wrap:hover{border-color:var(--accent)}
+.copilote-file .cf-wrap.cf-neuf{border-color:rgba(var(--green-rgb,87,184,95),.6)}
+.copilote-file .cf-wrap.cf-manuel{border-color:var(--accent);background:rgba(var(--accent-rgb),.18)}
 .copilote-file .cf-item{font-family:var(--font-mono);font-size:12px;cursor:pointer;
+  padding:4px 4px 4px 9px;border:none;background:transparent;color:var(--fg,#E9E6DF)}
+.copilote-file .cf-wrap.cf-neuf .cf-item{color:var(--green)}
+.copilote-file .cf-wrap.cf-manuel .cf-item{color:var(--accent)}
+.copilote-file .cf-x{border:none;background:transparent;cursor:pointer;color:var(--muted);
+  font-family:var(--font-mono);font-size:13px;line-height:1;padding:4px 8px 4px 4px}
+.copilote-file .cf-x:hover{color:var(--red)}
+.copilote-file .cf-vider{font-family:var(--font-mono);font-size:11px;cursor:pointer;
   padding:4px 9px;border-radius:999px;border:1px solid var(--border);
-  background:var(--bg3);color:var(--fg,#E9E6DF)}
-.copilote-file .cf-item:hover{border-color:var(--accent)}
-.copilote-file .cf-item.cf-neuf{color:var(--green);border-color:rgba(var(--green-rgb,87,184,95),.5)}
-.copilote-file .cf-item.cf-manuel{background:rgba(var(--accent-rgb),.18);color:var(--accent);
-  border-color:var(--accent)}
-.copilote-file .cf-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  background:transparent;color:var(--muted);margin-left:auto}
+.copilote-file .cf-vider:hover{color:var(--red);border-color:var(--red)}
+.copilote-file button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 /* accent-color plutôt qu'un curseur redessiné : le cuivre de la charte suit
    les deux thèmes tout seul, et on garde le rendu natif — donc le clavier,
    le focus et le tactile du navigateur, sans les réécrire.
@@ -2022,16 +2031,38 @@ if(localStorage.getItem('rc_theme') === null){
     titre.textContent = 'File (' + _copiloteFile.length + '/' + LogxFt8Copilote.FILE_MAX + ') :';
     el.appendChild(titre);
     _copiloteFile.forEach(function(dx){
+      const wrap = document.createElement('span');
+      wrap.className = 'cf-wrap';
+      const nouv = _copiloteNouveauxDxcc.indexOf(dx) !== -1;
+      if(nouv) wrap.classList.add('cf-neuf');
+      if(_copiloteManuel === dx) wrap.classList.add('cf-manuel');
       const b = document.createElement('button');
       b.className = 'cf-item';
-      const nouv = _copiloteNouveauxDxcc.indexOf(dx) !== -1;
-      if(nouv) b.classList.add('cf-neuf');
-      if(_copiloteManuel === dx) b.classList.add('cf-manuel');
       b.textContent = (nouv ? '★ ' : '') + dx;              // ★ = nouveau DXCC
       b.title = (nouv ? 'Nouveau DXCC — priorisé. ' : '') + 'Clic : prioriser cette station';
       b.addEventListener('click', function(){ _copiloteManuel = dx; _rendreFile(); });
-      el.appendChild(b);
+      const x = document.createElement('button');
+      x.className = 'cf-x'; x.textContent = '×';
+      x.title = 'Retirer ' + dx + ' de la file';
+      x.addEventListener('click', function(){ _retirerDeFile(dx); });
+      wrap.appendChild(b); wrap.appendChild(x);
+      el.appendChild(wrap);
     });
+    const vider = document.createElement('button');
+    vider.className = 'cf-vider'; vider.textContent = 'Vider';
+    vider.title = 'Vider toute la file d’attente';
+    vider.addEventListener('click', function(){
+      _copiloteFile = []; _copiloteManuel = ''; _copiloteNouveauxDxcc = []; _rendreFile();
+    });
+    el.appendChild(vider);
+  }
+
+  // Retire une station de la file (bouton ×) + nettoie priorité manuelle/DXCC.
+  function _retirerDeFile(dx){
+    _copiloteFile = LogxFt8Copilote.retirerFile(_copiloteFile, dx);
+    if(_copiloteManuel === dx) _copiloteManuel = '';
+    _copiloteNouveauxDxcc = _copiloteNouveauxDxcc.filter(function(x){ return x !== dx; });
+    _rendreFile();
   }
 
   // Marque `dx` nouveau DXCC si le serveur le confirme (besoin LoTW « jamais
