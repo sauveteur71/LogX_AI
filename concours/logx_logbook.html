@@ -1635,6 +1635,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div id="todWidget" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;gap:14px" title="Heure/jour-nuit approximés (heure solaire, pas de fuseau politique)"></div>
       </div>
 
+      <!-- Prénom du correspondant : auto-rempli au lookup (base interne d'abord,
+           QRZ si abonné/connecté), TOUJOURS corrigeable. L'édition manuelle prime
+           et enrichit la base interne à l'enregistrement -> source de prénom hors
+           QRZ (HamQTH n'en renvoie pas). Demande F4GLD (25/08). -->
+      <div class="field-group">
+        <label class="field-label" for="inputName">PRÉNOM CORRESPONDANT</label>
+        <input type="text" class="field-input" id="inputName" placeholder="auto (base + QRZ) — corrigeable"
+          maxlength="40" autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+      </div>
+
       <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
       <div class="field-group" id="theirRefGroup" style="display:none">
         <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></label>
