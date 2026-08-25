@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barre d'émission — maquette (LogX AI)</title>
+<style>
+  :root{
+    --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+    --accent:#E8964A; --accent-rgb:232,150,74;
+    --ink:#E9E6DF; --ink-dim:#9A968C; --ink-faint:#6C6960;
+    --green:#57B85F; --green-rgb:87,184,95;
+    --red:#E5544B; --red-rgb:229,84,75; --yellow:#E6B34A;
+    --font-mono:'Share Tech Mono',ui-monospace,Consolas,monospace;
+    --font-body:'Exo 2','Segoe UI',system-ui,sans-serif;
+    --font-display:'Fraunces',Georgia,serif;
+  }
+  body.day{
+    --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+    --accent:#8B4F1F; --accent-rgb:139,79,31;
+    --ink:#22201A; --ink-dim:#6B6656; --ink-faint:#938C79;
+    --green:#3C7A42; --green-rgb:60,122,66;
+    --red:#B4362E; --red-rgb:180,54,46; --yellow:#9A6A15;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font-body);color:var(--ink);background:var(--bg);
+    min-height:100vh;-webkit-font-smoothing:antialiased}
+  /* faux fond LOGBOOK, juste pour situer la barre */
+  .backdrop{padding:22px 26px 200px}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;
+    border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px}
+  .brand{font-family:var(--font-display);font-weight:900;font-size:1.15rem}
+  .brand span{color:var(--accent)}
+  .theme-btn{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-dim);
+    background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+    padding:7px 12px;cursor:pointer}
+  .ghost-row{height:34px;background:var(--bg2);border:1px solid var(--border);
+    border-radius:8px;margin-bottom:8px;opacity:.55}
+  .ghost-row.w2{width:70%}.ghost-row.w3{width:85%}
+  .note{color:var(--ink-dim);font-size:.86rem;max-width:64ch;margin:18px 0 0}
+  .note b{color:var(--ink)}
+
+  /* ---- LA BARRE D'ÉMISSION (docked bottom) ---- */
+  .txbar{position:fixed;left:0;right:0;bottom:0;z-index:50;
+    background:linear-gradient(180deg,var(--bg3),var(--bg2));
+    border-top:1px solid var(--border);
+    box-shadow:0 -10px 30px rgba(0,0,0,.28)}
+  .txbar-in{max-width:1400px;margin:0 auto;display:flex;align-items:center;
+    gap:14px;padding:10px 18px}
+  .arm{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);
+    font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--green);
+    padding:5px 10px;border-radius:999px;border:1px solid rgba(var(--green-rgb),.5);
+    background:rgba(var(--green-rgb),.10);white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 0 rgba(var(--green-rgb),.6);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(var(--green-rgb),.55)}
+    70%{box-shadow:0 0 0 7px rgba(var(--green-rgb),0)}100%{box-shadow:0 0 0 0 rgba(var(--green-rgb),0)}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+
+  .preview{display:flex;align-items:center;gap:16px;min-width:0;flex:1}
+  .kv{display:flex;flex-direction:column;line-height:1.15}
+  .kv .k{font-family:var(--font-mono);font-size:.56rem;letter-spacing:1px;
+    text-transform:uppercase;color:var(--ink-faint)}
+  .kv .v{font-family:var(--font-mono);font-size:1.02rem;font-variant-numeric:tabular-nums}
+  .kv .v small{font-size:.72rem;color:var(--ink-dim)}
+  .msg{min-width:0;flex:1}
+  .msg .v{font-family:var(--font-mono);font-size:.96rem;color:var(--accent);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sep{width:1px;align-self:stretch;background:var(--border);margin:2px 0}
+
+  .count{display:flex;flex-direction:column;align-items:center;line-height:1;white-space:nowrap}
+  .count .n{font-family:var(--font-mono);font-size:1.15rem;color:var(--yellow)}
+  .count .l{font-family:var(--font-mono);font-size:.54rem;letter-spacing:1px;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .emit{border:none;cursor:pointer;border-radius:10px;padding:11px 20px;
+    font-family:var(--font-body);font-weight:800;font-size:.95rem;letter-spacing:.4px;
+    color:#1a1205;background:linear-gradient(180deg,#F0A85C,#D98332);white-space:nowrap;
+    box-shadow:0 4px 14px rgba(var(--accent-rgb),.32),inset 0 1px 0 rgba(255,255,255,.35);
+    display:flex;flex-direction:column;align-items:center;line-height:1.1}
+  .emit small{font-family:var(--font-mono);font-weight:400;font-size:.58rem;
+    letter-spacing:.5px;opacity:.82}
+  .emit:hover{filter:brightness(1.05)}.emit:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  .stop{border:1px solid rgba(var(--red-rgb),.55);cursor:pointer;white-space:nowrap;
+    background:rgba(var(--red-rgb),.12);color:var(--red);font-weight:800;letter-spacing:.5px;
+    font-family:var(--font-body);text-transform:uppercase;font-size:.82rem;
+    border-radius:10px;padding:11px 16px;display:flex;align-items:center;gap:8px}
+  .stop:hover{background:rgba(var(--red-rgb),.2)}
+  .stop svg{width:15px;height:15px}
+  .expand{background:none;border:1px solid var(--border);color:var(--ink-dim);cursor:pointer;
+    border-radius:8px;width:32px;height:32px;display:grid;place-items:center;flex-shrink:0}
+  .expand svg{width:15px;height:15px;transition:transform .2s}
+  .txbar.open .expand svg{transform:rotate(180deg)}
+
+  /* panneau déplié — animation via grid-template-rows (pas de layout thrash) */
+  .drawer{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease}
+  .txbar.open .drawer{grid-template-rows:1fr}
+  .drawer>.drawer-wrap{overflow:hidden;min-height:0}
+  .drawer-in{max-width:1400px;margin:0 auto;padding:14px 18px 18px;
+    border-top:1px solid var(--border);
+    display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:720px){.drawer-in{grid-template-columns:1fr}}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .card h4{margin:0 0 9px;font-family:var(--font-display);font-weight:900;font-size:.92rem}
+  .flow{display:flex;flex-wrap:wrap;gap:6px}
+  .step{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-dim);
+    border:1px solid var(--border);border-radius:999px;padding:4px 9px}
+  .step b{color:var(--accent)}
+  .reason{font-family:var(--font-mono);font-size:.82rem;
+    background:rgba(var(--red-rgb),.08);border:1px solid rgba(var(--red-rgb),.35);
+    padding:9px 11px;border-radius:6px;margin-top:10px}
+  .reason .why{color:var(--red)}
+  .log{font-family:var(--font-mono);font-size:.74rem}
+  .log-row{display:grid;grid-template-columns:auto 1fr auto;gap:9px;padding:7px 0;
+    border-bottom:1px solid var(--border);align-items:baseline}
+  .log-row:last-child{border-bottom:none}
+  .log .t{color:var(--ink-faint);font-size:.68rem;white-space:nowrap}
+  .tag{font-size:.58rem;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .tag.ok{color:var(--green);background:rgba(var(--green-rgb),.12);border:1px solid rgba(var(--green-rgb),.4)}
+  .tag.stop{color:var(--red);background:rgba(var(--red-rgb),.12);border:1px solid rgba(var(--red-rgb),.4)}
+  .hint{display:flex;gap:8px;color:var(--ink-dim);font-size:.8rem;margin-top:10px}
+  .hint svg{width:14px;height:14px;flex-shrink:0;margin-top:2px;color:var(--accent)}
+</style>
+</head>
+<body>
+  <div class="backdrop">
+    <div class="toolbar">
+      <div class="brand">LogX <span>AI</span> · LOGBOOK</div>
+      <button class="theme-btn" onclick="document.body.classList.toggle('day')">Basculer jour / nuit</button>
+    </div>
+    <div class="ghost-row"></div><div class="ghost-row w3"></div>
+    <div class="ghost-row w2"></div><div class="ghost-row w3"></div>
+    <p class="note"><b>Maquette — barre d'émission en pied de page.</b> Repliée par
+      défaut (une ligne). Clique la flèche à droite pour la déplier (flux, exemple
+      de refus, journal d'audit). Bouton en haut à droite pour tester jour / nuit.
+      Rien n'émet — c'est une maquette de mise en page.</p>
+  </div>
+
+  <!-- LA BARRE -->
+  <div class="txbar" id="txbar">
+    <div class="txbar-in">
+      <span class="arm"><span class="dot"></span>TX armé</span>
+      <div class="sep"></div>
+      <div class="preview">
+        <div class="kv"><span class="k">Fréq</span><span class="v">14 074,0<small> kHz</small></span></div>
+        <div class="kv"><span class="k">Mode</span><span class="v">USB</span></div>
+        <div class="kv"><span class="k">P</span><span class="v">50<small> W</small></span></div>
+        <div class="sep"></div>
+        <div class="msg"><div class="kv"><span class="k">Message préparé par l'IA</span>
+          <span class="v">CQ CONTEST DE F4GLD F4GLD</span></div></div>
+      </div>
+      <div class="count"><span class="n">22</span><span class="l">jeton s</span></div>
+      <button class="emit">ÉMETTRE<small>geste requis · 3 s</small></button>
+      <button class="stop">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7">
+          <rect x="3.5" y="3.5" width="11" height="11" rx="2"></rect></svg>STOP TX</button>
+      <button class="expand" onclick="document.getElementById('txbar').classList.toggle('open')" aria-label="Déplier">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 11l5-5 5 5"></path></svg>
+      </button>
+    </div>
+
+    <div class="drawer">
+      <div class="drawer-wrap">
+      <div class="drawer-in">
+        <div class="card">
+          <h4>Comment ça marche</h4>
+          <div class="flow">
+            <span class="step"><b>1</b> IA prépare</span>
+            <span class="step"><b>2</b> tu vérifies</span>
+            <span class="step"><b>3</b> ÉMETTRE</span>
+            <span class="step"><b>4</b> contrôle CAT réel</span>
+            <span class="step"><b>5</b> PTT + journal</span>
+          </div>
+          <div class="hint">
+            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="9" cy="9" r="7.2"></circle><path d="M9 5.4v4.2M9 12.4h.01"></path></svg>
+            Juste avant le PTT, LogX relit l'état RÉEL du poste et le compare au jeton.
+            Au moindre écart, l'émission est refusée. Exemple :</div>
+          <div class="reason">Bloqué : <span class="why">fréquence modifiée</span>
+            (14 074,0 → 14 076,5 kHz) — jeton invalidé.</div>
+        </div>
+        <div class="card">
+          <h4>Journal d'audit <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--ink-faint)">· UTC</span></h4>
+          <div class="log">
+            <div class="log-row"><span class="t">12:04:37Z</span><span>F4GLD · 14074.0 · USB · 50 W</span><span class="tag ok">ÉMIS</span></div>
+            <div class="log-row"><span class="t">11:58:12Z</span><span>Stop TX — 1 annulé</span><span class="tag stop">STOP</span></div>
+            <div class="log-row"><span class="t">11:57:41Z</span><span>F4GLD · 7040.0 · CW · 30 W</span><span class="tag ok">ÉMIS</span></div>
+            <div class="log-row"><span class="t">11:52:03Z</span><span>F4GLD · 14074.0 · USB · 50 W</span><span class="tag ok">ÉMIS</span></div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

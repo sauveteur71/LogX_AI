@@ -115,10 +115,29 @@ Ils touchent le moteur PARTAGÉ de classement de spots (`build_ranked_spots`
 chirurgie non spéculative écartée en l'absence de F4GLD (les QSO se comptent
 déjà correctement zone+DXCC ; il ne manque qu'un multiplicateur secondaire).
 
-**Suite (roadmap copilote IA, non commencé)** : câblage backend du
-consentement TX (endpoints + intégration PTT + bouton Stop TX + écran de
-confirmation UI — demande l'UI/design) ; FT8 Roundup ; programme GMA
-(hiérarchique) ; multiplicateurs RTTY ci-dessus.
+#### Journée du 25/08/2026 — items 1 & 2 (« attaque 1 et 2 ») + barre d'émission
+
+F4GLD présent par intermittence, demande « attaque 1 et 2 » puis « lance ».
+Même méthode (TDD + mutation md5 + revue adversariale + CI verte avant merge).
+PR fusionnées :
+
+| PR | Ce que ça fait |
+|---|---|
+| #254 | **Item 1 — multiplicateurs RTTY (score AUTORITAIRE)**. Valeurs SOURCÉES : CQ WW RTTY (cqwwrtty.com §IV.C) = zones CQ + DXCC + états US(48)/DC/aires canadiennes(14) des W/VE, PAR BANDE (AK 'KL'/HI 'KH6' = pays seulement) ; ARRL RTTY Roundup (PDF officiel §5.3) = 1 pt × (états + provinces + DXCC hors US/Canada), UNE FOIS ALL-BAND. Nouveaux kinds `zone_dxcc_state` (per-band) + `rtty_ru` (is_global) dans `calc_total_score`/`_mult_entries`. Discriminant état = `country_key in {'K','VE'}`, code depuis `num_rcvd`. **Le client affiche déjà le score autoritaire serveur** (A10) → correction remonte automatiquement, pas de twin JS à faire. Régression rattrapée par la CI : mon propre test #253 figeait l'ancien `multiplier is None`. |
+| #255 | **Item 2 — câblage backend + PTT du consentement TX** (F4GLD : « backend + déclenchement PTT complet »). Étend `logx_tx_consent` : verrou TX serveur (`lock_tx`/`unlock_tx`/`is_tx_locked`, posé par `stop_tx`), `radio_state_from_cat()` (mappe `cat.get_state` freq_hz/mode/ok/enabled → contrôle ; **power_w reporté du jeton car le CAT ne lit pas la puissance** — décision documentée ; ptt_locked = verrou serveur), journal d'audit en mémoire UTC (façon `logx_cw_journal`). Endpoints minces `logx_http` : `POST /tx/prepare|authorize|stop|rearm`, `GET /tx/audit`. `/tx/authorize` : garde-fou mode/bande (read-only) → `authorize_transmission` (consomme le jeton) → PTT RÉEL borné via le chemin existant (verrou SO2R + chien de garde voicekeyer). Durée bornée obligatoire. |
+| #256 | **Barre d'émission du LOGBOOK** (`logx_tx_bar.js`) — surface client, **maquette validée par F4GLD (« magnifique »), emplacement barre en pied de page**. Identité graphite & cuivre (tokens de la page, thèmes auto). `LogxTxBar.proposer({...})`→`/tx/prepare`, bouton ÉMETTRE→`/tx/authorize`, STOP TX→`/tx/stop`. Compte à rebours du jeton, ligne d'état. Logique pure testée en V8 (7 tests, mutation). Maquette de référence : `docs/maquettes/tx_barre_emission.html`. |
+
+**Le test SUR L'AIR reste le geste de F4GLD** (écrire ≠ émettre). Vérif
+navigateur de la barre = déclencher `LogxTxBar.proposer(...)` sur l'instance live.
+
+**Piège récurrent noté** : la suite complète LOCALE se bloque par intermittence
+sur un test réseau (~65 %, jamais identifié précisément) ; la CI (« harnais
+mock », env propre) fait foi pour le vert de la suite complète, comme depuis #251.
+
+**Suite (roadmap copilote IA, encore à faire)** : (a) le **déclencheur IA réel**
+(l'IA qui PROPOSE les émissions ; aujourd'hui `proposer()` est appelé à la main) ;
+(b) le **message par mode** (que `/tx/authorize` envoie le CONTENU — texte CW via
+WinKeyer, WAV voix — pas juste le PTT) ; (c) FT8 Roundup ; (d) programme GMA.
 
 ### En attente d'un essai sur l'air
 
