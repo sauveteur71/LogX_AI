@@ -531,6 +531,72 @@ def annoter_besoin_lotw(spots, shared_log=None):
     return spots
 
 
+def annoter_credit(spots, shared_log=None, poids=None, objectifs=None):
+    """Annote chaque spot avec le CRÉDIT qu'il apporte (ce qu'il a de nouveau) :
+    'credit_classe' (atno/new_band/new_mode/needed_confirm/confirmed/inconnu),
+    'credit_score' (configurable) et 'credit_raison' (le « pourquoi »). Compose
+    logx_chasse_priorite avec l'index bande×mode déjà sourcé ici.
+
+    UN SEUL parcours du carnet (comme annoter_besoin_lotw) : l'index
+    confirmés/travaillés est calculé une fois, et une grille par entité est
+    bâtie à la demande puis mémoïsée. Ne filtre PAS la liste."""
+    if not spots:
+        return spots
+    import logx_chasse_priorite as cp
+    conf = _load_confirmations()
+    qsos = collect_all_qsos(shared_log)
+    confirmed = _creneaux_confirmes_lotw(qsos, conf)
+    worked = {(q.get('dxcc_country'), str(q.get('band', '') or ''),
+               _mode_category(q.get('mode'), q.get('freq')))
+              for q in qsos if q.get('dxcc_country')}
+    try:
+        import logx_dxcc as dxcc
+    except Exception:
+        dxcc = None
+
+    modes = ('CW', 'PHONE', 'DIGITAL')
+    grilles = {}
+
+    def grille_pour(pays):
+        gr = grilles.get(pays)
+        if gr is None:
+            grid = {}
+            for b in CHALLENGE_BANDS:
+                grid[b] = {}
+                for m in modes:
+                    cle = (pays, b, m)
+                    grid[b][m] = ('confirmed' if cle in confirmed
+                                  else 'worked' if cle in worked else 'none')
+            gr = {'active': True, 'country': pays, 'grid': grid}
+            grilles[pays] = gr
+        return gr
+
+    for s in spots:
+        if not isinstance(s, dict):
+            continue
+        # dx_country déjà résolu par le scoring ? sinon lookup DXCC.
+        pays = (s.get('scoring', {}) or {}).get('dx_country') or None
+        if not pays and dxcc is not None:
+            call = str(s.get('call') or s.get('dx') or '').upper().strip()
+            base = call.split('/')[0] if '/' in call else call
+            if len(base) >= 3:
+                try:
+                    pays = (dxcc.lookup(base) or {}).get('country')
+                except Exception:
+                    pays = None
+        if not pays:
+            r = {'classe': cp.CLASSE_INCONNU, 'score': 0,
+                 'raison': cp.raison(cp.CLASSE_INCONNU)}
+        else:
+            r = cp.evaluer(grille_pour(pays), str(s.get('band', '') or ''),
+                           _mode_category(s.get('mode'), s.get('freq')),
+                           poids, objectifs)
+        s['credit_classe'] = r['classe']
+        s['credit_score'] = r['score']
+        s['credit_raison'] = r['raison']
+    return spots
+
+
 def besoins_lotw_spottes(spots, shared_log=None, max_n=20):
     """Parmi les stations spottées, celles qui comblent un créneau non confirmé
     LoTW. Le calcul lourd (parcours du log + confirmations) est fait UNE fois
