@@ -6442,6 +6442,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'ok': True, 'tx_locked': False}, 200)
             return
 
+        # Trace d'audit d'une émission COPILOTE FT8 (chemin CLIENT envoyerMessage,
+        # hors /tx/authorize). Le client POSTe ici au moment EXACT du déclenchement
+        # (ÉMETTRE humain, ou expiration du délai sans annulation au niveau
+        # copilote_auto) pour que l'émission soit GRAVÉE dans le journal d'audit
+        # serveur — traçabilité verrouillée, même si le navigateur est fermé
+        # ensuite. Journalisation seule : ne déclenche AUCUN PTT.
+        if self.path == '/tx/trace':
+            import logx_tx_consent as txc
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            entry = txc.journal_copilote_emission(payload)   # ne lève jamais
+            self._json({'ok': True, 'audit': entry}, 200)
+            return
+
         # Puissance TX auto par mode (protection du final en numérique 100%
         # cycle de service — CONFIG > RADIO, désactivé par défaut). Appelée
         # par LOGBOOK au même moment que /rig/qsy, quand l'opérateur choisit

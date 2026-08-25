@@ -78,6 +78,22 @@
     return { token: token, duree_max: dureeMax, armed: !!armed };
   }
 
+  // Trace d'audit d'une émission COPILOTE (POST /tx/trace). Le FT8 émet côté
+  // CLIENT (envoyerMessage) hors /tx/authorize : cette trace grave quand même
+  // l'émission dans le journal serveur (traçabilité verrouillée). `declencheur` :
+  // 'copilote' (ÉMETTRE manuel) ou 'copilote_auto' (délai écoulé sans annulation).
+  function tracePayload(em, declencheur) {
+    em = em || {};
+    return {
+      operator: em.operator || '',
+      radio_id: em.radio_id || '',     // DX visé, jamais l'humain
+      frequency_hz: em.frequency_hz,
+      mode: em.mode || '',
+      message: em.message || '',
+      declencheur: declencheur || 'copilote'
+    };
+  }
+
   // Machine d'état : STOP ramène TOUJOURS à 'idle' (arrêt d'urgence) ;
   // un refus serveur -> 'blocked' (l'humain doit re-préparer).
   function nextState(state, action) {
@@ -93,7 +109,8 @@
     TTL: TTL, DUREE_MAX_DEFAUT: DUREE_MAX_DEFAUT,
     fmtFreqKhz: fmtFreqKhz, secondsLeft: secondsLeft, ringPct: ringPct,
     preparePayload: preparePayload, authorizePayload: authorizePayload,
-    nextState: nextState, autoSecondsLeft: autoSecondsLeft,
+    nextState: nextState, autoSecondsLeft: autoSecondsLeft, tracePayload: tracePayload,
+    _declencheur: 'copilote',   // déclencheur de la prochaine émission client (trace d'audit)
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
     _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
     _onConfirm: null,      // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
@@ -179,6 +196,7 @@
     if (LogxTxBar._autoAt && LogxTxBar.state === 'prepared') {
       if (Date.now() >= LogxTxBar._autoAt) {
         LogxTxBar._autoAt = 0;
+        LogxTxBar._declencheur = 'copilote_auto';   // trace : délai écoulé, pas un clic
         LogxTxBar._emettre();
         return;
       }
@@ -216,6 +234,7 @@
     if (typeof onConfirm === 'function') {
       LogxTxBar._onConfirm = onConfirm;
       LogxTxBar._em = em; LogxTxBar._token = null;
+      LogxTxBar._declencheur = 'copilote';   // par défaut : ÉMETTRE manuel (trace)
       // Niveau 2 (copilote_auto) : arme une auto-émission après `autoMs` ms.
       // Sinon 0 = geste humain requis. STOP TX (ou ÉMETTRE) l'annule.
       LogxTxBar._autoAt = (Number(autoMs) > 0) ? Date.now() + Number(autoMs) : 0;
@@ -252,6 +271,12 @@
         cb();
         LogxTxBar.state = nextState('emitting', 'DONE');
         _line('Émis (copilote).', 'ok');
+        // Traçabilité verrouillée : le FT8 émet côté client (hors /tx/authorize),
+        // on GRAVE quand même l'émission dans le journal d'audit serveur, au
+        // moment EXACT du déclenchement (ÉMETTRE manuel ou délai écoulé). Trace
+        // seule (aucun PTT) et fire-and-forget : une trace ratée ne doit JAMAIS
+        // défaire une émission déjà partie.
+        try { _post('/tx/trace', tracePayload(LogxTxBar._em, LogxTxBar._declencheur)); } catch (e2) {}
       } catch (e) {
         LogxTxBar.state = nextState('emitting', 'BLOCKED');
         _line('Émission refusée : ' + e, 'blocked');
