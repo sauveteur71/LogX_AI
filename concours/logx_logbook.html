@@ -22,15 +22,10 @@
      bouger casserait le chargement au prochain patch publié. Hachés
      calculés en téléchargeant réellement les fichiers (sha512, openssl
      dgst), pas de valeur recopiée ou devinée. -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w=="
-      crossorigin="anonymous" referrerpolicy="no-referrer"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
-        integrity="sha512-WoViKhKD4qI2WruSZqv9+kvM4WfFhUMQCLN4QlDTt5aU56fLQy2gYoxWIqlEnXqJy/+Ac5q/hk1oWfqnMDhwMA=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Leaflet + Chart.js VENDORISÉS localement (zone blanche : aucun CDN requis, cf. vendor/). -->
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.min.css"/>
+<script src="/vendor/leaflet/leaflet.min.js"></script>
+<script src="/vendor/chartjs/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 /* ─── DIRECTION GRAPHITE & CUIVRE (2026-08) : voir logx_configuration.html

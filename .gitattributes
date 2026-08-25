@@ -1,0 +1,3 @@
+# Libs tierces vendorisées (repli CDN local, zone blanche) : stockées VERBATIM,
+# byte-identiques à l'amont — aucune conversion de fin de ligne, aucun diff.
+concours/vendor/** binary

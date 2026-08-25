@@ -227,12 +227,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <!-- Même bibliothèque/version que logx_carte.html (cohérence de rendu) —
      carte intégrée directement (pas d'iframe vers logx_carte.html : on évite
      d'embarquer sa navigation/UI, inutile sur un écran mural sans interaction). -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
-      crossorigin="anonymous" referrerpolicy="no-referrer"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
-        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Leaflet VENDORISÉ localement (zone blanche : aucun CDN requis, cf. vendor/). -->
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.min.css"/>
+<script src="/vendor/leaflet/leaflet.min.js"></script>
 </head>
 <body data-rc-no-lang-select>
 
