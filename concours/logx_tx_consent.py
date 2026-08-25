@@ -184,6 +184,26 @@ def vider_audit() -> None:
     _audit.clear()
 
 
+def emettre_message(famille, message, cw_send, voice_send) -> dict:
+    """Envoie le CONTENU préparé selon la famille de mode, une fois le
+    consentement ET le garde-fou validés :
+      - 'cw'     -> cw_send(message)     (texte au keyer CW — gère son propre PTT)
+      - 'phonie' -> voice_send(message)  (slot WAV au voice keyer — gère son PTT)
+
+    `cw_send`/`voice_send` sont les émetteurs RÉELS injectés (wk.envoyer /
+    vk.envoyer_message) : ce dispatch reste testable sans matériel. Refuse SANS
+    rien émettre (fail-closed) une famille non gérée par « émission unique » ou
+    un message vide. Les modes data (FT8/RTTY) sont déjà refusés en amont par le
+    garde-fou et n'atteignent jamais ce point."""
+    if not str(message or '').strip():
+        return {'ok': False, 'error': "Message d'émission vide"}
+    if famille == 'cw':
+        return cw_send(message)
+    if famille == 'phonie':
+        return voice_send(message)
+    return {'ok': False, 'error': "Mode hors « émission unique » (CW ou phonie)"}
+
+
 def _radio_val(radio_state, cle):
     """Lecture tolérante d'un état radio : dict OU objet à attributs."""
     if isinstance(radio_state, dict):

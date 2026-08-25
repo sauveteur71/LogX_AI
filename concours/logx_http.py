@@ -6351,19 +6351,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except (PermissionError, ConnectionError) as e:
                 self._json({'ok': False, 'error': str(e), 'blocked': True}, 403)
                 return
-            # 3) Déclenchement PTT RÉEL (émission unique bornée) via le chemin PTT
-            #    existant (verrou SO2R + chien de garde série du voicekeyer).
-            verrou = so2r.verrouiller_tx(radio_active, 'ptt')
+            # 3) Émission RÉELLE du CONTENU préparé, PAR MODE (pas un simple PTT).
+            #    CW  -> wk.envoyer(cfg, texte)      : keyer CW, fire-and-forget
+            #    voix-> vk.envoyer_message(cfg, slot): voice keyer, BLOQUANT (PTT
+            #           ON -> lecture WAV -> PTT OFF). Chaque émetteur gère son PTT.
+            #    Verrou SO2R étiqueté par famille, comme /rig/cw et /voice/play.
+            import logx_winkeyer as wk
+            verrou = so2r.verrouiller_tx(radio_active, 'cw' if famille == 'cw' else 'voix')
             if not verrou.get('ok'):
                 self._json(verrou, 409)
                 return
-            res = vk.set_ptt(cfg_snap, True, duree_max_s=duree)
-            if not res.get('ok'):
+            def _cw_send(msg):
+                return wk.envoyer(cfg_snap, msg)
+            def _voice_send(msg):
+                return vk.envoyer_message(cfg_snap, msg)
+            try:
+                res = txc.emettre_message(famille, c.message, _cw_send, _voice_send)
+            except Exception as e:   # noqa: BLE001 — un défaut d'émission ne doit pas planter le serveur
+                res = {'ok': False, 'error': str(e)}
+            # CW = fire-and-forget : le verrou reste (Stop TX / Échap le lèvent).
+            # Voix = bloquant (PTT déjà retombé) : on relâche. Échec : on relâche
+            # toujours, pour ne pas laisser une radio verrouillée sans émission.
+            if famille != 'cw' or not res.get('ok'):
                 so2r.deverrouiller_tx(radio_active)
-                self._json({'ok': False, 'error': res.get('error', 'PTT refusé par la radio')}, 400)
+            if not res.get('ok'):
+                self._json({'ok': False, 'error': res.get('error', 'Émission refusée')}, 400)
                 return
             txc.journal_audit(entry)   # audit UTC de ce qui a RÉELLEMENT été autorisé+émis
-            self._json({'ok': True, 'audit': entry}, 200)
+            self._json({'ok': True, 'audit': entry, 'backend': res.get('backend')}, 200)
             return
 
         if self.path == '/tx/stop':
