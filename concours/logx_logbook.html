@@ -1945,11 +1945,22 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            tags MANUELS. -->
       <div class="activity-tags" id="activityTags"></div>
 
-      <!-- Grille départements 00–99 : clic direct -> remplit le département REÇU,
-           façon logs de terrain (demande F4GLD 25/08). Cachée par défaut ;
-           montrée par _majDeptGrid() UNIQUEMENT pour les échanges-département
-           (Coupe du REF / CDF HF, 160 m, F9NL, UFT). En VHF/UHF le n° reçu est
-           une série et le dept vient du locator : la grille reste cachée. -->
+      <!-- Département correspondant (override VHF/UHF, feu vert F4GLD 25/08) :
+           en VHF/UHF le n° reçu est une SÉRIE ; ce champ optionnel capte le
+           département entendu en direct et PRIME sur le locator dans le calcul
+           du diplôme (dept_for_qso). Montré par _majDeptGrid() uniquement quand
+           la grille cible ce champ (bande THF, échange non-département). -->
+      <div class="field-group" id="inputDeptGroup" style="display:none">
+        <label class="field-label" for="inputDept">DÉPT CORRESPONDANT <span style="color:var(--muted);font-weight:400">(prime sur le locator)</span></label>
+        <input type="text" class="field-input" id="inputDept" maxlength="3" placeholder="ex: 35" autocomplete="off"
+          style="text-transform:uppercase"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+      </div>
+
+      <!-- Grille départements 00–99 : clic direct -> remplit le département REÇU
+           (échange-département : Coupe du REF/CDF HF, 160m, F9NL, UFT) OU, en
+           VHF/UHF, le champ « DÉPT CORRESPONDANT » ci-dessus. Cachée sinon.
+           Façon logs de terrain (demande F4GLD 25/08). -->
       <div class="dept-grid-wrap" id="deptGridWrap" style="display:none">
         <div class="dept-grid-lbl">DÉPARTEMENT REÇU — clic direct</div>
         <div class="dept-grid" id="deptGrid"></div>

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Câblage de la grille départements dans le LOGBOOK. La logique pure (liste
-INSEE, règle d'affichage) est couverte par test_dept_grid ; ici on vérifie la
-présence + les invariants : la grille remplit le champ REÇU, et n'est montrée
-que pour un échange-département (jamais dans une série VHF/UHF).
+INSEE, champ cible) est couverte par test_dept_grid ; le score par
+test_dept_override. Ici : présence + invariants (la grille remplit le bon champ
+selon l'échange/la bande, l'override VHF ne touche jamais la série reçue).
 """
 import os
 import re
@@ -15,30 +15,37 @@ def _lire(nom):
         return f.read()
 
 
-def test_inclusion_et_conteneur():
+def test_inclusion_et_conteneurs():
     html = _lire('logx_logbook.html')
     assert 'logx_dept_grid.js' in html
     assert 'id="deptGrid"' in html and 'id="deptGridWrap"' in html
+    # champ override VHF/UHF « dept correspondant »
+    assert 'id="inputDept"' in html and 'id="inputDeptGroup"' in html
 
 
-def test_grille_visible_seulement_si_echange_departement():
+def test_cible_dynamique_selon_echange_et_bande():
     js = _lire('logx_logbook.js')
-    # _majDeptGrid gate l'affichage sur doitAfficher(currentExchange.label_r)
-    assert re.search(
-        r"wrap\.style\.display = LogxDeptGrid\.doitAfficher\(currentExchange\.label_r\)", js)
-    # appelée à chaque changement d'échange
-    assert '_majDeptGrid();' in js
-    m = re.search(r'function applyExchangeFormat\(.*?\n\}', js, re.S)
-    assert m and '_majDeptGrid()' in m.group(0), "grille non rafraîchie au change d'échange"
+    # la cible est décidée par champCible(label_r, VHF) — pas un champ codé en dur
+    assert 'LogxDeptGrid.champCible(currentExchange.label_r, _deptEstVhf())' in js
+    # VHF détectée via la liste canonique BANDES_THF (pas un parsing de fréquence)
+    assert re.search(r'BANDES_THF.*indexOf\(currentBand\)', js)
+    # rafraîchie au changement d'échange ET de bande
+    assert len(re.findall(r'_majDeptGrid\(\)', js)) >= 3
 
 
-def test_clic_remplit_le_champ_recu_pas_une_serie():
+def test_pick_remplit_la_cible_courante_pas_un_champ_fige():
     js = _lire('logx_logbook.js')
     m = re.search(r'function pickDept\(.*?\n\}', js, re.S)
     assert m, 'pickDept introuvable'
     corps = m.group(0)
-    # remplit bien le champ REÇU (#inputNumRcvd), lu par dept_from_exchange
-    assert "getElementById('inputNumRcvd')" in corps
-    assert 'fR.value = code' in corps
-    # met à jour la zone/multiplicateur après le clic
-    assert 'checkExchangeZone' in corps
+    assert 'getElementById(_deptCibleId)' in corps and 'f.value = code' in corps
+    # checkExchangeZone UNIQUEMENT quand on remplit le champ reçu (échange-dept)
+    assert "_deptCibleId === 'inputNumRcvd'" in corps
+
+
+def test_override_vhf_persiste_et_prime():
+    js = _lire('logx_logbook.js')
+    # le dept saisi part sur le QSO (champ dept) -> lu par dept_for_qso (serveur)
+    assert re.search(r"dept:\s*\(\(document\.getElementById\('inputDept'\)", js)
+    # vidé au nouveau contact
+    assert re.search(r"getElementById\('inputDept'\); if\(_dp\) _dp\.value = ''", js)

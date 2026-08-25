@@ -31,9 +31,20 @@
   }
 
   // La grille n'a de sens que si l'échange REÇU est un département (label_r
-  // contient 'DEPT'). Sinon (série VHF/UHF), rester cachée.
+  // contient 'DEPT'). Sinon (série VHF/UHF), voir champCible.
   function doitAfficher(labelR) {
     return String(labelR || '').toUpperCase().indexOf('DEPT') !== -1;
+  }
+
+  // Quel champ un clic remplit (et donc quand la grille s'affiche) :
+  //  - échange REÇU = département      -> 'inputNumRcvd' (le dept EST l'échange) ;
+  //  - sinon en VHF/UHF (bande THF)    -> 'inputDept' (override : prime sur le
+  //    locator dans dept_for_qso, feu vert F4GLD) — jamais dans la série reçue ;
+  //  - sinon (HF série/zone/état…)     -> '' (grille cachée).
+  function champCible(labelR, estVhf) {
+    if (doitAfficher(labelR)) { return 'inputNumRcvd'; }
+    if (estVhf) { return 'inputDept'; }
+    return '';
   }
 
   // Construit la grille UNE fois dans `container` et câble le clic -> onPick(code).
@@ -63,6 +74,7 @@
   window.LogxDeptGrid = {
     codesMetro: codesMetro,
     doitAfficher: doitAfficher,
+    champCible: champCible,
     render: render,
     surligner: surligner
   };

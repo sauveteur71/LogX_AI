@@ -55,3 +55,16 @@ def test_doit_afficher_seulement_pour_echange_departement():
     # série VHF/UHF, zone, état… -> cachée (ne jamais écrire un dept dans une série)
     for labr in ('N° REÇU', 'ZONE RCU', 'ÉTAT/PROV', 'CLASSE RCU', ''):
         assert ctx.eval(f"{D}({labr!r})") is False, labr
+
+
+def test_champ_cible_selon_echange_et_bande():
+    ctx = _ctx()
+    C = "window.LogxDeptGrid.champCible"
+    # échange-département -> remplit le champ REÇU (le dept EST l'échange)
+    assert ctx.eval(f"{C}('DEPT RCU', false)") == 'inputNumRcvd'
+    assert ctx.eval(f"{C}('DEPT RCU', true)") == 'inputNumRcvd'   # priorité à l'échange-dept
+    # VHF/UHF sans échange-dept -> override 'inputDept' (jamais la série)
+    assert ctx.eval(f"{C}('N° REÇU', true)") == 'inputDept'
+    # HF série/zone/état hors VHF -> grille cachée
+    for labr in ('N° REÇU', 'ZONE RCU', 'ÉTAT/PROV'):
+        assert ctx.eval(f"{C}({labr!r}, false)") == '', labr
