@@ -377,13 +377,28 @@ def resolve_operator_callsign(op_id, cfg, station_fallback=True):
     return (cfg.get('callsign_contest') or cfg.get('callsign') or raw) if station_fallback else raw
 
 
+# Sous-mode ADIF -> MODE parent (table SOURCÉE logx_adif_enums.ADIF_MODES,
+# spec ADIF 3.1.7). Un mode stocké « à plat » qui est en réalité un SOUS-MODE
+# (FT4/JS8/Q65/FST4/FT2…) doit sortir MODE=<parent> + SUBMODE=<sous-mode> —
+# jamais MODE=FT4, non conforme (rejet possible par les robots de concours/
+# LoTW stricts). Généralise l'ancien cas particulier FT2.
+try:
+    from logx_adif_enums import ADIF_MODES as _ADIF_MODES
+    _SUBMODE_PARENT = {sub.upper(): parent
+                       for parent, subs in _ADIF_MODES.items() for sub in subs}
+except Exception:
+    _SUBMODE_PARENT = {'FT2': 'MFSK', 'FT4': 'MFSK', 'JS8': 'MFSK'}
+
+
 def _adif_mode(q):
-    """Champ(s) ADIF de mode. FT2 = sous-mode EXPÉRIMENTAL de MFSK : WSJT-X ne
-    liste pas FT2 -> MODE=MFSK + SUBMODE=FT2, JAMAIS MODE=FT2 (terrain FT2
-    Phase 1, jumeau de logx_export_adif.js). Aucune émission concernée."""
-    if str(q.get('mode', '')).strip().upper() == 'FT2':
-        return _adif_field('mode', 'MFSK') + _adif_field('submode', 'FT2')
-    return _adif_field('mode', _norm_mode(q))
+    """Champ(s) ADIF de mode. Un sous-mode stocké à plat (FT4/JS8/Q65/FST4/FT2…)
+    sort MODE=<parent> + SUBMODE=<sous-mode> ; un mode autonome (FT8/CW/SSB/
+    RTTY/PSK…) sort MODE=<mode>. Jumeau de logx_export_adif.js."""
+    m = _norm_mode(q)
+    parent = _SUBMODE_PARENT.get(m)
+    if parent:
+        return _adif_field('mode', parent) + _adif_field('submode', m)
+    return _adif_field('mode', m)
 
 
 def build_adif(qsos, cfg=None, confirmations=None):

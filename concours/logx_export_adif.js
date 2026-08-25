@@ -89,6 +89,12 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
   'SOTA_REF','MY_SOTA_REF','POTA_REF','MY_POTA_REF','WWFF_REF','MY_WWFF_REF',
   'IOTA','MY_IOTA']);
 
+// Sous-mode ADIF stocké à plat -> MODE parent (sous-modes de MFSK que LogX
+// manipule). Jumeau de logx_export._SUBMODE_PARENT (dérivé de
+// logx_adif_enums.ADIF_MODES) ; parité vérifiée par test_adif_submodes.py.
+const SUBMODE_PARENT = {FT2:'MFSK', FT4:'MFSK', JS8:'MFSK', Q65:'MFSK',
+                        FST4:'MFSK', FST4W:'MFSK'};
+
 // Tag ADIF DÉDIÉ par programme d'activation (spec ADIF 3.1.5, adif.org/315 :
 // SOTA_REF/POTA_REF/WWFF_REF et IOTA — ce dernier SANS suffixe _REF). Jumeau
 // de logx_activation.ADIF_PROGRAM_TAGS (Python, source unique) : la parité est
@@ -126,11 +132,14 @@ function buildAdifText(qsos){
     // aussi le seul moyen, pour un importateur, de retrouver la bande d'un
     // QSO dont le libellé serait intraduisible.
     adif += adifField('FREQ', q.freq);
-    // FT2 = sous-mode EXPÉRIMENTAL de MFSK : WSJT-X ne liste pas FT2, on exporte
-    // MODE=MFSK + SUBMODE=FT2 — JAMAIS MODE=FT2 (sinon ADIF invalide / illisible
-    // par un logiciel tiers). Terrain FT2 Phase 1 (F4GLD).
-    if(String(q.mode || '').toUpperCase() === 'FT2'){
-      adif += adifField('MODE', 'MFSK') + adifField('SUBMODE', 'FT2');
+    // Un sous-mode MFSK stocké à plat (FT4/JS8/Q65/FST4/FT2…) sort MODE=MFSK +
+    // SUBMODE=<sous-mode> — JAMAIS MODE=FT4 (non conforme, rejet possible par
+    // les robots de concours/LoTW). Jumeau de logx_export._SUBMODE_PARENT ; les
+    // clés sont vérifiées ⊆ ADIF_MODES['MFSK'] par test_adif_submodes.py.
+    const _mode = String(q.mode || '').toUpperCase();
+    const _parent = SUBMODE_PARENT[_mode];
+    if(_parent){
+      adif += adifField('MODE', _parent) + adifField('SUBMODE', _mode);
     } else {
       adif += adifField('MODE', q.mode);
     }

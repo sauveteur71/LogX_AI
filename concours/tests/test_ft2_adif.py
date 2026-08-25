@@ -73,6 +73,12 @@ def test_aller_retour_ft2_pas_de_double_submode():
 def test_client_export_a_la_branche_ft2():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             'logx_export_adif.js'), encoding='utf-8').read()
-    # structure : la branche FT2 écrit MODE=MFSK + SUBMODE=FT2
-    assert re.search(r"===\s*'FT2'", src)
-    assert "adifField('MODE', 'MFSK')" in src and "adifField('SUBMODE', 'FT2')" in src
+    # FT2 est désormais traité par le mapping GÉNÉRALISÉ sous-mode->MFSK (comme
+    # FT4/JS8…), plus par un if littéral. On vérifie que FT2 figure bien dans le
+    # mapping et que l'émission utilise MODE=<parent> + SUBMODE=<mode>. Le
+    # comportement réel (FT2/FT4 -> MODE=MFSK+SUBMODE) est prouvé en V8 dans
+    # tests/test_adif_submodes.py.
+    i = src.index('SUBMODE_PARENT = {')
+    bloc = src[i:src.index('}', i)]
+    assert "FT2:'MFSK'" in bloc.replace(' ', ''), bloc
+    assert "adifField('MODE', _parent)" in src and "adifField('SUBMODE', _mode)" in src
