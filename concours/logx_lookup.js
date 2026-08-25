@@ -363,3 +363,25 @@ function updateCallDB(call, locator, dept, name){
     }).catch(()=>{});
   }
 }
+
+// Amorçage unique : importe dans la base interne les prénoms/locators déjà
+// presents dans le JOURNAL, pour que l'auto-remplissage du prénom marche tout
+// de suite (et hors ligne) pour les correspondants déjà contactés. Bouton
+// expert-only sous le champ prénom (plomberie de station). Ne touche pas le log.
+async function enrichirNomsDepuisJournal(){
+  const btn = document.getElementById('enrichNomsBtn');
+  if(btn) btn.disabled = true;
+  try{
+    const r = await fetch('/calldb/enrich_from_log', {method:'POST'});
+    const d = await r.json();
+    const msg = (d && d.ok)
+      ? '✅ ' + (d.updated||0) + ' prénom(s)/locator(s) importé(s) depuis le journal ('
+        + (d.scanned||0) + ' QSO parcourus).'
+      : '❌ Import impossible' + (d && d.error ? ' : ' + d.error : '') + '.';
+    if(typeof notify === 'function') notify(msg);
+  }catch(e){
+    if(typeof notify === 'function') notify('❌ Serveur injoignable.');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}

@@ -248,6 +248,31 @@ def merge_calldb_entry(entry, locator='', dept='', name=''):
     return out, changed
 
 
+def enrich_calldb_from_log(shared_log, calls):
+    """Alimente la base interne (calls : {INDICATIF: entrée}) à partir des QSO
+    déjà loggués (prénom/locator appris de l'annuaire ou saisis). Rend
+    l'auto-remplissage du prénom (#268) utile IMMÉDIATEMENT et HORS LIGNE pour
+    tout correspondant déjà contacté. PURE (ne mute ni le log ni `calls`).
+
+    Indexé sur la RACINE de l'indicatif (F4ABC/P -> F4ABC). Les QSO sont traités
+    dans l'ordre : le plus RÉCENT (fin de liste) corrige. Ne remplace jamais une
+    valeur par du vide (merge_calldb_entry). Renvoie (nouvelle base, n_maj)."""
+    out = dict(calls or {})
+    n = 0
+    for qso in (shared_log or []):
+        base = str((qso or {}).get('call', '')).upper().split('/')[0].strip()
+        if not base:
+            continue
+        entry, changed = merge_calldb_entry(
+            out.get(base, {}),
+            locator=str(qso.get('locator', '') or '').upper(),
+            name=str(qso.get('name', '') or '').strip())
+        if changed:
+            out[base] = entry
+            n += 1
+    return out, n
+
+
 def _load_calldb():
     import json, os
     try:

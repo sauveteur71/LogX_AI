@@ -1644,6 +1644,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <input type="text" class="field-input" id="inputName" placeholder="auto (base + QRZ) — corrigeable"
           maxlength="40" autocomplete="off"
           onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+        <!-- Amorçage unique de la base interne depuis le journal : rend le
+             prénom disponible tout de suite pour les correspondants déjà
+             contactés. Plomberie de station -> expert-only, hors chemin critique. -->
+        <button type="button" id="enrichNomsBtn" class="expert-only" onclick="enrichirNomsDepuisJournal()"
+          title="Importe les prénoms/locators déjà présents dans ton journal vers la base interne (une fois) — le prénom se remplira alors tout seul, même hors ligne, pour ces correspondants."
+          style="margin-top:5px;font-family:var(--font-mono);font-size:11px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:4px 9px;cursor:pointer;width:fit-content">⭳ Importer les prénoms de mon journal</button>
       </div>
 
       <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
