@@ -4468,6 +4468,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
 
+            # Crédit CHASSE : ce que chaque spot apporte de NOUVEAU (ATNO,
+            # nouvelle bande/mode, confirmation LoTW manquante) + score, en UNE
+            # passe (voir logx_awards.annoter_credit / logx_chasse_priorite).
+            # objectifs = profil d'objectifs opérateur (None -> tout actif).
+            try:
+                _aw.annoter_credit(spots, log_copy, objectifs=cfg_snap.get('operator_goals'))
+            except Exception:
+                pass
+
             # Bandes proposées : TOUT le plan de bandes, dans l'ordre des
             # fréquences — plus celles du concours et celles où un spot tombe.
             # Se limiter aux bandes du concours rendait la page borgne dès
@@ -4631,6 +4640,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     log_copy = list(shared_log)
                 awards.annoter_besoin_lotw(full_entries, log_copy)
+                # Crédit CHASSE : ATNO / nouvelle bande / nouveau mode /
+                # confirmation manquante + score, en UNE passe (le meme
+                # log_copy). objectifs = profil operateur (None -> tout actif).
+                awards.annoter_credit(full_entries, log_copy,
+                                      objectifs=cfg_snap.get('operator_goals'))
             except Exception:
                 pass
             alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
