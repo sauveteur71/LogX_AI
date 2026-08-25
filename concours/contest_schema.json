@@ -143,6 +143,7 @@
             "zone_country_per_band",
             "zone_country_per_band_rtty",
             "rtty_roundup",
+            "grid_field_distance",
             "prefix_multiplier",
             "power_state",
             "fd_class",
@@ -246,7 +247,7 @@
                         "type": "number"
                       },
                       {
-                        "enum": ["per_km", "per_km_stew"]
+                        "enum": ["per_km", "per_km_stew", "per_grid_3000"]
                       },
                       {
                         "type": "object",

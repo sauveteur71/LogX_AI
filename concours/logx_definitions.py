@@ -511,6 +511,35 @@ CONTEST_DEFINITIONS = {
         'log_deadline': '7_days_after',
     },
 
+    # ── International FT Challenge (rttycontesting.com) ─────────────────────
+    # Successeur ACTIF du FT Roundup, barème DIFFÉRENT : échange = locator 4 car
+    # + SNR (grille manquante = ZZ00) ; 1 pt + 1 pt par tranche de 3000 km entre
+    # centres de locators ; multiplicateur = CHAMP de grille (2 car, ex. 'FN')
+    # PAR BANDE, ZZ ne compte pas. Toutes stations : même échange.
+    'FT_CHALLENGE': {
+        'name': 'International FT Challenge',
+        'organizer': 'RTTY Contesting (rttycontesting.com)',
+        'check_url': 'https://www.rttycontesting.com/ft-challenge/rules/',
+        'rules_url': 'https://www.rttycontesting.com/ft-challenge/rules/',
+        'date_rule': 'first_full_weekend_december',
+        'duration_h': 30, 'start_utc': '18:00',
+        'bands': ['3.5', '7', '14', '21', '28'],
+        'modes': ['FT4', 'FT8'],
+        'exchange': 'Locator 4 caractères + SNR (grille manquante = ZZ00)',
+        'cabrillo_name': 'FT-CHALLENGE',
+        'cabrillo_exchange': ['rst', 'exch'],
+        'scoring': {
+            'type': 'grid_field_distance',
+            'multiplier': 'champ de grille (2 caractères) par bande — ZZ ne compte pas',
+            'unit': 'Σ(1 + 1 par 3000 km) × champs de grille distincts par bande',
+            'note': ('SOURCÉ rttycontesting.com/ft-challenge. Successeur ACTIF du '
+                     'FT Roundup. Points 1 + 1/3000 km entre locators ; mult = '
+                     'champ de grille 2 car par bande.'),
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '7_days_after',
+    },
+
     # ── World Wide Award (hamaward.cloud) ──────────────────────────────────
     # PAS un concours classique : les hunters ne marquent des points qu'en
     # contactant l'une des stations spéciales inscrites pour l'édition (ex.
