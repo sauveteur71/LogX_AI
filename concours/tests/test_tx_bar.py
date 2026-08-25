@@ -113,6 +113,23 @@ def test_seconds_left_borne_0_30():
     assert ctx.eval(f"window.LogxTxBar.secondsLeft({exp}, Date.parse('2026-08-25T12:00:45Z'))") == 0
 
 
+def test_auto_seconds_left():
+    # Décompte d'auto-émission (niveau 2) affiché à l'opérateur : secondes
+    # ENTIÈRES restantes (arrondi au plafond), jamais négatif, 0 si non armé.
+    ctx = _ctx()
+    now = "Date.parse('2026-08-25T12:00:00Z')"
+    at8 = "Date.parse('2026-08-25T12:00:08Z')"
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now})") == 8
+    # 7,4 s restantes -> 8 (plafond, on n'annonce pas moins de temps qu'il n'en reste)
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 600)") == 8
+    # 0,3 s restantes -> 1
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 7700)") == 1
+    # écoulé -> 0
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 9000)") == 0
+    # non armé (0) -> 0
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft(0, {now})") == 0
+
+
 def test_ring_pct():
     ctx = _ctx()
     assert ctx.eval("window.LogxTxBar.ringPct(30, 30)") == 100

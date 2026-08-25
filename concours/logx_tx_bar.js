@@ -41,6 +41,15 @@
     return s;
   }
 
+  // Secondes entières avant l'AUTO-ÉMISSION (niveau 2), arrondies au plafond
+  // pour ne jamais annoncer moins de temps qu'il n'en reste à l'opérateur pour
+  // annuler (STOP TX). 0 si non armé (autoAt falsy) ou délai écoulé.
+  function autoSecondsLeft(autoAt, nowMs) {
+    if (!autoAt) { return 0; }
+    var s = Math.ceil((autoAt - nowMs) / 1000);
+    return s > 0 ? s : 0;
+  }
+
   function ringPct(secs, ttl) {
     ttl = ttl || TTL;
     var p = Math.round((Number(secs) || 0) / ttl * 100);
@@ -84,7 +93,7 @@
     TTL: TTL, DUREE_MAX_DEFAUT: DUREE_MAX_DEFAUT,
     fmtFreqKhz: fmtFreqKhz, secondsLeft: secondsLeft, ringPct: ringPct,
     preparePayload: preparePayload, authorizePayload: authorizePayload,
-    nextState: nextState,
+    nextState: nextState, autoSecondsLeft: autoSecondsLeft,
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
     _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
     _onConfirm: null,      // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
@@ -167,10 +176,15 @@
     var n = _q('rcTxCount'); if (n) { n.textContent = secs; }
     // Niveau 2 : le délai d'auto-émission est écoulé -> émet UNE fois (sauf
     // annulation via STOP TX, qui remet _autoAt à 0 et coupe le timer).
-    if (LogxTxBar._autoAt && Date.now() >= LogxTxBar._autoAt && LogxTxBar.state === 'prepared') {
-      LogxTxBar._autoAt = 0;
-      LogxTxBar._emettre();
-      return;
+    if (LogxTxBar._autoAt && LogxTxBar.state === 'prepared') {
+      if (Date.now() >= LogxTxBar._autoAt) {
+        LogxTxBar._autoAt = 0;
+        LogxTxBar._emettre();
+        return;
+      }
+      // Affiche le décompte d'auto-émission pour que l'opérateur puisse annuler.
+      _line('Émission auto dans ' + autoSecondsLeft(LogxTxBar._autoAt, Date.now())
+            + ' s — STOP TX pour annuler.', '');
     }
     if (secs <= 0 && LogxTxBar.state === 'prepared') {
       LogxTxBar.state = nextState(LogxTxBar.state, 'EXPIRE');
