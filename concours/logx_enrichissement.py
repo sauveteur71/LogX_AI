@@ -29,23 +29,23 @@ _CHAMPS_DEPUIS_INDICATIF = (
 def enrichir(qso, cfg=None):
     """Champs dérivables MANQUANTS pour ce QSO, sous forme {clé_interne: valeur}.
 
-    Ne dérive que depuis l'indicatif (lot 1). Ne renvoie JAMAIS un champ déjà
-    renseigné par l'opérateur (on ne remplit que le vide, sa saisie fait foi).
-    Renvoie {} si pas d'indicatif ou indicatif inconnu de cty.dat."""
+    Ne renvoie JAMAIS un champ déjà renseigné par l'opérateur (on ne remplit que
+    le vide, sa saisie fait foi). Les trois sources sont INDÉPENDANTES : pays/
+    zones du correspondant (indicatif), distance/azimut (locators), champs MY_*
+    (config) — un indicatif inconnu de cty.dat ne doit PAS empêcher les deux
+    autres (correctif de revue)."""
     qso = qso or {}
-    call = str(qso.get('call', '') or '').strip()
-    if not call:
-        return {}
-    fiche = logx_dxcc.lookup(call)
-    if not fiche:
-        return {}
     out = {}
-    for interne, source in _CHAMPS_DEPUIS_INDICATIF:
-        if str(qso.get(interne, '') or '').strip():
-            continue                      # déjà saisi -> ne pas écraser
-        val = fiche.get(source)
-        if val not in (None, ''):
-            out[interne] = str(val)
+    call = str(qso.get('call', '') or '').strip()
+    if call:
+        fiche = logx_dxcc.lookup(call)
+        if fiche:
+            for interne, source in _CHAMPS_DEPUIS_INDICATIF:
+                if str(qso.get(interne, '') or '').strip():
+                    continue              # déjà saisi -> ne pas écraser
+                val = fiche.get(source)
+                if val not in (None, ''):
+                    out[interne] = str(val)
     out.update(_depuis_locators(qso, cfg))
     out.update(_my_depuis_config(qso, cfg))
     return out
@@ -54,9 +54,10 @@ def enrichir(qso, cfg=None):
 # (clé interne MY_* du QSO, clé logx_dxcc.lookup) — miroir « ma station » de
 # _CHAMPS_DEPUIS_INDICATIF, dérivé de l'indicatif de config (callsign_contest
 # prioritaire sur callsign, même règle que build_adif).
+# my_continent VOLONTAIREMENT absent : la norme ADIF n'a pas de tag MY_CONT
+# (contrairement à CONT côté correspondant) -> pas de champ mort dérivé.
 _CHAMPS_MY = (
     ('my_dxcc_country', 'country'),
-    ('my_continent', 'continent'),
     ('my_cqz', 'cq_zone'),
     ('my_ituz', 'itu_zone'),
 )
