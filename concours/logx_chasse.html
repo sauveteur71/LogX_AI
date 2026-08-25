@@ -99,6 +99,12 @@ body.simple-mode .expert-only{display:none!important}
 .sr-band{width:56px;color:var(--muted)}
 .sr-val{width:110px;text-align:right}
 .sr-mult-badge{font-size:12px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
+/* Crédit CHASSE (ce que le spot apporte de nouveau, posé par annoter_credit).
+   Couleur par classe via tokens de thème — lisible jour ET nuit. */
+.sr-credit-badge{font-size:11.5px;letter-spacing:.4px;border-radius:3px;padding:1px 6px;white-space:nowrap;border:1px solid var(--border);color:var(--muted)}
+.sr-credit-badge.cr-atno{color:var(--green);border-color:rgba(0,255,136,.45);font-weight:700}
+.sr-credit-badge.cr-new_band,.sr-credit-badge.cr-new_mode{color:var(--accent2);border-color:rgba(var(--accent-rgb),.45)}
+.sr-credit-badge.cr-needed_confirm{color:var(--yellow);border-color:rgba(255,214,0,.4)}
 /* Assistant pile-up/split (déterministe, 0 jeton) : annonce UP/DOWN/QSX
    repérée dans le commentaire du spot par logx_clusters.parse_split_info,
    affichée telle quelle — même gabarit que .sr-mult-badge mais en cuivre
@@ -511,6 +517,22 @@ function splitBadge(s){
   return `<span class="sr-split-badge" title="${rcT('Split annoncé dans le commentaire du spot')}">SPLIT</span>`;
 }
 
+// Crédit CHASSE : ce que le spot apporte de NOUVEAU (posé côté serveur par
+// logx_awards.annoter_credit — atno/new_band/new_mode/needed_confirm). Le
+// « pourquoi » (credit_raison) + le score partent en title ; le doublon
+// confirmé et l'entité inconnue n'affichent rien (aucun crédit à signaler).
+const CREDIT_LABELS = {
+  atno: '🌟 ATNO', new_band: '📻 +BANDE', new_mode: '🎚 +MODE',
+  needed_confirm: '📩 À CONFIRMER',
+};
+function creditBadge(s){
+  const cl = s.credit_classe;
+  const lbl = CREDIT_LABELS[cl];
+  if(!lbl) return '';
+  const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '');
+  return `<span class="sr-credit-badge cr-${esc(cl)}" title="${esc(t)}">${lbl}</span>`;
+}
+
 function renderSpots(){
   let list = spotsData;
   if(selectedBands.size) list = list.filter(s => selectedBands.has(s.band));
@@ -533,6 +555,7 @@ function renderSpots(){
       <span class="sr-band">${esc(s.band)} MHz</span>
       <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : (contestActif ? '+' + esc(s.value || s.points) + ' ' + rcT('pts') : rcT('NOUVEAU'))}</span>
       ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
+      ${creditBadge(s)}
       ${splitBadge(s)}
       <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
       <span class="sr-info" title="${contestActif ? esc(s.explanation) : ''}">${s.dist_km ? esc(s.dist_km) + ' km' : ''}${contestActif && s.explanation ? (s.dist_km ? ' · ' : '') + esc(s.explanation) : ''}</span>
