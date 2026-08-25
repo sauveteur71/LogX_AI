@@ -87,7 +87,9 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
   'QSL_SENT','LOTW_QSL_SENT','EQSL_QSL_SENT','APP_LOGX_OPERATING',
   // Lot 3 : tags dédiés multi-références (two-fer).
   'SOTA_REF','MY_SOTA_REF','POTA_REF','MY_POTA_REF','WWFF_REF','MY_WWFF_REF',
-  'IOTA','MY_IOTA']);
+  'IOTA','MY_IOTA',
+  // IA-2 : pays/continent/zones (parité build_adif).
+  'COUNTRY','CONT','MY_COUNTRY','MY_CQ_ZONE','MY_ITU_ZONE']);
 
 // Tag ADIF DÉDIÉ par programme d'activation (spec ADIF 3.1.5, adif.org/315 :
 // SOTA_REF/POTA_REF/WWFF_REF et IOTA — ce dernier SANS suffixe _REF). Jumeau
@@ -159,6 +161,14 @@ function buildAdifText(qsos){
     adif += adifField('MY_SIG_INFO', q.my_sig_info);
     adif += adifField('SIG', q.sig);
     adif += adifField('SIG_INFO', q.sig_info);
+    // IA-2 (lot 5/6) : pays/continent/zones — parité avec build_adif (serveur).
+    // Le client N'enrichit pas (l'enrichissement est côté serveur) : on émet ce
+    // qui est présent sur le QSO. Noms ADIF sourcés adif.org/315.
+    adif += adifField('COUNTRY', q.dxcc_country);
+    adif += adifField('CONT', q.continent);
+    adif += adifField('MY_COUNTRY', q.my_dxcc_country);
+    adif += adifField('MY_CQ_ZONE', q.my_cqz);
+    adif += adifField('MY_ITU_ZONE', q.my_ituz);
     // Sous-chantier B (lot 2) : clés posées par la refonte de saisie (A) —
     // mêmes tags que logx_export.build_adif. operating_location -> APP_LOGX_OPERATING.
     adif += adifField('TX_PWR', q.tx_pwr);

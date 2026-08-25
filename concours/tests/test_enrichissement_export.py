@@ -108,3 +108,30 @@ def test_country_importe_survit_au_reexport():
     assert not err and qsos[0].get('dxcc_country') == 'United States', qsos
     adif_out = export.build_adif(qsos, {}).upper()      # sans completer
     assert '<COUNTRY:13>UNITED STATES' in adif_out, adif_out
+
+
+# ─── Parité client (VRAI buildAdifText en V8) ────────────────────────────────
+
+import json    # noqa: E402
+import pytest   # noqa: E402
+
+py_mini_racer = pytest.importorskip(
+    'py_mini_racer', reason='py_mini_racer absent — test JS réel ignoré')
+
+_EXPORT_JS = open(os.path.join(BASE, 'logx_export_adif.js'), encoding='utf-8').read()
+_STUBS = ("var myCall='F4GLD', myLocator='JN15WD';"
+          "function _resolveOperatorCallsign(x){ return x||''; }")
+
+
+def test_client_v8_emet_country_et_my_zones():
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_STUBS)
+    ctx.eval(_EXPORT_JS)
+    q = [{'call': 'W1AW', 'band': '20', 'mode': 'SSB', 'date': '20260101',
+          'time': '1200', 'rst_sent': '59', 'rst_rcvd': '59',
+          'dxcc_country': 'United States', 'continent': 'NA',
+          'my_dxcc_country': 'France', 'my_cqz': '14', 'my_ituz': '27'}]
+    adif = ctx.eval('buildAdifText(%s)' % json.dumps(q)).upper()
+    assert '<COUNTRY:13>UNITED STATES' in adif and '<CONT:2>NA' in adif, adif
+    assert '<MY_COUNTRY:6>FRANCE' in adif, adif
+    assert '<MY_CQ_ZONE:2>14' in adif and '<MY_ITU_ZONE:2>27' in adif, adif
