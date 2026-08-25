@@ -2028,6 +2028,11 @@ if(localStorage.getItem('rc_theme') === null){
   function _copiloteProposer(text, snrDb){
     if(typeof LogxFt8Copilote === 'undefined' || typeof LogxTxBar === 'undefined') return;
     if(!LogxFt8Copilote.doitProposer(seqNiveau)) return;
+    // Pile-up : si une proposition est déjà en attente pour une AUTRE station,
+    // on reste dessus (premier appelant d'abord) plutôt que d'écraser la barre.
+    const _dx = (String(text).trim().toUpperCase().split(/\s+/)[1]) || '';
+    if(LogxFt8Copilote.doitIgnorerPileup(LogxTxBar.state === 'prepared',
+         _copiloteQso ? _copiloteQso.dxCall : '', _dx)) return;
     _copiloteTracer(text);                             // journalisation (maj état + log si clôture)
     const r = LogxFt8Copilote.reponseFt8(text, snrDb, myCall);
     if(!r) return;                                     // rien à proposer (pas pour moi / QSO fini)

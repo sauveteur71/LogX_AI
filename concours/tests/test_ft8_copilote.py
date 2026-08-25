@@ -116,6 +116,24 @@ def test_extraire_report_grille_fin():
     assert F('F4ABC DL1XX 73') is False           # fin d'un QSO entre tiers -> pas moi
 
 
+def test_pile_up_premier_appelant_dabord():
+    # Pile-up : ne PAS écraser une proposition en attente par un AUTRE appelant.
+    # On reste sur le QSO en cours (un QSO à la fois) ; le tri fin des appelants
+    # (prioriser) est un item séparé (décision produit F4GLD).
+    ctx = _ctx()
+    I = lambda prep, actif, dx: ctx.eval(
+        f"window.LogxFt8Copilote.doitIgnorerPileup({str(prep).lower()}, {actif!r}, {dx!r})")
+    # proposition en attente pour F4ABC, un AUTRE (DL1XX) appelle -> on l'ignore
+    assert I(True, 'F4ABC', 'DL1XX') is True
+    # même station (suite du QSO) -> jamais ignoré
+    assert I(True, 'F4ABC', 'F4ABC') is False
+    # rien en attente -> on peut proposer (aucun QSO actif)
+    assert I(False, 'F4ABC', 'DL1XX') is False
+    assert I(False, '', 'DL1XX') is False
+    # en attente mais pas de QSO actif tracé -> ne bloque pas
+    assert I(True, '', 'DL1XX') is False
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

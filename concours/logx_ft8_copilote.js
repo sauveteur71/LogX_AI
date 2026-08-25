@@ -121,11 +121,23 @@
     return r0 === 'RRR' || r0 === 'RR73' || r0 === '73';
   }
 
+  // Pile-up : faut-il IGNORER ce décode ? Oui si une proposition est déjà en
+  // attente (barre préparée, non confirmée) pour une AUTRE station — on reste
+  // sur le QSO en cours (premier appelant d'abord, un QSO à la fois) plutôt que
+  // d'écraser la barre à chaque appelant. Le TRI fin des appelants (prioriser
+  // un nouveau DXCC, etc.) est un item séparé (décision produit).
+  function doitIgnorerPileup(barPreparee, qsoActifDx, decodeDx) {
+    var a = String(qsoActifDx || '').toUpperCase();
+    var d = String(decodeDx || '').toUpperCase();
+    return !!(barPreparee && a && a !== d);
+  }
+
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
+    doitIgnorerPileup: doitIgnorerPileup,
     extraireReport: extraireReport,
     extraireGrille: extraireGrille,
     estFinQso: estFinQso,
