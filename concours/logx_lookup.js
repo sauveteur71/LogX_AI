@@ -385,3 +385,21 @@ async function enrichirNomsDepuisJournal(){
     if(btn) btn.disabled = false;
   }
 }
+
+// Amorçage AUTOMATIQUE une seule fois (premier chargement du LOGBOOK) : le
+// prénom marche tout de suite pour les correspondants déjà au journal, SANS
+// aucun geste — « le meilleur réglage est celui qu'on n'a pas à faire »
+// (intuitivité). Le drapeau localStorage est posé AVANT l'appel pour ne jamais
+// re-scanner le journal à chaque chargement ; le bouton reste pour re-lancer.
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    if(localStorage.getItem('rc_calldb_enriched_v1')) return;
+    localStorage.setItem('rc_calldb_enriched_v1', '1');
+    fetch('/calldb/enrich_from_log', {method:'POST'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.ok && d.updated > 0 && typeof notify === 'function')
+          notify('✅ ' + d.updated + ' prénom(s)/locator(s) importé(s) de ton journal.');
+      }).catch(function(){});
+  }catch(e){}
+});
