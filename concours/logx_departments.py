@@ -390,7 +390,10 @@ def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls
         if d in DEPARTMENTS:
             by_dept.setdefault(d, []).append((call, e['qso_count']))
 
-    # Spots cluster actuels : indicatif -> {freq, band} (formats hétérogènes)
+    # Spots cluster actuels : indicatif -> {freq, band, locator} (formats
+    # hétérogènes). Le LOCATOR DU SPOT est conservé : le cluster le porte
+    # souvent, et il suffit à rattacher un indicatif au département EN LOCAL
+    # (sans réseau) — voir la résolution ci-dessous.
     from logx_utils import _spot_call_freq
     spotted = {}
     for label, spots in (spots_by_label or {}).items():
@@ -398,20 +401,41 @@ def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls
             c, freq = _spot_call_freq(sp)
             c = c.strip().upper()
             base = c.split('/')[0] if '/' in c and len(c.split('/')[0]) >= 3 else c
+            loc = str(sp.get('locator', '') or '').upper() if isinstance(sp, dict) else ''
             if len(base) >= 3:
-                spotted[base] = {'freq': freq, 'band': label}
+                spotted[base] = {'freq': freq, 'band': label, 'locator': loc}
 
     known_calls = {c for calls in by_dept.values() for c, _ in calls}
-    live_resolved = _resolve_spotted_live(spotted, known_calls, cfg)
+
+    # Département de CHAQUE station spottée, du plus fiable au moins fiable :
+    #   1. HISTORIQUE (log/calldb/archives) — déjà indexé dans by_dept ;
+    #   2. le LOCATOR DU SPOT lui-même -> dept_from_locator, EN LOCAL, sans
+    #      réseau : c'est ce qui corrige la cécité aux indicatifs JAMAIS loggés
+    #      (un chasseur inédit spotté avec son locator est enfin rattaché à son
+    #      département — le pire moment pour dépendre du réseau, c'est le contest) ;
+    #   3. lookup callbook RÉSEAU (repli plafonné) pour les spots SANS locator.
+    # Réservé aux indicatifs FRANÇAIS (cohérent avec dept_for_qso : le
+    # département REF est un découpage français).
+    spot_dept = {}
+    for d, calls in by_dept.items():
+        for c, _ in calls:
+            if c in spotted:
+                spot_dept.setdefault(c, d)
+    for c, info in spotted.items():
+        if c not in spot_dept and _is_french_call(c):
+            d = dept_from_locator(info.get('locator', ''))
+            if d in DEPARTMENTS:
+                spot_dept[c] = d
+    non_resolus = {c: info for c, info in spotted.items() if c not in spot_dept}
+    for c, d in _resolve_spotted_live(non_resolus, known_calls, cfg).items():
+        spot_dept.setdefault(c, d)
 
     targets = []
     for d in missing:
         calls = sorted(by_dept.get(d, []), key=lambda ce: (-ce[1], ce[0]))
-        sp_here = [{'call': c, **spotted[c]} for c, _ in calls if c in spotted][:3]
-        already = {t['call'] for t in sp_here}
-        for call, cd in live_resolved.items():
-            if cd == d and call not in already and len(sp_here) < 3:
-                sp_here.append({'call': call, **spotted[call]})
+        # Toutes les stations spottées rattachées à ce département manquant
+        # (historique OU locator du spot OU réseau) — prêtes à appeler.
+        sp_here = [{'call': c, **spotted[c]} for c in spotted if spot_dept.get(c) == d]
         targets.append({
             'dept': d,
             'name': DEPARTMENTS.get(d, ''),
