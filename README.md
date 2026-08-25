@@ -4,7 +4,7 @@
 
 Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de score générique s'auto-configure sur n'importe quel concours, et tout tourne en local — sans cloud obligatoire, sans abonnement.
 
-[💛 Soutenir le projet sur HelloAsso](LIEN_HELLOASSO_A_COMPLETER) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md) · [🗒️ Journal des modifications](docs/CHANGELOG.md)
+[💛 Soutenir le projet sur HelloAsso](https://www.helloasso.com/associations/radioclub-du-velay/formulaires/2) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md) · [🗒️ Journal des modifications](docs/CHANGELOG.md)
 
 ---
 
@@ -68,7 +68,7 @@ Le logiciel se met à jour tout seul : au lancement, il compare sa version à la
 
 ## Soutenir le projet
 
-LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, Anthropic) pour l'assistance au développement — un coût récurrent pour le mainteneur. Si le logiciel vous rend service, un don via **[HelloAsso](LIEN_HELLOASSO_A_COMPLETER)** (au profit du radioclub) aide à couvrir cet abonnement et à faire vivre le projet. Aucune contrepartie, aucune fonctionnalité fermée derrière un paywall — le logiciel reste et restera gratuit.
+LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, Anthropic) pour l'assistance au développement — un coût récurrent pour le mainteneur. Si le logiciel vous rend service, un don via **[HelloAsso](https://www.helloasso.com/associations/radioclub-du-velay/formulaires/2)** (au profit du radioclub) aide à couvrir cet abonnement et à faire vivre le projet. Aucune contrepartie, aucune fonctionnalité fermée derrière un paywall — le logiciel reste et restera gratuit.
 
 ## Contribuer
 
