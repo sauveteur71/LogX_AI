@@ -17,7 +17,9 @@ JS = open(os.path.join(BASE, 'logx_logbook.js'), encoding='utf-8').read()
 CHAMPS = {
     'mystation': ['inputTxPwr', 'inputMyRig', 'inputMyAntenna', 'inputOperatingLocation'],
     'corr': ['inputEmail', 'inputQslVia', 'inputCqz', 'inputItuz', 'inputCnty'],
-    'qso': ['inputFreqRx', 'inputTimeOff', 'inputPropMode'],
+    # inputTimeOff retiré : l'heure de fin (time_off) est désormais AUTOMATIQUE
+    # (= heure du QSO à l'enregistrement), voir test_timeoff_auto.py.
+    'qso': ['inputFreqRx', 'inputPropMode'],
 }
 
 
