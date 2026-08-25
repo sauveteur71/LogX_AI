@@ -54,6 +54,32 @@ def test_message_propose_emballe_pour_la_barre():
     assert ctx.eval("p.voice_source") == 'auto'
 
 
+def test_reponse_ft8_selon_le_protocole():
+    # Table de protocole SOURCÉE (doc F4GLD). Je suis F1XYZ (monCall).
+    ctx = _ctx()
+    def rep(msg, snr):
+        ctx.eval(f"var r = window.LogxFt8Copilote.reponseFt8({msg!r}, {snr}, 'F1XYZ');")
+        return None if ctx.eval("r === null") else ctx.eval("r.message")
+    # (2) on me répond avec une grille -> j'envoie SON report (le SNR reçu)
+    assert rep('F1XYZ F4ABC JN03', -12) == 'F4ABC F1XYZ -12'
+    # SNR positif -> format +NN
+    assert rep('F1XYZ F4ABC JN03', 3) == 'F4ABC F1XYZ +03'
+    # on m'appelle SANS grille (grille déjà connue) -> report aussi
+    assert rep('F1XYZ F4ABC', -5) == 'F4ABC F1XYZ -05'
+    # (4) on m'accuse réception + son report (R-18) -> je clos par RR73
+    assert rep('F1XYZ F4ABC R-18', -12) == 'F4ABC F1XYZ RR73'
+    # on m'envoie un report nu (-12) -> j'accuse avec R + mon report
+    assert rep('F1XYZ F4ABC -12', -8) == 'F4ABC F1XYZ R-08'
+    # (6) fin de QSO reçue -> plus rien à proposer
+    assert rep('F1XYZ F4ABC 73', -12) is None
+    assert rep('F1XYZ F4ABC RR73', -12) is None
+    assert rep('F1XYZ F4ABC RRR', -12) is None
+    # décode PAS adressé à moi (QSO entre tiers) -> rien
+    assert rep('F4ABC DL1XX JN03', -12) is None
+    # CQ (pas un appel qui m'est adressé) -> rien (répondre à un CQ = hors scope v1)
+    assert rep('CQ F4ABC JN03', -12) is None
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

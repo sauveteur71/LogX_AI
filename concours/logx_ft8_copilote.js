@@ -47,9 +47,41 @@
     return String(dxCall || '').toUpperCase() + '|' + String(txMsg || '').toUpperCase();
   }
 
+  // Format report FT8 : signe + 2 chiffres (ex. -12, +03, -05).
+  function fmtSnr(snr) {
+    var n = Math.round(Number(snr) || 0);
+    return (n >= 0 ? '+' : '-') + String(Math.abs(n)).padStart(2, '0');
+  }
+
+  // Réponse FT8 à un décode qui M'EST ADRESSÉ, selon le protocole standard
+  // (table SOURCÉE F4GLD). Retourne {message, dxCall} ou null si rien à
+  // proposer (pas pour moi / QSO fini / message inattendu). NE calcule PAS
+  // depuis la grille (report = SNR reçu) : évite le piège grille='RR73'.
+  //   « monCall DX <grille|rien> » -> « DX monCall <report> »   (on m'appelle)
+  //   « monCall DX <report nu> »   -> « DX monCall R<report> »  (report reçu)
+  //   « monCall DX R<report> »     -> « DX monCall RR73 »       (accusé + report)
+  //   « monCall DX RRR|RR73|73 »   -> null                      (QSO terminé)
+  function reponseFt8(decodeMsg, snr, monCall) {
+    var toks = String(decodeMsg || '').trim().toUpperCase().split(/\s+/);
+    monCall = String(monCall || '').toUpperCase();
+    if (toks.length < 2 || toks[0] !== monCall) { return null; }   // pas pour moi
+    var dx = toks[1];
+    if (!dx || dx === 'CQ') { return null; }
+    var r0 = toks[2] || '';
+    if (r0 === 'RRR' || r0 === 'RR73' || r0 === '73') { return null; }  // QSO fini
+    if (/^R[+-]\d{1,2}$/.test(r0)) { return { message: dx + ' ' + monCall + ' RR73', dxCall: dx }; }
+    if (/^[+-]\d{1,2}$/.test(r0)) { return { message: dx + ' ' + monCall + ' R' + fmtSnr(snr), dxCall: dx }; }
+    if (toks.length === 2 || /^[A-R]{2}\d{2}$/.test(r0)) {
+      return { message: dx + ' ' + monCall + ' ' + fmtSnr(snr), dxCall: dx };
+    }
+    return null;
+  }
+
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     messagePropose: messagePropose,
+    reponseFt8: reponseFt8,
+    fmtSnr: fmtSnr,
     cle: cle,
     _dernierePropose: null   // clé de la dernière proposition émise/en cours (anti-spam runtime)
   };
