@@ -231,13 +231,18 @@ def test_reproduction_bandes_invalides_avant_correctif():
 
 
 def test_reproduction_toutes_les_bandes_gerees_invalides_avant_correctif():
-    """Le défaut ne dépend pas du jeu d'essai : les 20 bandes du sélecteur
-    produisaient toutes une valeur hors énumération."""
+    """Le défaut ne dépend pas du jeu d'essai : avant le correctif, les 21 bandes
+    du sélecteur ressortaient TOUTES avec un libellé FAUX (band + 'M'). Note : la
+    bande interne '5' (60m) tombe sur '5M' -> '5m', qui EST un libellé ADIF réel…
+    mais une AUTRE bande (5m = 54-70 MHz, pas 60m/5 MHz) : le défaut mislabellisait
+    donc chaque bande, y compris celle-ci. On vérifie que chaque sortie DIFFÈRE du
+    libellé correct."""
     qsos = [dict(_QSOS[0], call='F4TEST', band=b) for b in ADIF_BAND]
     adif = _exporter(qsos, rev=REV_AVANT_CORRECTIF)
     bandes = _champs(adif, 'BAND')
-    assert len(bandes) == len(ADIF_BAND) == 20
-    assert [b for b in bandes if b.lower() in _LIBELLES_OFFICIELS] == []
+    correct = [ADIF_BAND[b] for b in ADIF_BAND]
+    assert len(bandes) == len(ADIF_BAND) == 21
+    assert all(vu != bon for vu, bon in zip(bandes, correct))   # tout faux avant
 
 
 # ─── Le même scénario sur le code ACTUEL ─────────────────────────────────────
@@ -252,10 +257,10 @@ def test_bandes_conformes_a_l_enumeration_adif():
 
 
 def test_toutes_les_bandes_gerees_sont_valides():
-    """Les 20 bandes du sélecteur — et pas seulement celles du jeu d'essai."""
+    """Les 21 bandes du sélecteur — et pas seulement celles du jeu d'essai."""
     qsos = [dict(_QSOS[0], call='F4TEST', band=b) for b in ADIF_BAND]
     bandes = _champs(_exporter(qsos), 'BAND')
-    assert len(bandes) == 20
+    assert len(bandes) == 21
     assert [b for b in bandes if b not in _LIBELLES_OFFICIELS] == []
 
 

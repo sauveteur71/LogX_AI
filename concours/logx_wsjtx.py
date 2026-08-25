@@ -286,7 +286,7 @@ def _mhz_to_band(mhz):
     # Bandes WARC (30/17/12 m) mappées sur LEUR propre code interne — pas sur
     # la bande contest voisine : un QSO 30 m rabattu sur '7' (40 m) faussait la
     # déduplication, la Worked Matrix, les diplômes DXCC par bande et l'export.
-    for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
+    for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (5.06, 5.45, '5'), (7.0, 7.3, '7'),
                       (10.1, 10.15, '10.1'), (14.0, 14.35, '14'), (18.0, 18.2, '18'),
                       (21.0, 21.45, '21'), (24.8, 25.0, '24'), (28.0, 29.7, '28'),
                       (50, 54, '50'), (70, 71, '70'), (144, 148, '144'),

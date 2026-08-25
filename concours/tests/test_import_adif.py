@@ -169,16 +169,15 @@ def test_adif_vide_ou_invalide_ne_leve_jamais():
 # ─── Validation ADIF 3.1.7 officielle (bandes rares + modes non standards) ──
 
 def test_bande_rare_via_freq_sans_champ_band_nest_plus_rejetee():
-    """60m (5.06-5.45 MHz) n'est pas l'une des ~19 bandes internes de l'app
-    (aucun concours géré ne l'utilise), mais un QSO FREQ=5.330 sans champ
-    BAND doit rester importable — avant le correctif, le repli fréquence->
-    bande (12 bandes de concours) ne reconnaissait pas cette plage et le
-    record était rejeté pour bande "non reconnue"."""
+    """60m (5.06-5.45 MHz) est désormais une BANDE INTERNE de plein droit ('5',
+    décision F4GLD 25/08). Un QSO FREQ=5.330 sans champ BAND doit rester
+    importable ET tomber sur la bande interne '5' (auparavant 60m n'était pas
+    interne et ressortait en libellé ADIF brut '60m')."""
     adif = ("<CALL:5>N0CDX<FREQ:5>5.330<MODE:2>CW<QSO_DATE:8>20260710"
            "<TIME_ON:4>1230<EOR>\n")
     qsos, errors = imp.parse_adif_to_qsos(adif)
     assert len(qsos) == 1 and not errors
-    assert qsos[0]['band'] == '60m'
+    assert qsos[0]['band'] == '5'
 
 
 def test_mode_non_standard_signale_mais_pas_bloquant():
