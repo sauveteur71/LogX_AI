@@ -153,13 +153,41 @@ contrôle CAT réel + garde-fou → PTT + émission du CONTENU (CW texte / WAV /
 TTS selon accès) → journal d'audit. **Stop TX** coupe tout. Le **test sur l'air
 reste le geste de F4GLD**.
 
-**Reste de la roadmap copilote IA** : le **déclencheur IA réel** — l'IA qui
-DÉCIDE *quand* proposer une émission (aujourd'hui `proposer()` est appelé à la
-main). C'est le cœur de la vision copilote (4 niveaux d'autorisation, ordre de
-dév défini par F4GLD, cf. mémoire) — demande sa direction produit, pas à
-construire à l'aveugle. Autres : câblage endpoints TX au PTT réel déjà fait
+**Reste de la roadmap copilote IA** : le **déclencheur IA réel** — FAIT
+ci-dessous (copilote FT8). Autres : câblage endpoints TX au PTT réel déjà fait
 (#255/#257) ; UI de confirmation faite (#256) ; FT Challenge/FT Roundup/GMA
 faits ci-dessus.
+
+#### Soir du 25/08/2026 — copilote FT8 (déclencheur IA, 1re brique)
+
+Cadré avec F4GLD (spec `docs/superpowers/specs/2026-08-25-ft8-copilote-declencheur-design.md`).
+Décisions : répondre à un appel FT8 ; **l'IA propose, l'humain confirme CHAQUE
+émission (jamais d'auto-émission)** ; approche **X** (pilotée par les décodes,
+n'utilise PAS la boucle temporisée du séquenceur). Boucle complète :
+
+| PR | Ce que ça fait |
+|---|---|
+| #262 | **Copilote FT8 — répondre à un appel**. Sur un décode « pour moi » au niveau `copilote`, l'IA calcule la réponse standard (`reponseFt8` : grille→report, report→R+report, R+report→RR73, RRR/RR73/73→fin — table protocole SOURCÉE F4GLD) et la PROPOSE dans la barre #256 ; ÉMETTRE → `envoyerMessage()` au prochain créneau. Barre étendue `proposer(em, onConfirm)` (chemin client, FT8 = mode data hors serveur voix/CW). |
+| #263 | **Copilote FT8 — répondre à un CQ** (double-clic → propose l'appel initial `appelInitial`). *(en attente CI/fusion au moment d'écrire)* |
+
+🚨 **SÛRETÉ verrouillée par tests structurels + mutation sur les DEUX chemins** :
+au niveau `copilote`, le seul `envoyerMessage` est DANS le callback ÉMETTRE →
+**aucune auto-émission possible**. Séquenceur existant (manuel/assisté/
+séquenceur/auto) **inchangé** (non-régression verte). Nouveau niveau `copilote`
+dans le `<select>` de `logx_ft8.html`. Déterministe, zéro réseau (zone blanche).
+
+**Piège rebase (rappel #237, revécu)** : #263 empilé sur #262 squash-mergé →
+`git rebase` rejouait les commits déjà squashés (conflit). Correctif :
+`git rebase --onto origin/main <dernier-commit-262>` pour ne rejouer QUE le
+commit propre de #263.
+
+**VÉRIF NAVIGATEUR = geste F4GLD** (avant usage on-air) : page FT8 → niveau
+Copilote → décode simulé « pour moi » → la barre s'affiche → ÉMETTRE → FT8 part
+au prochain créneau ; thèmes jour/nuit.
+
+**Suite copilote (demande direction produit F4GLD)** : niveaux d'autorisation
+2-4 (semi-auto temporisé) ; pile-up (stratégie serveur `/wsjtx/strategy`
+existe) ; copilote CW/SSB ; journaliser le lien consentement→QSO.
 
 ### En attente d'un essai sur l'air
 
