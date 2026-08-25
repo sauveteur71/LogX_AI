@@ -106,7 +106,9 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None, declared
             _conf = None
         _write(os.path.join(folder, base + '.adi'),
                export.build_adif(qsos, cfg, confirmations=_conf, completer=True))
-        files += [base + '.cbr', base + '.adi']
+        # CSV (tableur / récupération) — jumeau serveur du CSV client.
+        _write(os.path.join(folder, base + '.csv'), export.build_csv(qsos, cfg))
+        files += [base + '.cbr', base + '.adi', base + '.csv']
     except Exception as e:
         print(f"[ARCHIVE] Exports non générés : {e}")
 

@@ -601,3 +601,43 @@ def build_adif(qsos, cfg=None, confirmations=None, completer=False):
                        and str(name).upper() not in _conf_tags_emis]
         records.append(''.join(f for f in fields if f) + '<EOR>')
     return header + '\n'.join(records) + '\n'
+
+
+# ─── CSV ──────────────────────────────────────────────────────────────────────
+# Jumeau SERVEUR du CSV client (logx_export_adif.js _CSV_HEADER/_csvBaseRow) :
+# jusqu'ici le CSV n'existait QUE côté client (bouton). build_csv permet un CSV
+# côté serveur (archive, endpoint), cohérent avec build_adif/build_cabrillo.
+_CSV_HEADER = ('N°,Date,Heure,Indicatif,Bande,Mode,RST_env,N°_env,RST_recu,'
+               'N°_recu,Locator,Distance_km,Points,Operateur')
+
+
+def _csv_field(v):
+    """Échappement CSV RFC 4180 (jumeau de _csvField JS) : un champ contenant
+    une virgule, un guillemet ou un retour-ligne est entouré de guillemets, les
+    guillemets internes doublés. None -> '' (jamais le texte « None »). Sans ça,
+    une virgule dans un champ (opérateur, échange…) décalerait les colonnes."""
+    if v is None:
+        return ''
+    s = str(v)
+    if any(c in s for c in ',"\n\r'):
+        return '"' + s.replace('"', '""') + '"'
+    return s
+
+
+def build_csv(qsos, cfg=None):
+    """Log partagé → CSV (texte). Colonnes identiques au CSV client. Écriture
+    disque avec newline='' côté appelant (les fins de ligne '\\n' sont dans le
+    contenu, comme build_adif)."""
+    cfg = cfg or {}
+    lignes = [_CSV_HEADER]
+    for i, q in enumerate(qsos):
+        row = [
+            i + 1, q.get('date', ''), q.get('time', ''),
+            str(q.get('call', '')).upper(), q.get('band', ''), _norm_mode(q),
+            q.get('rst_sent', ''), q.get('num_sent', ''),
+            q.get('rst_rcvd', ''), q.get('num_rcvd', ''), q.get('locator', ''),
+            q.get('dist', 0) or 0, q.get('points', 0) or 0,
+            resolve_operator_callsign(q.get('operator', ''), cfg),
+        ]
+        lignes.append(','.join(_csv_field(v) for v in row))
+    return '\n'.join(lignes) + '\n'
