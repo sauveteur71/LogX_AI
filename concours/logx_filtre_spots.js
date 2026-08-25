@@ -147,20 +147,42 @@ let _bandmapGen = 0;
 // station spottée (chassables MAINTENANT) en tête, chaque station cliquable ->
 // QSY + QSO pré-rempli (bandmapClick, inchangé) ; les dept sans station spottée
 // résumés en codes. Données = department_targets (déjà résolu via cluster/locator).
+let _deptTodoDerniers = [];   // dernières cibles reçues (pour re-trier au toggle)
+function _deptTodoModeTri(){
+  try{ return localStorage.getItem('rc_dept_todo_tri') === 'rarete' ? 'rarete' : 'freq'; }
+  catch(e){ return 'freq'; }
+}
+// Bascule tri fréquence <-> rareté (décision F4GLD) : re-rend sans refetch.
+function toggleDeptTodoTri(){
+  const m = _deptTodoModeTri() === 'freq' ? 'rarete' : 'freq';
+  try{ localStorage.setItem('rc_dept_todo_tri', m); }catch(e){}
+  _rendreDeptTodo(_deptTodoDerniers);
+}
 function _rendreDeptTodo(targets){
   const panel = document.getElementById('deptTodoPanel');
   const list = document.getElementById('deptTodoList');
   const count = document.getElementById('deptTodoCount');
+  const triBtn = document.getElementById('deptTodoTri');
   if(!panel || !list) return;
   targets = targets || [];
+  _deptTodoDerniers = targets;
+  const mode = _deptTodoModeTri();
+  if(triBtn) triBtn.textContent = mode === 'rarete' ? '★ rareté' : '≈ fréq';
   if(count) count.textContent = targets.length ? '(' + targets.length + ')' : '';
   panel.style.display = '';
   if(!targets.length){
     list.innerHTML = '<div class="dt-none">Tous les départements sont faits ✓</div>';
     return;
   }
-  const avecSpot = targets.filter(function(t){ return (t.spotted || []).length; });
+  let avecSpot = targets.filter(function(t){ return (t.spotted || []).length; });
   const sansSpot = targets.filter(function(t){ return !(t.spotted || []).length; });
+  // Tri (fréquence = minimise le QSY / rareté = plus durs d'abord). La fréquence
+  // courante du poste sert à la proximité (kHz -> MHz), 0 si CAT muet.
+  if(window.LogxDeptTodo){
+    const rig = (typeof rigState !== 'undefined') ? rigState : {};
+    const freqMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz / 1000 : 0;
+    avecSpot = LogxDeptTodo.trier(avecSpot, mode, freqMhz);
+  }
   const rows = [];
   avecSpot.forEach(function(t){
     const stations = (t.spotted || []).map(function(sp){

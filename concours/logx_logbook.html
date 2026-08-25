@@ -2159,7 +2159,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     background:#C9822E;border-radius:3px;padding:1px 5px;margin-left:6px;flex-shrink:0}
   /* Panneau « départements À FAIRE » : mult manquants + stations qui les donnent. */
   .dept-todo{border-top:2px solid var(--border);padding:6px 8px;max-height:190px;overflow-y:auto}
-  .dept-todo-head{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;color:var(--accent);margin-bottom:4px}
+  .dept-todo-head{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;color:var(--accent);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .dept-todo-head .dt-tri{margin-left:auto;font-family:var(--font-mono);font-size:10px;cursor:pointer;
+    background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 6px}
+  .dept-todo-head .dt-tri:hover{color:var(--accent);border-color:var(--accent)}
   .dept-todo-list{display:flex;flex-direction:column;gap:2px}
   .dt-row{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:11px;padding:2px 3px;border-radius:4px}
   .dt-dep{font-weight:700;color:var(--accent);min-width:22px}
@@ -2211,7 +2214,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
          station -> QSY + QSO pré-rempli (bandmapClick). Montré seulement en
          contexte département (VHF/UHF ou échange-département). Demande F4GLD 25/08. -->
     <div class="dept-todo" id="deptTodoPanel" style="display:none">
-      <div class="dept-todo-head">DÉPARTEMENTS À FAIRE <span id="deptTodoCount"></span></div>
+      <div class="dept-todo-head">DÉPARTEMENTS À FAIRE <span id="deptTodoCount"></span>
+        <button type="button" id="deptTodoTri" class="dt-tri" onclick="toggleDeptTodoTri()"
+          title="Tri : ≈ fréq = donneur le plus proche d'abord (minimise le QSY) · ★ rareté = départements les plus durs d'abord">≈ fréq</button>
+      </div>
       <div class="dept-todo-list" id="deptTodoList"></div>
     </div>
 
@@ -2452,6 +2458,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_callbook.js"></script>
 <script src="logx_lookup.js"></script>
 <script src="logx_dept_grid.js"></script>
+<script src="logx_dept_todo.js"></script>
 <script src="logx_voice_dictation.js"></script>
 <script src="logx_daynight.js"></script>
 <script src="logx_esm_callbot.js"></script>
