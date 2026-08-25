@@ -230,6 +230,24 @@ def dept_for_qso(qso, calldb=None):
 _calldb_cache = {'sig': None, 'calls': {}}
 
 
+def merge_calldb_entry(entry, locator='', dept='', name=''):
+    """Fusionne des champs dans une entrée de base interne (calldb) SANS écraser
+    avec du vide : ne pose une valeur que si elle est non vide ET différente.
+    Renvoie (nouvelle_entrée, changed). PURE (ne mute pas l'entrée source).
+
+    `name` (prénom du correspondant) est un nom PROPRE : l'appelant le passe tel
+    quel (jamais en majuscules, contrairement à locator/dept). Enrichit la base
+    au fil des QSO -> source de prénom hors QRZ (HamQTH n'en renvoie pas)."""
+    out = dict(entry or {})
+    changed = False
+    for key, val in (('locator', locator), ('dept', dept), ('name', name)):
+        v = val or ''
+        if v and out.get(key) != v:
+            out[key] = v
+            changed = True
+    return out, changed
+
+
 def _load_calldb():
     import json, os
     try:

@@ -2853,6 +2853,10 @@ async function submitQSO(){
     // aurait été stockée mais absente du fichier remis à l'opérateur.
     ...(typeof callbookPourQso === 'function' ? callbookPourQso(call) : {}),
   };
+  // Le PRÉNOM du champ éditable PRIME sur l'annuaire (spread ci-dessus) :
+  // l'opérateur a pu le corriger. Vide -> on garde ce que l'annuaire a fourni.
+  const nameManuel = (document.getElementById('inputName')?.value || '').trim();
+  if(nameManuel) qso.name = nameManuel;
 
   // État US (diplôme WAS) : repris de l'annuaire UNIQUEMENT s'il concerne bien
   // l'indicatif qu'on enregistre. Réserve à connaître : l'annuaire donne
@@ -2899,8 +2903,10 @@ async function submitQSO(){
   // depuis l'indicatif, sans écraser ce que l'opérateur a saisi à la main.
   autoFillQso(qso);
 
-  // Mise à jour automatique de la base si nouvelles infos
-  if(loc) updateCallDB(call, loc, null);
+  // Mise à jour automatique de la base si nouvelles infos (locator ET/OU prénom :
+  // le prénom saisi/corrigé enrichit la base interne -> source de prénom hors QRZ,
+  // réutilisée au prochain QSO avec ce correspondant).
+  if(loc || nameManuel) updateCallDB(call, loc, null, nameManuel);
 
   // Envoi au serveur
   try{
@@ -3028,6 +3034,7 @@ function clearForm(){
   // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
   const _cm = document.getElementById('inputComment'); if(_cm) _cm.value = '';
   const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';
+  const _nm = document.getElementById('inputName'); if(_nm) _nm.value = '';   // prénom : propre au contact
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
   document.getElementById('dupWarn').classList.remove('show');

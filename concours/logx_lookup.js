@@ -24,18 +24,27 @@
 // ─── LOOKUP DISTANT HAMQTH (debounce 600 ms) ─────────────────────────────────
 async function remoteCallLookup(call){
   if(call.length < 4) return;
-  if(document.getElementById('inputLocator').value) return; // déjà rempli
+  const locEl  = document.getElementById('inputLocator');
+  const nameEl = document.getElementById('inputName');
+  // Rien à chercher si locator ET prénom sont DÉJÀ remplis (le prénom, appris
+  // d'un QSO précédent, peut manquer même quand le locator est connu).
+  if((locEl && locEl.value) && (nameEl && nameEl.value)) return;
   try{
     const res = await fetch(`/calldb/lookup/${encodeURIComponent(call)}`);
     if(!res.ok) return;
     const d = await res.json();
     // Indicatif changé entre-temps → ignorer
     if(document.getElementById('inputCall').value.toUpperCase() !== call) return;
+    // Prénom (base interne) : rempli si vide, TOUJOURS corrigeable.
+    if(d.name && nameEl && !nameEl.value){
+      nameEl.value = d.name;
+      callDB[call] = callDB[call] || {}; callDB[call].name = d.name;
+    }
     if(d.locator){
       callDB[call] = callDB[call] || {};
       callDB[call].locator = d.locator;
-      if(document.getElementById('inputLocator').value) return;
-      applyCallData({locator: d.locator}, null, null);
+      if(locEl && locEl.value) return;
+      applyCallData({locator: d.locator, name: d.name}, null, null);
       // Correction du label source → HamQTH
       const hint = document.getElementById('locHint');
       if(hint && hint.style.display !== 'none')
@@ -323,23 +332,34 @@ function applyCallData(dbData, clusterData, logEntry){
       numR.classList.add('ok');
     }
   }
+  // ── Prénom du correspondant : base interne (dbData) > log > cluster ──
+  // Pré-rempli seulement si le champ est VIDE — l'opérateur reste maître de ce
+  // qu'il corrige. Nom PROPRE, jamais mis en majuscules.
+  const nameField = document.getElementById('inputName');
+  const nm = (dbData && dbData.name) || (logEntry && logEntry.name)
+          || (clusterData && clusterData.name) || '';
+  if(nameField && nm && !nameField.value){ nameField.value = nm; }
+
   if(callField) callField.classList.add('ok');
 }
 
 // ─── MISE À JOUR DE LA BASE D'INDICATIFS ──────────────────────────────────────
-function updateCallDB(call, locator, dept){
+function updateCallDB(call, locator, dept, name){
   call = (call||'').toUpperCase().split('/')[0];
   if(!call) return;
   const entry = callDB[call] || {};
   let changed = false;
   if(locator && entry.locator !== locator){ entry.locator = locator; changed = true; }
   if(dept && entry.dept !== dept){ entry.dept = dept; changed = true; }
+  // Prénom : enrichit la base interne (source de prénom hors QRZ). Nom PROPRE,
+  // pas de majuscules. La correction manuelle de l'opérateur remonte ici.
+  if(name && entry.name !== name){ entry.name = name; changed = true; }
   if(changed){
     callDB[call] = entry;
     fetch('/calldb/update', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({call, locator: locator||'', dept: dept||''})
+      body: JSON.stringify({call, locator: locator||'', dept: dept||'', name: name||''})
     }).catch(()=>{});
   }
 }

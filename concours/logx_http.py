@@ -2438,9 +2438,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # (~19 000 entrées) à chaque fois était le point chaud principal.
                 import logx_departments as _dep
                 local = _dep._load_calldb().get(base, {})
+                # Prénom appris d'un QSO précédent (base interne) : remonté dans
+                # TOUTES les réponses ci-dessous, même quand le locator vient de
+                # HamQTH ou reste inconnu (le nom ne vient jamais de HamQTH).
+                local_name = local.get('name', '')
                 # Locator déjà connu localement
                 if local.get('locator'):
-                    self._json({'call': base, 'locator': local['locator'], 'dept': local.get('dept',''), 'source': 'local'})
+                    self._json({'call': base, 'locator': local['locator'], 'dept': local.get('dept',''),
+                                'name': local_name, 'source': 'local'})
                     return
                 # Sinon interroger HamQTH — cet appel réseau (potentiellement
                 # plusieurs secondes) reste HORS du verrou, pour ne pas
@@ -2472,9 +2477,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             # réentrant) : on n'en redemande pas un second à
                             # save_json_atomic.
                             save_json_atomic(calldb_path, db2, lock=None, compact=True)
-                    self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''), 'source': 'hamqth'})
+                    self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''),
+                                'name': local_name, 'source': 'hamqth'})
                     return
-                self._json({'call': base, 'locator': '', 'source': 'none'})
+                self._json({'call': base, 'locator': '', 'name': local_name, 'source': 'none'})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
@@ -7180,6 +7186,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 call = update.get('call','').upper()
                 locator = update.get('locator','').upper()
                 dept = update.get('dept','').upper()
+                # Prénom/nom du correspondant : c'est un nom PROPRE, jamais mis en
+                # majuscules (contrairement à l'indicatif/locator/dept). Enrichit
+                # la base interne au fil des QSO -> source de prénom HORS QRZ
+                # (HamQTH ne renvoie pas de nom, QRZ = abonnement payant).
+                name = str(update.get('name','')).strip()
                 if call:
                     calldb_path = os.path.join(os.getcwd(), 'calldb.json')
                     # Lecture-modification-écriture sous calldb_lock EN ENTIER
@@ -7191,16 +7202,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if os.path.exists(calldb_path):
                             with open(calldb_path, 'r', encoding='utf-8') as f:
                                 db = json.load(f)
-                            entry = db.get('calls', {}).get(call, {})
-                            changed = False
-                            if locator and entry.get('locator') != locator:
-                                entry['locator'] = locator
-                                changed = True
-                            if dept and entry.get('dept') != dept:
-                                entry['dept'] = dept
-                                changed = True
+                            import logx_departments as _dep
+                            entry, changed = _dep.merge_calldb_entry(
+                                db.get('calls', {}).get(call, {}),
+                                locator=locator, dept=dept, name=name)
                             if changed:
-                                db['calls'][call] = entry
+                                db.setdefault('calls', {})[call] = entry
                                 # lock déjà tenu ci-dessus (calldb_lock n'est pas
                                 # réentrant) : on n'en redemande pas un second à
                                 # save_json_atomic.
