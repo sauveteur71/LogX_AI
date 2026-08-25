@@ -18,6 +18,7 @@ Portée volontaire : « émission unique » uniquement. La « session limitée �
 """
 import datetime
 import threading
+from collections import deque
 from dataclasses import dataclass, field
 from uuid import uuid4
 
@@ -32,6 +33,17 @@ CONSENT_TTL_S = 30
 # annule tout ce qu'il contenait.
 _lock = threading.Lock()
 _consents = {}
+
+# Verrou TX SERVEUR : posé par « Stop TX » (arrêt d'urgence), il bloque TOUTE
+# nouvelle autorisation jusqu'à un réarmement HUMAIN explicite (unlock_tx).
+# C'est le 'ptt_locked' que authorize_transmission relit avant le PTT.
+_tx_locked = False
+
+# Journal d'audit d'émission EN MÉMOIRE, borné et horodaté UTC — même parti-pris
+# que logx_cw_journal (un journal d'émission n'a pas à survivre au redémarrage
+# ni à grossir sans fin). Consultable via GET /tx/audit.
+_AUDIT_MAX = 200
+_audit = deque(maxlen=_AUDIT_MAX)
 
 
 def _now():
@@ -87,16 +99,89 @@ def get(token):
 
 
 def stop_tx() -> int:
-    """« Stop TX » : ANNULE tous les consentements en attente et vide le registre.
-    Retourne le nombre annulé. À câbler sur le bouton d'arrêt d'urgence global —
-    doit AUSSI, côté appelant, couper le PTT et verrouiller les nouvelles
-    émissions jusqu'à une nouvelle action humaine."""
+    """« Stop TX » : ANNULE tous les consentements en attente, vide le registre
+    ET pose le verrou TX serveur (aucune nouvelle autorisation avant un
+    réarmement humain). Retourne le nombre annulé. Le côté appelant DOIT en plus
+    couper le PTT matériel (cat.set_ptt(cfg, False))."""
+    global _tx_locked
     with _lock:
         n = len(_consents)
         for c in _consents.values():
             c.cancelled = True
         _consents.clear()
-        return n
+        _tx_locked = True
+    journal_audit({'event': 'TX_STOP', 'cancelled': n, 'human_action': 'STOP_TX'})
+    return n
+
+
+def lock_tx() -> None:
+    """Pose le verrou TX serveur (bloque toute autorisation)."""
+    global _tx_locked
+    with _lock:
+        _tx_locked = True
+
+
+def unlock_tx() -> None:
+    """Lève le verrou TX serveur — RÉARMEMENT HUMAIN explicite, jamais automatique."""
+    global _tx_locked
+    with _lock:
+        _tx_locked = False
+
+
+def is_tx_locked() -> bool:
+    with _lock:
+        return _tx_locked
+
+
+def radio_state_from_cat(cat_state, consent, locked=None) -> dict:
+    """Traduit l'état CAT RÉEL (cat.get_state : freq_hz/mode/ok/enabled) vers le
+    dict que authorize_transmission relit juste avant le PTT.
+
+    Décisions documentées (contraintes matérielles réelles) :
+      - `cat_connected` : le CAT natif répond ET est activé (ok & enabled).
+      - `frequency_hz`, `mode` : relus du poste, RÉELLEMENT re-vérifiés.
+      - `power_w` : le CAT natif NE LIT PAS la puissance TX sur la plupart des
+        transceivers — on reporte donc la valeur que l'humain a validée
+        (impossible de détecter un changement de puissance par CAT ; limite
+        assumée, tracée ici). Les autres contrôles restent stricts.
+      - `ptt_locked` : verrou TX serveur (Stop TX). Si `locked` n'est pas fourni,
+        on lit l'état courant du module.
+    """
+    if locked is None:
+        locked = is_tx_locked()
+    cat_state = cat_state or {}
+    return {
+        'cat_connected': bool(cat_state.get('ok') and cat_state.get('enabled')),
+        'frequency_hz': cat_state.get('freq_hz'),
+        'mode': cat_state.get('mode'),
+        'power_w': consent.power_w,
+        'ptt_locked': bool(locked),
+    }
+
+
+def journal_audit(entry) -> None:
+    """Ajoute une entrée au journal d'audit d'émission. Horodate en UTC si absent.
+    Ne lève JAMAIS (un défaut de journalisation ne doit pas casser une émission)."""
+    try:
+        e = dict(entry or {})
+        e.setdefault('timestamp_utc', _now().strftime('%Y-%m-%dT%H:%M:%SZ'))
+        _audit.append(e)
+    except Exception:
+        pass
+
+
+def audit_entries(limite=50):
+    """Les `limite` dernières entrées d'audit (la plus récente en dernier)."""
+    try:
+        n = max(0, min(_AUDIT_MAX, int(limite)))
+    except (TypeError, ValueError):
+        n = 50
+    return list(_audit)[-n:]
+
+
+def vider_audit() -> None:
+    """Réinitialise le journal d'audit (tests / effacement éventuel)."""
+    _audit.clear()
 
 
 def _radio_val(radio_state, cle):
