@@ -1278,6 +1278,60 @@ def _fetch_spots_hf_src(callsign, no_digi, toggles):
         SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
     return s
 
+# ─── RÉCHAUFFAGE DU CACHE DE SPOTS PAR BANDE FOCALISÉE ───────────────────────
+# Défaut trouvé (F4GLD, capture PROPAG 25/08/2026) : /data/focus LIT le cache de
+# spots mais ne le REMPLIT jamais ; le fetch HF (do_refresh) n'est lancé que si
+# un concours HF est actif OU un toggle de bande HF est coché. Sans concours et
+# sans toggle, ouvrir PROPAG sur 80 m ne montrait AUCUN spot — alors que la page
+# affiche justement une bande. On réchauffe donc le cache de la bande REGARDÉE,
+# concours ou pas : fetch en tâche de fond (non bloquant), throttlé par bande
+# pour ne pas marteler les sources. Le 1er /data/focus sert le cache courant ;
+# le rafraîchissement automatique de la page (propTick) montre les spots ~1-2 s
+# après. Ne change RIEN quand un concours alimente déjà le cache (le throttle
+# absorbe le doublon éventuel).
+_SPOTS_WARM_TS = {}
+_SPOTS_WARM_LOCK = threading.Lock()
+WARM_THROTTLE_S = 45.0
+_HF_BANDS_LABELS = {'1.8', '3.5', '7', '10', '14', '18', '21', '24', '28'}
+
+
+def _warm_key_for_band(band):
+    """Bande affichée (label MHz, ex. '3.5') -> clé de SPOTS_CACHE à réchauffer,
+    ou None si la bande n'a pas de source cluster dédiée. PURE (testable)."""
+    b = str(band or '').strip()
+    if b in _HF_BANDS_LABELS:
+        return 'HF'
+    if b in ('144', '432', '50'):
+        return b
+    return None
+
+
+def _warm_band_spots(band, cfg_snap, now=None, spawn=None):
+    """Réchauffe (fetch en tâche de fond, throttlé par clé) le cache de spots de
+    la bande focalisée, pour que PROPAG montre l'activité cluster même hors
+    concours. Non bloquant. Renvoie la clé lancée, ou None (bande non couverte
+    ou throttlée). `now`/`spawn` injectables pour les tests."""
+    key = _warm_key_for_band(band)
+    if not key:
+        return None
+    now = time.time() if now is None else now
+    with _SPOTS_WARM_LOCK:
+        if now - _SPOTS_WARM_TS.get(key, 0.0) < WARM_THROTTLE_S:
+            return None
+        _SPOTS_WARM_TS[key] = now
+    toggles = cfg_snap.get('toggles', {}) or {}
+    no_digi = toggles.get('flag_no_digi', False)
+    callsign = cfg_snap.get('callsign_contest', cfg_snap.get('callsign', ''))
+    if key == 'HF':
+        target = lambda: _fetch_spots_hf_src(callsign, no_digi, toggles)
+    elif key == '50':
+        target = lambda: _fetch_spots_50_src(no_digi, toggles)
+    else:
+        target = lambda: _fetch_spots_vhf_src(int(key), no_digi, toggles)
+    (spawn or (lambda t: threading.Thread(target=t, daemon=True).start()))(target)
+    return key
+
+
 def _fetch_on4kst_src(cfg):
     try:
         data = fetch_on4kst_data(cfg['on4kst_callsign'], cfg['on4kst_password'])
@@ -4357,6 +4411,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             bande = (qp.get('band', [''])[0] or '').strip()
             mode = (qp.get('mode', [''])[0] or '').strip()
+
+            # Réchauffe le cache de spots de la bande REGARDÉE (concours ou pas)
+            # -> PROPAG montre l'activité cluster même hors concours. Non
+            # bloquant : sert le cache courant maintenant, la page se rafraîchit
+            # ~1-2 s après avec les spots. Voir _warm_band_spots().
+            _warm_band_spots(bande, cfg_snap)
 
             import logx_awards as _aw
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
