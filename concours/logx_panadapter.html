@@ -132,6 +132,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plancher : tout ce qui est en dessous devient noir (coupe le bruit de fond)">plancher<input type="range" id="paFloor" min="0" max="200" step="5" style="width:80px"></label>
     <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plafond : tout ce qui est au-dessus est au maximum (sature les signaux forts)">plafond<input type="range" id="paCeil" min="55" max="255" step="5" style="width:80px"></label>
   </span>
+  <label class="niveau" style="display:flex;align-items:center;gap:5px" title="Moyennage (video averaging) : lisse le spectre sur N trames — abaisse le plancher de bruit et fait ressortir une porteuse faible mais stable. Plus N est grand, plus c'est propre mais lent à réagir.">Moyennage
+    <select id="paMoy">
+      <option value="0">non</option>
+      <option value="2">2 trames</option>
+      <option value="4">4 trames</option>
+      <option value="8">8 trames</option>
+      <option value="16">16 trames</option>
+    </select>
+  </label>
   <button class="pa-btn" id="paPeak" title="Maintien de crête (peak hold) : garde le maximum de chaque bin, qui redescend lentement — révèle une porteuse brève ou un pic de pile-up manqué">◠ CRÊTE</button>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="paHoverFreq" title="Fréquence sous le curseur (survol du spectre/waterfall)"></span>
@@ -405,6 +414,27 @@ if(localStorage.getItem('rc_theme') === null){
       peak[i] = (peak[i] == null || d >= peak[i]) ? d : Math.max(d, peak[i] - decay);
     }
     return peak;
+  }
+
+  // Moyennage spectral (video averaging) : moyenne exponentielle par bin sur
+  // ~N trames (alpha=1/N). Le bruit, aléatoire d'une trame à l'autre, se lisse
+  // et son plancher s'abaisse ; une porteuse faible MAIS stable ressort au
+  // contraire. Plus N est grand, plus c'est propre mais lent à réagir. PUR,
+  // source-agnostique (opère sur le 0-255 commun aux trois sources).
+  let moyN = parseInt(localStorage.getItem('rc_pa_moy') || '0', 10) || 0;
+  let moyArr = null;
+  function majMoyenne(avg, data, alpha){
+    for(let i = 0; i < data.length; i++) avg[i] += alpha * (data[i] - avg[i]);
+    return avg;
+  }
+  // Applique le lissage EN PLACE à dataArray avant le tracé. Appelé au même
+  // point dans les trois chemins (audio / CI-V / TCI) pour que spectre ET
+  // waterfall montrent la même donnée moyennée. moyN<=1 -> désactivé.
+  function appliquerMoyenne(){
+    if(moyN <= 1 || !dataArray) return;
+    if(!moyArr || moyArr.length !== dataArray.length) moyArr = Float32Array.from(dataArray);
+    majMoyenne(moyArr, dataArray, 1 / moyN);
+    for(let i = 0; i < dataArray.length; i++) dataArray[i] = moyArr[i];
   }
 
   function binsAffiches(maxHz){
@@ -692,6 +722,7 @@ if(localStorage.getItem('rc_theme') === null){
   function boucle(){
     if(!analyser) return;
     analyser.getByteFrequencyData(dataArray);
+    appliquerMoyenne();
     dessinerSpectre();
     dessinerWaterfall();
     dessinerAxe();
@@ -776,6 +807,7 @@ if(localStorage.getItem('rc_theme') === null){
       } else {
         dataArray = null;   // hors plage (out_of_range) ou ligne vide reçue
       }
+      appliquerMoyenne();
       dessinerSpectre();
       dessinerWaterfall();
       dessinerAxe();
@@ -832,6 +864,7 @@ if(localStorage.getItem('rc_theme') === null){
       } else {
         dataArray = null;
       }
+      appliquerMoyenne();
       dessinerSpectre();
       dessinerWaterfall();
       dessinerAxe();
@@ -942,6 +975,19 @@ if(localStorage.getItem('rc_theme') === null){
       peakArr = null;
       b.classList.toggle('on', peakHoldOn);
       localStorage.setItem('rc_pa_peak', peakHoldOn ? '1' : '0');
+    };
+  })();
+
+  // Moyennage : sélecteur N trames (persisté). Réinitialise la moyenne à
+  // chaque changement pour ne pas traîner une valeur périmée d'un réglage.
+  (function initMoy(){
+    const sel = document.getElementById('paMoy');
+    if(!sel) return;
+    sel.value = String(moyN);
+    sel.onchange = () => {
+      moyN = parseInt(sel.value, 10) || 0;
+      moyArr = null;
+      localStorage.setItem('rc_pa_moy', String(moyN));
     };
   })();
 
