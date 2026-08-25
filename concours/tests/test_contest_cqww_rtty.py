@@ -55,4 +55,7 @@ def test_rtty_roundup_present_et_valide():
 def test_rtty_roundup_bareme_1_point():
     preset = scoring.LEGACY_SCORING_PRESETS['rtty_roundup']
     assert preset['points'] == [{'when': 'always', 'points': 1}]
-    assert preset['multiplier'] is None                   # mult all-band non auto
+    # Multiplicateur all-band désormais AUTOMATISÉ (états + provinces + DXCC
+    # hors US/Canada, comptés une fois toutes bandes) — voir kind 'rtty_ru'
+    # (feat/mult-rtty). Avant : None (sous-comptage).
+    assert preset['multiplier'] == {'kind': 'rtty_ru'}
