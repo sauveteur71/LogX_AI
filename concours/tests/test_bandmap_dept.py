@@ -39,3 +39,20 @@ def test_clic_qsy_prerempli_inchange():
     # fait qu'AJOUTER la surbrillance, sans toucher le comportement du clic.
     js = _lire('logx_filtre_spots.js')
     assert "onclick=\"bandmapClick('${jsCall}',${f},'${modeSpot}')\"" in js
+
+
+def test_panneau_departements_a_faire():
+    """Panneau « départements À FAIRE » sur l'écran contest : dept manquants +
+    stations spottées cliquables (QSY + QSO pré-rempli), depuis department_targets
+    (déjà fetché). Montré seulement en contexte département."""
+    html = _lire('logx_logbook.html')
+    assert 'id="deptTodoPanel"' in html and 'id="deptTodoList"' in html
+    assert '.dept-todo' in html and '.dt-call' in html
+    js = _lire('logx_filtre_spots.js')
+    assert 'function _rendreDeptTodo' in js
+    assert '_rendreDeptTodo(dt.targets)' in js                 # alimenté par le fetch existant
+    # station cliquable -> QSY + pré-rempli (bandmapClick), freq cluster kHz -> MHz
+    assert "onclick=\"bandmapClick('${c}',${mhz},'')" in js
+    assert '(parseFloat(sp.freq) || 0) / 1000' in js
+    # caché hors contexte département
+    assert re.search(r"panel\.style\.display = 'none';\s*// hors contexte dept", js)

@@ -143,6 +143,43 @@ function appliquerRetourFiltre(f){
 // afficher les spots d'une bande déjà quittée.
 let _bandmapGen = 0;
 
+// Panneau « départements À FAIRE » (écran contest) : les dept manquants AVEC une
+// station spottée (chassables MAINTENANT) en tête, chaque station cliquable ->
+// QSY + QSO pré-rempli (bandmapClick, inchangé) ; les dept sans station spottée
+// résumés en codes. Données = department_targets (déjà résolu via cluster/locator).
+function _rendreDeptTodo(targets){
+  const panel = document.getElementById('deptTodoPanel');
+  const list = document.getElementById('deptTodoList');
+  const count = document.getElementById('deptTodoCount');
+  if(!panel || !list) return;
+  targets = targets || [];
+  if(count) count.textContent = targets.length ? '(' + targets.length + ')' : '';
+  panel.style.display = '';
+  if(!targets.length){
+    list.innerHTML = '<div class="dt-none">Tous les départements sont faits ✓</div>';
+    return;
+  }
+  const avecSpot = targets.filter(function(t){ return (t.spotted || []).length; });
+  const sansSpot = targets.filter(function(t){ return !(t.spotted || []).length; });
+  const rows = [];
+  avecSpot.forEach(function(t){
+    const stations = (t.spotted || []).map(function(sp){
+      const c = String(sp.call || '').replace(/[^A-Za-z0-9/]/g, '');
+      const mhz = (parseFloat(sp.freq) || 0) / 1000;   // cluster = kHz -> MHz pour bandmapClick
+      const lbl = escHtml(sp.call) + (mhz ? ' ' + mhz.toFixed(3) : '');
+      return `<span class="dt-call" onclick="bandmapClick('${c}',${mhz},'')" title="QSY + QSO pré-rempli">${lbl}</span>`;
+    }).join(' ');
+    rows.push(`<div class="dt-row"><span class="dt-dep">${escHtml(t.dept)}</span>`
+      + `<span class="dt-nom">${escHtml(t.name || '')}</span>${stations}</div>`);
+  });
+  if(sansSpot.length){
+    const codes = sansSpot.map(function(t){ return escHtml(t.dept); }).join(', ');
+    rows.push(`<div class="dt-row vide"><span class="dt-nom" title="${codes}">`
+      + `Sans station spottée : ${codes}</span></div>`);
+  }
+  list.innerHTML = rows.join('');
+}
+
 async function refreshBandMap(){
   const list = document.getElementById('bandmapList');
   if(!list) return;
@@ -215,9 +252,13 @@ async function refreshBandMap(){
               _deptManquantParCall[String(sp.call || '').toUpperCase()] = t.dept;
             });
           });
+          _rendreDeptTodo(dt.targets);   // panneau « départements À FAIRE » sur l'écran contest
         }
       }catch(e){ /* band map utilisable sans l'info dept */ }
       if(_gen !== _bandmapGen) return;   // un refresh plus récent a démarré
+    } else {
+      const panel = document.getElementById('deptTodoPanel');
+      if(panel) panel.style.display = 'none';   // hors contexte dept : panneau caché
     }
     const rig = (typeof rigState !== 'undefined') ? rigState : {};
     const txMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz/1000 : null;

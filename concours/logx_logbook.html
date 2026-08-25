@@ -2157,6 +2157,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   .bm-spot.bm-dept-manquant:hover{background:rgba(var(--accent-rgb),.22)}
   .bm-dept{font-family:var(--font-mono);font-size:10px;font-weight:700;color:#1a1205;
     background:#C9822E;border-radius:3px;padding:1px 5px;margin-left:6px;flex-shrink:0}
+  /* Panneau « départements À FAIRE » : mult manquants + stations qui les donnent. */
+  .dept-todo{border-top:2px solid var(--border);padding:6px 8px;max-height:190px;overflow-y:auto}
+  .dept-todo-head{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;color:var(--accent);margin-bottom:4px}
+  .dept-todo-list{display:flex;flex-direction:column;gap:2px}
+  .dt-row{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:11px;padding:2px 3px;border-radius:4px}
+  .dt-dep{font-weight:700;color:var(--accent);min-width:22px}
+  .dt-nom{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+  .dt-call{cursor:pointer;color:var(--fg,#E9E6DF);text-decoration:underline dotted}
+  .dt-call:hover{color:var(--accent)}
+  .dt-row.vide .dt-nom{opacity:.55}
+  .dt-none{color:var(--green);font-family:var(--font-mono);font-size:11px;padding:3px}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
@@ -2194,6 +2205,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="bm-empty">en attente de spots…</div>
     </div>
     <div class="bm-masques" id="bmMasques" style="display:none"></div>
+
+    <!-- Départements À FAIRE (mult) : dept manquants + stations spottées qui
+         peuvent les donner (department_targets, déjà calculé). Clic sur une
+         station -> QSY + QSO pré-rempli (bandmapClick). Montré seulement en
+         contexte département (VHF/UHF ou échange-département). Demande F4GLD 25/08. -->
+    <div class="dept-todo" id="deptTodoPanel" style="display:none">
+      <div class="dept-todo-head">DÉPARTEMENTS À FAIRE <span id="deptTodoCount"></span></div>
+      <div class="dept-todo-list" id="deptTodoList"></div>
+    </div>
 
     <!-- WAIT & POUNCE : rattaché au band map (il agit sur ses spots : alerte,
          clic pour armer). Déplacé ici depuis la colonne de saisie (F4GLD 24/08).
