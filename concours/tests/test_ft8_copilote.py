@@ -92,6 +92,30 @@ def test_appel_initial_repondre_a_un_cq():
     assert ctx.eval("window.LogxFt8Copilote.appelInitial('F4ABC', '', 'JN18') === null") is True
 
 
+def test_extraire_report_grille_fin():
+    # Helpers d'extraction pour la journalisation copilote (données à enregistrer).
+    ctx = _ctx()
+    R = lambda m: ctx.eval(f"window.LogxFt8Copilote.extraireReport({m!r})")
+    G = lambda m: ctx.eval(f"window.LogxFt8Copilote.extraireGrille({m!r})")
+    F = lambda m: ctx.eval(f"window.LogxFt8Copilote.estFinQso({m!r}, 'F1XYZ')")
+    # report : dernier jeton report, R retiré
+    assert R('F4ABC F1XYZ -12') == '-12'
+    assert R('F1XYZ F4ABC R-18') == '-18'
+    assert R('F4ABC F1XYZ +03') == '+03'
+    assert R('F1XYZ F4ABC JN03') is None          # une grille n'est pas un report
+    assert R('F1XYZ F4ABC RR73') is None          # RR73 n'est pas un report
+    # grille : 4 car AR-dd, MAIS jamais 'RR73' (piège connu du séquenceur)
+    assert G('F1XYZ F4ABC JN03') == 'JN03'
+    assert G('F4ABC F1XYZ RR73') is None          # RR73 satisfait la regex grille -> exclu
+    assert G('F4ABC F1XYZ -12') is None
+    # fin de QSO : RRR/RR73/73 ADRESSÉ à moi
+    assert F('F1XYZ F4ABC RR73') is True
+    assert F('F1XYZ F4ABC 73') is True
+    assert F('F1XYZ F4ABC RRR') is True
+    assert F('F1XYZ F4ABC -12') is False          # échange en cours, pas la fin
+    assert F('F4ABC DL1XX 73') is False           # fin d'un QSO entre tiers -> pas moi
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)
