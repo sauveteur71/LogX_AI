@@ -89,11 +89,46 @@
     return cible + ' ' + monCall + (g ? ' ' + g : '');
   }
 
+  // ── Extraction pour la JOURNALISATION du QSO copilote (données à
+  // enregistrer, doc F4GLD). Le copilote (approche X) n'utilise pas la boucle
+  // du séquenceur : il trace lui-même les reports/grille au fil des décodes
+  // et appelle offrirLogQso() à la clôture. Ces helpers restent purs/testables.
+
+  // Report d'un message FT8 = dernier jeton « [R]±NN » (R d'accusé retiré).
+  // null si le dernier jeton n'est pas un report (grille, RR73, 73…).
+  function extraireReport(ft8Msg) {
+    var toks = String(ft8Msg || '').trim().toUpperCase().split(/\s+/);
+    var m = (toks[toks.length - 1] || '').match(/^R?([+-]\d{1,2})$/);
+    return m ? m[1] : null;
+  }
+
+  // Grille 4 caractères (Maidenhead) d'un message, en EXCLUANT 'RR73' — qui
+  // satisfait la regex grille ([A-R]{2}\d{2}) et a déjà causé un vrai bug de
+  // distance/log dans le séquenceur (locator='RR73', 5665 km fantômes).
+  function extraireGrille(ft8Msg) {
+    var toks = String(ft8Msg || '').trim().toUpperCase().split(/\s+/);
+    for (var i = 0; i < toks.length; i++) {
+      if (toks[i] !== 'RR73' && /^[A-R]{2}\d{2}$/.test(toks[i])) { return toks[i]; }
+    }
+    return null;
+  }
+
+  // Le décode m'annonce-t-il la CLÔTURE du QSO (RRR/RR73/73 qui M'EST adressé) ?
+  function estFinQso(decodeMsg, monCall) {
+    var toks = String(decodeMsg || '').trim().toUpperCase().split(/\s+/);
+    if (toks[0] !== String(monCall || '').toUpperCase()) { return false; }
+    var r0 = toks[2] || '';
+    return r0 === 'RRR' || r0 === 'RR73' || r0 === '73';
+  }
+
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
+    extraireReport: extraireReport,
+    extraireGrille: extraireGrille,
+    estFinQso: estFinQso,
     fmtSnr: fmtSnr,
     cle: cle,
     _dernierePropose: null   // clé de la dernière proposition émise/en cours (anti-spam runtime)

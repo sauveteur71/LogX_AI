@@ -984,6 +984,7 @@ if(localStorage.getItem('rc_theme') === null){
       }
       const msg = LogxFt8Copilote.appelInitial(cible, myCall, myGrid);
       if(!msg) return;
+      _copiloteQsoInit(cible, extraireStation(text).grid);   // démarre le suivi (log à la clôture)
       LogxFt8Copilote._dernierePropose = LogxFt8Copilote.cle(cible, msg);
       const p = LogxFt8Copilote.messagePropose(msg, cible,
                   Math.round((typeof rigFreqKhz === 'number' ? rigFreqKhz : 0) * 1000), myCall);
@@ -1985,11 +1986,54 @@ if(localStorage.getItem('rc_theme') === null){
   // humain) déclenche l'émission FT8 sur le prochain créneau (envoyerMessage,
   // chemin d'émission existant + ses garde-fous). Ne fait rien aux autres
   // niveaux. Propose seulement (aucune auto-émission possible ici).
+  // État du QSO copilote EN COURS (journalisation : le copilote n'utilise pas
+  // la boucle du séquenceur, il trace lui-même reports/grille au fil des
+  // décodes). {dxCall, rst_sent, rst_rcvd, locator} ou null.
+  let _copiloteQso = null;
+
+  // Démarre/rattache le suivi à `cible` (réponse à un CQ : on connaît déjà la
+  // grille). Repart à zéro si on change de station.
+  function _copiloteQsoInit(cible, grille){
+    _copiloteQso = {dxCall: (cible||'').toUpperCase(), rst_sent:'', rst_rcvd:'',
+                    locator: (grille||'').toUpperCase()};
+  }
+
+  // Trace un décode qui M'EST ADRESSÉ : maj grille + report REÇU de lui, et si
+  // c'est la clôture (RR73/73), propose la fiche au log (offrirLogQso, qui
+  // réutilise tout le staging/dédoublonnage existant — l'humain valide).
+  function _copiloteTracer(text){
+    const toks = String(text).trim().toUpperCase().split(/\s+/);
+    if(toks[0] !== (myCall||'').toUpperCase()) return;   // pas pour moi
+    const dx = toks[1];
+    if(!_copiloteQso || _copiloteQso.dxCall !== dx) _copiloteQsoInit(dx, '');
+    const g = LogxFt8Copilote.extraireGrille(text); if(g) _copiloteQso.locator = g;
+    const r = LogxFt8Copilote.extraireReport(text); if(r) _copiloteQso.rst_rcvd = r;
+    if(LogxFt8Copilote.estFinQso(text, myCall)) _copiloteLoguer(dx);
+  }
+
+  // Clôture : propose la fiche QSO au log avec les données tracées. dist calculée
+  // depuis les grilles (jamais depuis 'RR73', voir extraireGrille).
+  function _copiloteLoguer(dx){
+    if(!_copiloteQso || _copiloteQso.dxCall !== dx) return;
+    let dist = 0;
+    try{ const moi = gridVersLatLon(myGrid), lui = gridVersLatLon(_copiloteQso.locator);
+         if(moi && lui) dist = distanceKm(moi, lui); }catch(e){}
+    if(typeof offrirLogQso === 'function'){
+      offrirLogQso(dx, {rst_sent: _copiloteQso.rst_sent, rst_rcvd: _copiloteQso.rst_rcvd,
+                        locator: _copiloteQso.locator, dist: dist});
+    }
+    _copiloteQso = null;
+  }
+
   function _copiloteProposer(text, snrDb){
     if(typeof LogxFt8Copilote === 'undefined' || typeof LogxTxBar === 'undefined') return;
     if(!LogxFt8Copilote.doitProposer(seqNiveau)) return;
+    _copiloteTracer(text);                             // journalisation (maj état + log si clôture)
     const r = LogxFt8Copilote.reponseFt8(text, snrDb, myCall);
     if(!r) return;                                     // rien à proposer (pas pour moi / QSO fini)
+    // report que JE vais envoyer -> rst_sent tracé pour le log
+    const rs = LogxFt8Copilote.extraireReport(r.message);
+    if(rs && _copiloteQso && _copiloteQso.dxCall === r.dxCall) _copiloteQso.rst_sent = rs;
     const k = LogxFt8Copilote.cle(r.dxCall, r.message);
     if(k === LogxFt8Copilote._dernierePropose) return; // anti-spam (re-décodes d'un même cycle)
     LogxFt8Copilote._dernierePropose = k;
