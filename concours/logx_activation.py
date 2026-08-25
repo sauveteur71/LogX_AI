@@ -66,6 +66,17 @@ PROGRAM_SPECS = {
     'ILLW': {'name': 'International Lighthouse Lightship Weekend', 'sig': 'ILLW',
              'ref_re': r'^[A-Z]{2}-\d{4}$', 'min_qso': 1,
              'p2p': 'Light-to-Light', 'example': 'IT-0005'},
+    # GMA (Global Mountain Activity) — programme de sommets HIÉRARCHIQUE
+    # (association > région > sommet). Vérifié sur cqgma.org / gma.rocks :
+    # activation de sommet valide à 4 QSO avec des stations DIFFÉRENTES (comme
+    # SOTA). « SOTA references are generally also valid for GMA » -> même schéma
+    # de référence que SOTA (association 1-3 car / région 2 lettres - n° 3 chiffres,
+    # ex. DL/BE-055). Les sommets GMA-only suivent le même schéma ; d'éventuelles
+    # variantes de format GMA-only ne sont pas entièrement sourcées -> élargir le
+    # regex si un cas réel légitime échoue. Pas de tag ADIF dédié -> SIG générique.
+    'GMA': {'name': 'Global Mountain Activity', 'sig': 'GMA',
+            'ref_re': r'^[A-Z0-9]{1,3}/[A-Z]{2}-\d{3}$', 'min_qso': 4,
+            'p2p': 'Summit-to-Summit', 'example': 'DL/BE-055'},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
