@@ -191,6 +191,14 @@ function _majDeptGrid(){
   if(!wrap || !grid || !window.LogxDeptGrid) return;
   LogxDeptGrid.render(grid, pickDept);                              // construit une fois (idempotent)
   wrap.style.display = LogxDeptGrid.doitAfficher(currentExchange.label_r) ? '' : 'none';
+  const fR = document.getElementById('inputNumRcvd');
+  if(fR){
+    LogxDeptGrid.surligner(grid, fR.value);                         // reflète le dept courant
+    if(!fR._deptGridLie){                                           // écouteur posé une seule fois
+      fR._deptGridLie = true;
+      fR.addEventListener('input', function(){ LogxDeptGrid.surligner(grid, fR.value); });
+    }
+  }
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
