@@ -370,6 +370,16 @@ def upload_lotw(cfg, qsos):
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à envoyer'}
 
+    # IA-1 : contrôle pré-vol INFORMATIF. On calcule un résumé des anomalies et
+    # on le JOINDRA à la réponse de succès — mais on ne bloque JAMAIS l'upload
+    # (masquer != bloquer : l'opérateur reste maître). Défensif : jamais planter
+    # l'upload à cause du contrôle.
+    try:
+        import logx_validator as _validator
+        _controle = _validator.resume_controle(qsos, cfg.get('contest', ''), cfg)
+    except Exception:
+        _controle = None
+
     tqsl_path = _find_tqsl_binary()
     if not tqsl_path:
         return {'ok': False, 'error': "Binaire tqsl introuvable dans le PATH — installe "
@@ -405,7 +415,8 @@ def upload_lotw(cfg, qsos):
     if code in (0, 9):
         _stamp('lotw_upload')
         note = ' (doublons/QSO hors-plage ignorés par tqsl)' if code == 9 else ''
-        return {'ok': True, 'service': 'LoTW', 'qso_count': len(qsos), 'note': note}
+        return {'ok': True, 'service': 'LoTW', 'qso_count': len(qsos), 'note': note,
+                'controle': _controle}
     if code == TQSL_EXIT_NOTHING_TO_SEND:
         return {'ok': False, 'nothing_to_send': True,
                 'error': 'Rien à envoyer : ces QSO étaient déjà signés pour LoTW (doublons)'}
