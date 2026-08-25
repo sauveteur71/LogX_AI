@@ -86,6 +86,40 @@ supprimée du même fichier.
 > ⚠️ **Le serveur doit être redémarré** pour prendre les correctifs Python.
 > Les fichiers `.html`/`.js` sont relus à chaque requête, pas les `.py`.
 
+#### Nuit du 24→25/08/2026 — sous-projets ADIF/IA + couverture concours/activités
+
+Session autonome (F4GLD absent, consigne « ne t'arrête pas »). Tout en
+TDD + contre-épreuve par mutation (md5) + `ruff`, chaque lot revu en
+adversarial avant fusion, suite complète verte re-vérifiée sur `main`
+après chaque batch (leçon #242 : jamais fusionner sur CI rouge, toujours
+relancer la suite ENTIÈRE après un merge). PR fusionnées :
+
+| PR | Ce que ça fait |
+|---|---|
+| #244 | **Sous-projet B — cohérence export/import ADIF** : clés de saisie, réfs multiples, confirmations à anti-dup dynamique, symétrie import, régressions round-trip. INVARIANT posé : tout tag émis dans `_ADIF_STD_TAGS` doit avoir un mapping d'import, sinon perte silencieuse au round-trip (classe de bug trouvée en revue B). |
+| #245 | **IA-1 — validation déterministe du log** (`logx_controles.py`) : contrôles purs freq↔bande, date future, heure de fin, RST↔mode (sous-modes via `_mode_effectif`), réf d'activation ; `resume_controle`. Bug corrigé en revue : `MAX_FINDINGS` ne doit jamais faire tomber une `erreur`. |
+| #246 | **Fix ADIF sous-modes MFSK** : FT4/JS8/Q65/FST4 exportés `MODE=MFSK`+`SUBMODE=X` (jamais `MODE=FT4`), via `_SUBMODE_PARENT`. Jumeaux Python/JS synchronisés. |
+| #247 | **IA-2 — enrichissement déterministe** (`logx_enrichissement.py`) : dérive pays DXCC/continent/zones CQ+ITU/distance/azimut + champs `my_*`, injecté à l'export sous `completer=` (uploads restent légers). Bug corrigé en revue : ne pas court-circuiter les 3 sources si l'indicatif est inconnu. |
+| #248 | **Activations WWBOTA (bunkers) + ILLW (phares)** dans `PROGRAM_SPECS`. |
+| #249 | **Export CSV serveur** (`build_csv`, jumeau du CSV client) + archive `.csv`. |
+| #250 | **Agent `ham-radio-expert` + skills** (`tx-human-consent`, `adif-validation`) dans `.claude/`. |
+| #251 | **Sûreté TX — backend « émission unique »** (`logx_tx_consent.py`) : jeton `TxConsent` (uuid4, expire 30 s, usage unique, invalidé au changement radio), `authorize_transmission` relit le CAT réel avant PTT, journal d'audit UTC, Stop TX global. Datetimes aware-UTC, `now` injectable. **Backend seul — non câblé au PTT réel** (endpoints/UI/Stop TX = chantier suivant, demande un avis design F4GLD). Applique la contrainte verbatim : « l'IA peut préparer une action TX, jamais la déclencher d'elle-même ». |
+| #252 | **Bande 60m = clé unique `'5'`** (5 MHz), pas des canaux — décision F4GLD. Jumeaux scoring `_band_from_freq` + wsjtx `_mhz_to_band` + `ADIF_BAND['5']='60m'` + toggle contest. Le band-plan IARU R1 (`bandplan_iaru_r1.json`) contenait déjà 60m (5.3515–5.3665) : `en_bande_amateur` le reconnaît, rien à ajouter là. |
+| #253 | **Concours RTTY** (en cours de fusion) : CQ WW RTTY + ARRL RTTY Roundup, valeurs sourcées (cqwwrtty.com / arrl.org). Presets `zone_country_per_band_rtty` (1/2/3) et `rtty_roundup` (1 pt). |
+
+**Item scopé, non fait (demande un arbitrage F4GLD)** : les multiplicateurs
+états/provinces W/VE des deux concours RTTY (CQ WW RTTY §IV.C.3 combiné
+zone+DXCC+état par bande ; RTTY Roundup mult all-band états+provinces+DXCC).
+Ils touchent le moteur PARTAGÉ de classement de spots (`build_ranked_spots`
+/ `MULT_EVALUATORS`, cf. `logx_scoring.py`) que TOUS les concours utilisent —
+chirurgie non spéculative écartée en l'absence de F4GLD (les QSO se comptent
+déjà correctement zone+DXCC ; il ne manque qu'un multiplicateur secondaire).
+
+**Suite (roadmap copilote IA, non commencé)** : câblage backend du
+consentement TX (endpoints + intégration PTT + bouton Stop TX + écran de
+confirmation UI — demande l'UI/design) ; FT8 Roundup ; programme GMA
+(hiérarchique) ; multiplicateurs RTTY ci-dessus.
+
 ### En attente d'un essai sur l'air
 
 ✅ **PR #179 — mode Automatique FT8 : ESSAI SUR L'AIR SUPERVISÉ FAIT
