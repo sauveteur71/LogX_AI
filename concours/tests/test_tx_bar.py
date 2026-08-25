@@ -23,6 +23,8 @@ var document = { addEventListener:function(){}, getElementById:function(){return
   createElement:function(){return {style:{},classList:{add:function(){},remove:function(){}},
     appendChild:function(){},setAttribute:function(){}};},
   head:{appendChild:function(){}}, body:{appendChild:function(){}} };
+var setInterval = function(){ return 0; };
+var clearInterval = function(){};
 """
 
 
@@ -40,6 +42,22 @@ def test_module_expose_api():
     for fn in ('fmtFreqKhz', 'secondsLeft', 'ringPct', 'preparePayload',
                'authorizePayload', 'nextState'):
         assert ctx.eval(f"typeof window.LogxTxBar.{fn}") == 'function', fn
+
+
+def test_proposer_avec_callback_client_declenche_le_callback():
+    # Chemin CLIENT (ex. FT8) : ÉMETTRE exécute le callback local, PAS /tx/authorize.
+    ctx = _ctx()
+    ctx.eval("""
+      window.LogxTxBar.state = 'idle';
+      globalThis.__emis = 0;
+      window.LogxTxBar.proposer({mode:'FT8', message:'F4ABC F1XYZ -12'},
+                                function(){ globalThis.__emis++; });
+    """)
+    assert ctx.eval("window.LogxTxBar.state") == 'prepared'
+    assert ctx.eval("typeof window.LogxTxBar._onConfirm") == 'function'
+    ctx.eval("window.LogxTxBar._emettre();")
+    assert ctx.eval("globalThis.__emis") == 1              # callback exécuté une fois
+    assert ctx.eval("window.LogxTxBar._onConfirm") is None  # consommé (usage unique)
 
 
 def test_fmt_freq_khz_francais():
