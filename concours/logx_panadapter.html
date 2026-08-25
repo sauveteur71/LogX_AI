@@ -133,6 +133,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <label class="niveau" style="display:flex;align-items:center;gap:4px" title="Plafond : tout ce qui est au-dessus est au maximum (sature les signaux forts)">plafond<input type="range" id="paCeil" min="55" max="255" step="5" style="width:80px"></label>
   </span>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
+  <span class="clock" id="paHoverFreq" title="Fréquence sous le curseur (survol du spectre/waterfall)"></span>
   <span class="clock" id="clock">--:--:--</span>
 </header>
 <div class="scopewrap">
@@ -595,6 +596,20 @@ if(localStorage.getItem('rc_theme') === null){
     const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
     qsyHz(freqAuClic(frac, plage), rigMode || undefined);
   }
+  // Lecture de la fréquence SOUS LE CURSEUR avant le clic — même mapping que
+  // clicCanvas (plageHzActuelle + freqAuClic), pur pour le formatage.
+  function fmtFreqHz(hz){
+    return hz >= 1e6 ? (hz / 1e6).toFixed(4) + ' MHz' : Math.round(hz) + ' Hz';
+  }
+  function majHover(ev, cv){
+    const el = document.getElementById('paHoverFreq');
+    if(!el) return;
+    const plage = plageHzActuelle();
+    if(!plage){ el.textContent = ''; return; }   // audio brut : aucune fréquence RF absolue
+    const rect = cv.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    el.textContent = '⌖ ' + fmtFreqHz(freqAuClic(frac, plage));
+  }
 
   function dessinerSpectre(){
     const cv = document.getElementById('specCanvas');
@@ -860,8 +875,11 @@ if(localStorage.getItem('rc_theme') === null){
   // les clics au canvas ; les marqueurs de spots gardent leur propre clic).
   const _specCv = document.getElementById('specCanvas');
   const _waterCv = document.getElementById('waterCanvas');
-  if(_specCv){ _specCv.style.cursor = 'crosshair'; _specCv.addEventListener('click', e => clicCanvas(e, _specCv)); }
-  if(_waterCv){ _waterCv.style.cursor = 'crosshair'; _waterCv.addEventListener('click', e => clicCanvas(e, _waterCv)); }
+  const _viderHover = () => { const el = document.getElementById('paHoverFreq'); if(el) el.textContent = ''; };
+  if(_specCv){ _specCv.style.cursor = 'crosshair'; _specCv.addEventListener('click', e => clicCanvas(e, _specCv));
+    _specCv.addEventListener('mousemove', e => majHover(e, _specCv)); _specCv.addEventListener('mouseleave', _viderHover); }
+  if(_waterCv){ _waterCv.style.cursor = 'crosshair'; _waterCv.addEventListener('click', e => clicCanvas(e, _waterCv));
+    _waterCv.addEventListener('mousemove', e => majHover(e, _waterCv)); _waterCv.addEventListener('mouseleave', _viderHover); }
 
   // Contraste : init des contrôles + handlers (persistés). Le rendu
   // (dessinerSpectre/dessinerWaterfall) lit contrasteMode/Floor/Ceil via
