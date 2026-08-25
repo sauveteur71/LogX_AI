@@ -534,6 +534,32 @@ LEGACY_SCORING_PRESETS = {
         ],
         'multiplier': {'kind': 'zone_dxcc'},
     },
+    # CQ WW RTTY — barème 1/2/3 (règlement cqwwrtty.com §IV.B, vérifié 25/08 :
+    # même pays = 1, même continent (pays diff) = 2, continent différent = 3 ;
+    # PAS de règle W/VE spéciale, contrairement au CQ WW SSB/CW). Multiplicateur
+    # = zones CQ + pays DXCC par bande. NOTE : le règlement §IV.C.3 ajoute les
+    # ÉTATS US / PROVINCES VE comme multiplicateurs supplémentaires — non
+    # modélisés ici (il faut un multiplicateur COMBINÉ zone+DXCC+état, à ajouter
+    # au moteur ; on ne les compte pas plutôt que de mal compter).
+    'zone_country_per_band_rtty': {
+        'points': [
+            {'when': 'same_country',   'points': 1},
+            {'when': 'same_continent', 'points': 2},
+            {'when': 'always',         'points': 3},
+        ],
+        'multiplier': {'kind': 'zone_dxcc'},
+    },
+    # ARRL RTTY Roundup — 1 pt/QSO (arrl.org, vérifié 25/08). Multiplicateur =
+    # états US + provinces VE + entités DXCC (hors US/Canada), comptés UNE FOIS
+    # AU TOTAL (« Each multiplier counts once, not once per band »). Cette
+    # structure ALL-BAND n'existe pas dans le moteur per-band : on laisse
+    # multiplier=None (points corrects, aucun mult AUTOMATIQUE) plutôt que de mal
+    # compter avec un multiplicateur par bande. Le mult all-band est un
+    # RAFFINEMENT à ajouter (mécanisme de mult toutes-bandes).
+    'rtty_roundup': {
+        'points': [{'when': 'always', 'points': 1}],
+        'multiplier': None,
+    },
     # pts × préfixes uniques (CQ WPX) — les définitions déclarent 3/1/1
     'prefix_multiplier': {
         'points': [
