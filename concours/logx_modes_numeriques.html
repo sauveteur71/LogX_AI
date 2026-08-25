@@ -174,31 +174,6 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
   .ft2-tx-btns .mode-btn{margin:0}
   .ft2-tx-hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:8px;max-width:640px}
   </style>
-  <div class="ft2-panel" id="ft2Panel" style="display:none">
-    <div class="ft2-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg><span id="ft2Label">FT2 — Decodium 4.0</span><span class="ft2-exp">EXPÉRIMENTAL</span></div>
-    <div class="ft2-warn" id="ft2Warn"></div>
-    <div class="ft2-row">
-      <label>BANDE<select id="ft2Band"></select></label>
-      <span class="ft2-freq" id="ft2Freq">—</span>
-      <button class="mode-btn" id="ft2Go" onclick="ft2Aller()">Aller sur FT2 (QSY, RX seul)</button>
-    </div>
-    <div class="ft2-note" id="ft2FreqNote">QSY simple : LogX règle ton poste sur la fréquence Decodium de la bande choisie. <b>Rien n'est émis.</b> Ton poste garde son mode data actuel (le même qu'en FT8) — à toi de le régler comme d'habitude.</div>
-    <div class="ft2-tx">
-      <div class="ft2-tx-title">ÉMISSION FT2 — pilotée par Decodium (UDP), jamais par LogX</div>
-      <div class="ft2-voyants">
-        <span class="ft2-v"><span class="dot" id="ft2vUdp"></span>Decodium relié</span>
-        <span class="ft2-v"><span class="dot" id="ft2vAccept"></span>Accept commands</span>
-        <span class="ft2-v"><span class="dot" id="ft2vTx"></span>TX armée</span>
-        <span class="ft2-v"><span class="dot" id="ft2vFreq"></span>Fréquence autorisée</span>
-      </div>
-      <div class="ft2-tx-btns">
-        <button class="mode-btn" id="ft2Prep" disabled title="Câblage Phase 5 — l'écoute UDP Decodium et l'essai on-air supervisé arrivent ensuite">Préparer FT2</button>
-        <button class="mode-btn" id="ft2Call" disabled title="Câblage Phase 5 — confirmation explicite + envoi Reply gardé (can_send_ft2_reply), essai on-air supervisé">Appeler FT2</button>
-      </div>
-      <div class="ft2-tx-hint">Aucune émission automatique : un double-clic sur un décodage <b>prépare</b> une réponse mais n'émet jamais. « Appeler FT2 » exigera une confirmation explicite et l'accord de tous les voyants (garde <code>can_send_ft2_reply</code>). Le câblage réel de l'émission est en <b>Phase 5</b> — ces boutons s'activeront pour l'essai on-air, sous ta supervision.</div>
-    </div>
-  </div>
-
   <div class="mode-grid">
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg>FT8</div>
@@ -222,6 +197,31 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
       <div class="mode-desc">Décodeur/émetteur d'images SSTV. Détection automatique du mode (Martin, Scottie, Robot, PD — ISS incluse). Reste aussi disponible en panneau intégré dans <b>LOGBOOK</b>.</div>
       <span class="mode-badge">DISPONIBLE</span>
       <button class="mode-btn" onclick="ouvrirFenetreDetachee('/logx_sstv.html','rc_sstv','width=680,height=920,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+    </div>
+  </div>
+
+  <div class="ft2-panel" id="ft2Panel" style="display:none">
+    <div class="ft2-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg><span id="ft2Label">FT2 — Decodium 4.0</span><span class="ft2-exp">EXPÉRIMENTAL</span></div>
+    <div class="ft2-warn" id="ft2Warn"></div>
+    <div class="ft2-row">
+      <label>BANDE<select id="ft2Band"></select></label>
+      <span class="ft2-freq" id="ft2Freq">—</span>
+      <button class="mode-btn" id="ft2Go" onclick="ft2Aller()">Aller sur FT2 (QSY, RX seul)</button>
+    </div>
+    <div class="ft2-note" id="ft2FreqNote">QSY simple : LogX règle ton poste sur la fréquence Decodium de la bande choisie. <b>Rien n'est émis.</b> Ton poste garde son mode data actuel (le même qu'en FT8) — à toi de le régler comme d'habitude.</div>
+    <div class="ft2-tx">
+      <div class="ft2-tx-title">ÉMISSION FT2 — pilotée par Decodium (UDP), jamais par LogX</div>
+      <div class="ft2-voyants">
+        <span class="ft2-v"><span class="dot" id="ft2vUdp"></span>Decodium relié</span>
+        <span class="ft2-v"><span class="dot" id="ft2vAccept"></span>Accept commands</span>
+        <span class="ft2-v"><span class="dot" id="ft2vTx"></span>TX armée</span>
+        <span class="ft2-v"><span class="dot" id="ft2vFreq"></span>Fréquence autorisée</span>
+      </div>
+      <div class="ft2-tx-btns">
+        <button class="mode-btn" id="ft2Prep" disabled title="Câblage Phase 5 — l'écoute UDP Decodium et l'essai on-air supervisé arrivent ensuite">Préparer FT2</button>
+        <button class="mode-btn" id="ft2Call" disabled title="Câblage Phase 5 — confirmation explicite + envoi Reply gardé (can_send_ft2_reply), essai on-air supervisé">Appeler FT2</button>
+      </div>
+      <div class="ft2-tx-hint">Aucune émission automatique : un double-clic sur un décodage <b>prépare</b> une réponse mais n'émet jamais. « Appeler FT2 » exigera une confirmation explicite et l'accord de tous les voyants (garde <code>can_send_ft2_reply</code>). Le câblage réel de l'émission est en <b>Phase 5</b> — ces boutons s'activeront pour l'essai on-air, sous ta supervision.</div>
     </div>
   </div>
 </div>
