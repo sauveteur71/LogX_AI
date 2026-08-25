@@ -265,6 +265,16 @@ body.sans-concours .compass-pts{display:none}
 
 /* FORM DE SAISIE — zone prioritaire, jamais rognée */
 .saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+/* Grille départements 00–99 (clic direct, échanges-département). Compacte,
+   tokens de charte -> suit jour/nuit. */
+.dept-grid-wrap{display:flex;flex-direction:column;gap:4px}
+.dept-grid-lbl{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;color:var(--muted)}
+.dept-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px}
+.dept-grid .dept-cell{font-family:var(--font-mono);font-size:11px;padding:4px 0;cursor:pointer;
+  border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--fg,#E9E6DF)}
+.dept-grid .dept-cell:hover{border-color:var(--accent);color:var(--accent)}
+.dept-grid .dept-cell.on{background:rgba(var(--accent-rgb),.20);border-color:var(--accent);color:var(--accent)}
+.dept-grid .dept-cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .op-btn{font-family:var(--font-mono);font-size:16px;padding:7px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;letter-spacing:1px;font-weight:600}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .op-btn.active::before{content:'\2713\00a0'}
@@ -1935,6 +1945,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            tags MANUELS. -->
       <div class="activity-tags" id="activityTags"></div>
 
+      <!-- Grille départements 00–99 : clic direct -> remplit le département REÇU,
+           façon logs de terrain (demande F4GLD 25/08). Cachée par défaut ;
+           montrée par _majDeptGrid() UNIQUEMENT pour les échanges-département
+           (Coupe du REF / CDF HF, 160 m, F9NL, UFT). En VHF/UHF le n° reçu est
+           une série et le dept vient du locator : la grille reste cachée. -->
+      <div class="dept-grid-wrap" id="deptGridWrap" style="display:none">
+        <div class="dept-grid-lbl">DÉPARTEMENT REÇU — clic direct</div>
+        <div class="dept-grid" id="deptGrid"></div>
+      </div>
+
       <!-- DUP check -->
       <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRER LE QSO
@@ -2390,6 +2410,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_sstv_panel.js"></script>
 <script src="logx_callbook.js"></script>
 <script src="logx_lookup.js"></script>
+<script src="logx_dept_grid.js"></script>
 <script src="logx_voice_dictation.js"></script>
 <script src="logx_daynight.js"></script>
 <script src="logx_esm_callbot.js"></script>

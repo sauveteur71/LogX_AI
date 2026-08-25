@@ -171,6 +171,26 @@ function applyExchangeFormat(contestId){
     if(fS && ex.def_s && !fS.value) fS.value = ex.def_s;
   }
   if(typeof clearExchWarn === 'function') clearExchWarn();   // change de concours : avertissement zone périmé
+  _majDeptGrid();   // grille départements visible seulement si l'échange reçu est un dept
+}
+
+// Grille départements 00–99 : clic direct -> remplit le champ REÇU (#inputNumRcvd,
+// lu par dept_from_exchange). Visible UNIQUEMENT quand l'échange reçu EST un
+// département (jamais en série VHF/UHF -> ne corrompt pas une série).
+function pickDept(code){
+  const fR = document.getElementById('inputNumRcvd');
+  if(!fR) return;
+  fR.value = code;
+  if(typeof checkExchangeZone === 'function') checkExchangeZone();   // maj zone/multiplicateur
+  if(window.LogxDeptGrid) LogxDeptGrid.surligner(document.getElementById('deptGrid'), code);
+  fR.focus();
+}
+function _majDeptGrid(){
+  const wrap = document.getElementById('deptGridWrap');
+  const grid = document.getElementById('deptGrid');
+  if(!wrap || !grid || !window.LogxDeptGrid) return;
+  LogxDeptGrid.render(grid, pickDept);                              // construit une fois (idempotent)
+  wrap.style.display = LogxDeptGrid.doitAfficher(currentExchange.label_r) ? '' : 'none';
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
