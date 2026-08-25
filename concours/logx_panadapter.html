@@ -148,6 +148,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <option value="thermique">thermique</option>
     </select>
   </label>
+  <label class="niveau" style="display:flex;align-items:center;gap:5px" title="Vitesse de défilement du waterfall : ralentir montre plus d'historique temporel à hauteur d'écran égale (le spectre du haut, lui, reste vif).">Vitesse
+    <select id="paWfSpeed">
+      <option value="1">rapide</option>
+      <option value="2">moyen</option>
+      <option value="4">lent</option>
+      <option value="8">très lent</option>
+    </select>
+  </label>
   <button class="pa-btn" id="paPeak" title="Maintien de crête (peak hold) : garde le maximum de chaque bin, qui redescend lentement — révèle une porteuse brève ou un pic de pile-up manqué">◠ CRÊTE</button>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="paHoverFreq" title="Fréquence sous le curseur (survol du spectre/waterfall)"></span>
@@ -468,6 +476,16 @@ if(localStorage.getItem('rc_theme') === null){
     for(let i = 0; i < dataArray.length; i++) dataArray[i] = moyArr[i];
   }
 
+  // Vitesse du waterfall : ne fait défiler (une nouvelle ligne) qu'une trame
+  // sur N. Ralentir montre plus d'HISTOIRE temporelle à hauteur d'écran égale ;
+  // le SPECTRE, lui, reste vif à chaque trame (seul dessinerWaterfall consulte
+  // cette cadence). PUR : `frame % everyN === 0` (everyN<=1 -> chaque trame).
+  let waterfallEveryN = parseInt(localStorage.getItem('rc_pa_wfspeed'), 10) || 1;
+  let wfFrame = 0;
+  function traceWfCetteTrame(frame, everyN){
+    return everyN <= 1 || (frame % everyN) === 0;
+  }
+
   function binsAffiches(maxHz){
     const nyquist = ctx.sampleRate / 2;
     const total = analyser.frequencyBinCount;
@@ -735,6 +753,9 @@ if(localStorage.getItem('rc_theme') === null){
   function dessinerWaterfall(){
     const nBins = nBinsActuel();
     if(nBins <= 0 || !dataArray) return;   // rien de nouveau cette ligne : on laisse l'historique tel quel
+    // Cadence : à vitesse réduite, on saute le défilement cette trame (le
+    // waterfall garde son image, le spectre au-dessus reste vif).
+    if(!traceWfCetteTrame(++wfFrame, waterfallEveryN)) return;
     const cv = document.getElementById('waterCanvas');
     const {w, h} = tailleCanvas(cv);
     const g = cv.getContext('2d');
@@ -1032,6 +1053,19 @@ if(localStorage.getItem('rc_theme') === null){
     sel.onchange = () => {
       paletteMode = sel.value;
       localStorage.setItem('rc_pa_palette', paletteMode);
+    };
+  })();
+
+  // Vitesse waterfall : sélecteur (persisté). Remet le compteur de trames à
+  // zéro au changement pour que la nouvelle cadence prenne effet nettement.
+  (function initWfSpeed(){
+    const sel = document.getElementById('paWfSpeed');
+    if(!sel) return;
+    sel.value = String(waterfallEveryN);
+    sel.onchange = () => {
+      waterfallEveryN = parseInt(sel.value, 10) || 1;
+      wfFrame = 0;
+      localStorage.setItem('rc_pa_wfspeed', String(waterfallEveryN));
     };
   })();
 
