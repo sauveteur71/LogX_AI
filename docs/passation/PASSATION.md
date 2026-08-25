@@ -168,7 +168,10 @@ n'utilise PAS la boucle temporisée du séquenceur). Boucle complète :
 | PR | Ce que ça fait |
 |---|---|
 | #262 | **Copilote FT8 — répondre à un appel**. Sur un décode « pour moi » au niveau `copilote`, l'IA calcule la réponse standard (`reponseFt8` : grille→report, report→R+report, R+report→RR73, RRR/RR73/73→fin — table protocole SOURCÉE F4GLD) et la PROPOSE dans la barre #256 ; ÉMETTRE → `envoyerMessage()` au prochain créneau. Barre étendue `proposer(em, onConfirm)` (chemin client, FT8 = mode data hors serveur voix/CW). |
-| #263 | **Copilote FT8 — répondre à un CQ** (double-clic → propose l'appel initial `appelInitial`). *(en attente CI/fusion au moment d'écrire)* |
+| #263 | **Copilote FT8 — répondre à un CQ** (double-clic → propose l'appel initial `appelInitial`). *(mergé)* |
+| #264 | **Copilote FT8 — journaliser le QSO à la clôture** (l'approche X décode-driven contourne la boucle du séquenceur ; suivi d'état + `offrirLogQso` à RR73/73). *(mergé)* |
+| #265 | **Copilote FT8 — file d'attente pile-up** (10 max, à la suite). `ajouterFile`/`retirerFile`/`prochainFile` ; priorité : station cliquée (copain) > nouveau DXCC (`/dxcc/besoin`) > FIFO. UI file + ★ nouveau DXCC. *(mergé)* |
+| #266 | **Copilote FT8 — niveau 2 `copilote_auto`** (« délai fixe puis émet sauf annulation », F4GLD). `delaiAutoMs(niveau, defaut)` (>0 seulement à `copilote_auto`) ; barre `proposer(em, onConfirm, autoMs)` : `_autoAt` armé, `_tick` auto-émet UNE fois via **le même callback** que le niveau 1 (propriété propose-only intacte), STOP TX/ÉMETTRE annulent. Décompte visible (`autoSecondsLeft`). Délai **réglable** 3/5/8/12 s (`delaiValideMs`, borné [2,30] s, persistant `rc_ft8_copilote_delai_s`). Option + texte d'état dédiés. **Traçabilité (arbitrage F4GLD 25/08)** : le FT8 émet côté client (hors `/tx/authorize`) → la barre POSTe `/tx/trace` au déclenchement (ÉMETTRE **ou** délai écoulé) ; `journal_copilote_emission` grave l'émission dans le MÊME journal d'audit serveur (`event:TX_COPILOTE_EMISSION`, `declencheur` copilote/copilote_auto), consultable via `/tx/audit` — même si le navigateur est fermé ensuite. Fire-and-forget (une trace ratée ne défait jamais une émission). **Fiabilisation pile-up (choix F4GLD « fiabiliser »)** : (a) **péremption** — `epurerFile(file, vu, now, maxAge)` retire une station qui ne rappelle plus (non réentendue > ~6 cycles = 90 s, `_copiloteFileVu` suit le dernier appel, purge à chaque décodage) ; (b) **lien trace↔QSO loggé** — à l'écriture RÉELLE d'un QSO copilote (confirmation humaine, non-doublon) la page POSTe `/tx/trace kind:'qso'` → `journal_copilote_qso` grave `TX_COPILOTE_QSO_LOGGED` (même indicatif que les `TX_COPILOTE_EMISSION` → boucle consentement→émission→QSO tracée de bout en bout). Le log reste un geste humain. **Afficheur d'audit (demande F4GLD « faut le faire aussi »)** : `LogxTxBar.formatAuditLigne(entry)` (pur, testé) rend chaque entrée `/tx/audit` en une ligne FR ; panneau repliable « Journal d'émission » sur la page FT8 (sous la file copilote), lecture seule, `textContent` (jamais innerHTML), tokens de charte (jour/nuit). Rend enfin CONSULTABLE la traçabilité gravée. *(en attente CI/revue F4GLD au moment d'écrire)* |
 
 🚨 **SÛRETÉ verrouillée par tests structurels + mutation sur les DEUX chemins** :
 au niveau `copilote`, le seul `envoyerMessage` est DANS le callback ÉMETTRE →
@@ -183,11 +186,16 @@ commit propre de #263.
 
 **VÉRIF NAVIGATEUR = geste F4GLD** (avant usage on-air) : page FT8 → niveau
 Copilote → décode simulé « pour moi » → la barre s'affiche → ÉMETTRE → FT8 part
-au prochain créneau ; thèmes jour/nuit.
+au prochain créneau ; thèmes jour/nuit. **Niveau 2 (#266)** : choisir « Copilote
+auto », vérifier le sélecteur DÉLAI (3/5/8/12 s), qu'un décode « pour moi »
+propose PUIS émet seul après le délai affiché, et que **STOP TX** annule dans la
+fenêtre — puis re-tester en jour/nuit.
 
-**Suite copilote (demande direction produit F4GLD)** : niveaux d'autorisation
-2-4 (semi-auto temporisé) ; pile-up (stratégie serveur `/wsjtx/strategy`
-existe) ; copilote CW/SSB ; journaliser le lien consentement→QSO.
+**Suite copilote (demande direction produit F4GLD)** : niveau 2 (`copilote_auto`,
+semi-auto temporisé) **FAIT** (#266) ; pile-up **FAIT** (#265). Restent :
+niveaux 3-4 (fenêtre de confiance élargie / TX encadrée) ; copilote CW/SSB ;
+journaliser le lien consentement→QSO ; (noté, non demandé) péremption d'une
+station en file (stale-timeout).
 
 ### En attente d'un essai sur l'air
 

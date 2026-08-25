@@ -38,6 +38,7 @@ def test_api_exposee():
 def test_doit_proposer_seulement_au_niveau_copilote():
     ctx = _ctx()
     assert ctx.eval("window.LogxFt8Copilote.doitProposer('copilote')") is True
+    assert ctx.eval("window.LogxFt8Copilote.doitProposer('copilote_auto')") is True  # niveau 2 propose aussi
     # les autres niveaux gardent leur comportement (auto/manuel/etc.) : PAS de proposition
     for niv in ('manuel', 'assiste', 'sequenceur', 'auto', ''):
         assert ctx.eval(f"window.LogxFt8Copilote.doitProposer('{niv}')") is False, niv
@@ -190,6 +191,56 @@ def test_file_attente_retirer():
     # station absente -> file inchangée
     ctx.eval("f = window.LogxFt8Copilote.retirerFile(f, 'XX9XX');")
     assert ctx.eval("f.join(',')") == 'F4ABC,ON4XX'
+
+
+def test_delai_auto_selon_niveau():
+    # Niveau 2 « copilote_auto » : auto-émission après un délai FIXE (F4GLD).
+    # Les autres niveaux : 0 = pas d'auto (confirmation à la main / comportement
+    # historique). Invariant : SEUL 'copilote_auto' arme le délai.
+    ctx = _ctx()
+    D = lambda niv: ctx.eval(f"window.LogxFt8Copilote.delaiAutoMs({niv!r}, 8000)")
+    assert D('copilote_auto') == 8000                 # armé au niveau 2
+    for niv in ('copilote', 'manuel', 'assiste', 'sequenceur', 'auto', ''):
+        assert D(niv) == 0, niv                        # jamais ailleurs
+    # défaut : si delaiDefautMs omis -> 0 (pas d'auto tant qu'aucun délai fourni)
+    assert ctx.eval("window.LogxFt8Copilote.delaiAutoMs('copilote_auto')") == 0
+
+
+def test_delai_valide_ms_parse_et_borne():
+    # Délai d'auto-émission RÉGLABLE par l'opérateur (F4GLD : « 8 s par défaut,
+    # ajustable »). delaiValideMs(secondes, defautMs) : parse + borne [2,30] s,
+    # renvoie des ms ; toute valeur hors bornes / illisible -> defautMs.
+    ctx = _ctx()
+    V = lambda v: ctx.eval(f"window.LogxFt8Copilote.delaiValideMs({v}, 8000)")
+    assert V(5) == 5000
+    assert V("'8'") == 8000              # chaîne numérique (localStorage)
+    assert V(2) == 2000                  # borne basse incluse
+    assert V(30) == 30000                # borne haute incluse
+    assert V(1) == 8000                  # sous la borne -> défaut
+    assert V(31) == 8000                 # au-dessus -> défaut
+    assert V(0) == 8000                  # 0 -> défaut (pas « jamais »)
+    assert V("'abc'") == 8000            # illisible -> défaut
+    assert V("null") == 8000             # absent -> défaut
+
+
+def test_epurer_file_retire_les_stations_perimees():
+    # Pile-up : une station qui a cessé d'appeler (plus réentendue depuis N cycles)
+    # a renoncé / travaillé quelqu'un d'autre — on l'épure de la file plutôt que
+    # de la rappeler dans le vide. `vu` = dernier instant (ms) où la station nous
+    # a (ré)appelé ; épurée si (now - vu) > maxAge. Fonction PURE.
+    ctx = _ctx()
+    file = "['F4ABC','DL1XYZ','G0ABC']"
+    vu = "{F4ABC:1000, DL1XYZ:100000, G0ABC:200000}"   # now=200000, max=90000
+    ctx.eval(f"var out = window.LogxFt8Copilote.epurerFile({file}, {vu}, 200000, 90000);")
+    assert ctx.eval("out.join(',')") == 'G0ABC'          # seule la station récente reste
+    # sans info d'âge (vu absent) -> on GARDE (prudence, offline-first)
+    ctx.eval("var o2 = window.LogxFt8Copilote.epurerFile(['NEW1'], {}, 200000, 90000);")
+    assert ctx.eval("o2.join(',')") == 'NEW1'
+    # file vide / nulle -> []
+    assert ctx.eval("window.LogxFt8Copilote.epurerFile(null, {}, 0, 90000).length") == 0
+    # pure : n'altère pas la liste d'entrée
+    ctx.eval("var src=['F4ABC']; window.LogxFt8Copilote.epurerFile(src,{F4ABC:0},999999,90000);")
+    assert ctx.eval("src.length") == 1
 
 
 def test_cle_anti_spam_idempotente():

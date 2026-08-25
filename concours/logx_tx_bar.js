@@ -41,6 +41,15 @@
     return s;
   }
 
+  // Secondes entières avant l'AUTO-ÉMISSION (niveau 2), arrondies au plafond
+  // pour ne jamais annoncer moins de temps qu'il n'en reste à l'opérateur pour
+  // annuler (STOP TX). 0 si non armé (autoAt falsy) ou délai écoulé.
+  function autoSecondsLeft(autoAt, nowMs) {
+    if (!autoAt) { return 0; }
+    var s = Math.ceil((autoAt - nowMs) / 1000);
+    return s > 0 ? s : 0;
+  }
+
   function ringPct(secs, ttl) {
     ttl = ttl || TTL;
     var p = Math.round((Number(secs) || 0) / ttl * 100);
@@ -69,6 +78,54 @@
     return { token: token, duree_max: dureeMax, armed: !!armed };
   }
 
+  // Rend UNE entrée du journal d'audit (/tx/audit) en une ligne lisible (FR),
+  // pour l'afficher à l'opérateur — la traçabilité gravée devient consultable.
+  // Ne lève jamais (une entrée inattendue -> ligne minimale, jamais d'exception).
+  function _auditHeure(ts) {
+    var m = String(ts || '').match(/T(\d{2}:\d{2}:\d{2})/);
+    return m ? m[1] : '';
+  }
+  function formatAuditLigne(e) {
+    e = e || {};
+    var h = _auditHeure(e.timestamp_utc);
+    var cible = e.radio_id || '';
+    var freq = e.frequency_hz ? (fmtFreqKhz(e.frequency_hz) + ' kHz') : '';
+    var msg = e.message ? ('« ' + e.message + ' »') : '';
+    var bloc = function (parts) { return parts.filter(Boolean).join(' '); };
+    switch (e.event) {
+      case 'TX_STOP':
+        var n = Number(e.cancelled) || 0;
+        return bloc([h, '· STOP TX (' + n + ' annulé' + (n > 1 ? 's' : '') + ')']);
+      case 'TX_COPILOTE_QSO_LOGGED':
+        var rr = (e.rst_sent || e.rst_rcvd) ? (String(e.rst_sent || '?') + '/' + String(e.rst_rcvd || '?')) : '';
+        return bloc([h, '· QSO loggé (copilote)', cible ? ('→ ' + cible) : '',
+                     bloc([e.band, e.mode]), rr, e.locator || '']);
+      case 'TX_COPILOTE_EMISSION':
+        var lbl = (e.declencheur === 'copilote_auto') ? 'copilote auto' : 'copilote';
+        return bloc([h, '· Émis (' + lbl + ')', cible ? ('→ ' + cible) : '', bloc([freq, e.mode]), msg]);
+      case 'TX_AUTHORIZED_AND_EXECUTED':
+        return bloc([h, '· Émis (validé)', cible ? ('→ ' + cible) : '', bloc([freq, e.mode]), msg]);
+      default:
+        return bloc([h, '· ' + String(e.event || '?')]);
+    }
+  }
+
+  // Trace d'audit d'une émission COPILOTE (POST /tx/trace). Le FT8 émet côté
+  // CLIENT (envoyerMessage) hors /tx/authorize : cette trace grave quand même
+  // l'émission dans le journal serveur (traçabilité verrouillée). `declencheur` :
+  // 'copilote' (ÉMETTRE manuel) ou 'copilote_auto' (délai écoulé sans annulation).
+  function tracePayload(em, declencheur) {
+    em = em || {};
+    return {
+      operator: em.operator || '',
+      radio_id: em.radio_id || '',     // DX visé, jamais l'humain
+      frequency_hz: em.frequency_hz,
+      mode: em.mode || '',
+      message: em.message || '',
+      declencheur: declencheur || 'copilote'
+    };
+  }
+
   // Machine d'état : STOP ramène TOUJOURS à 'idle' (arrêt d'urgence) ;
   // un refus serveur -> 'blocked' (l'humain doit re-préparer).
   function nextState(state, action) {
@@ -84,10 +141,14 @@
     TTL: TTL, DUREE_MAX_DEFAUT: DUREE_MAX_DEFAUT,
     fmtFreqKhz: fmtFreqKhz, secondsLeft: secondsLeft, ringPct: ringPct,
     preparePayload: preparePayload, authorizePayload: authorizePayload,
-    nextState: nextState,
+    nextState: nextState, autoSecondsLeft: autoSecondsLeft, tracePayload: tracePayload,
+    formatAuditLigne: formatAuditLigne,
+    _declencheur: 'copilote',   // déclencheur de la prochaine émission client (trace d'audit)
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
     _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
-    _onConfirm: null       // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
+    _onConfirm: null,      // callback client sur ÉMETTRE (ex. FT8) ; null = chemin serveur
+    _autoAt: 0,            // ms (Date.now) d'auto-émission (niveau 2 copilote_auto) ; 0 = jamais
+    _tick: _tick           // exposé pour test (pilotage du compte à rebours en V8)
   };
 
   // ── DOM + réseau (non testés unitairement, comme les autres modules) ──────
@@ -163,6 +224,19 @@
   function _tick() {
     var secs = secondsLeft(LogxTxBar._expires, Date.now());
     var n = _q('rcTxCount'); if (n) { n.textContent = secs; }
+    // Niveau 2 : le délai d'auto-émission est écoulé -> émet UNE fois (sauf
+    // annulation via STOP TX, qui remet _autoAt à 0 et coupe le timer).
+    if (LogxTxBar._autoAt && LogxTxBar.state === 'prepared') {
+      if (Date.now() >= LogxTxBar._autoAt) {
+        LogxTxBar._autoAt = 0;
+        LogxTxBar._declencheur = 'copilote_auto';   // trace : délai écoulé, pas un clic
+        LogxTxBar._emettre();
+        return;
+      }
+      // Affiche le décompte d'auto-émission pour que l'opérateur puisse annuler.
+      _line('Émission auto dans ' + autoSecondsLeft(LogxTxBar._autoAt, Date.now())
+            + ' s — STOP TX pour annuler.', '');
+    }
     if (secs <= 0 && LogxTxBar.state === 'prepared') {
       LogxTxBar.state = nextState(LogxTxBar.state, 'EXPIRE');
       _clearTimer(); _render();
@@ -180,7 +254,7 @@
   // place du chemin serveur /tx/authorize. Requis pour les modes dont
   // l'émission est CÔTÉ CLIENT (ex. FT8 : audio natif + envoyerMessage()),
   // que le garde-fou serveur voix/CW ne gère pas (modes data refusés).
-  LogxTxBar.proposer = function (em, onConfirm) {
+  LogxTxBar.proposer = function (em, onConfirm, autoMs) {
     em = em || {};
     // La source voix choisie via le sélecteur s'applique si l'appelant (IA)
     // n'en impose pas une explicitement.
@@ -193,6 +267,10 @@
     if (typeof onConfirm === 'function') {
       LogxTxBar._onConfirm = onConfirm;
       LogxTxBar._em = em; LogxTxBar._token = null;
+      LogxTxBar._declencheur = 'copilote';   // par défaut : ÉMETTRE manuel (trace)
+      // Niveau 2 (copilote_auto) : arme une auto-émission après `autoMs` ms.
+      // Sinon 0 = geste humain requis. STOP TX (ou ÉMETTRE) l'annule.
+      LogxTxBar._autoAt = (Number(autoMs) > 0) ? Date.now() + Number(autoMs) : 0;
       LogxTxBar._expires = new Date(Date.now() + TTL * 1000).toISOString();
       LogxTxBar.state = nextState('idle', 'PREPARE');
       _clearTimer(); LogxTxBar._timer = setInterval(_tick, 500); _tick();
@@ -200,7 +278,7 @@
       _render();
       return Promise.resolve('client');
     }
-    LogxTxBar._onConfirm = null;
+    LogxTxBar._onConfirm = null; LogxTxBar._autoAt = 0;
     return _post('/tx/prepare', preparePayload(em)).then(function (r) {
       if (r.status !== 200 || !r.json.ok) {
         _line((r.json && r.json.error) || 'Préparation refusée', 'blocked'); return null;
@@ -215,6 +293,7 @@
 
   LogxTxBar._emettre = function () {
     if (LogxTxBar.state !== 'prepared') { return; }
+    LogxTxBar._autoAt = 0;   // émission en cours : plus d'auto-émission en attente
     LogxTxBar.state = nextState(LogxTxBar.state, 'EMIT'); _render();
     // Chemin CLIENT : exécute le callback local (ex. FT8 envoyerMessage()) ; le
     // garde-fou/PTT réel est celui du chemin d'émission client (déjà en place).
@@ -225,6 +304,12 @@
         cb();
         LogxTxBar.state = nextState('emitting', 'DONE');
         _line('Émis (copilote).', 'ok');
+        // Traçabilité verrouillée : le FT8 émet côté client (hors /tx/authorize),
+        // on GRAVE quand même l'émission dans le journal d'audit serveur, au
+        // moment EXACT du déclenchement (ÉMETTRE manuel ou délai écoulé). Trace
+        // seule (aucun PTT) et fire-and-forget : une trace ratée ne doit JAMAIS
+        // défaire une émission déjà partie.
+        try { _post('/tx/trace', tracePayload(LogxTxBar._em, LogxTxBar._declencheur)); } catch (e2) {}
       } catch (e) {
         LogxTxBar.state = nextState('emitting', 'BLOCKED');
         _line('Émission refusée : ' + e, 'blocked');
@@ -247,6 +332,7 @@
 
   LogxTxBar._stop = function () {
     _clearTimer();
+    LogxTxBar._autoAt = 0;         // annule l'auto-émission en attente (niveau 2)
     LogxTxBar._onConfirm = null;   // annule aussi une proposition client (ex. FT8)
     return _post('/tx/stop', {}).then(function () {
       LogxTxBar.state = nextState(LogxTxBar.state, 'STOP');

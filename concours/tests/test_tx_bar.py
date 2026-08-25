@@ -60,6 +60,66 @@ def test_proposer_avec_callback_client_declenche_le_callback():
     assert ctx.eval("window.LogxTxBar._onConfirm") is None  # consommé (usage unique)
 
 
+def test_proposer_auto_emet_apres_delai():
+    # Niveau 2 copilote : proposer(em, cb, autoMs) arme une auto-émission après
+    # `autoMs` ms. _tick l'exécute UNE fois le délai écoulé (sauf annulation).
+    ctx = _ctx()
+    ctx.eval("""
+      window.LogxTxBar.state = 'idle';
+      globalThis.__emis = 0;
+      window.LogxTxBar.proposer({mode:'FT8', message:'F4ABC F1XYZ -12'},
+                                function(){ globalThis.__emis++; }, 8000);
+    """)
+    assert ctx.eval("window.LogxTxBar._autoAt > 0") is True   # auto-émission armée
+    # délai NON écoulé -> aucun _tick n'émet
+    ctx.eval("window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 0
+    # délai écoulé (_autoAt dans le passé) -> auto-émission UNE fois
+    ctx.eval("window.LogxTxBar._autoAt = 1; window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 1
+    # trace : l'auto-émission est marquée 'copilote_auto' (délai écoulé, pas un clic)
+    assert ctx.eval("window.LogxTxBar._declencheur") == 'copilote_auto'
+    ctx.eval("window.LogxTxBar._tick();")                     # pas de ré-émission
+    assert ctx.eval("globalThis.__emis") == 1
+
+
+def test_emission_copilote_poste_une_trace_audit():
+    # Traçabilité verrouillée : à l'émission copilote (chemin client FT8), la
+    # barre POSTe /tx/trace pour graver l'action dans le journal d'audit serveur.
+    ctx = _ctx()
+    ctx.eval("""
+      globalThis.__fetches = [];
+      globalThis.fetch = function(url, opts){
+        globalThis.__fetches.push({url:url, body:(opts&&opts.body)||''});
+        return { then: function(){ return { then: function(){} }; } };
+      };
+      window.LogxTxBar.state = 'idle';
+      window.LogxTxBar.proposer({mode:'FT8', message:'F4ABC F1XYZ -12',
+        operator:'F1XYZ', radio_id:'F4ABC', frequency_hz:14074000}, function(){});
+      window.LogxTxBar._emettre();
+    """)
+    urls = ctx.eval("globalThis.__fetches.map(function(f){return f.url;}).join(',')")
+    assert '/tx/trace' in urls                    # trace POSTée
+    body = ctx.eval("(globalThis.__fetches.filter(function(f){"
+                    "return f.url==='/tx/trace';})[0]||{}).body")
+    assert 'F4ABC F1XYZ -12' in body              # le message émis est tracé
+    assert 'copilote' in body                     # déclencheur présent (manuel ici)
+
+
+def test_proposer_sans_delai_n_auto_emet_jamais():
+    # Niveau 1 'copilote' (autoMs omis) : jamais d'auto-émission, geste humain requis.
+    ctx = _ctx()
+    ctx.eval("""
+      window.LogxTxBar.state = 'idle';
+      globalThis.__emis = 0;
+      window.LogxTxBar.proposer({mode:'FT8', message:'x'},
+                                function(){ globalThis.__emis++; });
+    """)
+    assert ctx.eval("window.LogxTxBar._autoAt") == 0          # pas armée
+    ctx.eval("window.LogxTxBar._tick();")
+    assert ctx.eval("globalThis.__emis") == 0
+
+
 def test_fmt_freq_khz_francais():
     ctx = _ctx()
     # 14 074 000 Hz -> "14 074,0" kHz (espace milliers, virgule décimale FR)
@@ -76,6 +136,23 @@ def test_seconds_left_borne_0_30():
     assert ctx.eval(f"window.LogxTxBar.secondsLeft({exp}, Date.parse('2026-08-25T12:00:22Z'))") == 8
     # expiré -> jamais négatif
     assert ctx.eval(f"window.LogxTxBar.secondsLeft({exp}, Date.parse('2026-08-25T12:00:45Z'))") == 0
+
+
+def test_auto_seconds_left():
+    # Décompte d'auto-émission (niveau 2) affiché à l'opérateur : secondes
+    # ENTIÈRES restantes (arrondi au plafond), jamais négatif, 0 si non armé.
+    ctx = _ctx()
+    now = "Date.parse('2026-08-25T12:00:00Z')"
+    at8 = "Date.parse('2026-08-25T12:00:08Z')"
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now})") == 8
+    # 7,4 s restantes -> 8 (plafond, on n'annonce pas moins de temps qu'il n'en reste)
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 600)") == 8
+    # 0,3 s restantes -> 1
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 7700)") == 1
+    # écoulé -> 0
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft({at8}, {now} + 9000)") == 0
+    # non armé (0) -> 0
+    assert ctx.eval(f"window.LogxTxBar.autoSecondsLeft(0, {now})") == 0
 
 
 def test_ring_pct():
@@ -107,6 +184,24 @@ def test_prepare_payload_inclut_voice_source():
     assert ctx.eval("q.voice_source") == 'auto'
 
 
+def test_trace_payload_copilote():
+    # Trace d'audit POSTée au serveur au déclenchement d'une émission copilote
+    # (chemin client FT8). Reprend l'aperçu + le DÉCLENCHEUR (manuel vs auto).
+    ctx = _ctx()
+    em = ("{operator:'F1XYZ', radio_id:'F4ABC', frequency_hz:14074000,"
+          " mode:'FT8', message:'F4ABC F1XYZ R-12'}")
+    ctx.eval(f"var p = window.LogxTxBar.tracePayload({em}, 'copilote_auto');")
+    assert ctx.eval("p.operator") == 'F1XYZ'
+    assert ctx.eval("p.radio_id") == 'F4ABC'          # DX visé
+    assert ctx.eval("p.frequency_hz") == 14074000
+    assert ctx.eval("p.mode") == 'FT8'
+    assert ctx.eval("p.message") == 'F4ABC F1XYZ R-12'
+    assert ctx.eval("p.declencheur") == 'copilote_auto'
+    # déclencheur par défaut = 'copilote' (confirmation manuelle)
+    ctx.eval(f"var q = window.LogxTxBar.tracePayload({em});")
+    assert ctx.eval("q.declencheur") == 'copilote'
+
+
 def test_authorize_payload_borne_duree():
     ctx = _ctx()
     # duree_max OBLIGATOIRE (garde-fou serveur : émission bornée) + armed
@@ -114,6 +209,31 @@ def test_authorize_payload_borne_duree():
     assert ctx.eval("a.token") == 'tok-123'
     assert ctx.eval("a.duree_max") == 3
     assert ctx.eval("a.armed") is True
+
+
+def test_format_audit_ligne():
+    # Rend une entrée du journal d'audit /tx/audit en UNE ligne lisible (FR),
+    # pour l'afficher à l'opérateur (traçabilité consultable). Heure = HH:MM:SS.
+    ctx = _ctx()
+    F = "window.LogxTxBar.formatAuditLigne"
+    e1 = ("{event:'TX_COPILOTE_EMISSION', timestamp_utc:'2026-08-25T12:03:45Z',"
+          " radio_id:'F4ABC', frequency_hz:14074000, mode:'FT8',"
+          " message:'F4ABC F1XYZ R-12', declencheur:'copilote_auto'}")
+    l1 = ctx.eval(f"{F}({e1})")
+    assert l1.startswith('12:03:45')
+    assert 'copilote auto' in l1 and 'F4ABC' in l1 and 'F4ABC F1XYZ R-12' in l1
+    e2 = ("{event:'TX_COPILOTE_QSO_LOGGED', timestamp_utc:'2026-08-25T12:04:00Z',"
+          " radio_id:'F4ABC', band:'20m', mode:'FT8', rst_sent:'-12', rst_rcvd:'-08', locator:'JN18'}")
+    l2 = ctx.eval(f"{F}({e2})")
+    assert '12:04:00' in l2 and 'QSO loggé' in l2 and 'F4ABC' in l2 and 'JN18' in l2
+    e3 = ("{event:'TX_AUTHORIZED_AND_EXECUTED', timestamp_utc:'2026-08-25T12:05:00Z',"
+          " radio_id:'IC-7300', frequency_hz:7040000, mode:'USB', message:'CQ TEST'}")
+    l3 = ctx.eval(f"{F}({e3})")
+    assert '12:05:00' in l3 and 'CQ TEST' in l3
+    l4 = ctx.eval(f"{F}({{event:'TX_STOP', timestamp_utc:'2026-08-25T12:06:00Z', cancelled:2}})")
+    assert '12:06:00' in l4 and 'STOP' in l4
+    # entrée inconnue / vide -> ne casse pas (chaîne, jamais d'exception)
+    assert ctx.eval(f"typeof {F}({{}})") == 'string'
 
 
 def test_machine_etat_stop_reinitialise():

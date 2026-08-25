@@ -109,3 +109,53 @@ def test_stop_tx_invalide_le_jeton_en_attente():
     assert consent.get(c.token) is None          # jeton annulé
     with pytest.raises(PermissionError):
         consent.authorize_transmission(c, _radio(), now=_t(2))   # annulé -> refusé
+
+
+# ─── traçabilité des émissions COPILOTE (chemin client FT8, hors /tx/authorize) ──
+
+def test_journal_copilote_emission_grave_dans_l_audit():
+    """Les émissions copilote FT8 partent par le chemin CLIENT (envoyerMessage) et
+    ne passent pas par /tx/authorize : elles doivent quand même être GRAVÉES dans
+    le journal d'audit serveur (principe verrouillé « traçable »)."""
+    consent.vider_audit()
+    entry = consent.journal_copilote_emission({
+        'operator_callsign': 'F1XYZ', 'radio_id': 'F4ABC', 'frequency_hz': 14074000,
+        'mode': 'FT8', 'message': 'F4ABC F1XYZ R-12', 'declencheur': 'copilote_auto'})
+    assert entry['event'] == 'TX_COPILOTE_EMISSION'
+    assert entry['operator_callsign'] == 'F1XYZ'
+    assert entry['radio_id'] == 'F4ABC'             # DX visé, jamais l'humain
+    assert entry['frequency_hz'] == 14074000 and entry['mode'] == 'FT8'
+    assert entry['message'] == 'F4ABC F1XYZ R-12'
+    assert entry['declencheur'] == 'copilote_auto'  # auto vs confirmation manuelle
+    assert 'timestamp_utc' in entry                 # horodaté UTC
+    # RÉELLEMENT dans le journal consultable via /tx/audit
+    derniere = consent.audit_entries(1)[-1]
+    assert derniere['event'] == 'TX_COPILOTE_EMISSION'
+    assert derniere['message'] == 'F4ABC F1XYZ R-12'
+
+
+def test_journal_copilote_qso_relie_l_emission_au_log():
+    """Lien trace <-> QSO loggé : quand un QSO copilote est RÉELLEMENT écrit au
+    carnet (geste humain de confirmation), on grave une entrée dédiée qui relie
+    la chaîne d'émissions (TX_COPILOTE_EMISSION, même indicatif) au QSO loggé."""
+    consent.vider_audit()
+    entry = consent.journal_copilote_qso({
+        'operator_callsign': 'F1XYZ', 'radio_id': 'F4ABC', 'band': '20m', 'mode': 'FT8',
+        'rst_sent': '-12', 'rst_rcvd': '-08', 'locator': 'JN18', 'declencheur': 'copilote_auto'})
+    assert entry['event'] == 'TX_COPILOTE_QSO_LOGGED'
+    assert entry['radio_id'] == 'F4ABC'                 # le DX loggé
+    assert entry['rst_sent'] == '-12' and entry['rst_rcvd'] == '-08'
+    assert entry['locator'] == 'JN18'
+    assert entry['human_action'] == 'QSO_LOGGED'        # écrit au carnet par geste humain
+    assert 'timestamp_utc' in entry
+    assert consent.audit_entries(1)[-1]['event'] == 'TX_COPILOTE_QSO_LOGGED'
+
+
+def test_journal_copilote_declencheur_par_defaut_et_ne_leve_jamais():
+    consent.vider_audit()
+    # déclencheur absent -> 'copilote' (confirmation manuelle) par défaut
+    e = consent.journal_copilote_emission({'operator_callsign': 'F1XYZ',
+                                           'message': 'CQ F1XYZ'})
+    assert e['declencheur'] == 'copilote'
+    # entrée illisible : ne lève pas (une trace ratée ne casse pas une émission)
+    consent.journal_copilote_emission(None)

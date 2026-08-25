@@ -19,7 +19,8 @@ def _src():
 
 def test_option_copilote_et_inclusions_presentes():
     src = _src()
-    assert '<option value="copilote">' in src            # niveau proposé à l'opérateur
+    assert '<option value="copilote">' in src            # niveau 1 : confirmation à la main
+    assert '<option value="copilote_auto">' in src       # niveau 2 : émet après délai sauf annulation
     assert 'logx_tx_bar.js' in src                       # barre de consentement incluse
     assert 'logx_ft8_copilote.js' in src                 # module copilote inclus
 
@@ -66,10 +67,12 @@ def test_prendre_suivant_file_ne_peut_pas_auto_emettre():
 
 
 def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
-    """Même invariant pour la branche 'copilote' de repondreEtEnvoyer (réponse
-    à un CQ au double-clic) : le seul envoyerMessage est dans le callback ÉMETTRE."""
+    """Même invariant pour la branche copilote de repondreEtEnvoyer (réponse à un
+    CQ au double-clic, gatée par doitProposer -> couvre 'copilote' ET
+    'copilote_auto') : le seul envoyerMessage est dans le callback ÉMETTRE.
+    Ancrée sur appelInitial(cible, unique à cette branche."""
     src = _src()
-    m = re.search(r"if\(seqNiveau === 'copilote'.*?LogxTxBar\.proposer\(.*?\n      return;\n    \}", src, re.S)
+    m = re.search(r"LogxFt8Copilote\.appelInitial\(cible.*?LogxTxBar\.proposer\(.*?\n      return;\n    \}", src, re.S)
     assert m, "branche copilote de repondreEtEnvoyer introuvable"
     branche = m.group(0)
     assert 'LogxTxBar.proposer(' in branche
@@ -78,3 +81,68 @@ def test_copilote_clic_cq_ne_peut_pas_auto_emettre():
             assert 'function(){' in ligne or 'function () {' in ligne, (
                 "réponse CQ copilote : envoyerMessage doit être DANS le callback "
                 "ÉMETTRE, jamais un appel direct : %r" % ligne.strip())
+
+
+def test_copilote_auto_passe_le_delai_aux_trois_sites():
+    """Niveau 2 : chaque proposition copilote (réponse auto, réponse CQ, station
+    suivante de la file) passe le délai d'auto-émission via delaiAutoMs(seqNiveau,
+    …) en 3e argument de LogxTxBar.proposer — sinon copilote_auto n'émettrait
+    jamais tout seul. delaiAutoMs renvoie 0 hors 'copilote_auto' (niveau 1
+    inchangé), la sûreté est donc préservée."""
+    src = _src()
+    sites = [ligne.strip() for ligne in src.splitlines()
+             if 'LogxTxBar.proposer(p, function(){' in ligne]
+    assert len(sites) == 3, "attendu 3 sites de proposition copilote, vu %d" % len(sites)
+    for ligne in sites:
+        # délai RÉGLABLE : la valeur courante (copiloteDelaiMs) est passée en
+        # `delaiDefautMs` ; delaiAutoMs ne l'applique qu'au niveau copilote_auto.
+        assert 'LogxFt8Copilote.delaiAutoMs(seqNiveau, copiloteDelaiMs)' in ligne, (
+            "proposition copilote sans délai d'auto-émission réglable (3e arg) : %r" % ligne)
+
+
+def test_pileup_peremption_cablee():
+    """Fiabilisation pile-up : une station qui ne rappelle plus est épurée de la
+    file. Vérifie que le suivi du dernier appel + la purge périodique sont câblés
+    (la logique pure epurerFile est testée côté module)."""
+    src = _src()
+    assert 'LogxFt8Copilote.epurerFile(' in src            # péremption (module pur) utilisée
+    assert '_copiloteFileVu' in src                         # dernier instant d'appel suivi
+    # la purge tourne à CHAQUE décodage (même pour un décode pas adressé à moi),
+    # sinon une station qui se tait ne serait jamais réévaluée.
+    assert re.search(r'_copiloteProposer\(text, snrDb\);.*\n\s*_epurerFileCopilote\(\);', src), \
+        "la purge doit être appelée à chaque décodage, après _copiloteProposer"
+
+
+def test_lien_trace_qso_logge_cable():
+    """Lien trace↔QSO : à l'écriture RÉELLE d'un QSO copilote (confirmation
+    humaine, non-doublon), la page POSTe /tx/trace kind:'qso'. Le log reste un
+    geste humain : le copilote ne logue jamais seul."""
+    src = _src()
+    assert '_copiloteFicheEnAttente' in src                 # origine copilote suivie
+    assert "kind:'qso'" in src                              # POST du lien émission↔log
+    # posté UNIQUEMENT pour une fiche copilote réellement écrite (pas un doublon)
+    assert re.search(
+        r"!doublon && _copiloteFicheEnAttente && _copiloteFicheEnAttente\.dx === qsoEnAttente", src), \
+        "le lien QSO ne doit être tracé que pour une fiche copilote fraîchement écrite"
+
+
+def test_journal_audit_affiche_cable():
+    """Traçabilité CONSULTABLE : la page FT8 affiche le journal d'audit serveur
+    (GET /tx/audit), formaté ligne par ligne, en lecture seule."""
+    src = _src()
+    assert 'id="txAuditListe"' in src                       # panneau présent
+    assert "fetch('/tx/audit" in src                        # lit le journal serveur
+    assert 'LogxTxBar.formatAuditLigne(' in src             # formate chaque entrée
+    # SÛRETÉ rendu : les lignes (indicatifs, messages = données) sont posées en
+    # textContent, jamais innerHTML (piège SVG/injection documenté au dépôt).
+    assert 'd.textContent = LogxTxBar.formatAuditLigne(e)' in src
+
+
+def test_reglage_delai_auto_present_et_persiste():
+    """Le délai d'auto-émission est réglable par l'opérateur (F4GLD : ajustable) :
+    un sélecteur dédié, borné via delaiValideMs, persisté en localStorage."""
+    src = _src()
+    assert 'id="copiloteDelaiSel"' in src                       # sélecteur présent
+    assert 'id="copiloteDelaiLabel"' in src                     # visible seulement en copilote_auto
+    assert 'rc_ft8_copilote_delai_s' in src                     # clé de persistance
+    assert 'LogxFt8Copilote.delaiValideMs(' in src              # parse + borne (jamais brut)

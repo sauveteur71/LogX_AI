@@ -18,10 +18,31 @@
 (function () {
   'use strict';
 
-  // Ne proposer (au lieu d'auto-émettre) QU'au niveau 'copilote'. Les niveaux
-  // historiques (manuel/assisté/séquenceur/auto) gardent leur comportement.
+  // Proposer (barre de consentement) aux niveaux copilote : 'copilote'
+  // (confirmation à la main) ET 'copilote_auto' (niveau 2 : émet après un délai
+  // fixe sauf annulation). Les niveaux historiques (manuel/assisté/séquenceur/
+  // auto) gardent leur comportement.
   function doitProposer(seqNiveau) {
-    return seqNiveau === 'copilote';
+    return seqNiveau === 'copilote' || seqNiveau === 'copilote_auto';
+  }
+
+  // Délai (ms) d'AUTO-ÉMISSION après proposition. Niveau 2 'copilote_auto' ->
+  // `delaiDefautMs` (l'IA émet sauf annulation) ; tout autre niveau -> 0 (jamais
+  // d'auto, confirmation humaine requise). delaiDefautMs omis -> 0.
+  function delaiAutoMs(seqNiveau, delaiDefautMs) {
+    return seqNiveau === 'copilote_auto' ? (Number(delaiDefautMs) || 0) : 0;
+  }
+
+  // Délai d'auto-émission RÉGLABLE (F4GLD : « 8 s par défaut, ajustable »).
+  // Parse une valeur opérateur en SECONDES (sélecteur / localStorage) et la
+  // borne à [DELAI_MIN_S, DELAI_MAX_S] ; renvoie des MS. Toute valeur hors
+  // bornes ou illisible retombe sur `defautMs` — jamais 0 ici (0 = « jamais »
+  // est décidé par delaiAutoMs selon le NIVEAU, pas par une saisie erronée).
+  var DELAI_MIN_S = 2, DELAI_MAX_S = 30;
+  function delaiValideMs(valeurS, defautMs) {
+    var v = Math.round(Number(valeurS));
+    if (!isFinite(v) || v < DELAI_MIN_S || v > DELAI_MAX_S) { return Number(defautMs) || 0; }
+    return v * 1000;
   }
 
   // Emballe le message CALCULÉ PAR LE SÉQUENCEUR pour LogxTxBar.proposer().
@@ -152,6 +173,23 @@
     return (file || []).filter(function (x) { return String(x).toUpperCase() !== d; });
   }
 
+  // Péremption pile-up : une station qui a cessé d'appeler (plus réentendue
+  // depuis `maxAgeMs`) a renoncé ou travaillé quelqu'un d'autre — la rappeler
+  // dans le vide gâche des créneaux. `vu` = { CALL: dernier_ms_où_elle_m'a
+  // appelé }. On GARDE une station sans info d'âge (prudence, offline-first) et
+  // celles vues récemment. Fonction PURE (nouvelle liste). ~6 cycles FT8 (15 s)
+  // par défaut : assez patient pour un pile-up, assez court pour ne pas traîner.
+  var FILE_AGE_MAX_MS = 90000;
+  function epurerFile(file, vu, nowMs, maxAgeMs) {
+    var max = Number(maxAgeMs) || FILE_AGE_MAX_MS;
+    vu = vu || {};
+    return (file || []).filter(function (c) {
+      var t = vu[String(c).toUpperCase()];
+      if (t == null) { return true; }               // pas d'âge connu -> on garde
+      return (nowMs - t) <= max;                     // réentendue récemment -> on garde
+    });
+  }
+
   // Prochaine station à prendre dans la file, par ordre de PRIORITÉ :
   //   1. `manuel` — station cliquée par l'opérateur (ex. un copain), bat tout ;
   //   2. NOUVEAU DXCC (`prioritaires`) — F4GLD « toujours prioriser les
@@ -177,14 +215,19 @@
 
   window.LogxFt8Copilote = {
     doitProposer: doitProposer,
+    delaiAutoMs: delaiAutoMs,
+    delaiValideMs: delaiValideMs,
+    DELAI_MIN_S: DELAI_MIN_S, DELAI_MAX_S: DELAI_MAX_S,
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
     doitIgnorerPileup: doitIgnorerPileup,
     ajouterFile: ajouterFile,
     retirerFile: retirerFile,
+    epurerFile: epurerFile,
     prochainFile: prochainFile,
     FILE_MAX: FILE_MAX,
+    FILE_AGE_MAX_MS: FILE_AGE_MAX_MS,
     extraireReport: extraireReport,
     extraireGrille: extraireGrille,
     estFinQso: estFinQso,
