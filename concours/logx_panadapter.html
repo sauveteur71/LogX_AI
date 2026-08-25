@@ -141,6 +141,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <option value="16">16 trames</option>
     </select>
   </label>
+  <label class="niveau" style="display:flex;align-items:center;gap:5px" title="Palette du waterfall : « cuivre » = identité LogX ; « gris » maximise le contraste pour une porteuse faible ; « thermique » = palette SDR classique (sombre→bleu→cyan→vert→jaune→rouge).">Palette
+    <select id="paPalette">
+      <option value="cuivre">cuivre</option>
+      <option value="gris">gris</option>
+      <option value="thermique">thermique</option>
+    </select>
+  </label>
   <button class="pa-btn" id="paPeak" title="Maintien de crête (peak hold) : garde le maximum de chaque bin, qui redescend lentement — révèle une porteuse brève ou un pic de pile-up manqué">◠ CRÊTE</button>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="paHoverFreq" title="Fréquence sous le curseur (survol du spectre/waterfall)"></span>
@@ -370,14 +377,38 @@ if(localStorage.getItem('rc_theme') === null){
   // Dégradé "chaleur" calé sur la palette graphite&cuivre du reste de
   // l'appli (voir CLAUDE.md) plutôt qu'un bleu/rouge SDR générique — fond
   // sombre -> cuivre -> jaune pour les crêtes, cohérent avec --accent/--yellow.
+  // Palette (colormap) du waterfall. La colormap d'un spectrogramme est de la
+  // data-viz FONCTIONNELLE, pas du chrome UI — tous les SDR l'offrent — donc on
+  // autorise des alternatives SANS toucher l'identité : « cuivre » (le fondu
+  // graphite→cuivre→jaune d'origine) reste le DÉFAUT ; « gris » maximise le
+  // contraste pour une porteuse faible ; « thermique » est la palette SDR
+  // classique (sombre→bleu→cyan→vert→jaune→rouge). Chaque palette est une
+  // fonction PURE de t∈[0,1] ; couleurNiveau dispatche dessus.
+  let paletteMode = localStorage.getItem('rc_pa_palette') || 'cuivre';
+  const PALETTES = {
+    cuivre: function(t){
+      if(t < 0.5){
+        const k = t / 0.5;
+        return [Math.round(23 + k*209), Math.round(24 + k*126), Math.round(26 + k*20)];  // bg -> accent
+      }
+      const k = (t - 0.5) / 0.5;
+      return [Math.round(232 + k*23), Math.round(150 + k*64), Math.round(74 - k*20)];    // accent -> jaune
+    },
+    gris: function(t){ const v = Math.round(t * 255); return [v, v, v]; },
+    thermique: function(t){
+      const s = [[0,8,8,25],[0.25,0,30,180],[0.45,0,180,190],[0.62,0,190,40],[0.78,235,235,0],[1,255,40,20]];
+      for(let i = 1; i < s.length; i++){
+        if(t <= s[i][0]){
+          const a = s[i-1], b = s[i], k = (t - a[0]) / ((b[0] - a[0]) || 1);
+          return [Math.round(a[1] + k*(b[1]-a[1])), Math.round(a[2] + k*(b[2]-a[2])), Math.round(a[3] + k*(b[3]-a[3]))];
+        }
+      }
+      const l = s[s.length - 1]; return [l[1], l[2], l[3]];
+    },
+  };
   function couleurNiveau(v){   // v : 0-255
     const t = v / 255;
-    if(t < 0.5){
-      const k = t / 0.5;
-      return [Math.round(23 + k*209), Math.round(24 + k*126), Math.round(26 + k*20)];  // bg -> accent
-    }
-    const k = (t - 0.5) / 0.5;
-    return [Math.round(232 + k*23), Math.round(150 + k*64), Math.round(74 - k*20)];    // accent -> jaune
+    return (PALETTES[paletteMode] || PALETTES.cuivre)(t);
   }
 
   // Contraste réglable (waterfall relative vs calibrée). Les 3 sources
@@ -988,6 +1019,19 @@ if(localStorage.getItem('rc_theme') === null){
       moyN = parseInt(sel.value, 10) || 0;
       moyArr = null;
       localStorage.setItem('rc_pa_moy', String(moyN));
+    };
+  })();
+
+  // Palette : sélecteur (persisté). Prend effet à la trame suivante — le
+  // waterfall déjà peint garde ses anciennes couleurs (historique), seule la
+  // nouvelle ligne adopte la palette choisie.
+  (function initPalette(){
+    const sel = document.getElementById('paPalette');
+    if(!sel) return;
+    sel.value = paletteMode;
+    sel.onchange = () => {
+      paletteMode = sel.value;
+      localStorage.setItem('rc_pa_palette', paletteMode);
     };
   })();
 
