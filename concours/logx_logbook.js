@@ -171,6 +171,59 @@ function applyExchangeFormat(contestId){
     if(fS && ex.def_s && !fS.value) fS.value = ex.def_s;
   }
   if(typeof clearExchWarn === 'function') clearExchWarn();   // change de concours : avertissement zone périmé
+  _majDeptGrid();   // grille départements visible seulement si l'échange reçu est un dept
+}
+
+// Champ ciblé par la grille au contexte courant : #inputNumRcvd (échange-
+// département) OU #inputDept (override VHF/UHF). '' = grille cachée.
+let _deptCibleId = '';
+function _deptEstVhf(){
+  // BANDES_THF = liste canonique VHF/UHF/SHF de la page. try/catch : le const
+  // peut être en zone morte si _majDeptGrid est appelée très tôt (robustesse).
+  try{ return BANDES_THF.indexOf(currentBand) !== -1; }catch(e){ return false; }
+}
+// Grille départements 00–99 : clic direct -> remplit le champ CIBLE. En échange-
+// département c'est #inputNumRcvd (le dept EST l'échange) ; en VHF/UHF c'est
+// #inputDept (override qui PRIME sur le locator, jamais la série).
+function pickDept(code){
+  if(!_deptCibleId) return;
+  const f = document.getElementById(_deptCibleId);
+  if(!f) return;
+  f.value = code;
+  if(_deptCibleId === 'inputNumRcvd' && typeof checkExchangeZone === 'function') checkExchangeZone();
+  if(window.LogxDeptGrid) LogxDeptGrid.surligner(document.getElementById('deptGrid'), code);
+  f.focus();
+}
+function _majDeptGrid(){
+  const wrap = document.getElementById('deptGridWrap');
+  const grid = document.getElementById('deptGrid');
+  const deptGrp = document.getElementById('inputDeptGroup');
+  if(!wrap || !grid || !window.LogxDeptGrid) return;
+  LogxDeptGrid.render(grid, pickDept);                              // construit une fois (idempotent)
+  _deptCibleId = LogxDeptGrid.champCible(currentExchange.label_r, _deptEstVhf());
+  wrap.style.display = _deptCibleId ? '' : 'none';
+  if(deptGrp) deptGrp.style.display = (_deptCibleId === 'inputDept') ? '' : 'none';
+  const f = _deptCibleId ? document.getElementById(_deptCibleId) : null;
+  if(f){
+    LogxDeptGrid.surligner(grid, f.value);                         // reflète le dept courant
+    if(!f._deptGridLie){                                           // écouteur posé une seule fois
+      f._deptGridLie = true;
+      f.addEventListener('input', function(){ LogxDeptGrid.surligner(grid, f.value); });
+    }
+  }
+  if(_deptCibleId) _rafraichirDeptTravailles();                    // colore fait / à faire (mult)
+}
+// Colore la grille : départements DÉJÀ travaillés estompés, à faire visibles
+// (aide au multiplicateur). Lecture seule (/data/departments_worked), aucune
+// incidence sur le score. N'interroge le serveur QUE si la grille est visible.
+function _rafraichirDeptTravailles(){
+  if(!_deptCibleId || !window.LogxDeptGrid) return;
+  const grid = document.getElementById('deptGrid');
+  if(!grid) return;
+  fetch('/data/departments_worked')
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(d && Array.isArray(d.worked)) LogxDeptGrid.marquerTravailles(grid, d.worked); })
+    .catch(function(){});
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
@@ -2123,6 +2176,7 @@ function pickBand(band, opts){
   hideBandPicker();
   setFreqForBand(currentBand);
   updateSerialDisplay();
+  if(typeof _majDeptGrid === 'function') _majDeptGrid();   // VHF/UHF : (dé)montre l'override dept
   if(typeof refreshBandMap === 'function') refreshBandMap();  // spots de la nouvelle bande
   if(!opts.fromRig) _qsyVersRadio();   // choix manuel -> pilote la radio (voir commentaire ci-dessus)
   document.getElementById('inputCall').focus();
@@ -2258,6 +2312,7 @@ function onFreqInput(){
     _setCurrentBandLabel(b);
     updateSerialDisplay();
     if(typeof refreshBandMap === 'function') refreshBandMap();
+    if(typeof _majDeptGrid === 'function') _majDeptGrid();   // VHF/UHF : (dé)montre l'override dept
   }
 }
 
@@ -2835,6 +2890,9 @@ async function submitQSO(){
     call, band: currentBand, mode: currentMode, freq,
     rst_sent: rstSent, num_sent: serial,
     rst_rcvd: rstRcvd, num_rcvd: numRcvd,
+    // Département correspondant SAISI (override VHF/UHF) : prime sur le locator
+    // dans dept_for_qso (serveur). Vide -> champ absent, comportement inchangé.
+    dept: ((document.getElementById('inputDept')?.value || '').trim().toUpperCase() || undefined),
     locator: loc, dist, points: pts,
     operator: myOp,
     my_call: myCall, my_locator: myLocator,
@@ -3022,6 +3080,9 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = _rstParDefaut(currentMode);
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  const _dp = document.getElementById('inputDept'); if(_dp) _dp.value = '';   // override dept : propre au contact
+  if(window.LogxDeptGrid) LogxDeptGrid.surligner(document.getElementById('deptGrid'), '');   // grille : plus rien de sélectionné
+  if(typeof _rafraichirDeptTravailles === 'function') _rafraichirDeptTravailles();   // QSO loggué -> maj fait/à faire
   // Champs par-QSO des onglets (lot 2-4) : vidés comme les autres champs propres
   // au contact. Les champs de MA station (puissance, matériel, antenne, lieu,
   // mes références) PERSISTENT d'un QSO à l'autre -- on ne les touche pas ici.

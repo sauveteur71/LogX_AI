@@ -265,6 +265,20 @@ body.sans-concours .compass-pts{display:none}
 
 /* FORM DE SAISIE — zone prioritaire, jamais rognée */
 .saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+/* Grille départements 00–99 (clic direct, échanges-département). Compacte,
+   tokens de charte -> suit jour/nuit. */
+.dept-grid-wrap{display:flex;flex-direction:column;gap:4px}
+.dept-grid-lbl{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;color:var(--muted)}
+.dept-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px}
+.dept-grid .dept-cell{font-family:var(--font-mono);font-size:11px;padding:4px 0;cursor:pointer;
+  border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--fg,#E9E6DF)}
+.dept-grid .dept-cell:hover{border-color:var(--accent);color:var(--accent)}
+.dept-grid .dept-cell.on{background:rgba(var(--accent-rgb),.20);border-color:var(--accent);color:var(--accent)}
+/* Déjà travaillé (diplôme départements) : estompé -> les dept À FAIRE (nouveaux
+   multiplicateurs) ressortent. Le vert sémantique dit « acquis ». */
+.dept-grid .dept-cell.fait{color:var(--green);border-color:rgba(var(--green-rgb,87,184,95),.35);opacity:.55}
+.dept-grid .dept-cell.fait.on{opacity:1}
+.dept-grid .dept-cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .op-btn{font-family:var(--font-mono);font-size:16px;padding:7px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;letter-spacing:1px;font-weight:600}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .op-btn.active::before{content:'\2713\00a0'}
@@ -1935,6 +1949,27 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            tags MANUELS. -->
       <div class="activity-tags" id="activityTags"></div>
 
+      <!-- Département correspondant (override VHF/UHF, feu vert F4GLD 25/08) :
+           en VHF/UHF le n° reçu est une SÉRIE ; ce champ optionnel capte le
+           département entendu en direct et PRIME sur le locator dans le calcul
+           du diplôme (dept_for_qso). Montré par _majDeptGrid() uniquement quand
+           la grille cible ce champ (bande THF, échange non-département). -->
+      <div class="field-group" id="inputDeptGroup" style="display:none">
+        <label class="field-label" for="inputDept">DÉPT CORRESPONDANT <span style="color:var(--muted);font-weight:400">(prime sur le locator)</span></label>
+        <input type="text" class="field-input" id="inputDept" maxlength="3" placeholder="ex: 35" autocomplete="off"
+          style="text-transform:uppercase"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+      </div>
+
+      <!-- Grille départements 00–99 : clic direct -> remplit le département REÇU
+           (échange-département : Coupe du REF/CDF HF, 160m, F9NL, UFT) OU, en
+           VHF/UHF, le champ « DÉPT CORRESPONDANT » ci-dessus. Cachée sinon.
+           Façon logs de terrain (demande F4GLD 25/08). -->
+      <div class="dept-grid-wrap" id="deptGridWrap" style="display:none">
+        <div class="dept-grid-lbl">DÉPARTEMENT REÇU — clic direct</div>
+        <div class="dept-grid" id="deptGrid"></div>
+      </div>
+
       <!-- DUP check -->
       <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRER LE QSO
@@ -2116,6 +2151,23 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      dire à la fois « le filtre coupe tout » et « le cluster est muet ». */
   .bm-masques{padding:3px 8px;font-size:10px;color:var(--yellow);border-top:1px dashed var(--border)}
   .bm-spot.hors{border-left:2px solid var(--yellow)}
+  /* Station dans un DÉPARTEMENT PAS ENCORE FAIT (à chasser) : surbrillance bien
+     définie (cuivre = actionable) + badge dept. Clic -> QSY + QSO pré-rempli. */
+  .bm-spot.bm-dept-manquant{background:rgba(var(--accent-rgb),.14);border-left:3px solid var(--accent)}
+  .bm-spot.bm-dept-manquant:hover{background:rgba(var(--accent-rgb),.22)}
+  .bm-dept{font-family:var(--font-mono);font-size:10px;font-weight:700;color:#1a1205;
+    background:#C9822E;border-radius:3px;padding:1px 5px;margin-left:6px;flex-shrink:0}
+  /* Panneau « départements À FAIRE » : mult manquants + stations qui les donnent. */
+  .dept-todo{border-top:2px solid var(--border);padding:6px 8px;max-height:190px;overflow-y:auto}
+  .dept-todo-head{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;color:var(--accent);margin-bottom:4px}
+  .dept-todo-list{display:flex;flex-direction:column;gap:2px}
+  .dt-row{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:11px;padding:2px 3px;border-radius:4px}
+  .dt-dep{font-weight:700;color:var(--accent);min-width:22px}
+  .dt-nom{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+  .dt-call{cursor:pointer;color:var(--fg,#E9E6DF);text-decoration:underline dotted}
+  .dt-call:hover{color:var(--accent)}
+  .dt-row.vide .dt-nom{opacity:.55}
+  .dt-none{color:var(--green);font-family:var(--font-mono);font-size:11px;padding:3px}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
@@ -2153,6 +2205,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="bm-empty">en attente de spots…</div>
     </div>
     <div class="bm-masques" id="bmMasques" style="display:none"></div>
+
+    <!-- Départements À FAIRE (mult) : dept manquants + stations spottées qui
+         peuvent les donner (department_targets, déjà calculé). Clic sur une
+         station -> QSY + QSO pré-rempli (bandmapClick). Montré seulement en
+         contexte département (VHF/UHF ou échange-département). Demande F4GLD 25/08. -->
+    <div class="dept-todo" id="deptTodoPanel" style="display:none">
+      <div class="dept-todo-head">DÉPARTEMENTS À FAIRE <span id="deptTodoCount"></span></div>
+      <div class="dept-todo-list" id="deptTodoList"></div>
+    </div>
 
     <!-- WAIT & POUNCE : rattaché au band map (il agit sur ses spots : alerte,
          clic pour armer). Déplacé ici depuis la colonne de saisie (F4GLD 24/08).
@@ -2390,6 +2451,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_sstv_panel.js"></script>
 <script src="logx_callbook.js"></script>
 <script src="logx_lookup.js"></script>
+<script src="logx_dept_grid.js"></script>
 <script src="logx_voice_dictation.js"></script>
 <script src="logx_daynight.js"></script>
 <script src="logx_esm_callbot.js"></script>

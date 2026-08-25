@@ -206,9 +206,15 @@ def _is_french_call(call):
 
 def dept_for_qso(qso, calldb=None):
     """Département d'un QSO, du plus fiable au moins fiable :
+    0. le département SAISI À LA MAIN (grille VHF/UHF, champ `dept`) : l'opérateur
+       l'a entendu en direct (audio/CW) -> fait FOI, prime sur tout le reste (y
+       compris une série mal lue ou un locator manquant/erroné) ; vide -> ignoré,
     1. l'échange reçu (concours à département),
     2. la base d'indicatifs locale (calldb.json, champ dept),
     3. la géographie du locator (point dans polygone, indicatifs français)."""
+    manuel = str(qso.get('dept', '')).strip().upper()
+    if manuel in DEPARTMENTS:
+        return manuel
     d = dept_from_exchange(qso.get('num_rcvd', ''))
     if d:
         return d
