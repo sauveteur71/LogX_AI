@@ -116,6 +116,82 @@ def test_extraire_report_grille_fin():
     assert F('F4ABC DL1XX 73') is False           # fin d'un QSO entre tiers -> pas moi
 
 
+def test_pile_up_premier_appelant_dabord():
+    # Pile-up : ne PAS écraser une proposition en attente par un AUTRE appelant.
+    # On reste sur le QSO en cours (un QSO à la fois) ; le tri fin des appelants
+    # (prioriser) est un item séparé (décision produit F4GLD).
+    ctx = _ctx()
+    I = lambda prep, actif, dx: ctx.eval(
+        f"window.LogxFt8Copilote.doitIgnorerPileup({str(prep).lower()}, {actif!r}, {dx!r})")
+    # proposition en attente pour F4ABC, un AUTRE (DL1XX) appelle -> on l'ignore
+    assert I(True, 'F4ABC', 'DL1XX') is True
+    # même station (suite du QSO) -> jamais ignoré
+    assert I(True, 'F4ABC', 'F4ABC') is False
+    # rien en attente -> on peut proposer (aucun QSO actif)
+    assert I(False, 'F4ABC', 'DL1XX') is False
+    assert I(False, '', 'DL1XX') is False
+    # en attente mais pas de QSO actif tracé -> ne bloque pas
+    assert I(True, '', 'DL1XX') is False
+
+
+def test_file_attente_ajouter_max10_dedup():
+    ctx = _ctx()
+    # ajouterFile : FIFO, dédup (insensible à la casse), plafond 10, jamais moi.
+    ctx.eval("var f = window.LogxFt8Copilote.ajouterFile([], 'F4ABC');")
+    assert ctx.eval("f.join(',')") == 'F4ABC'
+    ctx.eval("f = window.LogxFt8Copilote.ajouterFile(f, 'DL1XX');")
+    assert ctx.eval("f.join(',')") == 'F4ABC,DL1XX'      # ordre d'arrivée (à la suite)
+    ctx.eval("f = window.LogxFt8Copilote.ajouterFile(f, 'f4abc');")
+    assert ctx.eval("f.join(',')") == 'F4ABC,DL1XX'      # doublon (casse) ignoré
+    # plafond 10
+    ctx.eval("var g=[]; for(var i=0;i<10;i++){ g=window.LogxFt8Copilote.ajouterFile(g,'S'+i); }")
+    assert ctx.eval("g.length") == 10
+    ctx.eval("g = window.LogxFt8Copilote.ajouterFile(g, 'TROP');")
+    assert ctx.eval("g.length") == 10                    # 11e refusé (file pleine)
+    assert ctx.eval("g.indexOf('TROP')") == -1
+
+
+def test_prochain_file_priorise_nouveau_dxcc():
+    ctx = _ctx()
+    P = lambda f, prio: ctx.eval(
+        f"window.LogxFt8Copilote.prochainFile({f!r}, {prio!r})")
+    # un nouveau DXCC dans la file -> pris EN PRIORITÉ (avant l'ordre d'arrivée)
+    assert P(['F4ABC', 'DL1XX', 'ON4XX'], ['ON4XX']) == 'ON4XX'
+    # plusieurs nouveaux DXCC -> le PREMIER arrivé parmi eux (FIFO entre égaux)
+    assert P(['F4ABC', 'DL1XX', 'ON4XX'], ['DL1XX', 'ON4XX']) == 'DL1XX'
+    # aucun nouveau DXCC (ou info absente = hors ligne) -> pur FIFO
+    assert P(['F4ABC', 'DL1XX'], []) == 'F4ABC'
+    # casse indifférente
+    assert P(['F4ABC', 'DL1XX'], ['dl1xx']) == 'DL1XX'
+    # file vide -> ''
+    assert P([], ['X']) == ''
+
+
+def test_prochain_file_priorite_manuelle_au_clic():
+    # Priorité MANUELLE (clic F4GLD, ex. un copain) : bat même un nouveau DXCC.
+    ctx = _ctx()
+    P = lambda f, prio, man: ctx.eval(
+        f"window.LogxFt8Copilote.prochainFile({f!r}, {prio!r}, {man!r})")
+    # station cliquée passe devant tout (avant nouveau DXCC et avant FIFO)
+    assert P(['F4ABC', 'DL1XX', 'ON4XX'], ['ON4XX'], 'DL1XX') == 'DL1XX'
+    assert P(['F4ABC', 'DL1XX'], [], 'DL1XX') == 'DL1XX'
+    # pas de clic -> on retombe sur nouveau DXCC puis FIFO
+    assert P(['F4ABC', 'DL1XX', 'ON4XX'], ['ON4XX'], '') == 'ON4XX'
+    assert P(['F4ABC', 'DL1XX'], [], '') == 'F4ABC'
+    # clic sur une station ABSENTE de la file -> ignoré (pas de plantage)
+    assert P(['F4ABC', 'DL1XX'], [], 'XX9XX') == 'F4ABC'
+
+
+def test_file_attente_retirer():
+    ctx = _ctx()
+    ctx.eval("var f = ['F4ABC','DL1XX','ON4XX'];")
+    ctx.eval("f = window.LogxFt8Copilote.retirerFile(f, 'dl1xx');")   # insensible casse
+    assert ctx.eval("f.join(',')") == 'F4ABC,ON4XX'
+    # station absente -> file inchangée
+    ctx.eval("f = window.LogxFt8Copilote.retirerFile(f, 'XX9XX');")
+    assert ctx.eval("f.join(',')") == 'F4ABC,ON4XX'
+
+
 def test_cle_anti_spam_idempotente():
     ctx = _ctx()
     # même DX + même message TX -> même clé (un seul push par cycle 15 s malgré re-décodes)

@@ -2170,6 +2170,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         'entries': txc.audit_entries(limite)})
             return
 
+        # « Cette station est-elle un besoin LoTW / un NOUVEAU DXCC ? » — utilisé
+        # par la file d'attente du copilote FT8 pour PRIORISER les nouveaux DXCC
+        # (raison 'jamais_confirme'). Réutilise awards.besoin_lotw (même calcul
+        # que le moteur d'appel/_interet_pounce, jamais une 2e variante). Muet
+        # hors ligne côté client -> file en FIFO (offline-first).
+        if path == '/dxcc/besoin':
+            from urllib.parse import parse_qs, urlparse
+            import logx_awards as awards
+            q = parse_qs(urlparse(self.path).query)
+            call = (q.get('call', [''])[0] or '')
+            band = (q.get('band', [''])[0] or '')
+            mode = (q.get('mode', [''])[0] or '')
+            with log_lock:
+                log_copy = list(shared_log)
+            try:
+                res = awards.besoin_lotw(call, band, mode, log_copy)
+            except Exception as e:   # noqa: BLE001 — un défaut ici ne doit pas casser le copilote
+                res = {'besoin': False, 'error': str(e)}
+            self._json(res)
+            return
+
         # Info réseau (IP locale pour les clients WiFi)
         if path == '/network/info':
             import socket as _sock
