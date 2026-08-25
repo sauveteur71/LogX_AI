@@ -13,6 +13,61 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta1] - 2026-08-26
+
+### Ajouté
+
+- **Copilote FT8 — de la proposition à la semi-automatique tracée.** Sur un
+  décode « pour moi », l'IA calcule la réponse standard et la propose dans la
+  barre d'émission. Nouveau niveau `copilote_auto` : l'IA émet après un **délai
+  réglable** (3/5/8/12 s) **sauf annulation**, avec décompte visible — STOP TX
+  ou l'appui sur ÉMETTRE reprennent la main à tout moment ; jamais d'émission
+  spontanée hors de ce niveau explicitement choisi. File d'attente pile-up
+  (priorité station cliquée > nouveau DXCC > FIFO) avec péremption des stations
+  qui ne rappellent plus. **Toute émission copilote est gravée** dans le journal
+  d'audit serveur (POST `/tx/trace`, événements `TX_COPILOTE_EMISSION`), de même
+  que le lien avec le QSO réellement loggé (`TX_COPILOTE_QSO_LOGGED`) — le tout
+  consultable dans un panneau « Journal d'émission » sur la page FT8, même après
+  fermeture du navigateur.
+- **Copilote CW/SSB.** À l'indicatif résolu (lookup), l'IA prépare l'échange
+  en CW comme en phonie — **proposition seule**, jamais de déclenchement
+  automatique, cohérent avec le garde-fou d'émission unifié.
+- **Aides « départements » pour les concours REF (THF/HF).** Grille
+  départements **00-99 en un clic** pour l'échange-département, le département
+  saisi primant sur le locator pour le score et les diplômes. Panneau
+  **« départements à faire »** sur l'écran contest, trié par **proximité de
+  fréquence** (minimise le QSY) ou par **rareté**, avec bascule. Sur le band
+  map, les stations de départements non encore faits sont surlignées : un clic
+  **QSY sur leur fréquence + pré-remplit le QSO**. Sur la carte des
+  départements, ceux qui restent à faire ressortent d'une couleur distincte.
+- **Saisie assistée du correspondant.** À la frappe de l'indicatif, le
+  **prénom**, le **drapeau** du pays et le **locator** s'affichent
+  automatiquement (base interne d'abord, puis internet), tous corrigeables. La
+  base interne des prénoms peut être **amorcée depuis le carnet existant**.
+
+### Modifié
+
+- **Heure de fin de QSO automatique.** Le champ manuel « HEURE DE FIN (UTC) »
+  disparaît de la saisie : `time_off` est renseigné automatiquement à
+  l'enregistrement (= heure du QSO). La donnée reste exportée en ADIF
+  (`TIME_OFF`) et l'édition d'un QSO importé préserve sa valeur — seule la
+  frappe manuelle disparaît.
+- **Autonomie « zone blanche » renforcée.** Leaflet et Chart.js sont désormais
+  **embarqués localement** (plus aucune dépendance CDN externe) et précachés par
+  le service worker : cartographie et graphiques chargent et fonctionnent **sans
+  connexion Internet** (DXpédition, /P, réseau bloquant les CDN), au lieu de
+  pages inertes.
+
+### Corrigé
+
+- **Panneau « départements à faire » aveugle aux indicatifs jamais loggés.**
+  `department_targets()` ignorait un chasseur jamais loggué apparaissant sur un
+  département manquant, rendant le panneau structurellement incomplet. La
+  résolution du département d'un spot est désormais unifiée : historique →
+  locator local → repli réseau.
+
+## [1.1-beta8] - 2026-08-24
+
 ### Ajouté
 
 - **Page d'accueil par activité.** Nouvelle page `logx_accueil.html`, devenue

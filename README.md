@@ -4,11 +4,18 @@
 
 Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de score générique s'auto-configure sur n'importe quel concours, et tout tourne en local — sans cloud obligatoire, sans abonnement.
 
-[💛 Soutenir le projet sur HelloAsso](LIEN_HELLOASSO_A_COMPLETER) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md) · [🗒️ Journal des modifications](docs/CHANGELOG.md)
+[💛 Soutenir le projet sur HelloAsso](https://www.helloasso.com/associations/radioclub-du-velay/formulaires/2) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md) · [🗒️ Journal des modifications](docs/CHANGELOG.md)
 
 ---
 
-## Nouveau dans la série 1.1
+## Nouveau dans la série 1.2
+
+- 🤖 **Copilote FT8 / CW / SSB** : l'IA prépare l'échange à l'indicatif résolu (CW/SSB) et, en FT8, propose la réponse puis **émet après un délai réglable sauf annulation** — jamais d'émission sans validation, chaque émission gravée dans un journal d'audit consultable.
+- 🗺️ **Aides « départements » (concours REF THF/HF)** : grille 00-99 en un clic, panneau « départements à faire » trié par proximité de fréquence ou par rareté, et stations de départements manquants surlignées sur le band map — un clic **QSY sur leur fréquence + pré-remplit le QSO**.
+- 📇 **Saisie assistée** : prénom, drapeau et locator du correspondant auto-remplis (base interne puis internet, corrigeables) ; heure de fin du QSO automatique.
+- 📴 **Autonomie « zone blanche » renforcée** : cartes (Leaflet) et graphiques (Chart.js) désormais **embarqués localement** — plus aucune dépendance CDN, l'application charge et fonctionne sans Internet.
+
+### Déjà apporté par la série 1.1
 
 - 📡 **VOACAP point-à-point** : vrai moteur de prévision de propagation entre votre station et n'importe quel point du globe, directement dans le carnet et sur la carte.
 - 🎙️ **FT8 et RTTY natifs dans le navigateur** : décodage/émission sans WSJT-X/JTDX/MSHV ni logiciel tiers, chacun dans sa propre fenêtre détachable.
@@ -53,7 +60,7 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **1.1-beta6** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 apporte le FT8 natif et la protection du carnet ; elle est utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
+Version courante : **1.2-beta1** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 a apporté le FT8/RTTY natifs, VOACAP et la protection du carnet ; la série 1.2 ajoute le copilote FT8/CW/SSB, les aides « départements » et l'autonomie hors-ligne complète. Utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
 
 Couverture : **plus de 10 000 tests automatiques** rejoués à chaque modification par l'intégration continue. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
@@ -61,7 +68,7 @@ Le logiciel se met à jour tout seul : au lancement, il compare sa version à la
 
 ## Soutenir le projet
 
-LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, Anthropic) pour l'assistance au développement — un coût récurrent pour le mainteneur. Si le logiciel vous rend service, un don via **[HelloAsso](LIEN_HELLOASSO_A_COMPLETER)** (au profit du radioclub) aide à couvrir cet abonnement et à faire vivre le projet. Aucune contrepartie, aucune fonctionnalité fermée derrière un paywall — le logiciel reste et restera gratuit.
+LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, Anthropic) pour l'assistance au développement — un coût récurrent pour le mainteneur. Si le logiciel vous rend service, un don via **[HelloAsso](https://www.helloasso.com/associations/radioclub-du-velay/formulaires/2)** (au profit du radioclub) aide à couvrir cet abonnement et à faire vivre le projet. Aucune contrepartie, aucune fonctionnalité fermée derrière un paywall — le logiciel reste et restera gratuit.
 
 ## Contribuer
 
