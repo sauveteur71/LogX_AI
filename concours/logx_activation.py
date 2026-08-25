@@ -58,6 +58,14 @@ PROGRAM_SPECS = {
     'WWBOTA': {'name': 'World Wide Bunkers on the Air', 'sig': 'WWBOTA',
                'ref_re': r'^B/[A-Z0-9]{1,3}-\d{4}$', 'min_qso': 25,
                'p2p': 'Bunker-to-Bunker', 'example': 'B/G-0001'},
+    # ILLW (International Lighthouse & Lightship Weekend) — ÉVÉNEMENT week-end,
+    # PAS un diplôme à seuil : aucune activation minimale officielle -> min_qso=1
+    # (toujours « valide »). Numérotation officielle illw.net « XX-nnnn » (code
+    # pays 2 lettres + 4 chiffres, ex. IT-0005). Distinct d'ARLHS (société de
+    # phares, min 2 QSO). Pas de champ ADIF phares dédié -> générique SIG.
+    'ILLW': {'name': 'International Lighthouse Lightship Weekend', 'sig': 'ILLW',
+             'ref_re': r'^[A-Z]{2}-\d{4}$', 'min_qso': 1,
+             'p2p': 'Light-to-Light', 'example': 'IT-0005'},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
