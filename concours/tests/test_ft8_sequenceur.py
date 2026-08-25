@@ -3652,8 +3652,8 @@ def test_mode_auto_persiste_mais_pas_l_etat_en_cours(banc):
     comme `seq` lui-même ne survit jamais à un rechargement de page."""
     src = _lire(FT8_HTML)
     assert re.search(
-        r"memo === 'manuel' \|\| memo === 'assiste' \|\| memo === 'copilote' \|\| memo === 'sequenceur' \|\| memo === 'auto'",
-        src), "le choix de mode 'auto' doit être restauré comme les autres au chargement (copilote inclus)"
+        r"memo === 'manuel' \|\| memo === 'assiste' \|\| memo === 'copilote' \|\| memo === 'copilote_auto' \|\| memo === 'sequenceur' \|\| memo === 'auto'",
+        src), "le choix de mode 'auto' doit être restauré comme les autres au chargement (copilote + copilote_auto inclus)"
     assert 'cqAutoActif' not in re.search(r"cablerSequenceur.*?\n\s*\}\)\(\);",
                                            src, re.S).group(0), (
         "cqAutoActif ne doit JAMAIS être lu ou écrit dans localStorage / au "
