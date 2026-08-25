@@ -1,12 +1,17 @@
 /* Service worker LogX AI — installabilité (PWA) + shell hors-ligne.
    Ne touche JAMAIS aux écritures (POST /log/add…) ni aux données live (/data,
    /config, /agent) : réseau normal. Ne met en cache que le shell statique. */
-const CACHE = 'logx-v1';
+const CACHE = 'logx-v2';   // v2 : précache des libs vendorisées (Leaflet/Chart.js)
 const SHELL = [
   '/logx_logbook.html', '/logx_logbook.js',
   '/logx_mobile.html',
   '/logx_statusbar.js', '/logx_i18n.js',
   '/logx_icon.svg', '/manifest.webmanifest',
+  // Libs vendorisées localement (zone blanche) : précachées pour que la carte
+  // (Leaflet) et les stats (Chart.js) tiennent au 1er chargement hors-ligne,
+  // sans attendre une visite en ligne préalable. Cf. vendor/ + tests.
+  '/vendor/leaflet/leaflet.min.css', '/vendor/leaflet/leaflet.min.js',
+  '/vendor/chartjs/chart.umd.min.js',
 ];
 
 self.addEventListener('install', e => {
