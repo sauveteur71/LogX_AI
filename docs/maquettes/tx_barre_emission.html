@@ -68,6 +68,11 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sep{width:1px;align-self:stretch;background:var(--border);margin:2px 0}
 
+  .vsel{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+  .vsel button{background:transparent;border:none;border-right:1px solid var(--border);color:var(--ink-dim);
+    font-family:var(--font-mono);font-size:.6rem;letter-spacing:.5px;padding:7px 9px;cursor:pointer}
+  .vsel button:last-child{border-right:none}
+  .vsel button.on{background:rgba(var(--accent-rgb),.18);color:var(--accent)}
   .count{display:flex;flex-direction:column;align-items:center;line-height:1;white-space:nowrap}
   .count .n{font-family:var(--font-mono);font-size:1.15rem;color:var(--yellow)}
   .count .l{font-family:var(--font-mono);font-size:.54rem;letter-spacing:1px;
@@ -149,6 +154,8 @@
         <div class="msg"><div class="kv"><span class="k">Message préparé par l'IA</span>
           <span class="v">CQ CONTEST DE F4GLD F4GLD</span></div></div>
       </div>
+      <div class="vsel" title="Source voix (phonie) — auto : selon internet/IA dispo">
+        <button class="on">Auto</button><button>Voix IA</button><button>Mon WAV</button></div>
       <div class="count"><span class="n">22</span><span class="l">jeton s</span></div>
       <button class="emit">ÉMETTRE<small>geste requis · 3 s</small></button>
       <button class="stop">
