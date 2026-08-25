@@ -141,6 +141,7 @@
             "km_x_locators",
             "km_x_large_locator_squares",
             "zone_country_per_band",
+            "zone_country_per_band_rtty",
             "prefix_multiplier",
             "power_state",
             "fd_class",

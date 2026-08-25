@@ -425,6 +425,35 @@ CONTEST_DEFINITIONS = {
         'itu_r1_notes': '160m interdit <1810 kHz.',
         'band_change_rule_min': 10,   # même règle M/S que CQ_WW_SSB
     },
+    'CQ_WW_RTTY': {
+        'name': 'CQ World Wide RTTY DX',
+        'organizer': 'CQ Magazine',
+        'check_url': 'https://cqwwrtty.com/rules.htm',
+        'rules_url': 'https://cqwwrtty.com/rules.htm',
+        'date_rule': 'last_full_weekend_september',
+        'duration_h': 48, 'start_utc': '00:00',
+        # 5 bandes HF SEULEMENT (règlement §III) — PAS de 160 m, contrairement
+        # au CQ WW SSB/CW.
+        'bands': ['3.5', '7', '14', '21', '28'],
+        'modes': ['RTTY'],
+        # Échange = RST + zone CQ ; les stations W/VE ajoutent leur état/province
+        # (QTH). Ex. « 599 14 » (DX) ou « 599 05 MA » (US).
+        'exchange': 'RST + zone_CQ (+ état/province pour W/VE)',
+        'cabrillo_name': 'CQ-WW-RTTY',
+        'cabrillo_exchange': ['rst', 'exch'],
+        'scoring': {
+            'type': 'zone_country_per_band_rtty',
+            'points_same_country': 1, 'points_same_continent': 2, 'points_dx': 3,
+            'multiplier': 'zones_CQ + pays_DXCC + états/provinces W/VE par bande',
+            'unit': 'QSO_pts × (zones + DXCC + états/provinces W/VE)',
+            'note': ('barème 1/2/3 SOURCÉ cqwwrtty.com §IV.B ; les états/provinces '
+                     'W/VE (mult §IV.C.3) ne sont pas encore comptés — voir '
+                     'zone_country_per_band_rtty (multiplicateur combiné à ajouter).'),
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '5_days_after',
+        'log_submit': 'https://cqwwrtty.com/logcheck/',
+    },
 
     # ── World Wide Award (hamaward.cloud) ──────────────────────────────────
     # PAS un concours classique : les hunters ne marquent des points qu'en
