@@ -484,6 +484,11 @@ MULT_EVALUATORS = {
     'locator':      _mult_locator,
     'large_square': _mult_large_square,
     'zone_dxcc':    _mult_zone_dxcc,
+    # CQ WW RTTY : le classement de spots (avant QSO) suit zones+DXCC comme le
+    # CQ WW ordinaire — l'état/province W/VE n'est connu qu'À RÉCEPTION de
+    # l'échange (non estimable au spot), il n'entre donc que dans le score
+    # autoritaire (_mult_entries), pas dans le coaching pré-QSO.
+    'zone_dxcc_state': _mult_zone_dxcc,
     'dxcc_only':    _mult_dxcc_only,
     'itu_zone':     _mult_itu_zone,
     'prefix':       _mult_prefix,
@@ -547,18 +552,20 @@ LEGACY_SCORING_PRESETS = {
             {'when': 'same_continent', 'points': 2},
             {'when': 'always',         'points': 3},
         ],
-        'multiplier': {'kind': 'zone_dxcc'},
+        # zones CQ + pays DXCC + états/provinces W/VE, PAR BANDE (§IV.C, vérifié
+        # 25/08 sur cqwwrtty.com). 'zone_dxcc_state' = 'zone_dxcc' + le jeton
+        # état/province de l'échange pour les stations K/VE (AK/HI exclus).
+        'multiplier': {'kind': 'zone_dxcc_state'},
     },
-    # ARRL RTTY Roundup — 1 pt/QSO (arrl.org, vérifié 25/08). Multiplicateur =
-    # états US + provinces VE + entités DXCC (hors US/Canada), comptés UNE FOIS
-    # AU TOTAL (« Each multiplier counts once, not once per band »). Cette
-    # structure ALL-BAND n'existe pas dans le moteur per-band : on laisse
-    # multiplier=None (points corrects, aucun mult AUTOMATIQUE) plutôt que de mal
-    # compter avec un multiplicateur par bande. Le mult all-band est un
-    # RAFFINEMENT à ajouter (mécanisme de mult toutes-bandes).
+    # ARRL RTTY Roundup — 1 pt/QSO. Multiplicateur = états US + provinces VE +
+    # entités DXCC (hors US/Canada), comptés UNE FOIS AU TOTAL (« each multiplier
+    # counts once, not once per band », §5.3 vérifié 25/08 sur le PDF officiel
+    # contests.arrl.org). 'rtty_ru' est un multiplicateur ALL-BAND (is_global) :
+    # état/province reçu pour K/VE, entité DXCC déduite de l'indicatif sinon
+    # (KH6/KL7 comptés en DXCC, jamais en état).
     'rtty_roundup': {
         'points': [{'when': 'always', 'points': 1}],
-        'multiplier': None,
+        'multiplier': {'kind': 'rtty_ru'},
     },
     # pts × préfixes uniques (CQ WPX) — les définitions déclarent 3/1/1
     'prefix_multiplier': {
@@ -657,6 +664,22 @@ def _dx_base(q):
     return str(q.get('call', '')).split('/')[0].upper()
 
 
+def _rtty_state_token(raw):
+    """Code d'état US / province VE reçu dans l'échange RTTY (jeton alphabétique
+    final : 'MA' dans « 05 MA », 'ON' dans « ON », 'NL' pour Labrador). None si
+    l'échange ne porte pas de code alpha (station DX : n° de série numérique)."""
+    m = re.search(r'([A-Z]{2,4})\s*$', str(raw).strip().upper())
+    return m.group(1) if m else None
+
+
+# Entités DXCC dont les stations envoient un ÉTAT / une PROVINCE comme
+# multiplicateur (US continental « K », Canada « VE » — Labrador VO2 est 'VE').
+# Alaska ('KL') et Hawaii ('KH6') en sont EXCLUS : les deux règlements RTTY les
+# comptent comme entités DXCC, jamais comme état (cqwwrtty.com §IV.C ; ARRL
+# RTTY RU §5.3).
+_RTTY_STATE_ENTITIES = ('K', 'VE')
+
+
 def _mult_entries(kind, q):
     """(espace, valeur) multiplicateur qu'UN QSO apporte pour `kind` — vide si
     non résoluble (indicatif inconnu de cty.dat, échange absent...). Utilise
@@ -668,7 +691,7 @@ def _mult_entries(kind, q):
     (voir _mult_zone_dxcc, le même calcul en mode 'nouveau mult ?' plutôt que
     'décompte total')."""
     base = _dx_base(q)
-    if kind == 'zone_dxcc':
+    if kind in ('zone_dxcc', 'zone_dxcc_state'):
         out = []
         z = dxcc.cq_zone(base)
         if z is not None:
@@ -676,7 +699,23 @@ def _mult_entries(kind, q):
         c = dxcc.country_key(base)
         if c:
             out.append(('dxcc', c))
+        # CQ WW RTTY (§IV.C.3) : les stations W/VE ajoutent leur état US /
+        # aire canadienne comme multiplicateur SUPPLÉMENTAIRE (par bande).
+        # AK ('KL') / HI ('KH6') exclus — comptés en pays seulement.
+        if kind == 'zone_dxcc_state' and c in _RTTY_STATE_ENTITIES:
+            st = _rtty_state_token(q.get('num_rcvd', ''))
+            if st:
+                out.append(('state', st))
         return out
+    if kind == 'rtty_ru':
+        # ARRL RTTY Roundup (§5.3) : mult = états US + provinces VE (stations
+        # W/VE, code reçu dans l'échange) + entités DXCC hors US/Canada (autres
+        # stations, entité déduite de l'indicatif). Compté ALL-BAND (is_global).
+        c = dxcc.country_key(base)
+        if c in _RTTY_STATE_ENTITIES:
+            st = _rtty_state_token(q.get('num_rcvd', ''))
+            return [('state', st)] if st else []
+        return [('dxcc', c)] if c else []
     if kind == 'dxcc_only':
         c = dxcc.country_key(base)
         return [('dxcc', c)] if c else []
@@ -743,7 +782,9 @@ def calc_total_score(qsos, cdef, extra_points=0):
         return raw_points   # pas de multiplicateur (VHF/THF distance, activations SOTA/POTA...)
 
     kind = mult['kind']
-    is_global = kind in ('prefix', 'locator', 'large_square')
+    # 'rtty_ru' (ARRL RTTY Roundup) : multiplicateurs comptés UNE FOIS toutes
+    # bandes confondues (« once, not once per band », §5.3) — comme prefix/WPX.
+    is_global = kind in ('prefix', 'locator', 'large_square', 'rtty_ru')
     weights = bricks.get('mult_weight_by_band') or {}
     seen_by_band = {}   # band (ou '' si global) -> {(espace, valeur), ...}
     for q in qsos:
@@ -771,7 +812,8 @@ def contest_geo_mode(contest_id):
     kind = mult.get('kind', '') if isinstance(mult, dict) else ''
     if kind == 'dept_dxcc':
         return 'dept_dxcc'
-    if kind in ('zone_dxcc', 'prefix', 'dxcc_only', 'itu_zone'):
+    if kind in ('zone_dxcc', 'zone_dxcc_state', 'rtty_ru', 'prefix',
+                'dxcc_only', 'itu_zone'):
         return 'dxcc'
     if kind in ('na_state', 'na_section'):
         return 'other'
