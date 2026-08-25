@@ -126,6 +126,18 @@ def test_lien_trace_qso_logge_cable():
         "le lien QSO ne doit être tracé que pour une fiche copilote fraîchement écrite"
 
 
+def test_journal_audit_affiche_cable():
+    """Traçabilité CONSULTABLE : la page FT8 affiche le journal d'audit serveur
+    (GET /tx/audit), formaté ligne par ligne, en lecture seule."""
+    src = _src()
+    assert 'id="txAuditListe"' in src                       # panneau présent
+    assert "fetch('/tx/audit" in src                        # lit le journal serveur
+    assert 'LogxTxBar.formatAuditLigne(' in src             # formate chaque entrée
+    # SÛRETÉ rendu : les lignes (indicatifs, messages = données) sont posées en
+    # textContent, jamais innerHTML (piège SVG/injection documenté au dépôt).
+    assert 'd.textContent = LogxTxBar.formatAuditLigne(e)' in src
+
+
 def test_reglage_delai_auto_present_et_persiste():
     """Le délai d'auto-émission est réglable par l'opérateur (F4GLD : ajustable) :
     un sélecteur dédié, borné via delaiValideMs, persisté en localStorage."""

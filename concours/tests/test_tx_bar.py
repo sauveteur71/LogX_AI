@@ -211,6 +211,31 @@ def test_authorize_payload_borne_duree():
     assert ctx.eval("a.armed") is True
 
 
+def test_format_audit_ligne():
+    # Rend une entrée du journal d'audit /tx/audit en UNE ligne lisible (FR),
+    # pour l'afficher à l'opérateur (traçabilité consultable). Heure = HH:MM:SS.
+    ctx = _ctx()
+    F = "window.LogxTxBar.formatAuditLigne"
+    e1 = ("{event:'TX_COPILOTE_EMISSION', timestamp_utc:'2026-08-25T12:03:45Z',"
+          " radio_id:'F4ABC', frequency_hz:14074000, mode:'FT8',"
+          " message:'F4ABC F1XYZ R-12', declencheur:'copilote_auto'}")
+    l1 = ctx.eval(f"{F}({e1})")
+    assert l1.startswith('12:03:45')
+    assert 'copilote auto' in l1 and 'F4ABC' in l1 and 'F4ABC F1XYZ R-12' in l1
+    e2 = ("{event:'TX_COPILOTE_QSO_LOGGED', timestamp_utc:'2026-08-25T12:04:00Z',"
+          " radio_id:'F4ABC', band:'20m', mode:'FT8', rst_sent:'-12', rst_rcvd:'-08', locator:'JN18'}")
+    l2 = ctx.eval(f"{F}({e2})")
+    assert '12:04:00' in l2 and 'QSO loggé' in l2 and 'F4ABC' in l2 and 'JN18' in l2
+    e3 = ("{event:'TX_AUTHORIZED_AND_EXECUTED', timestamp_utc:'2026-08-25T12:05:00Z',"
+          " radio_id:'IC-7300', frequency_hz:7040000, mode:'USB', message:'CQ TEST'}")
+    l3 = ctx.eval(f"{F}({e3})")
+    assert '12:05:00' in l3 and 'CQ TEST' in l3
+    l4 = ctx.eval(f"{F}({{event:'TX_STOP', timestamp_utc:'2026-08-25T12:06:00Z', cancelled:2}})")
+    assert '12:06:00' in l4 and 'STOP' in l4
+    # entrée inconnue / vide -> ne casse pas (chaîne, jamais d'exception)
+    assert ctx.eval(f"typeof {F}({{}})") == 'string'
+
+
 def test_machine_etat_stop_reinitialise():
     ctx = _ctx()
     # idle -> prepared -> emitting ; STOP ramène TOUJOURS à 'idle' (arrêt d'urgence)

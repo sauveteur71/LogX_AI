@@ -220,6 +220,23 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   background:transparent;color:var(--muted);margin-left:auto}
 .copilote-file .cf-vider:hover{color:var(--red);border-color:var(--red)}
 .copilote-file button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* Journal d'émission (audit) — repliable, hors chemin critique. Mono pour les
+   données, tokens de la charte (suivent jour/nuit). */
+.tx-audit{flex-basis:100%;margin-top:6px}
+.tx-audit .tx-audit-tete{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;
+  cursor:pointer;color:var(--muted);background:transparent;border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;width:100%;text-align:left;display:flex;align-items:center;gap:6px}
+.tx-audit .tx-audit-tete:hover{border-color:var(--accent);color:var(--fg,#E9E6DF)}
+.tx-audit .tx-audit-tete:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tx-audit .tx-audit-chevron{display:inline-block;transition:transform .12s}
+.tx-audit.ouvert .tx-audit-chevron{transform:rotate(90deg)}
+.tx-audit .tx-audit-corps{border:1px solid var(--border);border-top:none;
+  border-radius:0 0 8px 8px;background:var(--bg2);max-height:180px;overflow-y:auto}
+.tx-audit .tx-audit-liste{display:flex;flex-direction:column}
+.tx-audit .ta-l{font-family:var(--font-mono);font-size:11px;color:var(--fg,#E9E6DF);
+  padding:4px 10px;border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-audit .ta-l:first-child{border-top:none}
+.tx-audit .ta-vide{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:8px 10px}
 /* accent-color plutôt qu'un curseur redessiné : le cuivre de la charte suit
    les deux thèmes tout seul, et on garde le rendu natif — donc le clavier,
    le focus et le tactile du navigateur, sans les réécrire.
@@ -580,6 +597,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <!-- File d'attente du copilote (pile-up) : stations en attente, prises à
              la suite. ★ = nouveau DXCC (priorisé). Clic = prioriser manuellement. -->
         <div class="copilote-file" id="copiloteFile" style="display:none"></div>
+        <!-- Journal d'émission (audit) : ce qui a RÉELLEMENT été émis/loggé
+             (consentement, copilote, STOP TX). Repliable, hors chemin critique.
+             Rend consultable la traçabilité gravée (GET /tx/audit). -->
+        <div class="tx-audit" id="txAudit">
+          <button type="button" class="tx-audit-tete" id="txAuditTete" aria-expanded="false"
+                  title="Historique tracé des émissions de la station (audit)">
+            <span class="tx-audit-chevron" id="txAuditChevron">▸</span> Journal d'émission
+          </button>
+          <div class="tx-audit-corps" id="txAuditCorps" style="display:none">
+            <div class="tx-audit-liste" id="txAuditListe"></div>
+          </div>
+        </div>
       </div>
       <!-- Alarme de dernier recours : affichée UNIQUEMENT quand le relâchement
            du PTT a échoué malgré les réessais. À ce stade le logiciel ne peut
@@ -5198,6 +5227,47 @@ if(localStorage.getItem('rc_theme') === null){
     seqMajUI();
   })();
   window.seqStop = function(){ seqArreter('bouton'); };
+
+  // ─── Journal d'émission (audit) : rend consultable la traçabilité gravée
+  // côté serveur (GET /tx/audit). Lecture seule, aucun effet sur l'émission.
+  async function _rafraichirAudit(){
+    const liste = document.getElementById('txAuditListe');
+    if(!liste || typeof LogxTxBar === 'undefined') return;
+    const vide = (txt) => { liste.textContent = '';
+      const v = document.createElement('div'); v.className = 'ta-vide'; v.textContent = txt;
+      liste.appendChild(v); };
+    try{
+      const r = await fetch('/tx/audit?n=30');
+      const j = await r.json();
+      const entries = (j && j.entries) ? j.entries.slice().reverse() : [];  // plus récent en haut
+      if(!entries.length){ vide('Aucune émission tracée pour l’instant.'); return; }
+      liste.textContent = '';
+      entries.forEach(function(e){
+        const d = document.createElement('div'); d.className = 'ta-l';
+        // textContent : ce sont des données (indicatifs, messages), jamais du balisage.
+        d.textContent = LogxTxBar.formatAuditLigne(e);
+        liste.appendChild(d);
+      });
+    }catch(err){
+      vide('Journal indisponible (serveur injoignable).');
+    }
+  }
+  (function cablerAudit(){
+    const tete = document.getElementById('txAuditTete');
+    const corps = document.getElementById('txAuditCorps');
+    const wrap = document.getElementById('txAudit');
+    if(!tete || !corps || !wrap) return;
+    tete.addEventListener('click', function(){
+      const ouvert = corps.style.display !== 'none';
+      if(ouvert){
+        corps.style.display = 'none'; tete.setAttribute('aria-expanded', 'false');
+        wrap.classList.remove('ouvert');
+      } else {
+        corps.style.display = ''; tete.setAttribute('aria-expanded', 'true');
+        wrap.classList.add('ouvert'); _rafraichirAudit();   // rafraîchit à l'ouverture
+      }
+    });
+  })();
 
   window.addEventListener('beforeunload', arreterRx);
 })();

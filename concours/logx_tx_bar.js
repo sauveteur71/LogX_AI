@@ -78,6 +78,38 @@
     return { token: token, duree_max: dureeMax, armed: !!armed };
   }
 
+  // Rend UNE entrée du journal d'audit (/tx/audit) en une ligne lisible (FR),
+  // pour l'afficher à l'opérateur — la traçabilité gravée devient consultable.
+  // Ne lève jamais (une entrée inattendue -> ligne minimale, jamais d'exception).
+  function _auditHeure(ts) {
+    var m = String(ts || '').match(/T(\d{2}:\d{2}:\d{2})/);
+    return m ? m[1] : '';
+  }
+  function formatAuditLigne(e) {
+    e = e || {};
+    var h = _auditHeure(e.timestamp_utc);
+    var cible = e.radio_id || '';
+    var freq = e.frequency_hz ? (fmtFreqKhz(e.frequency_hz) + ' kHz') : '';
+    var msg = e.message ? ('« ' + e.message + ' »') : '';
+    var bloc = function (parts) { return parts.filter(Boolean).join(' '); };
+    switch (e.event) {
+      case 'TX_STOP':
+        var n = Number(e.cancelled) || 0;
+        return bloc([h, '· STOP TX (' + n + ' annulé' + (n > 1 ? 's' : '') + ')']);
+      case 'TX_COPILOTE_QSO_LOGGED':
+        var rr = (e.rst_sent || e.rst_rcvd) ? (String(e.rst_sent || '?') + '/' + String(e.rst_rcvd || '?')) : '';
+        return bloc([h, '· QSO loggé (copilote)', cible ? ('→ ' + cible) : '',
+                     bloc([e.band, e.mode]), rr, e.locator || '']);
+      case 'TX_COPILOTE_EMISSION':
+        var lbl = (e.declencheur === 'copilote_auto') ? 'copilote auto' : 'copilote';
+        return bloc([h, '· Émis (' + lbl + ')', cible ? ('→ ' + cible) : '', bloc([freq, e.mode]), msg]);
+      case 'TX_AUTHORIZED_AND_EXECUTED':
+        return bloc([h, '· Émis (validé)', cible ? ('→ ' + cible) : '', bloc([freq, e.mode]), msg]);
+      default:
+        return bloc([h, '· ' + String(e.event || '?')]);
+    }
+  }
+
   // Trace d'audit d'une émission COPILOTE (POST /tx/trace). Le FT8 émet côté
   // CLIENT (envoyerMessage) hors /tx/authorize : cette trace grave quand même
   // l'émission dans le journal serveur (traçabilité verrouillée). `declencheur` :
@@ -110,6 +142,7 @@
     fmtFreqKhz: fmtFreqKhz, secondsLeft: secondsLeft, ringPct: ringPct,
     preparePayload: preparePayload, authorizePayload: authorizePayload,
     nextState: nextState, autoSecondsLeft: autoSecondsLeft, tracePayload: tracePayload,
+    formatAuditLigne: formatAuditLigne,
     _declencheur: 'copilote',   // déclencheur de la prochaine émission client (trace d'audit)
     state: 'idle', _token: null, _expires: null, _em: null, _timer: null, _armed: true,
     _voiceSource: 'auto',  // 'auto' | 'tts' | 'wav' — choix voix phonie (sélecteur)
