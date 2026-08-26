@@ -22,6 +22,11 @@
 // logx_sstvdecoder.js, ce fichier ne fait que le brancher à l'UI (device
 // picker, bouton start/stop, canvas construit ligne à ligne).
 let _sstvDecoder = null;
+// Garde anti-ré-entrance du démarrage : _sstvDecoder n'est assigné qu'après le
+// succès de start(), donc pendant l'invite de permission un 2e clic ne tombe
+// pas dans la branche STOP mais construirait un second décodeur (le premier
+// pipeline fuit). Même garde que toggleRx FT8 / toggleRttyDecoder.
+let _sstvDecoderDemarrageEnCours = false;
 let _sstvDevicesLoaded = false;
 let _sstvOutDeviceLoaded = false;
 let _sstvLignesRecues = 0;   // pour savoir si le canvas contient quelque chose à sauver
@@ -51,6 +56,8 @@ async function toggleSstvDecoder(){
     if(info) info.textContent = 'Arrêté.';
     return;
   }
+  if(_sstvDecoderDemarrageEnCours) return;   // ignore un 2e clic tant que le démarrage n'est pas résolu
+  _sstvDecoderDemarrageEnCours = true;
   const canvas = document.getElementById('sstvCanvas');
   const ctx2d = canvas.getContext('2d');
   const dec = new SstvAudioDecoder({
@@ -85,7 +92,10 @@ async function toggleSstvDecoder(){
     if(btn){ btn.textContent = '■ Arrêter'; btn.classList.add('active'); }
     if(info) info.textContent = 'À l\'écoute — en attente d\'un en-tête VIS…';
   }catch(e){
+    try{ dec.stop(); }catch(_){}   // libère un flux micro éventuellement à moitié acquis (stop() est null-safe)
     notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+  }finally{
+    _sstvDecoderDemarrageEnCours = false;
   }
 }
 
