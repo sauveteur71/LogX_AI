@@ -80,7 +80,11 @@ def _qso_datetime(qso):
     # zfill (PAS ljust) : '930' saisi doit devenir '0930', pas '9300' — ljust
     # ajoute les zéros à droite, zfill les ajoute à gauche (même correctif
     # que _cabrillo_qtc_lines() un peu plus bas dans ce fichier).
-    return date or '19000101', (time or '0000').zfill(4)
+    # Une date PARTIELLE non vide ('2026', '202601') n'est pas une date ADIF
+    # valide : on retombe sur le sentinel plutôt que d'émettre un QSO_DATE
+    # tronqué. (time est padé par zfill juste après.)
+    date = date if (len(date) == 8 and date.isdigit()) else '19000101'
+    return date, (time or '0000').zfill(4)
 
 
 # ─── CABRILLO ────────────────────────────────────────────────────────────────
