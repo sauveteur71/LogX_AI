@@ -83,6 +83,19 @@ def test_bornes_relatif_garantit_hi_sup_lo():
     assert ctx.eval("JSON.stringify(bornesContraste([80,80,80]))") == '[80,81]'
 
 
+def test_bornes_relatif_borne_aux_bins_affiches():
+    # En audio, dataArray porte TOUTE la FFT mais seuls nBinsActuel() bins sont
+    # affichés. Le contraste auto doit se baser sur les bins VISIBLES : une
+    # porteuse forte hors span (ici 200 au 3e bin) ne doit pas assombrir le
+    # spectre visible. n=2 -> min/max sur [10,20] seulement.
+    ctx = _ctx()
+    ctx.eval("contrasteMode='relatif';")
+    assert ctx.eval("JSON.stringify(bornesContraste([10,20,200,50], 2))") == '[10,20]'
+    # n absent/0 -> compat : scan complet (CI-V/TCI affichent tout le tableau)
+    assert ctx.eval("JSON.stringify(bornesContraste([10,20,200,50]))") == '[10,200]'
+    assert ctx.eval("JSON.stringify(bornesContraste([10,20,200,50], 0))") == '[10,200]'
+
+
 def test_bornes_calibre_valeurs_fixes():
     ctx = _ctx()
     ctx.eval("contrasteMode='calibre'; contrasteFloor=40; contrasteCeil=230;")
@@ -94,9 +107,9 @@ def test_bornes_calibre_valeurs_fixes():
 def test_rendu_applique_le_contraste():
     src = _lire()
     m = re.search(r'function dessinerSpectre\(.*?\n  \}', src, re.S)
-    assert m and 'remapContraste(dataArray[bin]' in m.group(0) and 'bornesContraste(dataArray)' in m.group(0)
+    assert m and 'remapContraste(dataArray[bin]' in m.group(0) and 'bornesContraste(dataArray, nBins)' in m.group(0)
     w = re.search(r'function dessinerWaterfall\(.*?\n  \}', src, re.S)
-    assert w and 'remapContraste(dataArray[bin]' in w.group(0) and 'bornesContraste(dataArray)' in w.group(0)
+    assert w and 'remapContraste(dataArray[bin]' in w.group(0) and 'bornesContraste(dataArray, nBins)' in w.group(0)
 
 
 def test_controle_ui_present():
