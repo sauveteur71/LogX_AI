@@ -67,7 +67,12 @@ function _grille(){
 // mémorisée -- échappatoire explicite (lien "changer d'activité" ajouté dans
 // CONFIG), « masquer ≠ bloquer l'accès ».
 (function init(){
-  const deja = localStorage.getItem('logx_activity');
+  // localStorage peut JETER (navigation privée, stockage désactivé, quota) :
+  // hors try/catch, toute l'init plantait et la page restait sur « Chargement… ».
+  // Même protection que les autres accès de ce fichier (l.41/46). En cas
+  // d'échec, on retombe sur la grille de choix d'activité (repli sûr).
+  let deja = null;
+  try{ deja = localStorage.getItem('logx_activity'); }catch(e){}
   const forcer = new URLSearchParams(window.location.search).get('changer') === '1';
   if (deja && !forcer){
     window.location.href = _pageSuivante();
