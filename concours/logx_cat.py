@@ -661,7 +661,14 @@ class CivRadio:
         parsed = self._query(0x15, sub=0x02)
         if not parsed or len(parsed[4]) < 2:
             return {'ok': False, 'error': 'Pas de réponse S-mètre (CI-V)'}
-        raw = int(f'{parsed[4][0]:02x}{parsed[4][1]:02x}')
+        # Décodage BCD (chaque quartet = un chiffre décimal). Une trame parasite
+        # sur un bus CI-V partagé peut porter un quartet A-F non-BCD : int() base
+        # 10 lèverait ValueError. On respecte alors le contrat commun aux autres
+        # lectures (get_freq/identify) : jamais d'exception, retourne ok:False.
+        try:
+            raw = int(f'{parsed[4][0]:02x}{parsed[4][1]:02x}')
+        except ValueError:
+            return {'ok': False, 'error': 'Réponse S-mètre non-BCD (CI-V)'}
         return {'ok': True, 'raw': raw}
 
     def identify(self):
@@ -2409,6 +2416,15 @@ class RigManager:
         else:
             driver = AsciiRadio(transport, brand, model)
         with self._lock:
+            # Réenregistrer un id déjà présent (reconnexion) doit fermer
+            # l'ancien transport, sinon son port série fuit (remove() le ferme
+            # bien, l'écrasement silencieux ne le faisait pas).
+            ancien = self._radios.get(radio_id)
+            if ancien is not None and ancien.get('transport') is not transport:
+                try:
+                    ancien['transport'].close()
+                except Exception:
+                    pass
             self._radios[radio_id] = {'driver': driver, 'transport': transport,
                                       'protocol': protocol, 'brand': brand, 'model': model}
 
