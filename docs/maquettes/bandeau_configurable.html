@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Maquette v2 : bandeaux configurables & adaptés à l'activité</title>
+<!--
+  MAQUETTE v2 (vision F4GLD 26/08/2026). Étend le prototype simple (bandeau_defilant.html)
+  avec DEUX idées :
+   1. CONFIGURABLE : l'opérateur choisit QUELS bandeaux afficher (puces on/off) et peut
+      tout masquer. Réglage qui, dans l'appli, serait persisté (comme les panneaux ⚙ AFFICHAGE).
+   2. ADAPTÉ À L'ACTIVITÉ (la doctrine LogX « l'axe = l'activité ») : le contenu des bandeaux
+      change selon l'ACTIVITÉ (Accueil / Mode numérique / Chasse / Concours / Logbook simple)
+      et selon la BANDE/MODE courants — un bandeau « bande/mode » se réadapte quand on change
+      de bande ou de mode ; un bandeau « concours » n'apparaît qu'en concours et se cale sur
+      le concours en cours.
+
+  DONNÉES = DÉMO fictives (indicatifs/fréquences/mults inventés). Maquette visuelle, pas un flux.
+  Identité : graphite & cuivre, Share Tech Mono / Exo 2 / Fraunces.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600&family=Fraunces:opsz,wght@9..144,900&family=Share+Tech+Mono&display=swap');
+:root{
+  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+  --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74;
+  --green:#00FF88; --yellow:#FFD60A; --red:#FF2D55; --purple:#BF5AF2; --blue:#4DA6FF;
+  --text:#EDF0FA; --muted:#8792B5;
+  --mono:'Share Tech Mono',monospace; --sans:'Exo 2',sans-serif; --display:'Fraunces',serif;
+}
+body.day-mode{
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+  --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31;
+  --green:#007030; --yellow:#7A5A00; --red:#CC0030; --purple:#8040B0; --blue:#1667C0;
+  --text:#232320; --muted:#665F55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;padding-bottom:40px}
+
+.head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 20px;
+  border-bottom:1px solid var(--border);background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg))}
+.head h1{font-family:var(--display);font-weight:900;font-size:23px;letter-spacing:.2px;color:var(--accent)}
+.head .tag{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:3px 8px}
+.head .sp{margin-left:auto}
+.head button{font-family:var(--mono);font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer}
+.head button:hover{border-color:var(--accent2);color:var(--accent2)}
+
+/* ── Barre de CONTRÔLE (simule le contexte + la config) ── */
+.ctrl{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.ctrl .grp{display:flex;align-items:center;gap:8px}
+.ctrl label{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.ctrl select{font-family:var(--mono);font-size:13px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:5px 8px;cursor:pointer}
+.ctrl .chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.5px;padding:5px 10px;border-radius:20px;
+  border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;user-select:none}
+.chip.on{border-color:var(--accent2);color:var(--accent2);background:rgba(var(--accent-rgb),.10)}
+.chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px;opacity:.5}
+.chip.on .dot{opacity:1}
+.ctrl .master{margin-left:auto}
+
+/* ── LE COMPOSANT ── */
+.ticker{border-bottom:1px solid var(--border);background:var(--bg);min-height:6px}
+.ticker.vide{padding:9px 20px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ticker-row{display:flex;align-items:center;height:34px;overflow:hidden;border-top:1px solid var(--border)}
+.ticker-row:first-child{border-top:none}
+.ticker-cat{flex:0 0 auto;display:flex;align-items:center;gap:6px;height:100%;padding:0 12px;
+  font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1.5px;color:#0b0d10;
+  background:var(--accent2);z-index:2;white-space:nowrap;box-shadow:6px 0 10px -4px var(--bg)}
+body.day-mode .ticker-cat{color:#F8F6EF}
+.ticker-cat.c-green{background:var(--green)} .ticker-cat.c-purple{background:var(--purple)}
+.ticker-cat.c-yellow{background:var(--yellow)} .ticker-cat.c-blue{background:var(--blue)}
+.ticker-cat .ico{width:13px;height:13px;flex-shrink:0}
+.ticker-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
+.ticker-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;will-change:transform;animation:defile linear infinite}
+.ticker-row:hover .ticker-move{animation-play-state:paused}
+@keyframes defile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ti{display:inline-flex;align-items:center;gap:8px;padding:0 26px;height:100%;font-family:var(--mono);font-size:13px;color:var(--text);text-decoration:none;border-right:1px solid var(--border)}
+.ti:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+.ti .k{color:var(--muted)} .ti .f{color:var(--accent2);font-weight:700} .ti .call{font-weight:700}
+.ti .new{color:var(--green);font-weight:700} .ti .cw{color:var(--yellow)} .ti .warn{color:var(--red)}
+@media (prefers-reduced-motion:reduce){.ticker-move{animation:none}.ticker-track{overflow-x:auto}}
+
+.notes{max-width:940px;margin:26px auto 0;padding:0 22px}
+.notes h2{font-family:var(--display);font-weight:900;font-size:16px;color:var(--accent2);margin-bottom:10px}
+.notes ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.notes li{font-size:14px;line-height:1.5;padding-left:24px;position:relative}
+.notes li::before{content:'';position:absolute;left:5px;top:8px;width:7px;height:7px;background:var(--accent);transform:rotate(45deg)}
+.notes .em{color:var(--accent2);font-weight:600}
+.notes .faux{display:inline-block;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted);border:1px dashed var(--border);border-radius:5px;padding:6px 10px}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>LogX AI — bandeaux configurables</h1>
+  <span class="tag">MAQUETTE v2 · démo</span>
+  <span class="sp"></span>
+  <button id="themeBtn" type="button">☀️ mode jour</button>
+</div>
+
+<div class="ctrl">
+  <div class="grp">
+    <label for="selActivite">Activité</label>
+    <select id="selActivite">
+      <option value="accueil">Accueil</option>
+      <option value="numerique">Mode numérique (FT8)</option>
+      <option value="chasse">Chasse (DX/POTA/SOTA)</option>
+      <option value="concours">Concours — CQ WW SSB</option>
+      <option value="simple">Logbook simple</option>
+    </select>
+  </div>
+  <div class="grp">
+    <label for="selBM">Bande / Mode</label>
+    <select id="selBM">
+      <option value="14|SSB">20 m · SSB</option>
+      <option value="7|CW">40 m · CW</option>
+      <option value="14|FT8">20 m · FT8</option>
+      <option value="144|FM">2 m · FM</option>
+      <option value="28|SSB">10 m · SSB</option>
+    </select>
+  </div>
+  <div class="grp">
+    <label>Bandeaux</label>
+    <div class="chips" id="chips"><!-- puces générées : cliquer = afficher/masquer --></div>
+  </div>
+  <button class="master" id="masterBtn" type="button">Tout masquer</button>
+</div>
+
+<div class="ticker" id="ticker"></div>
+
+<div class="notes">
+  <h2>Ce que démontre cette maquette</h2>
+  <ul>
+    <li><span class="em">Tu choisis quels bandeaux voir</span> : clique les puces pour afficher/masquer chaque bandeau ; « Tout masquer » les enlève tous (réglage persisté dans l'appli).</li>
+    <li><span class="em">Adapté à l'ACTIVITÉ</span> (ta doctrine) : change « Activité » — les bandeaux pertinents apparaissent et leur contenu se cale dessus. Un bandeau <span class="em">Concours</span> n'existe qu'en concours (mults manquants, rythme…) ; en <span class="em">Chasse</span>, DX/POTA/SOTA ; en <span class="em">Numérique</span>, décodages FT8 / PSK Reporter.</li>
+    <li><span class="em">Adapté à la BANDE/MODE</span> : change « Bande / Mode » — le bandeau « Bande &amp; mode » se réadapte en direct (spots de CETTE bande, ouverture, appel recommandé). Dans le logbook simple, c'est LUI qui suit ce que tu fais.</li>
+    <li><span class="em">Même composant partout</span> : une seule mécanique de bandeau, un contenu qui dépend du contexte de la page — cohérent, pas 5 systèmes différents.</li>
+  </ul>
+  <span class="faux">⚠️ Données = exemples fictifs pour la maquette (indicatifs, fréquences, multiplicateurs inventés).</span>
+</div>
+
+<script>
+// ── Registre des BANDEAUX. Chaque bandeau : catégorie + fonction items(ctx)
+//    qui renvoie le contenu ADAPTÉ au contexte {activite, band, mode, bandeLabel}.
+//    Le champ `contextes` limite les activités où le bandeau a un sens.
+const ICO = {
+  propag:'<path d="M3 9h4l2-5 2 10 2-5h2"/>',
+  dx:'<circle cx="9" cy="9" r="5"/><path d="M9 4v10M4 9h10"/>',
+  sat:'<circle cx="9" cy="9" r="2.2"/><ellipse cx="9" cy="9" rx="7.5" ry="3.2" transform="rotate(35 9 9)"/>',
+  ft8:'<rect x="3" y="7" width="2" height="4"/><rect x="7" y="4" width="2" height="10"/><rect x="11" y="6" width="2" height="6"/>',
+  trophy:'<path d="M5 3h8v3a4 4 0 0 1-8 0z"/><path d="M9 10v3M6 15h6"/>',
+  radio:'<rect x="3" y="6" width="12" height="8" rx="1"/><circle cx="12" cy="10" r="2"/>',
+};
+function svg(d, cls){ return `<svg class="ico" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${d}</svg>`; }
+
+const BANNERS = {
+  propag: { cat:'PROPAG', cls:'', ico:ICO.propag, contextes:'*',
+    items: () => [
+      `<span class="k">SFI</span> 143 · <span class="k">A</span> 6 · <span class="k">K</span> 1 · <span class="k">MUF</span> <span class="f">25 MHz</span>`,
+      `<span class="new">Ouverture Es probable</span> sur 6 m cet après-midi`,
+      `Gris-ligne long path vers <span class="f">VK</span> à 18:40`,
+    ]},
+  dx: { cat:'DX & ACTIVITÉS', cls:'c-green', ico:ICO.dx, contextes:['accueil','chasse'],
+    items: () => [
+      `<span class="k">DX</span> <span class="call">F5ABC</span> <span class="f">14.075</span> FT8 <span class="new">nouveau pays</span>`,
+      `<span class="k">POTA</span> <span class="call">F-0123</span> <span class="f">14.244</span> SSB`,
+      `<span class="k">SOTA</span> <span class="call">F/AB-045</span> <span class="f">145.500</span> FM`,
+      `<span class="k">DXpédition</span> <span class="call">TX7X</span> annoncée 10-24 sept.`,
+    ]},
+  sat: { cat:'SATELLITES', cls:'c-purple', ico:ICO.sat, contextes:['accueil'],
+    items: () => [
+      `<span class="k">ISS</span> <span class="f">145.800</span> FM — passage dans <span class="new">14 min</span>, max 81°`,
+      `<span class="k">RS-44</span> dans 42 min, max 34°`,
+      `<span class="k">Radioclub</span> réunion mercredi 19h`,
+    ]},
+  ft8: { cat:'NUMÉRIQUE', cls:'c-blue', ico:ICO.ft8, contextes:['numerique'],
+    items: (c) => [
+      `<span class="k">Décodage</span> <span class="call">CQ DX EA3XYZ</span> IN80 <span class="f">-12 dB</span>`,
+      `<span class="k">PSK Reporter</span> : ton signal entendu en <span class="f">JA, VK, W</span>`,
+      `<span class="k">${c.bandeLabel}</span> : 23 décodages / cycle · file d'appel 3 stations`,
+      `<span class="new">Nouveau grid</span> décodé : PM95 (Japon)`,
+    ]},
+  concours: { cat:'CONCOURS', cls:'c-yellow', ico:ICO.trophy, contextes:['concours'],
+    items: () => [
+      `<span class="k">CQ WW SSB</span> · <span class="f">342</span> QSO · <span class="f">18</span> h`,
+      `<span class="k">Mults manquants</span> proches : <span class="new">zone 8, 33, 40</span>`,
+      `<span class="k">Rythme</span> <span class="f">84</span> QSO/h · dernière heure 96`,
+      `<span class="warn">Mult à faire</span> : <span class="call">3B8XY</span> spotté <span class="f">21.290</span>`,
+    ]},
+  bandemode: { cat:'BANDE & MODE', cls:'', ico:ICO.radio, contextes:['simple','accueil','chasse'],
+    items: (c) => {
+      // ADAPTÉ EN DIRECT à la bande/mode courants
+      const parCle = {
+        '14|SSB':[`ouverture <span class="f">NA</span> · pile-up sur 14.195`, `angle de tir long vers <span class="f">W6</span>`],
+        '7|CW':[`bande calme, quelques <span class="f">EU</span> · QSB modéré`, `skimmer : <span class="call">OK1AA</span> 7.018 <span class="cw">CW</span>`],
+        '14|FT8':[`14.074 saturé · passe en <span class="f">F/H</span> si besoin`, `<span class="new">DX</span> <span class="call">VK4</span> décodé -18 dB`],
+        '144|FM':[`relais <span class="f">R5</span> actif · tropo faible`, `appel simplex 145.500 recommandé`],
+        '28|SSB':[`<span class="new">10 m ouvert !</span> Es vers <span class="f">EA, I, 9A</span>`, `beacons audibles : <span class="call">OZ7IGY</span>`],
+      };
+      const detail = parCle[c.band+'|'+c.mode] || [`activité normale`];
+      return [
+        `<span class="k">Vous êtes sur</span> <span class="f">${c.bandeLabel} · ${c.mode}</span>`,
+        ...detail,
+        `<span class="k">Dernier QSO</span> : <span class="call">DL2XX</span> il y a 3 min`,
+      ];
+    }},
+};
+
+// Défaut par activité : quels bandeaux sont cochés à l'arrivée sur l'activité
+const DEFAUTS = {
+  accueil:  ['propag','dx','sat'],
+  numerique:['ft8','propag'],
+  chasse:   ['dx','propag','bandemode'],
+  concours: ['concours','propag'],
+  simple:   ['bandemode','propag'],
+};
+
+let etat = { activite:'accueil', band:'14', mode:'SSB', actifs:new Set(DEFAUTS.accueil), master:true };
+
+const BANDE_LABEL = {'1.8':'160 m','3.5':'80 m','7':'40 m','10.1':'30 m','14':'20 m','18':'17 m','21':'15 m','24':'12 m','28':'10 m','50':'6 m','144':'2 m','432':'70 cm'};
+
+function ctx(){ return { activite:etat.activite, band:etat.band, mode:etat.mode, bandeLabel:BANDE_LABEL[etat.band]||etat.band+' m' }; }
+
+function bandeauxDispos(){
+  // Un bandeau est proposé si son contexte inclut l'activité courante (ou '*')
+  return Object.keys(BANNERS).filter(id => {
+    const c = BANNERS[id].contextes;
+    return c === '*' || c.includes(etat.activite);
+  });
+}
+
+function renderChips(){
+  const box = document.getElementById('chips');
+  box.innerHTML = bandeauxDispos().map(id =>
+    `<span class="chip ${etat.actifs.has(id)?'on':''}" data-id="${id}"><span class="dot"></span>${BANNERS[id].cat}</span>`
+  ).join('') || '<span style="color:var(--muted);font-family:var(--mono);font-size:12px">aucun bandeau pour cette activité</span>';
+  box.querySelectorAll('.chip').forEach(ch => ch.onclick = () => {
+    const id = ch.dataset.id;
+    if(etat.actifs.has(id)) etat.actifs.delete(id); else etat.actifs.add(id);
+    renderTicker(); renderChips();
+  });
+}
+
+function renderTicker(){
+  const t = document.getElementById('ticker');
+  const dispos = bandeauxDispos();
+  const montres = dispos.filter(id => etat.actifs.has(id));
+  if(!etat.master || montres.length === 0){
+    t.className = 'ticker vide';
+    t.textContent = etat.master ? '— aucun bandeau sélectionné (clique une puce) —' : '— bandeaux masqués —';
+    return;
+  }
+  t.className = 'ticker';
+  const c = ctx();
+  const dur = {0:38,1:44,2:50};
+  t.innerHTML = montres.map((id, i) => {
+    const b = BANNERS[id];
+    const bloc = b.items(c).map(h => `<a class="ti" href="#" title="Ouvrirait la page concernée">${h}</a>`).join('');
+    return `<div class="ticker-row">
+      <span class="ticker-cat ${b.cls}">${svg(b.ico)}${b.cat}</span>
+      <div class="ticker-track"><div class="ticker-move" style="animation-duration:${dur[i%3]||46}s">${bloc+bloc}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function changerActivite(a){
+  etat.activite = a;
+  etat.actifs = new Set(DEFAUTS[a] || []);   // repart des bandeaux par défaut de l'activité
+  renderChips(); renderTicker();
+}
+
+document.getElementById('selActivite').onchange = e => changerActivite(e.target.value);
+document.getElementById('selBM').onchange = e => {
+  const [b, m] = e.target.value.split('|'); etat.band = b; etat.mode = m; renderTicker();
+};
+document.getElementById('masterBtn').onclick = () => {
+  etat.master = !etat.master;
+  document.getElementById('masterBtn').textContent = etat.master ? 'Tout masquer' : 'Réafficher';
+  renderTicker();
+};
+const themeBtn = document.getElementById('themeBtn');
+themeBtn.onclick = () => { const j = document.body.classList.toggle('day-mode'); themeBtn.textContent = j?'🌙 mode nuit':'☀️ mode jour'; };
+
+renderChips(); renderTicker();
+</script>
+</body>
+</html>
