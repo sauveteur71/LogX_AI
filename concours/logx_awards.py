@@ -93,8 +93,12 @@ def collect_all_qsos(shared_log=None):
             base = _cache['qsos']
         else:
             raw = []
+            # La déduplication ci-dessous garde la PREMIÈRE occurrence : la
+            # source la plus prioritaire (_read_archives) doit donc venir en
+            # tête, sinon un QSO présent dans les deux sources se voit servir la
+            # version moins prioritaire (statut QSL périmé, données anciennes).
+            raw.extend(_read_archives())        # plus prioritaires (gardés)
             raw.extend(_read_qso_archive())     # anciens (moins prioritaires)
-            raw.extend(_read_archives())
             seen, base = set(), []
             for q in raw:
                 k = _dedup_key(q)
