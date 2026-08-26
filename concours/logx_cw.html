@@ -182,6 +182,9 @@ function ditMs(wpm){ return 1200 / Math.max(8, Math.min(40, wpm)); }   // PARIS
 // l'oreille et, surtout, moins ressemblant à une vraie station.
 function jouer(texte, wpm, hz){
   if(!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+  // Politique autoplay : un contexte créé hors d'un geste utilisateur démarre
+  // « suspended » et reste muet tant qu'on ne le réveille pas.
+  if(ctxAudio.state === 'suspended'){ try{ ctxAudio.resume(); }catch(e){} }
   const dit = ditMs(wpm) / 1000, RAMPE = 0.004;
   let t = ctxAudio.currentTime + 0.15;
   const debut = t;
@@ -211,6 +214,13 @@ function jouer(texte, wpm, hz){
       g.gain.linearRampToValueAtTime(0, t + duree);
       osc.connect(g).connect(ctxAudio.destination);
       osc.start(t); osc.stop(t + duree + 0.01);
+      // Retirer l'oscillateur du suivi dès qu'il a fini : sans ça, sourceEnCours
+      // grossit sans borne pendant une série continue (des centaines de nœuds
+      // terminés retenus jusqu'au prochain couperSon).
+      osc.onended = () => {
+        const j = sourceEnCours.indexOf(osc);
+        if(j !== -1) sourceEnCours.splice(j, 1);
+      };
       sourceEnCours.push(osc);
       t += duree;
       if(k < motif.length - 1) t += dit;             // entre ÉLÉMENTS
