@@ -172,12 +172,14 @@ async function exportEDI(){
 
     const blob = new Blob([edi],{type:'text/plain;charset=utf-8'});
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    a.href = url;
     // Nom fichier dynamique : CALL_CONTESTNAME_YEAR_BANDMHz.edi
     const contestSlug = (ediCfg.contest||'Contest').replace(/[^A-Za-z0-9]/g,'_').replace(/_+/g,'_').slice(0,30);
     const contestYear = TDATE_START.slice(0,4) || new Date().getFullYear();
     a.download = `${myCall.replace('/','_')}_${contestSlug}_${contestYear}_${band}MHz.edi`;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 40000);
   }, bandIdx * 500); });
 
   // Rappel soumission

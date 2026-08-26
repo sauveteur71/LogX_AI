@@ -217,9 +217,13 @@ function buildAdifText(qsos){
 function downloadAdifBlob(adif, suffix){
   const blob = new Blob([adif],{type:'text/plain'});
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `${myCall.replace('/','_')}_${suffix}.adif`;
   a.click();
+  // Libère l'URL blob APRÈS le démarrage du téléchargement (un revoke immédiat
+  // peut l'annuler, cf. audit sstv_panel:110) — sinon fuite mémoire par export.
+  setTimeout(() => URL.revokeObjectURL(url), 40000);
 }
 
 async function exportADIF(){
@@ -254,9 +258,11 @@ function _downloadCsv(csv, suffixe){
   // accents (N°, Scoré, Échange reçu…). charset=utf-8 par cohérence.
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `${myCall.replace('/','_')}_${suffixe}.csv`;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 40000);
 }
 
 // ─── Filtre d'export par ACTIVITÉ (concours actif ou activation POTA/SOTA) ───
