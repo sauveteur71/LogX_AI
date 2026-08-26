@@ -21,6 +21,13 @@ _PREFIXES = {}
 # indicatif exact → idem (entrées =CALL)
 _EXACT = {}
 _loaded = False
+# État explicite de la base DXCC, exposé à l'UI (décision F4GLD). AUCUN
+# heuristique n'existe : quand cty.dat manque, lookup() renvoie None pour TOUT
+# indicatif — l'ancien message « repli heuristique préfixes » était donc
+# mensonger. Valeurs : 'ready' (résolution active), 'database_missing' (fichier
+# absent), 'database_invalid' (présent mais illisible/vide), 'unloaded' (pas
+# encore chargé).
+_db_status = 'unloaded'
 
 
 def _parse_alias(alias, base):
@@ -48,11 +55,20 @@ def _parse_alias(alias, base):
 
 def load_cty(path=None):
     """Charge cty.dat. Silencieusement dégradé si absent (repli heuristique)."""
-    global _loaded
+    global _loaded, _db_status, _PREFIXES, _EXACT
     path = path or CTY_FILE
     if not os.path.exists(path):
-        print(f"[DXCC] {path} absent — repli heuristique préfixes")
+        # Pas d'heuristique : lookup() renverra None pour tout indicatif. On le
+        # dit honnêtement au lieu de promettre un repli inexistant. On VIDE
+        # aussi les tables ET le cache : sinon un rechargement après disparition
+        # de cty.dat laisserait des résolutions périmées (indicatif déjà mis en
+        # cache) alors que la base est désormais indisponible.
+        print(f"[DXCC] {path} absent — résolution DXCC désactivée")
+        _PREFIXES, _EXACT = {}, {}
+        _db_status = 'database_missing'
         _loaded = True
+        with _lookup_cache_lock:
+            _lookup_cache.clear()
         return
     new_prefixes, new_exact = {}, {}
     try:
@@ -98,12 +114,15 @@ def load_cty(path=None):
         # partiel, contrairement à clear()+update() qui laisse une fenêtre
         # entre les deux appels. Aucun autre module n'importe _PREFIXES/_EXACT
         # par référence (vérifié par grep) : la réaffectation ne casse aucun
-        # alias externe.
-        global _PREFIXES, _EXACT
+        # alias externe. (_PREFIXES/_EXACT déjà déclarés global en tête.)
         _PREFIXES = new_prefixes
         _EXACT = new_exact
+        # Fichier présent mais ne produisant aucune entrée = illisible/tronqué,
+        # pas une base valide : on ne prétend pas résoudre.
+        _db_status = 'ready' if (new_prefixes or new_exact) else 'database_invalid'
         print(f"[DXCC] {len(_PREFIXES)} prefixes + {len(_EXACT)} indicatifs exacts (cty.dat)")
     except Exception as e:
+        _db_status = 'database_invalid'
         print(f"[DXCC] Erreur de chargement {path}: {e}")
     with _lookup_cache_lock:
         _lookup_cache.clear()   # la table de préfixes a changé : cache obsolète
@@ -123,6 +142,26 @@ _MISS = object()
 # après le vidage, la figeant dans le cache fraîchement vidé jusqu'au
 # prochain rechargement (jusqu'à 30 j, voir CTY_MAX_AGE_DAYS).
 _lookup_cache_lock = threading.Lock()
+
+
+_DB_STATUS_MSG = {
+    'ready': '',
+    'database_missing': 'cty.dat absent — résolution DXCC désactivée',
+    'database_invalid': 'cty.dat illisible — résolution DXCC désactivée',
+    'unloaded': '',
+}
+
+
+def db_status():
+    """État explicite de la base DXCC pour l'UI (décision F4GLD (b)) :
+    {'status', 'available', 'message'}. `available` est False dès que la
+    résolution des pays/zones est indisponible — l'interface peut alors afficher
+    « DXCC indisponible » plutôt que de laisser croire à des champs vides."""
+    if not _loaded:
+        load_cty()
+    st = _db_status
+    return {'status': st, 'available': st == 'ready',
+            'message': _DB_STATUS_MSG.get(st, '')}
 
 
 def lookup(callsign):

@@ -255,6 +255,17 @@ def test_qtc_add_serie_detaillee_stocke_les_entrees(server, monkeypatch):
     assert isinstance(stored['id'], int)
 
 
+def test_dxcc_status_endpoint_expose_l_etat(server, monkeypatch):
+    """/dxcc/status renvoie l'état de la base pour l'UI (décision F4GLD ②(b))."""
+    import logx_dxcc as dxcc
+    monkeypatch.setattr(dxcc, '_loaded', True)
+    monkeypatch.setattr(dxcc, '_db_status', 'database_missing')
+    res = _get(server, '/dxcc/status')
+    assert res['status'] == 'database_missing'
+    assert res['available'] is False
+    assert 'message' in res
+
+
 def test_qtc_add_serie_ligne_incomplete_refusee(server, monkeypatch):
     import logx_storage as storage
     monkeypatch.setattr(httpmod, 'current_config',

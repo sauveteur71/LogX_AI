@@ -3320,6 +3320,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'match': None, 'kind': kind})
             return
 
+        # État de la base DXCC (cty.dat) pour l'UI : permet d'afficher « DXCC
+        # indisponible » quand la résolution pays/zones est désactivée, au lieu
+        # de laisser croire à des champs vides (décision F4GLD ②(b)).
+        if path == '/dxcc/status':
+            import logx_dxcc as dxcc
+            self._json(dxcc.db_status())
+            return
+
         # État des imports (bouton CONFIG) : nombre d'indicatifs MASTER.SCP et
         # de fiches Call History déjà importées pour le concours actif.
         if path == '/callhistory/status':
