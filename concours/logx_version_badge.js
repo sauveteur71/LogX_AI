@@ -106,6 +106,7 @@ function updateVersionStatus(data){
 // trouvée, et reste étiqueté "secours" (bouton jaune, libellé explicite)
 // pour que l'opérateur voie tout de suite qu'il s'agit d'un repli, pas du
 // chemin habituel.
+let _scanReseauEnCours = false;
 async function findNetworkUpdatePath(){
   const resEl = document.getElementById('netUpdatePathResult');
   if(!resEl) return;
@@ -114,6 +115,10 @@ async function findNetworkUpdatePath(){
     resEl.textContent = "aucun autre poste détecté sur le réseau pour l'instant.";
     return;
   }
+  // Un scan déjà en vol : clics répétés ne doivent pas lancer des scans réseau
+  // PARALLÈLES (tempête). On ignore les appels tant que le premier n'a pas rendu.
+  if(_scanReseauEnCours) return;
+  _scanReseauEnCours = true;
   resEl.textContent = 'recherche sur le réseau…';
   try{
     const r = await fetch('/app/update_network_scan', {
@@ -124,6 +129,8 @@ async function findNetworkUpdatePath(){
     _renderNetworkUpdatePath(d);
   }catch(e){
     resEl.textContent = 'recherche impossible.';
+  }finally{
+    _scanReseauEnCours = false;
   }
 }
 
