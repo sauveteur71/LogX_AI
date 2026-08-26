@@ -120,9 +120,15 @@ def test_worked_by_country_geojson_vide_ne_plante_pas(monkeypatch):
 def test_load_world_geojson_cache_disque(monkeypatch, tmp_path):
     cached = str(tmp_path / 'world_countries.geojson')
     monkeypatch.setattr(wm, 'WORLD_GEOJSON_FILE', cached)
+    # Cache de TAILLE RÉALISTE (> seuil de validation) : le vrai world geojson
+    # fait > 100 Ko. FAKE_GEOJSON seul est trop court pour la validation
+    # taille/FeatureCollection désormais appliquée AUSSI au chemin disque
+    # (audit :34 — un cache tronqué ne doit plus être servi à vie). On complète
+    # donc jusqu'au seuil, comme le fait déjà test_load_world_geojson_telecharge.
+    gros = FAKE_GEOJSON + ' ' * 100001
     with open(cached, 'w', encoding='utf-8') as f:
-        f.write(FAKE_GEOJSON)
-    assert wm.load_world_geojson() == FAKE_GEOJSON
+        f.write(gros)
+    assert wm.load_world_geojson() == gros
 
 
 def test_load_world_geojson_telecharge_si_absent(monkeypatch, tmp_path):

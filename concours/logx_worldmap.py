@@ -25,26 +25,42 @@ _cache = {'features': None, 'entity_feature': None}
 _dl_lock = threading.Lock()
 
 
+def _geojson_valide(data):
+    """Même contrôle « geojson mondial complet » pour TOUTES les sources (disque
+    ET téléchargement) : taille plausible + racine FeatureCollection. Un cache
+    tronqué (write partiel après crash, vieux mauvais téléchargement) échoue
+    ici et n'est donc jamais servi -- on re-télécharge plutôt (audit :34)."""
+    return bool(data and len(data) > 100000 and 'FeatureCollection' in data)
+
+
+def _lire_cache_valide():
+    """Contenu du cache disque S'IL est valide, sinon '' (fichier absent,
+    illisible, ou tronqué)."""
+    if not os.path.exists(WORLD_GEOJSON_FILE):
+        return ''
+    try:
+        with open(WORLD_GEOJSON_FILE, encoding='utf-8') as f:
+            data = f.read()
+    except Exception:
+        return ''
+    return data if _geojson_valide(data) else ''
+
+
 def load_world_geojson():
-    """Contenu du GeoJSON mondial (cache disque, re-téléchargé s'il manque).
-    Retourne le texte JSON ou '' si indisponible hors ligne."""
-    if os.path.exists(WORLD_GEOJSON_FILE):
-        try:
-            with open(WORLD_GEOJSON_FILE, encoding='utf-8') as f:
-                return f.read()
-        except Exception:
-            pass
+    """Contenu du GeoJSON mondial (cache disque, re-téléchargé s'il manque OU
+    s'il est corrompu/tronqué). Retourne le texte JSON ou '' si indisponible
+    hors ligne."""
+    cache = _lire_cache_valide()
+    if cache:
+        return cache
     from logx_utils import fetch_url
     with _dl_lock:
-        # une autre requête a pu écrire le fichier pendant l'attente du verrou
-        if os.path.exists(WORLD_GEOJSON_FILE):
-            try:
-                with open(WORLD_GEOJSON_FILE, encoding='utf-8') as f:
-                    return f.read()
-            except Exception:
-                pass
+        # une autre requête a pu écrire un cache VALIDE pendant l'attente du verrou
+        cache = _lire_cache_valide()
+        if cache:
+            return cache
         data = fetch_url(WORLD_GEOJSON_URL, timeout=30)
-        if data and len(data) > 100000 and 'FeatureCollection' in data:
+        if _geojson_valide(data):
             try:
                 with open(WORLD_GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
                     f.write(data)
