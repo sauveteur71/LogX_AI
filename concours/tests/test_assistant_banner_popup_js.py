@@ -71,6 +71,10 @@ _OPENCAT_SRC = _extract_function(_HTML_SRC, 'openCategoryPopup')
 # HTML réellement exécuté par handleContestParam(), voir _make_ctx() plus bas.
 _ESCC_SRC = _extract_function(_HTML_SRC, 'escC')
 _SAFEURL_SRC = _extract_function(_HTML_SRC, 'safeUrl')
+# _lireConfig() : lecture tolérante de logx_config (retombe sur {} si le blob
+# localStorage est corrompu). handleContestParam() la consomme désormais au lieu
+# d'un JSON.parse brut — extraite RÉELLE, sinon ReferenceError à l'exécution.
+_LIRECONFIG_SRC = _extract_function(_HTML_SRC, '_lireConfig')
 # openCategoryPopup() appelle désormais _snapshotCatForm()/
 # _confirmDiscardCatChanges() (avertir avant de perdre des modifications non
 # enregistrées) ET _currentOpenCat() (pour fermer la section précédente avant
@@ -185,6 +189,7 @@ def _make_ctx(search, station_cfg=None):
     # handleContestParam(), pas seulement quelle popup s'ouvre.
     ctx.eval(_ESCC_SRC)
     ctx.eval(_SAFEURL_SRC)
+    ctx.eval(_LIRECONFIG_SRC)
     ctx.eval(_HANDLE_SRC)
     return ctx
 

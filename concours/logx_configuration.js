@@ -6,6 +6,14 @@ const T = s => (window.rcT ? window.rcT(s) : s);
 const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
   let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
 })());
+// Lecture tolérante de la config locale : `|| '{}'` ne protège que du cas
+// VIDE/ABSENT, pas d'un blob CORROMPU (JSON invalide) — JSON.parse lèverait
+// alors et casserait l'assistant concours / la page. On retombe sur {} plutôt
+// que de laisser l'exception remonter.
+function _lireConfig(){
+  try{ return JSON.parse(localStorage.getItem('logx_config') || '{}') || {}; }
+  catch(e){ return {}; }
+}
 // Base locale : {id du champ -> explication en clair}. C'EST la première ligne
 // d'aide (aucun réseau requis) ; la question libre de l'assistant y cherche
 // aussi une correspondance avant, éventuellement, de solliciter l'IA.
@@ -1413,7 +1421,7 @@ async function loadVoiceKeyerDevices(){
   }
   // Ré-applique les valeurs sauvegardées maintenant que les <option> existent
   try{
-    const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+    const cfg = _lireConfig();
     if(cfg.voicekeyer_device !== undefined) devSel.value = cfg.voicekeyer_device;
     if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
     if(devSel2 && cfg.voicekeyer_device2 !== undefined) devSel2.value = cfg.voicekeyer_device2;
@@ -2537,7 +2545,7 @@ function saveProfile(){
   if(!name || !name.trim()) return;
   // Capturer l'état courant du formulaire via saveConfig silencieux puis lire
   saveConfig(true);
-  const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
+  const cfg = _lireConfig();
   // Audit sécurité : depuis le durcissement de saveConfig(), localStorage['logx_config']
   // ne contient JAMAIS les champs de SECRET_CONFIG_FIELDS (copie 'localCopy' expurgée) —
   // les relire ici les laisserait vides à vie dans le profil (régression du bug H1
@@ -5774,7 +5782,7 @@ function getUiMode(){
   if (saved) return saved;
   // Première visite : simple si aucune station configurée, expert sinon
   try{
-    const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+    const cfg = _lireConfig();
     return cfg.callsign ? 'expert' : 'simple';
   }catch(e){ return 'simple'; }
 }
@@ -6741,7 +6749,7 @@ async function handleContestParam(){
   const card = document.getElementById('card_' + id);
   if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-  const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+  const cfg = _lireConfig();
   const stationOk = !!(cfg.callsign && cfg.locator);
   // Dates OK seulement si elles ont été calculées pour CE concours —
   // un champ non vide peut contenir les dates d'une config précédente
