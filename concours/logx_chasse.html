@@ -143,6 +143,16 @@ body.simple-mode .expert-only{display:none!important}
 .filters{display:flex;gap:8px;margin-bottom:10px;flex-shrink:0}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
+/* Panneau « Mes objectifs de chasse » (profil serveur, option b) : replié par
+   défaut pour ne pas charger l'écran ; les cases pilotent le score/badges des
+   spots. Tokens de thème -> lisible jour ET nuit. */
+.objectifs{margin-bottom:10px;flex-shrink:0}
+.objectifs>summary{font-family:var(--font-mono);font-size:12px;letter-spacing:.5px;color:var(--muted);cursor:pointer;padding:5px 2px;list-style:none}
+.objectifs>summary:hover{color:var(--accent2)}
+.objectifs[open]>summary{color:var(--accent2)}
+.obj-list{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 2px 4px}
+.obj-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
+.obj-item input{accent-color:var(--accent2);cursor:pointer}
 /* Filtre bande CLUSTER — NEED LIST (retour F4GLD 09/08/2026) : puces
    générées dynamiquement à partir des bandes RÉELLEMENT présentes dans les
    spots du moment (pas une liste figée) — multi-sélection, TOUTES = reset. */
@@ -310,6 +320,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
         <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
       </div>
+      <details class="objectifs" id="objectifsBox">
+        <summary title="Choisis ce qui compte pour TOI : le score et les badges des spots s'ajustent. Réglage mémorisé côté serveur, partagé avec le reste du logiciel.">🎯 Mes objectifs de chasse</summary>
+        <div id="objectifsList" class="obj-list"></div>
+      </details>
       <div id="bandFilters" class="band-filters"></div>
       <div id="spotList" class="scroll-list"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
         <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
@@ -532,6 +546,45 @@ function creditBadge(s){
   if(!lbl) return '';
   const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '');
   return `<span class="sr-credit-badge cr-${esc(cl)}" title="${esc(t)}">${lbl}</span>`;
+}
+
+// ── Profil d'OBJECTIFS opérateur (option b) ────────────────────────────────
+// Les 5 objectifs, DANS LE MÊME ORDRE que les badges de crédit. La clé de
+// chaque case DOIT correspondre à logx_operator_goals.CLES côté serveur (un
+// test le garde) : sinon cocher/décocher ne piloterait aucun crédit.
+const OBJECTIFS_DEF = [
+  {cle:'dxcc',                       label:'🌟 Nouveaux pays (ATNO)'},
+  {cle:'dxcc_new_band',              label:'📻 Nouvelle bande'},
+  {cle:'dxcc_new_mode',              label:'🎚 Nouveau mode'},
+  {cle:'lotw_confirmation_priority', label:'📩 Confirmations LoTW'},
+  {cle:'vucc',                       label:'🗺 Nouveaux carrés (VUCC)'},
+];
+function construireObjectifs(goals){
+  const box = document.getElementById('objectifsList');
+  if(!box) return;
+  // absent => coché (défaut = objectif actif, comme le serveur)
+  box.innerHTML = OBJECTIFS_DEF.map(o =>
+    `<label class="obj-item"><input type="checkbox" data-cle="${o.cle}"${goals[o.cle] === false ? '' : ' checked'}> ${o.label}</label>`
+  ).join('');
+  box.querySelectorAll('input[data-cle]').forEach(inp => { inp.onchange = enregistrerObjectifs; });
+}
+function lireObjectifs(){
+  const out = {};
+  document.querySelectorAll('#objectifsList input[data-cle]').forEach(inp => { out[inp.dataset.cle] = inp.checked; });
+  return out;
+}
+function enregistrerObjectifs(){
+  const goals = lireObjectifs();
+  fetch('/data/operator_goals', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({goals})})
+    .then(r => r.json())
+    .then(() => { renderSpots(); })     // effet immédiat : le score/badges se recalculent au prochain refresh serveur, l'affichage se rafraîchit tout de suite
+    .catch(() => {});
+}
+function chargerObjectifs(){
+  fetch('/data/operator_goals')
+    .then(r => r.json())
+    .then(d => construireObjectifs((d && d.goals) || {}))
+    .catch(() => construireObjectifs({}));   // serveur muet -> tout coché (défaut)
 }
 
 function renderSpots(){
@@ -878,6 +931,7 @@ loadDxActive();
 // aucun spot n'est manqué et rien de périmé n'est affiché au retour.
 // Repli identité si la page est ouverte sans la barre de statut.
 const rcPollOr = window.rcPoll || ((fn, ms) => setInterval(fn, ms));
+chargerObjectifs();                            // profil d'objectifs : chargé une fois au démarrage (pas de polling)
 rcPollOr(loadSpots, 60 * 1000);                // need list : chaque minute
 rcPollOr(loadPota, 2 * 60 * 1000);             // POTA : cache serveur 90 s
 rcPollOr(loadSota, 60 * 1000);                 // SOTA : cache serveur 60 s
