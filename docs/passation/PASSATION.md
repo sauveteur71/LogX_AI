@@ -256,6 +256,17 @@ et bugs de F4GLD. Toutes mergées sauf mention.
 | #289 | **Panadapter : moyennage spectral** (video averaging). Moyenne exponentielle par bin sur N trames (2/4/8/16) → abaisse le plancher de bruit, fait ressortir une porteuse faible mais stable. `majMoyenne` pur, appliqué en place à `dataArray` au même point dans les 3 sources (audio/CI-V/TCI), avant spectre ET waterfall — source-agnostique comme contraste/crête. |
 | #290 | **Panadapter : choix de palette** du waterfall (cuivre/gris/thermique). La colormap d'un spectrogramme est de la data-viz fonctionnelle (tous les SDR l'offrent), pas du chrome UI : identité cuivre = DÉFAUT, alternatives opt-in. `couleurNiveau` dispatche sur `paletteMode` via l'objet `PALETTES` (fonctions pures), repli cuivre si clé inconnue. |
 | #291 | **Panadapter : vitesse du waterfall** (rapide/moyen/lent/très lent = 1/2/4/8 trames par ligne). Ralentir montre plus d'histoire temporelle ; le spectre reste vif (seul `dessinerWaterfall` consulte la cadence `traceWfCetteTrame`, pure). **Clôt l'approfondissement panadapter** demandé (« creuse pour que ce soit au top ») : #278 click-to-tune, #280 contraste, #284 survol, #287 crête, #289 moyennage, #290 palette, #291 vitesse. |
+| #292 | **CHASSE #3 — profil d'objectifs opérateur persisté serveur (option b, décision F4GLD 26/08)**. Panneau « 🎯 Mes objectifs de chasse » sur la page CHASSE (5 cases : ATNO / bande / mode / LoTW / VUCC) ; le moteur de crédit ajuste score+badges. Module dédié `logx_operator_goals.py` (stockage JSON **isolé** de `.server_config.json` — un bug ne peut pas corrompre la config), endpoint dédié `GET/POST /data/operator_goals` (jamais la page CONFIG), les 2 `annoter_credit` lisent le profil persisté. Défaut = tout actif (comportement historique). Clés UI verrouillées sur le serveur par test. **À vérifier navigateur (jour/nuit) par F4GLD.** |
+
+**Décisions de scope prises seul pendant la fenêtre autonome (26/08, nuit)** :
+- **Crédit « multiplicateur de concours » ABANDONNÉ comme redondant** : la page
+  CHASSE affiche déjà un badge mult + filtre MULTS et le classement serveur
+  intègre les mults ; l'ajouter au moteur de crédit dupliquerait sans valeur
+  visible. « Densifier ≠ entasser ».
+- **Crédit POTA/SOTA toujours écarté** (data-bloqué) : l'infra POTA/SOTA est
+  orientée activation (self-spot, export ADIF), pas chasse — la donnée
+  « parcs/sommets déjà chassés » + « spot portant une réf. » n'existe pas.
+  Le bâtir serait une supposition.
 
 **Audits (vérification, sans PR)** : largeurs des pages (aucun autre défaut type
 MODE NUMÉRIQUE — rtty/sstv/cw volontairement étroits) ; textes FR en dur (~399
