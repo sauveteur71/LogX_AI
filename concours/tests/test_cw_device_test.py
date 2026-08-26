@@ -288,3 +288,14 @@ def test_testDevice_ignore_si_un_decodage_reel_tourne_deja():
     ctx.eval("cwTestDevice();")   # changement de périphérique pendant ce décodage
     assert ctx.eval("__cwDecoderInstances.length") == 1, (
         "testDevice() n'aurait pas dû créer un second flux pendant un décodage réel")
+
+
+def test_double_clic_demarrer_ne_cree_quun_decodeur():
+    # BUG audit : this.decoder n'est affecté que dans le .then de dec.start().
+    # Entre le clic et la résolution, il vaut null -> un 2e clic re-entre dans
+    # la branche de création et ouvre un 2e décodeur (+ 2e getUserMedia) dont
+    # le flux fuit. Deux toggleCwDecoder() SYNCHRONES (avant la microtâche de
+    # start) doivent ne créer QU'UN décodeur.
+    ctx = _make_ctx()
+    ctx.eval("toggleCwDecoder(); toggleCwDecoder();")
+    assert ctx.eval("__cwDecoderInstances.length") == 1

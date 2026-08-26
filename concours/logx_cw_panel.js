@@ -103,6 +103,12 @@ class CwPanel {
       btn.classList.remove('active');
       return;
     }
+    // Garde de ré-entrance : this.decoder n'est affecté que dans le .then de
+    // dec.start() (async). Sans ce drapeau, un 2e clic pendant l'init re-entre
+    // ici (this.decoder encore null) et ouvre un 2e décodeur + un 2e flux
+    // getUserMedia qui fuit. Même patron de jeton que testDevice()/detectFreq().
+    if(this._decStarting) return;
+    this._decStarting = true;
     const deviceId = this.el('cwDevice').value;
     const freq = parseInt(this.el('cwFreq').value, 10) || 650;
     const out = this.el('cwOutput');
@@ -133,10 +139,12 @@ class CwPanel {
       },
     });
     dec.start(deviceId || undefined).then(() => {
+      this._decStarting = false;
       this.decoder = dec;
       btn.textContent = '■ Arrêter';
       btn.classList.add('active');
     }).catch(e => {
+      this._decStarting = false;
       notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
     });
   }
