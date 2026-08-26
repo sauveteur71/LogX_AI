@@ -433,10 +433,16 @@ if(localStorage.getItem('rc_theme') === null){
     if(hi <= lo) return v;
     return Math.max(0, Math.min(255, Math.round((v - lo) / (hi - lo) * 255)));
   }
-  function bornesContraste(arr){
+  function bornesContraste(arr, n){
     if(contrasteMode === 'calibre') return [contrasteFloor, contrasteCeil];
+    // n = nombre de bins AFFICHÉS (nBinsActuel). En audio, dataArray porte
+    // toute la FFT alors qu'on n'affiche qu'un sous-ensemble : borner le min/max
+    // aux bins visibles, sinon une porteuse forte HORS span écrase le contraste
+    // de la portion réellement à l'écran. n absent/0 -> tableau entier (CI-V/TCI
+    // affichent tout, et compat avec l'ancien appel).
+    const lim = (n && n > 0) ? Math.min(arr.length, n) : arr.length;
     let lo = 255, hi = 0;
-    for(let i = 0; i < arr.length; i++){ const v = arr[i]; if(v < lo) lo = v; if(v > hi) hi = v; }
+    for(let i = 0; i < lim; i++){ const v = arr[i]; if(v < lo) lo = v; if(v > hi) hi = v; }
     return [lo, Math.max(lo + 1, hi)];   // hi>lo garanti -> jamais de division par 0
   }
 
@@ -714,7 +720,7 @@ if(localStorage.getItem('rc_theme') === null){
     const nBins = nBinsActuel();
     if(nBins <= 0 || !dataArray) return;   // ex. CI-V hors plage : rien à tracer cette ligne
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E8964A';
-    const [_lo, _hi] = bornesContraste(dataArray);
+    const [_lo, _hi] = bornesContraste(dataArray, nBins);
     g.beginPath();
     g.moveTo(0, h);
     for(let x = 0; x < w; x++){
@@ -761,7 +767,7 @@ if(localStorage.getItem('rc_theme') === null){
     const g = cv.getContext('2d');
     g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
     const ligne = g.createImageData(w, 1);
-    const [_lo, _hi] = bornesContraste(dataArray);
+    const [_lo, _hi] = bornesContraste(dataArray, nBins);
     for(let x = 0; x < w; x++){
       const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
       const [r, gg, b] = couleurNiveau(remapContraste(dataArray[bin], _lo, _hi));
