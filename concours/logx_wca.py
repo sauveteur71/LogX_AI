@@ -155,6 +155,13 @@ def _load():
             except OSError as e:
                 print(f"[WCA] Ecriture cache impossible (non bloquant): {e}")
 
+        # Index de recherche plié (sans accents, minuscule) précalculé UNE fois :
+        # search_castles le refaisait pour les ~15-20k châteaux à CHAQUE frappe,
+        # sous le lock — coût O(n) par caractère tapé.
+        from logx_activation_db import strip_accents
+        for c in castles:
+            c['_name_folded'] = strip_accents(c.get('name', '')).lower()
+            c['_loc_folded'] = strip_accents(c.get('location', '')).lower()
         by_code = {c['code']: c for c in castles}
         with _lock:
             _state['by_code'] = by_code
@@ -207,9 +214,12 @@ def search_castles(query, limit=25):
         by_code_prefix = [it for it in items if it['code'].startswith(q_upper)]
         if len(by_code_prefix) >= limit:
             return by_code_prefix[:limit]
+        # Index plié précalculé au chargement (_load) : ne plus refaire
+        # strip_accents pour les ~15-20k châteaux à chaque frappe. Repli sûr si
+        # un item n'a pas (encore) son index.
         by_name = [it for it in items
-                   if q_folded in strip_accents(it['name']).lower()
-                   or q_folded in strip_accents(it['location']).lower()]
+                   if q_folded in (it.get('_name_folded') or strip_accents(it['name']).lower())
+                   or q_folded in (it.get('_loc_folded') or strip_accents(it['location']).lower())]
         seen = {it['code'] for it in by_code_prefix}
         merged = by_code_prefix + [it for it in by_name if it['code'] not in seen]
         return merged[:limit]
