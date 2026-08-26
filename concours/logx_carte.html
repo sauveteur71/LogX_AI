@@ -2515,9 +2515,20 @@ function renderActionCard(action){
   const lbl=document.createElement('div'); lbl.className='msg-lbl'; lbl.textContent='AGENT';
   const card=document.createElement('div'); card.className='bubble action-card';
   const cible=action.cible||'—';
-  const desc=(action.type==='rotor')
-    ? rcTf('🎯 Pointer l\'antenne à {az}° ({cible}) ?',{az:action.azimut,cible:cible})
-    : rcTf('📻 QSY sur {f} kHz {m} ({cible}) ?',{f:action.freq_khz,m:action.mode||'',cible:cible});
+  let desc;
+  if(action.type==='rotor'){
+    desc=rcTf('🎯 Pointer l\'antenne à {az}° ({cible}) ?',{az:action.azimut,cible:cible});
+  }else if(action.type==='filtre'){
+    const parts=[];
+    if((action.dx_continents||[]).length) parts.push(rcTf('DX : {c}',{c:action.dx_continents.join(', ')}));
+    if((action.spotter_continents||[]).length) parts.push(rcTf('spotteurs : {c}',{c:action.spotter_continents.join(', ')}));
+    desc=rcTf('🔭 Filtrer les spots — {f} ?',{f:parts.join(' · ')});
+  }else{
+    // ≈ signale une fréquence approximative (entrée de bande pour un mode sans
+    // fréquence d'appel, ex. CW/SSB) -- valeur seule, template i18n inchangé.
+    desc=rcTf('📻 QSY sur {f} kHz {m} ({cible}) ?',
+             {f:(action.approx?'≈':'')+action.freq_khz,m:action.mode||'',cible:cible});
+  }
   const head=document.createElement('div'); head.style.marginBottom='8px'; head.textContent=desc;
   const row=document.createElement('div'); row.style.cssText='display:flex;gap:8px';
   const yes=document.createElement('button'); yes.className='act-yes'; yes.textContent='✅ '+rcT('VALIDER');
@@ -2537,6 +2548,9 @@ async function execAction(action,card,yes,no){
       const b={azimuth:action.azimut};
       if(action.bande) b.bande=action.bande;
       r=await fetch('/rotor/point',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    }else if(action.type==='filtre'){
+      const b={dx_continents:action.dx_continents||[], spotter_continents:action.spotter_continents||[]};
+      r=await fetch('/spots/filter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
     }else{
       const b={freq_khz:action.freq_khz}; if(action.mode) b.mode=action.mode;
       r=await fetch('/rig/qsy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
@@ -2545,7 +2559,9 @@ async function execAction(action,card,yes,no){
     if(r.ok && res && res.ok!==false){
       card.textContent=(action.type==='rotor')
         ? '✅ '+rcTf('Antenne pointée à {az}°.',{az:action.azimut})
-        : '✅ '+rcTf('Radio sur {f} kHz.',{f:action.freq_khz});
+        : (action.type==='filtre')
+          ? '✅ '+rcT('Filtre des spots appliqué.')
+          : '✅ '+rcTf('Radio sur {f} kHz.',{f:action.freq_khz});
     }else{
       card.textContent='❌ '+((res&&res.error)||rcT('échec de la commande'));
     }
