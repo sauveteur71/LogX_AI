@@ -378,13 +378,26 @@ def _fft_radix2(x):
     return x
 
 
+_HANN_CACHE = {}
+
+
 def _hann_window(n):
     """Fenêtre de Hann standard, longueur `n` — réduit les fuites spectrales
     avant la FFT. n=1 est un cas dégénéré (jamais atteint avec
-    TCI_FFT_SIZE=4096) traité à part pour éviter une division par zéro."""
-    if n <= 1:
-        return [1.0] * n
-    return [0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1)) for i in range(n)]
+    TCI_FFT_SIZE=4096) traité à part pour éviter une division par zéro.
+
+    Mémoïsée par `n` : la fenêtre ne dépend que de la taille (constante à 4096),
+    la recalculer à chaque tci_compute_fft_line (poll ~500 ms) était un gâchis
+    CPU pur sur le hot path du panadapter. La liste renvoyée est en lecture
+    seule pour l'appelant (multiplication samples[i]*window[i])."""
+    w = _HANN_CACHE.get(n)
+    if w is None:
+        if n <= 1:
+            w = [1.0] * n
+        else:
+            w = [0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1)) for i in range(n)]
+        _HANN_CACHE[n] = w
+    return w
 
 
 def tci_compute_fft_line(samples):
