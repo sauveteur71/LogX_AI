@@ -544,6 +544,10 @@ function creditBadge(s){
   const cl = s.credit_classe;
   const lbl = CREDIT_LABELS[cl];
   if(!lbl) return '';
+  // Objectif décoché -> le serveur neutralise le crédit (score 0) : on masque
+  // le badge, sinon le profil d'objectifs n'aurait aucun effet visible sur le
+  // need-list (l'affichage doit refléter ce que l'opérateur chasse vraiment).
+  if(!(s.credit_score > 0)) return '';
   const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '');
   return `<span class="sr-credit-badge cr-${esc(cl)}" title="${esc(t)}">${lbl}</span>`;
 }
