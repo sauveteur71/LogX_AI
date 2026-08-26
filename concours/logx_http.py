@@ -5744,7 +5744,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     bump_log_version()
                     mark_hard_reset()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
-                self._json({'ok': True})
+                reponse = {'ok': True}
+                # Un secret n'a pas pu être chiffré et vient d'être écrit EN CLAIR
+                # dans .server_config.json : rare mais l'opérateur DOIT le savoir
+                # (repli assumé pour ne pas casser la sauvegarde, mais rendu
+                # visible — décision F4GLD 26/08/2026). Le client affiche ce
+                # champ en toast rouge (logx_configuration.js).
+                _echec_crypto = logx_crypto.echec_chiffrement_recent()
+                if _echec_crypto:
+                    reponse['secret_clair_avertissement'] = (
+                        "Un secret n'a pas pu être chiffré et a été enregistré EN CLAIR "
+                        "dans .server_config.json (%s). Protège ce fichier de config." % _echec_crypto)
+                self._json(reponse)
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
