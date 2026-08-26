@@ -136,7 +136,7 @@ def ouverture_par_bande(regions):
             # 55 % du meilleur score de la région pour une bande ouverte sans
             # chiffre propre : ouverte, mais pas la meilleure porte d'entrée.
             val = score if bb == meilleure else score * 0.55
-            out[bb] = (max(s, val), noms + [nom] if nom not in noms else noms)
+            out[bb] = (max(s, val), noms + [nom] if (nom and nom not in noms) else noms)
         if meilleure and meilleure not in out:
             out[meilleure] = (score, [nom] if nom else [])
     return out
