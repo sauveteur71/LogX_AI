@@ -41,10 +41,19 @@ def evaluate_rule(rule, spot):
         return False
 
     status = rule.get('status', 'any')
-    if status == 'new_mult' and not spot.get('new_mult'):
-        return False
-    if status == 'already_done' and not spot.get('already_done'):
-        return False
+    if status not in ('any', ''):
+        # Un critère de statut qu'on ne sait pas évaluer doit échouer FERMÉ :
+        # sinon une valeur inconnue (typo, ou futur enum ajouté à l'UI mais pas
+        # ici) traverse silencieusement le filtre et déclenche des alertes
+        # parasites (fail-open). On ne laisse passer que les statuts connus.
+        if status == 'new_mult':
+            if not spot.get('new_mult'):
+                return False
+        elif status == 'already_done':
+            if not spot.get('already_done'):
+                return False
+        else:
+            return False
 
     comment = (rule.get('comment_contains') or '').strip().lower()
     if comment and comment not in str(spot.get('info', '') or '').lower():
