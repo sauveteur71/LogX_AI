@@ -23,6 +23,7 @@ def _ctx():
     assert labels and fn, 'CREDIT_LABELS/creditBadge introuvables'
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("function esc(x){return String(x==null?'':x);}")   # stub
+    ctx.eval("function rcT(s){return s;}")                       # i18n passthrough (traduction testée ailleurs)
     ctx.eval(labels.group(0))
     ctx.eval(fn.group(0))
     return ctx
@@ -75,6 +76,16 @@ def test_objectif_desactive_attenue_le_badge():
     # objectif ACTIF (score > 0) : badge NORMAL, pas atténué
     hn = ctx.eval("creditBadge(%s)" % _spot('atno', 'x', 1000))
     assert 'cr-atno' in hn and 'cr-off' not in hn
+
+
+def test_libelles_passes_par_rcT_i18n():
+    # Les libellés dynamiques (badge crédit + case objectif) doivent passer par
+    # rcT() pour être traduits dans les 7 langues (sinon FR-only). La présence
+    # des traductions est garantie par test_i18n_complet.
+    src = _lire()
+    fn = re.search(r'function creditBadge\(.*?\n\}', src, re.S).group(0)
+    assert 'rcT(lbl)' in fn, 'le badge de crédit ne passe pas par rcT (FR-only)'
+    assert 'rcT(o.label)' in src, 'les cases Objectifs ne passent pas par rcT (FR-only)'
 
 
 def test_cable_dans_le_gabarit_et_css():
