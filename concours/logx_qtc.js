@@ -114,6 +114,13 @@ function removeQTCRow(i){
   renderQTCRows();
 }
 
+// Heure QTC valide = HHMM UTC sur 4 chiffres : HH 00-23, MM 00-59 (règlement
+// WAE). Sans ce contrôle, une saisie type '9999'/'abcd' partait telle quelle
+// dans le fichier de soumission.
+function _qtcHeureValide(t){
+  return /^([01]\d|2[0-3])[0-5]\d$/.test(String(t));
+}
+
 async function saveQTCSeries(){
   const direction = document.getElementById('qtcDirection')?.value || 'sent';
   const call = (document.getElementById('qtcPartner')?.value || '').toUpperCase().trim();
@@ -127,6 +134,11 @@ async function saveQTCSeries(){
   if(!entries.length){ notify('QTC refusé : aucune ligne saisie.'); return; }
   if(entries.some(e => !e.time || !e.call || !e.nr)){
     notify('QTC refusé : chaque ligne doit avoir heure + indicatif + n° (règlement WAE).');
+    return;
+  }
+  const heureKo = entries.find(e => !_qtcHeureValide(e.time));
+  if(heureKo){
+    notify('QTC refusé : heure « ' + heureKo.time + ' » invalide — format HHMM attendu (0000 à 2359).');
     return;
   }
   try{

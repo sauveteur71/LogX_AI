@@ -173,6 +173,51 @@ def test_saveQTCSeries_reinitialise_partenaire_et_sens_apres_enregistrement():
     assert ctx.eval("document.getElementById('qtcDirection').value") == 'sent'
 
 
+def test_qtcHeureValide_accepte_les_hhmm_valides():
+    """HHMM UTC : HH 00-23, MM 00-59 (règlement WAE)."""
+    ctx = _make_ctx()
+    for t in ('0000', '2359', '1301', '0030', '2300', '1259', '0959'):
+        assert ctx.eval("_qtcHeureValide(%r)" % t) is True, t
+
+
+def test_qtcHeureValide_rejette_les_invalides():
+    ctx = _make_ctx()
+    for t in ('9999', '2400', '1260', '130', '13011', 'abcd', '', '12h0', '2360'):
+        assert ctx.eval("_qtcHeureValide(%r)" % t) is False, t
+
+
+def test_saveQTCSeries_refuse_une_heure_invalide_avant_envoi():
+    """Une heure hors format ne doit JAMAIS atteindre /qtc/add (fichier de
+    soumission WAE) : saveQTCSeries rejette avant le fetch."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    window._fetchCount = 0;
+    fetch = function(){ window._fetchCount++; return Promise.resolve({ ok:true, json:function(){
+      return Promise.resolve({ok:true, total:1}); } }); };
+    document.getElementById('qtcPartner').value = 'YU1ZZ';
+    qtcRows = [{time:'9999', call:'YU1ZZ', nr:'62'}];
+    """)
+    ctx.eval("saveQTCSeries();")
+    ctx.eval("undefined")   # laisse les microtâches se vider
+    assert ctx.eval("window._fetchCount") == 0
+
+
+def test_saveQTCSeries_accepte_une_heure_valide():
+    ctx = _make_ctx()
+    ctx.eval("""
+    window._fetchCount = 0;
+    fetch = function(){ window._fetchCount++; return Promise.resolve({ ok:true, json:function(){
+      return Promise.resolve({ok:true, total:1}); } }); };
+    document.getElementById('qtcPartner').value = 'YU1ZZ';
+    qtcRows = [{time:'1301', call:'YU1ZZ', nr:'62'}];
+    """)
+    ctx.eval("saveQTCSeries();")
+    ctx.eval("undefined")
+    # Heure valide -> la série est envoyée (au moins l'appel /qtc/add ; un
+    # refreshQTC() suit sur succès, d'où >= 1 et pas == 1).
+    assert ctx.eval("window._fetchCount") >= 1
+
+
 def test_pas_de_qso_director():
     """Interdiction absolue (nom d'un concurrent) — jamais dans le code."""
     with open(JS_PATH, encoding='utf-8') as f:
