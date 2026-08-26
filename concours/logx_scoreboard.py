@@ -13,6 +13,8 @@ import os
 
 from logx_storage import qso_scope_id, cfg_scope_id, qtc_total
 from logx_utils import utcnow, post_url_form
+from logx_scoring import calc_total_score, count_mults
+from logx_definitions import CONTEST_DEFINITIONS
 
 _STAMP_FILE = 'scoreboard_sync.json'
 
@@ -42,50 +44,25 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
     entries = [q for q in (shared_log or [])
                if not scope_id or qso_scope_id(q) == scope_id]
     per_band = {}
-    score = 0
     for q in entries:
         pts = q.get('points', 0) or 0
-        score += pts
         b = str(q.get('band', '?'))
         pb = per_band.setdefault(b, {'qso': 0, 'points': 0})
         pb['qso'] += 1
         pb['points'] += pts
-    # WAE : le score = (points QSO + points QTC) × mults — les QTC vivent
-    # dans un journal séparé (qtc_log), jamais dans shared_log, donc jamais
-    # comptés par la boucle ci-dessus. Sans ceci, le score publié au tableau
-    # de bord externe omettait systématiquement les points QTC. No-op pour
-    # tout concours non-WAE (aucun QTC n'y est jamais journalisé).
-    score += qtc_total(scope_id)
 
-    # Multiplicateurs selon le barème réel du concours (voir
-    # logx_scoring.contest_geo_mode, qui lit le multiplicateur EFFECTIF —
-    # briques explicites 'bricks' OU preset 'type' legacy). Avant ce
-    # correctif, seul le 'type' legacy était consulté : tout concours dont le
-    # barème est déclaré en 'bricks' (aucune clé 'type' de premier niveau)
-    # retombait TOUJOURS sur le comptage de locators VHF, y compris pour un
-    # multiplicateur DXCC/zone/préfixe (style CQ WW/WPX) — publié tel quel au
-    # tableau de bord externe.
-    mults = 0
-    try:
-        from logx_scoring import contest_geo_mode
-        geo_mode = contest_geo_mode(contest_id)
-        if geo_mode == 'dept_dxcc':
-            from logx_departments import department_mult_count
-            mults = len(department_mult_count(shared_log, scope_id))
-        elif geo_mode == 'dxcc':
-            import logx_dxcc as dxcc
-            mults = len({dxcc.country_key(str(q.get('call', '')).split('/')[0].upper())
-                         for q in entries if q.get('call')})
-        else:
-            # 'dept'/'other' (locator, large_square, na_state, na_section...) :
-            # repli existant sur le carré locator 4 caractères -- correct pour
-            # un multiplicateur locator/large_square, approximatif pour
-            # na_state/na_section (pas de champ état/section fiable dans le
-            # log partagé), inchangé par rapport au comportement précédent.
-            mults = len({str(q.get('locator', ''))[:4] for q in entries
-                         if q.get('locator') and len(str(q.get('locator'))) >= 4})
-    except Exception:
-        pass
+    # SCORE FINAL RÉCLAMÉ, source CANONIQUE unique. Avant ce correctif, le score
+    # publié = somme des points QSO seuls (jamais × multiplicateurs, audit
+    # 22/08 :58) et le compte de mults venait d'un moteur DUPLIQUÉ (:33) qui
+    # divergeait du score — deux vérités incohérentes envoyées au tableau de
+    # bord externe. Désormais <score> et <mult> sortent tous deux de
+    # calc_total_score / count_mults (le MÊME moteur que Cabrillo CLAIMED-SCORE,
+    # /log/list, archive). QTC (WAE) : (points QSO + QTC) × mults — les QTC
+    # vivent dans un journal séparé, ajoutés AVANT multiplication via
+    # extra_points. No-op hors WAE (qtc_total renvoie 0).
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+    score = calc_total_score(entries, cdef, extra_points=qtc_total(scope_id))
+    mults = count_mults(entries, cdef)
 
     return {'contest': contest_id, 'score': score, 'qso': len(entries),
             'mults': mults, 'per_band': per_band}

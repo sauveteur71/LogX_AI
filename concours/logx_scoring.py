@@ -795,10 +795,26 @@ def calc_total_score(qsos, cdef, extra_points=0):
     WAE, 1 pt chacun — le règlement WAE définit le score comme
     (QSO + QTC) × multiplicateurs, pas QSO × mult + QTC après coup)."""
     raw_points = sum(q.get('points', 0) or 0 for q in qsos) + (extra_points or 0)
+    nb_mults = count_mults(qsos, cdef)
+    if nb_mults <= 0:
+        return raw_points   # pas de multiplicateur (VHF/THF distance, activations SOTA/POTA...)
+    return raw_points * nb_mults
+
+
+def count_mults(qsos, cdef):
+    """Nombre de multiplicateurs distincts travaillés selon le barème RÉEL du
+    concours (band-aware, pondéré par mult_weight_by_band), depuis la vraie
+    valeur REÇUE (voir _mult_entries). Rend 0 si le concours n'a AUCUN
+    multiplicateur (VHF distance, SOTA/POTA...).
+
+    SOURCE CANONIQUE UNIQUE : calc_total_score (multiplication finale) ET le
+    scoreboard externe (élément <mult> + <score>) s'appuient tous deux dessus.
+    Fin de la duplication du moteur de mult (audit 22/08 logx_scoreboard.py:33),
+    qui produisait un compte DIFFÉRENT du score — deux vérités incohérentes."""
     bricks = resolve_scoring_bricks((cdef or {}).get('scoring', {}) or {})
     mult = bricks.get('multiplier') if isinstance(bricks, dict) else None
     if not (isinstance(mult, dict) and mult.get('kind')):
-        return raw_points   # pas de multiplicateur (VHF/THF distance, activations SOTA/POTA...)
+        return 0
 
     kind = mult['kind']
     # 'rtty_ru' (ARRL RTTY Roundup) : multiplicateurs comptés UNE FOIS toutes
@@ -812,8 +828,7 @@ def calc_total_score(qsos, cdef, extra_points=0):
         for entry in _mult_entries(kind, q):
             bucket.add(entry)
 
-    nb_mults = sum(len(vals) * weights.get(band, 1) for band, vals in seen_by_band.items())
-    return raw_points * max(nb_mults, 1)
+    return sum(len(vals) * weights.get(band, 1) for band, vals in seen_by_band.items())
 
 
 def contest_geo_mode(contest_id):
