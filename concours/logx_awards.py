@@ -21,6 +21,7 @@ import json
 import os
 import threading
 import time
+import logx_award_credit as _award_credit
 from logx_utils import utcnow, _spot_call_freq
 
 TTL = 120
@@ -167,6 +168,13 @@ def _load_confirmations():
 
 def _confirm_key(q):
     return f"{str(q.get('call','')).upper().strip()}|{q.get('band','')}|{str(q.get('mode','')).upper()}"
+
+
+def _credite_pour(srcs, award_id):
+    """Une des sources de confirmation de ce QSO (dict {source: …}) crédite-t-elle
+    CE diplôme, selon la matrice d'accréditation sourcée ? Sert à ne PAS créditer
+    un diplôme ARRL (DXCC…) avec une confirmation eQSL, non acceptée par l'ARRL."""
+    return any(_award_credit.credite(award_id, s) for s in srcs)
 
 
 # ─── HISTORIQUE D'UNE STATION (panneau « déjà contacté ») ─────────────────────
@@ -872,17 +880,27 @@ def award_summary(shared_log=None):
     squares_par_bande = {}                     # bande -> set de carrés
     challenge_w, challenge_c = set(), set()    # couples (entité, bande)
     for q in qsos:
-        is_conf = bool(conf.get(_confirm_key(q)))
+        srcs = conf.get(_confirm_key(q)) or {}   # {source: date|True}
+        is_conf = bool(srcs)                      # confirmé par un service quelconque
         total_conf += 1 if is_conf else 0
+        # Diplômes ARRL (sourcé arrl.org/e-qsl-policy) : n'acceptent que LoTW +
+        # papier, jamais eQSL -> crédit évalué par la matrice d'accréditation.
+        # CQ (WAZ/WAZ ITU), DX-Field et départements restent en « confirmé tous
+        # services » tant que leur règle d'accréditation eQSL n'est pas sourcée.
+        conf_dxcc = _credite_pour(srcs, 'ARRL_DXCC')
+        conf_chal = _credite_pour(srcs, 'ARRL_DXCC_CHALLENGE')
+        conf_wac = _credite_pour(srcs, 'ARRL_WAC')
+        conf_was = _credite_pour(srcs, 'ARRL_WAS')
+        conf_vucc = _credite_pour(srcs, 'ARRL_VUCC')
         c = q.get('dxcc_country')
         b = str(q.get('band', '?'))
         if c:
             countries_w.add(c)
-            if is_conf:
+            if conf_dxcc:
                 countries_c.add(c)
             if b in CHALLENGE_BANDS:
                 challenge_w.add((c, b))
-                if is_conf:
+                if conf_chal:
                     challenge_c.add((c, b))
         d = q.get('dept')
         if d:
@@ -893,7 +911,7 @@ def award_summary(shared_log=None):
             conts.add(q['continent'])
             if q['continent'] in WAC_CONTINENTS:
                 conts_w.add(q['continent'])
-                if is_conf:
+                if conf_wac:
                     conts_c.add(q['continent'])
         if q.get('cq_zone'):
             zones.add(q['cq_zone'])
@@ -909,7 +927,7 @@ def award_summary(shared_log=None):
             st = 'MD'   # DC n'a pas de slot WAS propre, voir commentaire US_STATES
         if st in US_STATES:
             states_w.add(st)
-            if is_conf:
+            if conf_was:
                 states_c.add(st)
         champ = _grid(q, 2)
         if champ:
@@ -920,7 +938,7 @@ def award_summary(shared_log=None):
         if carre:
             squares_w.add(carre)
             squares_par_bande.setdefault(b, set()).add(carre)
-            if is_conf:
+            if conf_vucc:
                 squares_c.add(carre)
         pb = per_band.setdefault(b, {'qso': 0, 'dxcc': set()})
         pb['qso'] += 1
