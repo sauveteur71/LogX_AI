@@ -119,9 +119,14 @@ construite de bout en bout pour valider le modèle avant de dérouler les autres
 Si le modèle ne tient pas, on l'aura su au prix d'une activité, pas de dix-neuf
 pages refaites.
 
-**Préalable technique connu** : les 19 pages HTML redéfinissent CHACUNE leur
-propre palette de couleurs, il n'existe aucun fichier CSS partagé. Toute
-refonte visuelle qui ne commence pas par mutualiser ça se paiera 19 fois.
+**Préalable technique — FAIT (mutualisation CSS, PR #342, 2026-08-26)** : les
+tokens de thème (« graphite & cuivre ») vivaient dupliqués dans le `:root`/
+`body.day-mode` de chaque page ; ils sont désormais dans **UN SEUL fichier
+partagé `concours/logx_theme.css`** (noyau nuit + jour), chargé par les 20
+pages via `<link>`. Toute évolution de la palette se fait maintenant à UN seul
+endroit. Verrouillé par `tests/test_css_mutualise.py` (aucune page ne
+re-duplique un token du noyau). Les pages ne gardent en local que leurs extras
+réels et leurs règles `body.day-mode .composant{}`.
 - Le chemin critique lui-même (indicatif, sélection d'un concours déjà
   connu, saisie bande/mode/callsign/RST/échange, bouton d'enregistrement du
   QSO, navigation CONFIG↔LOGBOOK) ne doit JAMAIS être cachable, quel que soit
@@ -375,9 +380,13 @@ information utile reste hors champ ou tassée. L'objectif est la
 
 ## Avant de toucher une nouvelle page
 
-1. Lire son bloc `:root`/`body.day-mode` existant — chaque page HTML de
-   `concours/` duplique sa propre copie des tokens (pas de fichier CSS
-   partagé).
+1. Les tokens du noyau (`--bg`, `--accent`, `--muted`, `--text`, `--green`…)
+   sont MUTUALISÉS dans `concours/logx_theme.css` (nuit `:root` + jour
+   `body.day-mode`) — les modifier là, jamais dans une page. Une page ne garde
+   en local que ses extras réels ; son bloc `:root` local (s'il existe) ne doit
+   PAS redéfinir un token du noyau (test_css_mutualise.py le vérifie). Nom des
+   polices disponibles sous alias : `--font`/`--font-main`/`--sans` et
+   `--font-mono`/`--mono`.
 2. Grep les hex `#00D4FF`/`#FF5030` (et `rgba(0,212,255,`/`rgba(255,80,48,`)
    AVANT de les toucher, et vérifier le contexte de chaque groupe de
    résultats — distinguer thème UI vs donnée de catégorisation (voir piège
