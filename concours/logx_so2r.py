@@ -359,15 +359,24 @@ def deverrouiller_tx(radio, source=None):
 
 
 def tx_actif():
-    """État courant du verrou, pour diagnostic (/so2r/state) — lecture seule."""
+    """État courant du verrou — pour diagnostic (/so2r/state) ET pour cibler la
+    radio du STOP matériel (logx_http /rig/stop lit ['radio']). Lecture seule.
+
+    Applique la MÊME expiration que verrouiller_tx() : un verrou périmé
+    (TX_LOCK_TIMEOUT_S dépassé) est traité comme LIBRE (radio=None). Sans ça,
+    /so2r/state affichait une radio « en émission » alors que le verrou était en
+    réalité déjà relâché, et /rig/stop ciblait cette radio périmée au lieu du
+    focus courant."""
     with _tx_lock:
-        return {'radio': _tx_radio,
-                'depuis_s': round(time.monotonic() - _tx_armee_a, 1) if _tx_radio else 0}
+        actif = (_tx_radio is not None
+                 and (time.monotonic() - _tx_armee_a) < TX_LOCK_TIMEOUT_S)
+        return {'radio': _tx_radio if actif else None,
+                'depuis_s': round(time.monotonic() - _tx_armee_a, 1) if actif else 0}
 
 
 def reinitialiser():
     """Remet l'état à neuf — utilisé par les tests."""
-    global _focus, _ecoute, _tx_radio, _tx_armee_a
+    global _focus, _ecoute, _tx_radio, _tx_armee_a, _tx_source
     with _lock:
         _focus = 1
         _ecoute = 'RX1S'
@@ -375,3 +384,4 @@ def reinitialiser():
     with _tx_lock:
         _tx_radio = None
         _tx_armee_a = 0.0
+        _tx_source = ''   # invariant : pas de source sans verrou

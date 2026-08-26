@@ -219,3 +219,13 @@ def test_maybe_apply_band_rejoue_si_la_bande_change():
     r2 = relay.maybe_apply_band(cfg, '7', urlopen=fake_urlopen_factory(calls))
     assert not r2.get('skipped')
     assert len(calls) > n_apres_premier
+
+
+def test_relay_settings_baud_count_non_numeriques_ne_levent_pas():
+    """Audit BASSE 739 : int(relay_baud)/int(relay_count) non protégés — une
+    config corrompue (valeur non-numérique) faisait lever ValueError, en
+    contradiction avec le contrat module « jamais d'exception vers le serveur
+    HTTP ». On retombe sur les valeurs par défaut."""
+    s = relay.relay_settings({'relay_baud': 'abc', 'relay_count': 'xyz'})
+    assert s['baud'] == relay.RELAY_DEFAULT_BAUD
+    assert s['relay_count'] == 4
