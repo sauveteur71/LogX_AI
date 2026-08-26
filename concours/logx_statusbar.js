@@ -939,6 +939,45 @@
     }).catch(function(){});
   }
 
+  // ── Contraste élevé GLOBAL (accessibilité — « auto + manuel », F4GLD) ──────
+  // Résolution : un réglage EXPLICITE (localStorage rc_contrast = 'high'/'normal')
+  // prime ; sinon on suit la préférence SYSTÈME (prefers-contrast: more). La
+  // classe body.high-contrast pilote les tokens haut-contraste de logx_theme.css
+  // (superposés au jour comme à la nuit). Le manuel OFF surpasse donc l'auto ON.
+  function contrasteEleve(){
+    var v = localStorage.getItem('rc_contrast');
+    if (v === 'high') return true;
+    if (v === 'normal') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-contrast: more)').matches);
+  }
+  function applyContraste(){
+    document.body.classList.toggle('high-contrast', contrasteEleve());
+    var b = document.getElementById('contrastToggle');
+    if (b) b.setAttribute('aria-pressed', contrasteEleve() ? 'true' : 'false');
+  }
+  applyContraste();
+  window.addEventListener('storage', function(e){
+    if (e.key === 'rc_contrast') applyContraste();
+  });
+  if (window.matchMedia){
+    // Suivre EN DIRECT un changement du réglage OS, tant que l'utilisateur n'a
+    // pas fait de choix manuel explicite (rc_contrast absent).
+    var _mq = window.matchMedia('(prefers-contrast: more)');
+    var _onMq = function(){ if (localStorage.getItem('rc_contrast') === null) applyContraste(); };
+    if (_mq.addEventListener) _mq.addEventListener('change', _onMq);
+    else if (_mq.addListener) _mq.addListener(_onMq);   // Safari ancien
+  }
+  // API publique pour un bouton/réglage (CONFIG) : bascule et persiste.
+  window.LogxContraste = {
+    actif: contrasteEleve,
+    basculer: function(){
+      var nouveau = contrasteEleve() ? 'normal' : 'high';
+      localStorage.setItem('rc_contrast', nouveau);
+      applyContraste();
+      return nouveau === 'high';
+    }
+  };
+
   // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
   // Toutes les pages masquent leurs éléments .expert-only en mode simple ;
   // la page config gère son propre défaut, ici on applique juste le choix.
