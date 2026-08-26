@@ -2913,9 +2913,22 @@ let originalTabTitle = document.title;
 let titleFlashTimer = null;
 const ALERT_COOLDOWN_MS = 20 * 60 * 1000; // ne pas re-signaler le même call avant 20 min
 
+// Contexte audio unique et partagé par tous les sons d'alerte : un
+// `new AudioContext()` par son fuyait le pool du navigateur (~6 max sous
+// Chrome) sur une veille DX longue, jusqu'à ce que le constructeur lève et
+// coupe tout son. On le crée à la demande et on le réveille s'il est suspendu.
+let _alertAudioCtx = null;
+function alertAudioCtx(){
+  if(!_alertAudioCtx){
+    _alertAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  }
+  if(_alertAudioCtx.state === 'suspended'){ try{ _alertAudioCtx.resume(); }catch(e){} }
+  return _alertAudioCtx;
+}
+
 function playAlertSound(){
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = alertAudioCtx();
     [880, 1046].forEach((freq, i) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
@@ -3061,7 +3074,7 @@ function alertBeep(kind){
   const s = alertSettings();
   if(!s.on || s.vol <= 0) return;
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = alertAudioCtx();
     const notes = kind==='mult' ? [880,1320] : kind==='mention' ? [660,880,1100] : [700];
     notes.forEach((f,i)=>{
       const o=ctx.createOscillator(), g=ctx.createGain();
