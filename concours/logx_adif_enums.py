@@ -39,6 +39,13 @@ def band_from_freq(freq):
         mhz = float(str(freq).replace(',', '.'))
     except (ValueError, TypeError):
         return ''
+    # Les intervalles sont FERMÉS (lo <= f <= hi) pour préserver le classement
+    # des fréquences situées exactement sur une borne SUPÉRIEURE de bande non
+    # suivie d'une bande contiguë (ex. 14,35 MHz doit rester « 20m »). Ne PAS
+    # passer en intervalles semi-ouverts globaux : ça ferait disparaître ces
+    # fréquences-bornes. Le seul chevauchement possible (6m/5m à 54 MHz) est
+    # évité par le seuil 54.000001 de la table ADIF_BANDS : 54,000000 → 6m,
+    # 54,000001 → 5m ; le trou théorique de 1 Hz est négligeable en pratique.
     for band, (lo, hi) in ADIF_BANDS.items():
         if lo <= mhz <= hi:
             return band
