@@ -44,5 +44,6 @@ def test_activation_summary_endpoint(server, monkeypatch):
     ])
     status, data = _get(server, '/activation/summary')
     assert status == 200
-    assert data['POTA'] == {'activated': 2, 'hunted': 0}
-    assert data['SOTA'] == {'activated': 0, 'hunted': 1}
+    assert data['POTA']['activated'] == 2 and data['POTA']['hunted'] == 0
+    assert data['POTA']['activated_refs'] == ['FR-0123', 'FR-0456']
+    assert data['SOTA']['hunted'] == 1 and data['SOTA']['hunted_refs'] == ['F/AB-001']

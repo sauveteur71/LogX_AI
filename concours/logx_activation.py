@@ -251,5 +251,7 @@ def activation_summary(shared_log):
     out = {}
     for p in prog_keys:
         if activated[p] or hunted[p]:
-            out[p] = {'activated': len(activated[p]), 'hunted': len(hunted[p])}
+            out[p] = {'activated': len(activated[p]), 'hunted': len(hunted[p]),
+                      'activated_refs': sorted(activated[p]),
+                      'hunted_refs': sorted(hunted[p])}
     return out

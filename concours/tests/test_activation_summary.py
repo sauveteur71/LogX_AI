@@ -20,8 +20,11 @@ def test_compte_references_uniques_activees_et_chassees():
         {'call': 'X'},                                    # QSO ordinaire
     ]
     s = activation.activation_summary(log)
-    assert s['POTA'] == {'activated': 2, 'hunted': 1}
-    assert s['SOTA'] == {'activated': 0, 'hunted': 1}
+    assert s['POTA']['activated'] == 2 and s['POTA']['hunted'] == 1
+    assert s['POTA']['activated_refs'] == ['FR-0123', 'FR-0456']   # triées, uniques
+    assert s['POTA']['hunted_refs'] == ['US-1111']
+    assert s['SOTA'] == {'activated': 0, 'hunted': 1,
+                         'activated_refs': [], 'hunted_refs': ['F/AB-001']}
     assert 'IOTA' not in s   # aucun programme sans activité
 
 
