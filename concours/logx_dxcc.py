@@ -55,14 +55,20 @@ def _parse_alias(alias, base):
 
 def load_cty(path=None):
     """Charge cty.dat. Silencieusement dégradé si absent (repli heuristique)."""
-    global _loaded, _db_status
+    global _loaded, _db_status, _PREFIXES, _EXACT
     path = path or CTY_FILE
     if not os.path.exists(path):
         # Pas d'heuristique : lookup() renverra None pour tout indicatif. On le
-        # dit honnêtement au lieu de promettre un repli inexistant.
+        # dit honnêtement au lieu de promettre un repli inexistant. On VIDE
+        # aussi les tables ET le cache : sinon un rechargement après disparition
+        # de cty.dat laisserait des résolutions périmées (indicatif déjà mis en
+        # cache) alors que la base est désormais indisponible.
         print(f"[DXCC] {path} absent — résolution DXCC désactivée")
+        _PREFIXES, _EXACT = {}, {}
         _db_status = 'database_missing'
         _loaded = True
+        with _lookup_cache_lock:
+            _lookup_cache.clear()
         return
     new_prefixes, new_exact = {}, {}
     try:
@@ -108,8 +114,7 @@ def load_cty(path=None):
         # partiel, contrairement à clear()+update() qui laisse une fenêtre
         # entre les deux appels. Aucun autre module n'importe _PREFIXES/_EXACT
         # par référence (vérifié par grep) : la réaffectation ne casse aucun
-        # alias externe.
-        global _PREFIXES, _EXACT
+        # alias externe. (_PREFIXES/_EXACT déjà déclarés global en tête.)
         _PREFIXES = new_prefixes
         _EXACT = new_exact
         # Fichier présent mais ne produisant aucune entrée = illisible/tronqué,
