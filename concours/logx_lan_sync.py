@@ -39,12 +39,20 @@ _HTTP_PORT = 8080           # port HTTP réel de CE serveur (annoncé dans le be
 
 # Identifiant de CETTE machine — réutilise celui de cloudsync (persistant, unique
 # par installation) pour qu'un poste ne se synchronise jamais avec lui-même.
+_MY_IID = [None]   # cache : l'identifiant machine ne change pas dans une session
+
+
 def _my_iid():
-    try:
-        import logx_cloudsync as cs
-        return cs._instance_id()
-    except Exception:
-        return 'local'
+    # Relire l'iid sur DISQUE (cloudsync._instance_id) à chaque paquet UDP reçu
+    # (note_beacon) était un coût inutile et une surface d'amplification sous
+    # flood broadcast. On le lit une seule fois puis on le garde en mémoire.
+    if _MY_IID[0] is None:
+        try:
+            import logx_cloudsync as cs
+            _MY_IID[0] = cs._instance_id()
+        except Exception:
+            _MY_IID[0] = 'local'
+    return _MY_IID[0]
 
 
 def _lan_enabled(cfg):
