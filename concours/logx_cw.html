@@ -285,8 +285,16 @@ async function rejouer(){
   await jouer(texte, wpm, hz);
 }
 
-function valider(){
-  if(!enCours) return;
+// Garde de ré-entrance : passer() est ASYNC (await jouer = audio). Sans garde,
+// une 2e Entrée pendant la lecture de la station suivante (déjà avancée par
+// idx++) la validait avec le champ VIDE -> notée faux + station sautée + son
+// chevauché (audit 22/08 logx_cw.html:288). On bloque toute nouvelle validation
+// tant que la précédente (audio compris) n'est pas terminée.
+let _validation = false;
+async function valider(){
+  if(!enCours || _validation) return;
+  _validation = true;
+  try{
   const s = document.getElementById('saisie');
   const saisie = s.value.trim();
   reponses.push(saisie);
@@ -307,7 +315,8 @@ function valider(){
   }
   s.value = '';
   idx++;
-  passer();
+  await passer();
+  }finally{ _validation = false; }
 }
 
 function arreter(){
