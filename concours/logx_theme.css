@@ -30,3 +30,24 @@ body.day-mode {
   --green:#007030; --red:#CC0030; --yellow:#7A5A00; --purple:#8040B0; --orange:#B35900;
   --text:#232320; --muted:#665F55;
 }
+
+/* ── THÈME HAUT-CONTRASTE (accessibilité, décision F4GLD « auto + manuel ») ──
+ * Se superpose au jour ET à la nuit. La classe body.high-contrast est posée par
+ * logx_statusbar.js, qui résout « auto + manuel » : réglage explicite
+ * (localStorage rc_contrast) prioritaire, sinon prefers-contrast du système.
+ * Objectif : ratios WCAG AAA — fonds quasi-purs, texte maximal, --muted remonté
+ * (fini le gris atténué), bordures vives, cuivre éclairci (nuit) / assombri
+ * (jour) pour tenir le contraste sur le fond. --accent2 = --accent (accent
+ * unique) ; --accent-rgb suit pour les rgba(). */
+body.high-contrast {
+  --bg:#000000; --bg2:#0B0B0C; --bg3:#191A1C; --border:#FFFFFF;
+  --accent:#FFB454; --accent2:#FFB454; --accent-rgb:255,180,84;
+  --green:#38FF9A; --red:#FF7A7A; --yellow:#FFE44D; --purple:#DDA8FF; --orange:#FFB454;
+  --text:#FFFFFF; --muted:#EDEDED;
+}
+body.high-contrast.day-mode {
+  --bg:#FFFFFF; --bg2:#F4F4F4; --bg3:#E6E6E6; --border:#000000;
+  --accent:#6B3800; --accent2:#6B3800; --accent-rgb:107,56,0;
+  --green:#004D1F; --red:#960018; --yellow:#4A3A00; --purple:#4E1C7A; --orange:#8A4500;
+  --text:#000000; --muted:#1A1A1A;
+}
