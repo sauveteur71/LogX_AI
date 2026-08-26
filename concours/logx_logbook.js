@@ -4465,6 +4465,14 @@ function initBroadcastChannel(){
         try{ renderLog(); }catch(e){}
         try{ updateStats(); }catch(e){}
       }
+    } else if(type === 'update'){
+      // Édition d'un QSO sur un autre poste : on remplace l'entrée locale.
+      const i = qsoLog.findIndex(q => q.id === data.id);
+      if(i >= 0){
+        qsoLog[i] = data;
+        try{ renderLog(); }catch(e){}
+        try{ updateStats(); }catch(e){}
+      }
     } else if(type === 'prefill_call'){
       // Émis par logx_panadapter.html au clic sur un repère de spot superposé
       // au spectre (fenêtre DÉTACHÉE, pas d'accès direct au DOM de cette page
