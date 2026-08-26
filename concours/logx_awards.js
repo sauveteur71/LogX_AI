@@ -221,6 +221,7 @@ async function showAwards(){
         <button class="export-btn" onclick="qslAction('upload','cloudlog',this)" ${q.cloudlog?'':'disabled title="Configure Cloudlog/Wavelog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ Cloudlog/Wavelog</button>
         <button class="export-btn" onclick="qslAction('upload','lotw',this)" ${q.lotw_upload?'':'disabled title="Configure la Station Location TQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ LoTW</button>
         <button class="export-btn" onclick="qslAction('sync','lotw',this)" ${q.lotw?'':'disabled title="Configure LoTW dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations LoTW</button>
+        <button class="export-btn" onclick="qslAction('sync','eqsl',this)" ${q.eqsl?'':'disabled title="Configure eQSL dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations eQSL</button>
       </div>
       <div id="qslResult" style="margin-top:10px;color:var(--muted);font-size:12px">${qslLastSync(q)}</div>
       <div style="margin-top:8px;font-size:11px;color:var(--muted)">Identifiants des services : CONFIG → étape PROPAGATION → « QSL & DIPLÔMES ». Stockés côté serveur.</div>
@@ -237,6 +238,7 @@ function qslLastSync(q){
   if(l.cloudlog_upload) bits.push('Cloudlog/Wavelog envoyé le ' + l.cloudlog_upload);
   if(l.lotw_upload) bits.push('LoTW envoyé le ' + l.lotw_upload);
   if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
+  if(l.eqsl) bits.push('eQSL synchro le ' + l.eqsl);
   return bits.length ? bits.join(' · ') : 'aucune synchro encore';
 }
 

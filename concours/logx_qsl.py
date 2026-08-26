@@ -286,6 +286,59 @@ def sync_lotw(cfg, since=None):
             'newly_added': added, 'total_confirmations': total}
 
 
+# ─── eQSL : téléchargement des confirmations (Inbox) ─────────────────────────
+def _http_get(url, timeout=20):
+    """GET texte via l'executor réseau. Isolé pour être injecté par les tests
+    (aucune vraie requête réseau dans la suite)."""
+    def _do():
+        req = urllib.request.Request(url, headers={'User-Agent': 'LogXAI'})
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx()) as r:
+            return r.read().decode('utf-8', 'replace')
+    return _NET_EXECUTOR.submit(_do).result(timeout=timeout + 3)
+
+
+def sync_eqsl(cfg, since=None):
+    """Descend l'Inbox eQSL (QSO confirmés) et met à jour les confirmations.
+    `since` = 'YYYYMMDDHHMM' (optionnel -> RcvdSince).
+
+    Flux en 2 temps (≠ LoTW) : DownloadInBox.cfm renvoie une PAGE HTML contenant
+    un lien vers un fichier .adi (persistant quelques heures), pas l'ADIF
+    directement — source : doc officielle eQSL DownloadInBox.txt."""
+    s = qsl_settings(cfg)
+    if not s['eqsl_enabled']:
+        return {'ok': False, 'error': 'eQSL non configuré (CONFIG → QSL)'}
+    params = {
+        'UserName': s['eqsl_user'], 'Password': s['eqsl_password'],
+        'ConfirmedOnly': '1', 'HamOnly': '1',
+    }
+    if since:
+        params['RcvdSince'] = since
+    url = 'https://www.eqsl.cc/qslcard/DownloadInBox.cfm?' + urllib.parse.urlencode(params)
+    try:
+        html = _http_get(url)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': 'eQSL injoignable : délai dépassé'}
+    except Exception as e:
+        return {'ok': False, 'error': f'eQSL injoignable : {e}'}
+    # Un download prêt = un lien vers un .adi. Son absence = identifiants
+    # refusés, compte non activé, ou rien à descendre : échec propre, jamais
+    # une exception (contrat identique aux autres lectures QSL).
+    m = re.search(r'href="([^"]+\.adi)"', html, re.IGNORECASE)
+    if not m:
+        return {'ok': False, 'service': 'eQSL',
+                'error': re.sub(r'<[^>]+>', ' ', html)[:200].strip() or 'Réponse eQSL sans fichier'}
+    adi_url = urllib.parse.urljoin('https://www.eqsl.cc/qslcard/', m.group(1))
+    try:
+        adif = _http_get(adi_url)
+    except Exception as e:
+        return {'ok': False, 'service': 'eQSL', 'error': f'Téléchargement ADIF eQSL échoué : {e}'}
+    conf = parse_confirmations(adif, 'eqsl')
+    total, added = merge_confirmations(conf)
+    _stamp('eqsl')
+    return {'ok': True, 'service': 'eQSL', 'confirmed_downloaded': len(conf),
+            'newly_added': added, 'total_confirmations': total}
+
+
 # ─── LoTW : upload signé (tqsl, pilotage silencieux) ─────────────────────────
 # Flags vérifiés le 16/08/2026 contre la doc officielle ARRL (lotw.arrl.org/
 # lotw-help/cmdline, www.arrl.org/command-1, changelog TQSL) et le guide
