@@ -60,19 +60,42 @@ def _lan_token(cfg):
     return str((cfg or {}).get('lan_sync_token', '') or '')
 
 
-def _discovery_proof(cfg):
+# Preuve HORODATÉE : granularité de la fenêtre temporelle (secondes). La preuve
+# est recalculée à chaque créneau -> une preuve sniffée expire au créneau suivant.
+_FENETRE_S = 30
+
+
+def _discovery_proof(cfg, fenetre=None):
     """Dérivé du jeton d'équipe, mis dans le beacon UDP BROADCAST (donc lisible
     par tout appareil du réseau — visiteur WiFi inclus) pour filtrer la liste
     de pairs découverts. Volontairement DIFFÉRENT de _lan_token() : le jeton
     réel ne doit jamais transiter en clair sur le réseau, seulement une
-    preuve de possession à sens unique (HMAC-SHA256, non inversible) — un
-    visiteur qui sniffe le beacon obtient cette preuve, pas le jeton, et ne
-    peut donc pas l'utiliser pour s'authentifier sur /log/lan/export."""
+    preuve de possession à sens unique (HMAC-SHA256, non inversible).
+
+    ANTI-REJEU (audit :100) : le message haché inclut le CRÉNEAU temporel
+    (`fenetre` = time // _FENETRE_S). La preuve change donc à chaque créneau de
+    30 s ; une preuve sniffée sur le beacon et REJOUÉE plus tard n'est plus
+    valable. Avant, le message était constant -> preuve fixe rejouable pour
+    toujours. `fenetre` explicite = injectable par les tests (déterministe)."""
     token = _lan_token(cfg)
     if not token:
         return ''
+    if fenetre is None:
+        fenetre = int(time.time() // _FENETRE_S)
     import hmac as _hmac
-    return _hmac.new(token.encode('utf-8'), b'logx-lan-discovery', 'sha256').hexdigest()
+    msg = ('logx-lan-discovery:%d' % int(fenetre)).encode('utf-8')
+    return _hmac.new(token.encode('utf-8'), msg, 'sha256').hexdigest()
+
+
+def _proofs_acceptables(cfg, maintenant=None):
+    """Ensemble des preuves qu'un récepteur accepte MAINTENANT : créneau courant
+    ET ±1 (tolérance de décalage d'horloge entre postes). Vide si aucun jeton
+    configuré (LAN de confiance ouvert, comportement historique)."""
+    if not _lan_token(cfg):
+        return set()
+    maintenant = time.time() if maintenant is None else maintenant
+    w = int(maintenant // _FENETRE_S)
+    return {_discovery_proof(cfg, w + d) for d in (-1, 0, 1)}
 
 
 def _my_beacon(cfg):
@@ -97,8 +120,16 @@ def note_beacon(ip, raw, expected_token=''):
         return
     if not isinstance(d, dict) or d.get('logx') != 1:
         return
-    if expected_token and str(d.get('token') or '') != expected_token:
-        return                       # pair sans le jeton partagé configuré : ignoré
+    # expected_token : '' / ensemble vide -> ouvert (LAN de confiance) ; une
+    # chaîne (rétro-compat) OU un ENSEMBLE de preuves acceptables (créneau
+    # courant ±1, anti-rejeu -- voir _proofs_acceptables). On refuse tout beacon
+    # dont la preuve n'est dans aucun créneau valide.
+    if isinstance(expected_token, str):
+        attendus = {expected_token} if expected_token else set()
+    else:
+        attendus = {t for t in (expected_token or ()) if t}
+    if attendus and str(d.get('token') or '') not in attendus:
+        return                       # preuve absente/périmée/erronée : ignoré
     iid = str(d.get('iid') or '')
     if not iid or iid == _my_iid():
         return                       # notre propre beacon (diffusion revient à nous)
@@ -258,7 +289,7 @@ def _run():
         # Écoute (bornée par settimeout) — met à jour le registre des pairs
         try:
             raw, addr = sock.recvfrom(2048)
-            note_beacon(addr[0], raw, expected_token=_discovery_proof(cfg))
+            note_beacon(addr[0], raw, expected_token=_proofs_acceptables(cfg))
         except socket.timeout:
             pass
         except Exception:
