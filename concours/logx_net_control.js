@@ -41,9 +41,31 @@
     return s;
   }
 
+  // Liste canonique de bandes (miroir de logx_logbook.js ALL_BANDS) pour le
+  // <select> de création de réseau — valeurs SOURCÉES, pas inventées.
+  var BANDES = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70',
+                '144','432','1296','2320','3400','5760','10368','24048','47088'];
+
+  // Une station au micro -> un VRAI QSO pour le carnet UNIQUE. Bande/mode/fréq
+  // viennent du réseau ; RST par défaut (report de courtoisie 59) ; commentaire
+  // tagué. date/heure sont estampillées côté serveur (add_qso_to_log). PUR et
+  // testable : le POST /log/add est fait par la couche navigateur.
+  function construireQso(call, net){
+    net = net || {};
+    return {
+      call: _norm(call),
+      band: net.bande || '',
+      mode: net.mode || 'SSB',        // un réseau est phonie par défaut
+      freq: net.freq || '',
+      rst_sent: '59', rst_rcvd: '59',
+      comment: 'Réseau' + (net.nom ? ' ' + net.nom : ''),
+    };
+  }
+
   var NetControl = {
     mettreALAir: mettreALAir, retirerDeLAir: retirerDeLAir,
     passerAuSuivant: passerAuSuivant, loguerCourant: loguerCourant,
+    construireQso: construireQso, BANDES: BANDES,
   };
   global.NetControl = NetControl;
   if(typeof module !== 'undefined' && module.exports) module.exports = NetControl;
@@ -94,10 +116,56 @@
     return _post('/nets/roster/remove', {net_id:_netId, call:call}).then(function(){ return chargerNets(); });
   }
 
+  // ── Notification légère (barre d'état) ──────────────────────────────────
+  function notify(msg, kind){
+    var el = document.getElementById('netStatus');
+    if(!el) return;
+    el.textContent = msg;
+    el.className = 'net-status' + (kind ? ' ' + kind : '');
+  }
+
   // ── Actions session (client) ────────────────────────────────────────────
   function alAir(call){ _session = mettreALAir(_session, call); rendre(); }
-  function loguerEtSuivant(){ _session = loguerCourant(_session); rendre(); }
   function passer(){ _session = passerAuSuivant(_session); rendre(); }
+
+  // Enregistre UNE station dans le carnet UNIQUE via /log/add (même chemin que
+  // la saisie normale : dédup, ids, portée, persistance). Résout à true si le
+  // QSO est entré (ok OU déjà présent = 409), false sur vraie erreur.
+  function _loguerQso(call){
+    var net = netCourant();
+    return _post('/log/add', construireQso(call, net)).then(function(r){
+      return !!(r && (r.ok || r.duplicate));
+    }).catch(function(){ return false; });
+  }
+
+  // Loguer la station AU MICRO puis passer au suivant — le geste central.
+  function loguerEtSuivant(){
+    var call = _session.on_air[0];
+    if(!call) return;
+    notify('Enregistrement de ' + call + '…');
+    _loguerQso(call).then(function(ok){
+      _session = loguerCourant(_session);      // sort de la file quoi qu'il arrive
+      rendre();
+      notify(ok ? (call + ' logué au carnet ✓') : ('⚠ ' + call + ' non logué (erreur serveur)'),
+             ok ? 'ok' : 'err');
+    });
+  }
+
+  // Loguer TOUTES les stations à l'air d'un coup (fin de tour de réseau).
+  function loguerTout(){
+    var calls = _session.on_air.slice();
+    if(!calls.length){ notify('Personne à l\'air.'); return; }
+    notify('Enregistrement de ' + calls.length + ' station(s)…');
+    var faits = 0;
+    var suite = calls.reduce(function(p, c){
+      return p.then(function(){ return _loguerQso(c).then(function(ok){ if(ok) faits++; }); });
+    }, Promise.resolve());
+    suite.then(function(){
+      calls.forEach(function(c){ _session = loguerCourant(_session); });
+      rendre();
+      notify(faits + '/' + calls.length + ' station(s) loguée(s) au carnet ✓', 'ok');
+    });
+  }
 
   // ── Rendu ───────────────────────────────────────────────────────────────
   function _set(id, html){ var el = document.getElementById(id); if(el) el.innerHTML = html; }
@@ -151,17 +219,34 @@
   // ── Actions UI exposées inline ──────────────────────────────────────────
   NetControl.alAir = alAir;
   NetControl.loguerEtSuivant = loguerEtSuivant;
+  NetControl.loguerTout = loguerTout;
   NetControl.passer = passer;
   NetControl.retirerMembre = retirerMembre;
   NetControl.creerNet = creerNet;
   NetControl.supprimerNet = supprimerNet;
 
   NetControl.onSelectNet = function(v){ _netId = parseInt(v, 10); _session = {on_air:[],logged:[]}; rendre(); };
-  NetControl.nouveauNet = function(){
-    var nom = window.prompt('Nom du réseau (ex. Réseau du dimanche) :', '');
-    if(nom == null) return;
-    var freq = window.prompt('Fréquence en MHz (optionnel, ex. 3.650) :', '') || '';
-    creerNet({nom: nom, freq: freq});
+
+  // Création via un petit FORMULAIRE (nom + bande + mode + fréq) plutôt que des
+  // prompts : le réseau porte alors bande/mode, indispensables pour loguer un
+  // vrai QSO (tranche 3). La bande vient d'un <select> peuplé de BANDES.
+  function _peuplerFormBande(){
+    var sel = document.getElementById('netBande');
+    if(!sel || sel.options.length) return;
+    sel.innerHTML = BANDES.map(function(b){ return '<option value="' + b + '">' + b + ' MHz</option>'; }).join('');
+  }
+  NetControl.ouvrirFormNet = function(){
+    _peuplerFormBande();
+    var f = document.getElementById('netForm'); if(f) f.style.display = 'flex';
+    var n = document.getElementById('netNom'); if(n) n.focus();
+  };
+  NetControl.fermerFormNet = function(){ var f = document.getElementById('netForm'); if(f) f.style.display = 'none'; };
+  NetControl.creerDepuisForm = function(){
+    var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var nom = (g('netNom') || '').trim();
+    if(!nom){ notify('Donne un nom au réseau.'); return; }
+    creerNet({nom: nom, bande: g('netBande'), mode: g('netMode'), freq: (g('netFreq') || '').trim()})
+      .then(function(){ NetControl.fermerFormNet(); notify('Réseau « ' + nom + ' » créé.', 'ok'); });
   };
   NetControl.ajouterDepuisChamp = function(){
     var inp = document.getElementById('rosterInput');

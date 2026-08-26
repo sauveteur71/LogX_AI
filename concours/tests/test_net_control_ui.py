@@ -71,3 +71,34 @@ def test_js_appelle_les_endpoints_tranche1():
     for ep in ('/data/nets', '/nets/create', '/nets/delete',
                '/nets/roster/add', '/nets/roster/remove'):
         assert ep in js, f"endpoint manquant dans le câblage : {ep}"
+
+
+# ── Tranche 3 : log dans le carnet UNIQUE ─────────────────────────────────
+def test_construire_qso_depuis_le_reseau():
+    """La station au micro devient un vrai QSO : indicatif normalisé, bande +
+    mode + fréquence du réseau, RST par défaut, commentaire tagué réseau."""
+    ctx = _ctx()
+    q = _j(ctx, "window.NetControl.construireQso('f5abc',"
+                "{nom:'Dimanche',bande:'3.5',mode:'SSB',freq:'3.650'})")
+    assert q['call'] == 'F5ABC'
+    assert q['band'] == '3.5' and q['mode'] == 'SSB' and q['freq'] == '3.650'
+    assert q['rst_sent'] == '59' and q['rst_rcvd'] == '59'
+    assert 'Dimanche' in q['comment']
+
+
+def test_construire_qso_mode_par_defaut_ssb():
+    ctx = _ctx()
+    q = _j(ctx, "window.NetControl.construireQso('A',{bande:'14'})")
+    assert q['mode'] == 'SSB'          # réseau sans mode -> SSB (phonie)
+
+
+def test_js_logue_dans_le_carnet_unique_via_log_add():
+    js = open(JS, encoding='utf-8').read()
+    assert '/log/add' in js            # le vrai chemin d'ajout au carnet unique
+
+
+def test_html_a_les_selects_bande_mode_et_loguer_tout():
+    h = open(HTML, encoding='utf-8').read()
+    assert re.search(r'id="netBande"', h)     # select bande (création réseau)
+    assert re.search(r'id="netMode"', h)      # select mode
+    assert 'loguerTout' in h                   # bouton « loguer tout le réseau »
