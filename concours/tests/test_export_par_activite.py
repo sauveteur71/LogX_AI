@@ -112,8 +112,9 @@ def test_downloadcsv_prefixe_un_bom_utf8():
     c.eval(r"""
       var _parts = null;
       function Blob(parts){ _parts = parts; }
-      var URL = { createObjectURL: function(){ return 'blob:x'; } };
+      var URL = { createObjectURL: function(){ return 'blob:x'; }, revokeObjectURL: function(){} };
       var document = { createElement: function(){ return { click:function(){}, style:{} }; } };
+      function setTimeout(){}
       var myCall = 'F4GLD';
     """)
     c.eval(_DL)
