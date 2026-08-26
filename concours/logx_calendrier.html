@@ -545,7 +545,7 @@ async function forceUpdate(){
   btn.disabled = true;
   try{
     await fetch('/data/update_rules');
-    setTimeout(()=>{ loadYear(currentYear); btn.textContent='🔄 VÉRIFIER LES RÈGLEMENTS'; btn.disabled=false; }, 3000);
+    setTimeout(()=>{ loadYear(); btn.textContent='🔄 VÉRIFIER LES RÈGLEMENTS'; btn.disabled=false; }, 3000);
   }catch(e){
     btn.textContent='❌ Erreur';
     btn.disabled=false;
