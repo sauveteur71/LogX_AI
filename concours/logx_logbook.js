@@ -501,10 +501,19 @@ async function refreshActivation(){
     const d = await r.json();
     if(!d.active) return;
     lastActQsoTotal = d.qso_total || 0;
+    // Le seuil se juge sur les QSO UNIQUES admissibles (call+bande+mode+jour),
+    // pas sur le brut : un même correspondant recontacté même bande/mode/jour
+    // ne compte qu'une fois. On affiche l'admissible en primaire, et le détail
+    // brut + doublons quand il y en a (repli sur qso_total si serveur ancien).
+    const eligible = (d.qso_eligible != null) ? d.qso_eligible : d.qso_total;
     const pr = document.getElementById('actProgress');
-    if(pr) pr.textContent = `${d.qso_total}/${d.min_qso}`;
+    if(pr){
+      let txt = `${eligible}/${d.min_qso}`;
+      if(d.doublons) txt += ` · ${d.qso_total} loggés, ${d.doublons} doublon${d.doublons > 1 ? 's' : ''}`;
+      pr.textContent = txt;
+    }
     const fill = document.getElementById('actFill');
-    if(fill) fill.style.width = Math.min(100, Math.round(100*d.qso_total/(d.min_qso||1))) + '%';
+    if(fill) fill.style.width = Math.min(100, Math.round(100*eligible/(d.min_qso||1))) + '%';
     const v = document.getElementById('actValid');
     if(v) v.innerHTML = d.valid
       ? '<span style="color:var(--green);font-weight:700">✅ VALIDÉE</span>'
