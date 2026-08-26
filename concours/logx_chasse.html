@@ -106,6 +106,9 @@ body.simple-mode .expert-only{display:none!important}
 .sr-credit-badge.cr-new_band,.sr-credit-badge.cr-new_mode{color:var(--accent2);border-color:rgba(var(--accent-rgb),.45)}
 .sr-credit-badge.cr-new_grid{color:var(--purple);border-color:rgba(191,90,242,.4);font-weight:700}
 .sr-credit-badge.cr-needed_confirm{color:var(--yellow);border-color:rgba(255,214,0,.4)}
+/* Objectif désactivé (score 0) : badge atténué — visible mais en retrait, pour
+   montrer le fait sans le mettre en avant (choix F4GLD 26/08). */
+.sr-credit-badge.cr-off{opacity:.4;filter:saturate(.4);font-weight:400}
 /* Assistant pile-up/split (déterministe, 0 jeton) : annonce UP/DOWN/QSX
    repérée dans le commentaire du spot par logx_clusters.parse_split_info,
    affichée telle quelle — même gabarit que .sr-mult-badge mais en cuivre
@@ -544,12 +547,14 @@ function creditBadge(s){
   const cl = s.credit_classe;
   const lbl = CREDIT_LABELS[cl];
   if(!lbl) return '';
-  // Objectif décoché -> le serveur neutralise le crédit (score 0) : on masque
-  // le badge, sinon le profil d'objectifs n'aurait aucun effet visible sur le
-  // need-list (l'affichage doit refléter ce que l'opérateur chasse vraiment).
-  if(!(s.credit_score > 0)) return '';
-  const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '');
-  return `<span class="sr-credit-badge cr-${esc(cl)}" title="${esc(t)}">${lbl}</span>`;
+  // Objectif décoché -> le serveur neutralise le crédit (score 0). On garde le
+  // badge VISIBLE mais ATTÉNUÉ (classe cr-off) : le fait reste montré (« c'est
+  // un ATNO ») sans être mis en avant, puisque l'opérateur ne le chasse pas.
+  // Choix F4GLD (26/08) : atténuer, pas masquer.
+  const off = !(s.credit_score > 0);
+  const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '')
+          + (off ? ' — objectif désactivé' : '');
+  return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${lbl}</span>`;
 }
 
 // ── Profil d'OBJECTIFS opérateur (option b) ────────────────────────────────

@@ -62,16 +62,19 @@ def test_confirme_et_inconnu_rien():
     assert ctx.eval("creditBadge({})") == ''       # spot sans crédit (API ancienne) : rien
 
 
-def test_objectif_desactive_masque_le_badge():
-    # Un objectif décoché -> score 0 côté serveur (score_classe neutralise le
-    # crédit). La classe reste factuelle, mais le badge ne doit PAS s'afficher :
-    # sinon le profil d'objectifs n'aurait AUCUN effet visible sur le need-list
-    # (l'intention de l'option b : « le moteur ajuste score ET badges »).
+def test_objectif_desactive_attenue_le_badge():
+    # Objectif décoché -> score 0 côté serveur (score_classe neutralise le
+    # crédit). La classe reste factuelle : le badge reste VISIBLE mais ATTÉNUÉ
+    # (classe cr-off) — on montre le fait sans le mettre en avant. Choix F4GLD
+    # (26/08) : atténuer, PAS masquer.
     ctx = _ctx()
-    assert ctx.eval("creditBadge(%s)" % _spot('atno', 'Nouvelle entité', 0)) == ''
-    assert ctx.eval("creditBadge(%s)" % _spot('new_grid', 'Nouveau carré', 0)) == ''
-    # mais un objectif ACTIF (score > 0) reste affiché
-    assert 'cr-atno' in ctx.eval("creditBadge(%s)" % _spot('atno', 'x', 1000))
+    h = ctx.eval("creditBadge(%s)" % _spot('atno', 'Nouvelle entité', 0))
+    assert 'cr-atno' in h and 'cr-off' in h        # présent, mais atténué
+    hg = ctx.eval("creditBadge(%s)" % _spot('new_grid', 'Nouveau carré', 0))
+    assert 'cr-new_grid' in hg and 'cr-off' in hg
+    # objectif ACTIF (score > 0) : badge NORMAL, pas atténué
+    hn = ctx.eval("creditBadge(%s)" % _spot('atno', 'x', 1000))
+    assert 'cr-atno' in hn and 'cr-off' not in hn
 
 
 def test_cable_dans_le_gabarit_et_css():
