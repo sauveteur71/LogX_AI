@@ -418,6 +418,26 @@ def _pdf_page_count(pdf_bytes):
 
 # ─── PIPELINE COMPLET ────────────────────────────────────────────────────────
 
+def _doc_pour_prompt(rules_text, pdf_bytes):
+    """Bloc « règlement » pour le prompt d'extraction + drapeau de troncature.
+
+    Un texte au-delà de MAX_RULES_CHARS était tronqué EN SILENCE : la FIN du
+    document (souvent les tableaux de points/multiplicateurs) était perdue pour
+    l'IA sans que personne ne le sache. On tronque toujours (garde-fou taille du
+    prompt) MAIS on ajoute une note explicite pour que l'IA sache que la fin
+    manque et signale l'incertitude au lieu d'inventer."""
+    if pdf_bytes:
+        return '', False
+    tronque = len(rules_text) > MAX_RULES_CHARS
+    bloc = f"\n\n=== DÉBUT DU RÈGLEMENT ===\n{rules_text[:MAX_RULES_CHARS]}\n=== FIN DU RÈGLEMENT ==="
+    if tronque:
+        bloc += (f"\n\n⚠️ RÈGLEMENT TRONQUÉ à {MAX_RULES_CHARS} caractères sur "
+                 f"{len(rules_text)} : la FIN du document (souvent les tableaux de "
+                 f"points/multiplicateurs) est ABSENTE de ce qui précède. Signale "
+                 f"toute incertitude qui en découle plutôt que d'inventer un barème.")
+    return bloc, tronque
+
+
 def analyze_rules(url='', rules_text='', contest_name='', cfg=None, verify=True):
     """Analyse un règlement. Retourne un dict prêt pour la relecture humaine :
     {ok, suggested_id, definition, citations, warnings, confidence,
@@ -457,8 +477,7 @@ def analyze_rules(url='', rules_text='', contest_name='', cfg=None, verify=True)
         return {'ok': False, 'error': f"Texte du règlement trop court ({len(rules_text)} caractères) "
                                       f"— extraction '{extractor}' probablement en échec"}
 
-    doc_for_prompt = '' if pdf_bytes else \
-        f"\n\n=== DÉBUT DU RÈGLEMENT ===\n{rules_text[:MAX_RULES_CHARS]}\n=== FIN DU RÈGLEMENT ==="
+    doc_for_prompt, tronque = _doc_pour_prompt(rules_text, pdf_bytes)
 
     # ── 2. Extraction (sortie JSON forcée) ──────────────────────────────────
     user_extract = (f"Analyse ce règlement{' : ' + contest_name if contest_name else ''}"
@@ -473,6 +492,10 @@ def analyze_rules(url='', rules_text='', contest_name='', cfg=None, verify=True)
 
     definition = proposal.get('definition') or {}
     warnings = list(proposal.get('warnings') or [])
+    if tronque:
+        warnings.insert(0, f"Règlement TRONQUÉ à {MAX_RULES_CHARS} caractères "
+                           f"({len(rules_text)} au total) : vérifie les barèmes de "
+                           f"points/multiplicateurs, souvent en FIN de document.")
     citations = proposal.get('citations') or {}
     confidence = proposal.get('confidence', '')
 
@@ -532,4 +555,5 @@ def analyze_rules(url='', rules_text='', contest_name='', cfg=None, verify=True)
         'date_preview': date_preview,
         'extractor': extractor,
         'text_chars': len(rules_text),
+        'truncated': tronque,
     }
