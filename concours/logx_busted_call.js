@@ -42,9 +42,12 @@ let _bcPastille = null;      // {id, propose, restant} du QSO en cours de doute
 let _bcGen = 0;
 
 async function verifierIndicatifApres(qso){
+  // Valider AVANT d'incrementer le jeton : un appel invalide (qso/call absent)
+  // ne doit pas bumper _bcGen, sinon il annulerait une verification legitime
+  // deja en vol (le garde `_gen!==_bcGen` plus bas).
+  if(!qso || !qso.call) return;
   const _gen = ++_bcGen;
   try{
-    if(!qso || !qso.call) return;
     const r = await fetch('/call/near?call=' + encodeURIComponent(qso.call));
     if(!r.ok) return;
     const m = (await r.json()).matches || [];
