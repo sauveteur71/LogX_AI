@@ -2515,6 +2515,8 @@ function renderActionCard(action){
     if((action.dx_continents||[]).length) parts.push(rcTf('DX : {c}',{c:action.dx_continents.join(', ')}));
     if((action.spotter_continents||[]).length) parts.push(rcTf('spotteurs : {c}',{c:action.spotter_continents.join(', ')}));
     desc=rcTf('🔭 Filtrer les spots — {f} ?',{f:parts.join(' · ')});
+  }else if(action.type==='log'){
+    desc=rcTf('📝 Loguer {call} ({band} m {mode}) ?',{call:action.call,band:action.band,mode:action.mode});
   }else{
     // ≈ signale une fréquence approximative (entrée de bande pour un mode sans
     // fréquence d'appel, ex. CW/SSB) -- valeur seule, template i18n inchangé.
@@ -2543,6 +2545,12 @@ async function execAction(action,card,yes,no){
     }else if(action.type==='filtre'){
       const b={dx_continents:action.dx_continents||[], spotter_continents:action.spotter_continents||[]};
       r=await fetch('/spots/filter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    }else if(action.type==='log'){
+      // AJOUT au carnet (jamais modif/suppression) via le même endpoint que la
+      // saisie manuelle : dédup + date/heure estampillées serveur.
+      const b={call:action.call,band:action.band,mode:action.mode,rst_sent:action.rst,rst_rcvd:action.rst};
+      if(action.freq_khz) b.freq=action.freq_khz/1000;   // le carnet stocke la fréquence en MHz
+      r=await fetch('/log/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
     }else{
       const b={freq_khz:action.freq_khz}; if(action.mode) b.mode=action.mode;
       r=await fetch('/rig/qsy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
@@ -2553,7 +2561,9 @@ async function execAction(action,card,yes,no){
         ? '✅ '+rcTf('Antenne pointée à {az}°.',{az:action.azimut})
         : (action.type==='filtre')
           ? '✅ '+rcT('Filtre des spots appliqué.')
-          : '✅ '+rcTf('Radio sur {f} kHz.',{f:action.freq_khz});
+          : (action.type==='log')
+            ? '✅ '+rcTf('QSO avec {call} logué.',{call:action.call})
+            : '✅ '+rcTf('Radio sur {f} kHz.',{f:action.freq_khz});
     }else{
       card.textContent='❌ '+((res&&res.error)||rcT('échec de la commande'));
     }

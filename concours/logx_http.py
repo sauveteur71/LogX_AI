@@ -472,10 +472,33 @@ ACTION_TOOLS = [
             'required': ['indicatif'],
         },
     },
+    {
+        'name': 'loguer_station',
+        'description': "Proposer d'AJOUTER un QSO au carnet pour une station (ex. « logue "
+                       "TX9A »), en reprenant bande/mode (et fréquence si connue) du contexte "
+                       "(spot cluster). N'écrit RIEN : propose un QSO que l'opérateur confirme. "
+                       "Ne jamais inventer l'indicatif/la bande/le mode.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'indicatif': {'type': 'string', 'description': "indicatif de la station à loguer"},
+                'band': {'type': 'string', 'description': "bande en MHz numérique (ex. '14', '7', '144')"},
+                'mode': {'type': 'string', 'description': 'SSB, CW, FT8, RTTY...'},
+                'freq_khz': {'type': 'number', 'description': 'fréquence en kHz si connue (optionnel)'},
+            },
+            'required': ['indicatif', 'band', 'mode'],
+        },
+    },
 ]
 
 # Continents ADIF/ham (codes à 2 lettres) — vocabulaire fermé pour filtrer_spots.
 KNOWN_CONTINENTS = {'AF', 'AS', 'EU', 'NA', 'OC', 'SA', 'AN'}
+# RST par défaut d'un QSO proposé : 59 en phonie, 599 sinon (CW/numérique).
+_MODES_PHONIE = {'SSB', 'USB', 'LSB', 'FM', 'AM'}
+
+
+def _rst_defaut(mode):
+    return '59' if str(mode or '').strip().upper() in _MODES_PHONIE else '599'
 
 
 def _continents_valides(v):
@@ -585,6 +608,21 @@ def pending_action_from_tool(action, cfg=None):
             return None
         return {'type': 'rotor', 'azimut': round(az) % 360,
                 'cible': (info.get('country') or call)[:40], 'bande': ''}
+    if tool == 'loguer_station':
+        call = str(inp.get('indicatif', '') or '').strip().upper()
+        band = str(inp.get('band', '') or '').strip()
+        mode = str(inp.get('mode', '') or '').strip().upper()
+        if not call or not band or not mode:
+            return None                       # jamais de QSO fantôme
+        pending = {'type': 'log', 'call': call, 'band': band, 'mode': mode,
+                   'rst': _rst_defaut(mode)}
+        try:                                  # fréquence optionnelle, écartée si absurde
+            khz = float(inp.get('freq_khz'))
+            if math.isfinite(khz) and khz > 0:
+                pending['freq_khz'] = round(khz, 3)
+        except (TypeError, ValueError):
+            pass
+        return pending
     return None
 
 
