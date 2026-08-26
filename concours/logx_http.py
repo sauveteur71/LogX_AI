@@ -4584,6 +4584,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'goals': _og.charger()})
             return
 
+        # Contrôle de RÉSEAU dirigé (net control) — liste des réseaux + leur
+        # répertoire. Stockage DÉDIÉ (.net_control.json), jamais la config
+        # critique. Le répertoire contient des infos personnelles (noms, QTH) :
+        # garde d'auth explicite (les GET ne passent pas par la porte globale
+        # du POST). Écriture via les POST /nets/* ci-dessous.
+        if path == '/data/nets':
+            if not self._require_auth():
+                return
+            import logx_net_control as _nc
+            self._json({'nets': _nc.charger()['nets']})
+            return
+
         if path == '/data/spots_ranked':
             from logx_scoring import build_ranked_spots
             import logx_alerts as alerts
@@ -5805,6 +5817,50 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body) if body else {}
                 goals = _og.enregistrer(payload.get('goals', payload))
                 self._json({'ok': True, 'goals': goals})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Contrôle de RÉSEAU dirigé — écriture (protégée par la porte d'auth
+        # globale du POST). CRUD réseaux + répertoire, chaque opération est un
+        # read-modify-write persisté et sérialisé côté module (_mut_lock).
+        if self.path == '/nets/create':
+            try:
+                import logx_net_control as _nc
+                p = json.loads(body) if body else {}
+                net = _nc.creer_persiste(nom=p.get('nom', ''), freq=p.get('freq', ''),
+                                         mode=p.get('mode', ''), bande=p.get('bande', ''))
+                self._json({'ok': True, 'net': net})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        if self.path == '/nets/delete':
+            try:
+                import logx_net_control as _nc
+                p = json.loads(body) if body else {}
+                _nc.supprimer_persiste(int(p.get('id')))
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        if self.path == '/nets/roster/add':
+            try:
+                import logx_net_control as _nc
+                p = json.loads(body) if body else {}
+                net = _nc.ajouter_membre_persiste(int(p.get('net_id')), p.get('membre') or {})
+                self._json({'ok': True, 'net': net})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        if self.path == '/nets/roster/remove':
+            try:
+                import logx_net_control as _nc
+                p = json.loads(body) if body else {}
+                net = _nc.retirer_membre_persiste(int(p.get('net_id')), p.get('call', ''))
+                self._json({'ok': True, 'net': net})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
