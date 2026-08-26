@@ -846,10 +846,17 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     # les échanges reçus (le département n'est pas dans l'indicatif métropolitain).
     from logx_scoring import contest_geo_mode
     if contest_geo_mode(contest_id) == 'dept_dxcc':
-        from logx_departments import department_mult_count
-        depts = department_mult_count(shared_log, scope_id)
-        stats['departments'] = len(depts)
-        stats['departments_list'] = sorted(depts)
+        # Gardé comme dans build_debrief (cohérence + robustesse) : un échec de
+        # department_mult_count ne doit pas faire tomber TOUT l'état du coach
+        # (donc /coach/state et le panneau) — le mult département devient juste
+        # absent.
+        try:
+            from logx_departments import department_mult_count
+            depts = department_mult_count(shared_log, scope_id)
+            stats['departments'] = len(depts)
+            stats['departments_list'] = sorted(depts)
+        except Exception:
+            pass
     ex_mults = exchange_mult_stats(cdef, shared_log, scope_id)
     if ex_mults:
         stats['exchange_mults'] = ex_mults['mults']
