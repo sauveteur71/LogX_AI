@@ -771,3 +771,41 @@ def test_table_morse_sanite():
     assert ctx.eval("MORSE_TABLE['...']") == 'S'
     assert ctx.eval("MORSE_TABLE['---']") == 'O'
     assert ctx.eval("MORSE_TABLE['...-.-']") == '<SK>'
+
+
+def test_espace_mot_en_temps_reel(moteur):
+    # BUG audit (26/08) : en TEMPS RÉEL, flushIfIdle est appelé pendant le
+    # silence et vide le buffer AVANT que le gap inter-mot (7u) ne se termine.
+    # L'espace-mot, gardé par hadChar=!!buffer, était alors perdu -> 'EE' au
+    # lieu de 'E E'. decodeTexte (pushEdge seul, sans flush intermédiaire) ne
+    # reproduit PAS le défaut, d'où cette séquence temps-réel explicite.
+    out = moteur.eval("""
+      (function(){
+        var s='';
+        var d = new MorseTimingDecoder(function(ch){ s+=ch; });
+        d.unitMs = 60; d.recentMarks = new Array(12).fill(60);
+        d.pushEdge(true, 60);     // E
+        d.flushIfIdle(150);       // temps réel : flush du 'E' à 2.5u (vide le buffer)
+        d.pushEdge(false, 420);   // gap inter-mot 7u qui se termine (marque suivante)
+        d.pushEdge(true, 60);     // E
+        d.flushIfIdle(600);       // fin de message
+        return s;
+      })()
+    """)
+    assert out == 'E E'
+
+
+def test_pas_d_espace_parasite_en_fin(moteur):
+    # Le correctif ne doit PAS émettre d'espace en fin de message (flushIfIdle
+    # prolongé après le dernier caractère) — sinon 'E' deviendrait 'E '.
+    out = moteur.eval("""
+      (function(){
+        var s='';
+        var d = new MorseTimingDecoder(function(ch){ s+=ch; });
+        d.unitMs = 60; d.recentMarks = new Array(12).fill(60);
+        d.pushEdge(true, 60);     // E
+        d.flushIfIdle(150); d.flushIfIdle(600); d.flushIfIdle(1200);  // silence prolongé
+        return s;
+      })()
+    """)
+    assert out == 'E'

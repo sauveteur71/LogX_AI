@@ -66,6 +66,12 @@ class MorseTimingDecoder {
     this.unitMs = 45;
     this.recentMarks = new Array(12).fill(45);  // fenêtre glissante, sert à estimer le point
     this.buffer = '';                    // points/traits accumulés du caractère en cours
+    // Un caractère a-t-il été émis depuis le dernier espace-mot ? Persiste à
+    // travers le vidage du buffer par flushIfIdle (temps réel) — sans quoi
+    // l'espace-mot, autrement gardé par !!buffer, est perdu dès que le buffer
+    // est vidé à 2u avant la fin du gap inter-mot (bug audit : 'EE' au lieu de
+    // 'E E'). Reste false au tout début -> pas d'espace parasite en tête.
+    this._charSinceWord = false;
     this.wpm = 27;
   }
 
@@ -113,6 +119,7 @@ class MorseTimingDecoder {
     const ch = MORSE_TABLE[this.buffer] || '�';
     this.onChar(ch);
     this.buffer = '';
+    this._charSinceWord = true;          // un vrai caractère vient d'être émis
   }
 
   pushEdge(isMark, durationMs){
@@ -148,17 +155,17 @@ class MorseTimingDecoder {
       // l'interaction avec la convergence à froid -- gardé pour une suite
       // éventuelle plutôt que de risquer une régression vérifiée.
       if(durationMs >= this.unitMs * 2){
-        const hadChar = !!this.buffer;
         this._flushChar();
-        // hadChar : un espace-mot n'a de sens qu'APRÈS un caractère réel.
-        // Sans cette garde, le silence initial avant la TOUTE PREMIÈRE
-        // marque d'une session (mesuré contre l'hypothèse de départ encore
-        // basse de unitMs, voir constructeur) peut à lui seul dépasser le
-        // seuil inter-mot et produire un espace parasite EN TÊTE de sortie,
-        // avant tout texte. Trouvé en testant le pipeline CwAudioDecoder de
-        // bout en bout (15/08/2026) -- jamais exercé avant ce chantier
-        // (CwAudioDecoder n'avait aucun test propre jusque-là).
-        if(hadChar && durationMs >= this.unitMs * 6) this.onChar(' ');
+        // _charSinceWord (et non !!buffer) : un espace-mot n'a de sens
+        // qu'APRÈS un caractère réel, MAIS le buffer a pu être vidé avant nous
+        // par flushIfIdle en temps réel (bug audit : 'EE' au lieu de 'E E').
+        // Le drapeau persiste ce fait. Il reste false avant la TOUTE PREMIÈRE
+        // marque -> pas d'espace parasite EN TÊTE (garde du 15/08/2026). On le
+        // remet à false après émission pour ne pas doubler l'espace.
+        if(this._charSinceWord && durationMs >= this.unitMs * 6){
+          this.onChar(' ');
+          this._charSinceWord = false;
+        }
       }
     }
   }
