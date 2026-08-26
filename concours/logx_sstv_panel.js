@@ -114,10 +114,13 @@ function sstvSauverImage(){
     const nom = 'sstv_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
               + '_' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.png';
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    a.href = url;
     a.download = nom;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // Revoke DIFFÉRÉ : un revoke immédiat annulait le téléchargement PNG avant
+    // que le navigateur n'ait lu le blob (audit).
+    setTimeout(() => URL.revokeObjectURL(url), 40000);
   }, 'image/png');
 }
 
