@@ -3095,6 +3095,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == '/call/index':
+            # A09 : expose l'index des indicatifs DÉRIVÉ du carnet -> jeton de
+            # session exigé, comme /log/list (sinon fuite du carnet sur le LAN).
+            if not self._require_auth():
+                return
             import logx_callhistory as callhistory
             cfg_snap = self._cfg_snapshot()
             with log_lock:
@@ -3105,6 +3109,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Historique de station (« déjà contacté ») + « nouveau à vie » :
         # tous les QSO passés avec cette station, sur TOUTE la vie du log.
         if path.startswith('/call/history'):
+            # A09 : historique de QSO d'une station, dérivé du carnet -> auth.
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             import logx_awards as awards
             qp = parse_qs(urlparse(self.path).query)
@@ -3181,6 +3188,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # connus à une distance de Damerau-Levenshtein de 1 de celui tapé —
         # calcul 100% local (aucun réseau), donc appelable directement ici.
         if path.startswith('/call/near'):
+            # A09 : liste d'indicatifs connus (busted-call check) dérivée du
+            # carnet -> auth, comme les deux /call/* ci-dessus et /log/list.
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             import logx_callhistory as callhistory
             qp = parse_qs(urlparse(self.path).query)
