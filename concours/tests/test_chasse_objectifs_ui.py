@@ -42,10 +42,13 @@ def test_panneau_et_cablage_present():
     assert "fetch('/data/operator_goals')" in src            # GET
     assert re.search(r"fetch\('/data/operator_goals',\s*\{[^}]*method:\s*'POST'", src), \
         'pas de POST vers /data/operator_goals'
-    # un changement doit rafraîchir la liste des spots (effet immédiat)
+    # un changement doit RE-FETCHER les spots (loadSpots), pas seulement
+    # re-rendre les anciens : les crédits sont calculés côté serveur avec les
+    # nouveaux objectifs, donc il faut relire /data/spots_ranked pour que les
+    # badges changent vraiment (sinon rien de visible avant le poll 60 s).
     m = re.search(r'function enregistrerObjectifs\(.*?\n  \}', src, re.S)
-    assert m and 'renderSpots(' in m.group(0), \
-        'enregistrer les objectifs ne rafraîchit pas les spots'
+    assert m and 'loadSpots(' in m.group(0), \
+        'enregistrer les objectifs ne re-fetch pas les spots (badges figés jusqu\'au poll)'
 
 
 def test_charge_au_demarrage():

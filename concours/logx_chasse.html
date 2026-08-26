@@ -577,7 +577,7 @@ function enregistrerObjectifs(){
   const goals = lireObjectifs();
   fetch('/data/operator_goals', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({goals})})
     .then(r => r.json())
-    .then(() => { renderSpots(); })     // effet immédiat : le score/badges se recalculent au prochain refresh serveur, l'affichage se rafraîchit tout de suite
+    .then(() => { loadSpots(); })       // RE-FETCH : les crédits sont calculés côté serveur avec les nouveaux objectifs, donc on relit /data/spots_ranked pour que les badges changent tout de suite (sinon rien de visible avant le poll 60 s)
     .catch(() => {});
 }
 function chargerObjectifs(){
