@@ -21,8 +21,21 @@ import threading
 _session = {'key': '', 'ts': 0}
 _session_lock = threading.Lock()
 _lookup_cache = {}          # CALL -> {'ts', 'data'}
+LOOKUP_MAX = 4000           # borne mémoire : au-delà, on évince les plus anciennes
 SESSION_TTL = 20 * 3600     # re-auth avant l'expiration ~24 h
 LOOKUP_TTL = 24 * 3600      # une fiche QRZ ne change quasiment jamais
+
+
+def _mettre_en_cache(call, data):
+    """Insère dans _lookup_cache en bornant sa taille (évince les plus anciennes
+    au-delà de LOOKUP_MAX, ~90 % du plafond, amorti). Un serveur station laissé
+    tourner des jours accumulait sinon une fiche par indicatif, jamais purgée."""
+    _lookup_cache[call] = {'ts': time.time(), 'data': data}
+    if len(_lookup_cache) > LOOKUP_MAX:
+        cible = int(LOOKUP_MAX * 0.9)
+        anciens = sorted(_lookup_cache, key=lambda c: _lookup_cache[c]['ts'])[:len(_lookup_cache) - cible]
+        for c in anciens:
+            _lookup_cache.pop(c, None)
 
 BASE = 'https://xmldata.qrz.com/xml/current/'
 
@@ -130,7 +143,7 @@ def lookup(call, user, pw):
         'grid': grid, 'dxcc': _tag(xml, 'dxcc'),
         'image': _photo_url(xml),
     }
-    _lookup_cache[call] = {'ts': time.time(), 'data': data}
+    _mettre_en_cache(call, data)
     _enrich_calldb(call, grid, data['country'])
     return data
 
