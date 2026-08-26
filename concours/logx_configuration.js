@@ -3708,14 +3708,18 @@ function locatorToLatLon(loc){
 function _loadLeaflet(){
   return new Promise((resolve, reject)=>{
     if(window.L){ resolve(); return; }
+    // Copie VENDORISÉE locale (zone blanche : aucun CDN, cf. vendor/leaflet/ —
+    // déjà utilisée par logx_carte.html). Avant, ce chargeur pointait sur un CDN
+    // externe et la carte « choisir le locator » échouait hors ligne,
+    // contredisant l'autonomie du logiciel.
     const css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    css.href = '/vendor/leaflet/leaflet.min.css';
     document.head.appendChild(css);
     const js = document.createElement('script');
-    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.src = '/vendor/leaflet/leaflet.min.js';
     js.onload = ()=>resolve();
-    js.onerror = ()=>reject(new Error('Leaflet indisponible (connexion Internet requise)'));
+    js.onerror = ()=>reject(new Error('Leaflet indisponible (copie locale /vendor/leaflet/ manquante)'));
     document.head.appendChild(js);
   });
 }
@@ -3737,9 +3741,9 @@ async function openLocatorMap(){
     const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(_mapLoc.map);
     // Correctif M9 : _loadLeaflet() ne gère que l'échec de chargement du
-    // script Leaflet lui-même (hôte cdnjs) — un blocage réseau spécifique aux
-    // TUILES (hôte openstreetmap.org, souvent bloqué séparément par un
-    // pare-feu) laissait la carte grise sans aucun message. Une seule bannière
+    // script Leaflet lui-même (désormais copie locale /vendor/leaflet/) — un
+    // blocage réseau spécifique aux TUILES (hôte openstreetmap.org, souvent
+    // bloqué séparément par un pare-feu) laissait la carte grise sans message. Une seule bannière
     // même si des dizaines de tuiles échouent (pas de spam).
     tiles.on('tileerror', () => {
       if(_mapLoc.tileErrorShown) return;
