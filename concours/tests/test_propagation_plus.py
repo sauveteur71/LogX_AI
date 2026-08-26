@@ -180,7 +180,12 @@ def test_scoreboard_snapshot_et_xml():
            {'contest': 'X', 'call': 'B', 'band': '432', 'points': 30,
             'locator': 'JN33AA', 'date': '20260315'}]
     snap = sb.build_score_snapshot(log, {'contest': 'X', 'contest_start_date': '2026-03-15'})
-    assert snap['score'] == 75 and snap['qso'] == 2 and snap['mults'] == 2
+    # Concours 'X' INCONNU (absent de CONTEST_DEFINITIONS) -> aucun barème de
+    # multiplicateur : mults=0 et score=points, EXACTEMENT comme Cabrillo /
+    # archive / calc_total_score (source canonique unique). L'ancien code
+    # inventait ici un repli locator (mults=2) TOUT EN publiant un <score> non
+    # multiplié (75) -> deux vérités incohérentes ; c'était le bug (audit :58/:33).
+    assert snap['score'] == 75 and snap['qso'] == 2 and snap['mults'] == 0
     xml = sb.build_n1mm_xml(snap, {'callsign_contest': 'F6KQJ'})
     assert '<score>75</score>' in xml and '<dynamicresults>' in xml
 
