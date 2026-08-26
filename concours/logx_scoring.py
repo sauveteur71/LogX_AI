@@ -182,28 +182,38 @@ def _eval_points(rules, ctx, scoring):
       sont français ET même continent). Ajouté pour composer des règles à
       plusieurs conditions sans dupliquer un prédicat par combinaison."""
     for rule in rules or []:
-        bands = rule.get('bands')
-        if bands and ctx['band_norm'] not in bands:
-            continue
-        prefixes = rule.get('prefix_in')
-        if prefixes and not ctx['dx_base'].startswith(tuple(prefixes)):
-            continue
-        modes = rule.get('modes')
-        if modes and (ctx.get('mode') or '').upper() not in [m.upper() for m in modes]:
-            continue
-        when = rule.get('when', 'always')
-        if isinstance(when, (list, tuple)):
-            matched = all(PREDICATES.get(w, PREDICATES['always'])(ctx) for w in when)
-        else:
-            matched = PREDICATES.get(when, PREDICATES['always'])(ctx)
-        if matched:
+        if _rule_applies(rule, ctx):
             return _points_value(rule, ctx, scoring)
     return 0
 
+
+def _rule_applies(rule, ctx):
+    """Une règle s'applique-t-elle à CE QSO ? Filtres bands/prefix_in/modes puis
+    prédicat 'when'. Extrait pour que _eval_points ET _max_rule_points voient
+    exactement les mêmes règles applicables (audit :194 — _max les ignorait)."""
+    bands = rule.get('bands')
+    if bands and ctx['band_norm'] not in bands:
+        return False
+    prefixes = rule.get('prefix_in')
+    if prefixes and not ctx['dx_base'].startswith(tuple(prefixes)):
+        return False
+    modes = rule.get('modes')
+    if modes and (ctx.get('mode') or '').upper() not in [m.upper() for m in modes]:
+        return False
+    when = rule.get('when', 'always')
+    if isinstance(when, (list, tuple)):
+        return all(PREDICATES.get(w, PREDICATES['always'])(ctx) for w in when)
+    return PREDICATES.get(when, PREDICATES['always'])(ctx)
+
+
 def _max_rule_points(rules, ctx, scoring):
-    """Meilleurs points possibles parmi les règles (sert aux seuils de priorité)."""
+    """Meilleurs points possibles parmi les règles APPLICABLES à ce QSO (sert aux
+    seuils de priorité). Applique les mêmes filtres que _eval_points : une règle
+    hors bande/mode/préfixe ne compte pas (audit :194)."""
     best = 0
     for rule in rules or []:
+        if not _rule_applies(rule, ctx):
+            continue
         v = _points_value(rule, ctx, scoring)
         if isinstance(v, (int, float)) and v > best:
             best = v
