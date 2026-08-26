@@ -48,6 +48,16 @@ _auto_state = {'last_band': None}
 _auto_state_lock = threading.Lock()
 
 
+def _int_ou(val, defaut):
+    """int() tolérant : une valeur non-numérique (config corrompue/éditée à la
+    main) retombe sur le défaut au lieu de lever — le module promet « jamais
+    d'exception vers le serveur HTTP » (même discipline que la boucle band_map)."""
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return defaut
+
+
 def relay_settings(cfg):
     cfg = cfg or {}
     band_map_raw = cfg.get('relay_band_map') or {}
@@ -62,11 +72,11 @@ def relay_settings(cfg):
         'enabled': str(cfg.get('relay_enabled', '')) in ('1', 'true', 'True', 'on'),
         'kind': cfg.get('relay_kind', 'kmtronic_serial'),   # kmtronic_serial|generic_serial|webswitch
         'port': cfg.get('relay_port', ''),
-        'baud': int(cfg.get('relay_baud', RELAY_DEFAULT_BAUD) or RELAY_DEFAULT_BAUD),
+        'baud': _int_ou(cfg.get('relay_baud', RELAY_DEFAULT_BAUD) or RELAY_DEFAULT_BAUD, RELAY_DEFAULT_BAUD),
         'host': cfg.get('relay_host', ''),
         'user': cfg.get('relay_user', 'admin'),
         'password': cfg.get('relay_password', ''),
-        'relay_count': int(cfg.get('relay_count', 4) or 4),
+        'relay_count': _int_ou(cfg.get('relay_count', 4) or 4, 4),
         'auto_band_enabled': str(cfg.get('relay_auto_band', '')) in ('1', 'true', 'True', 'on'),
         'band_map': band_map,
     }
