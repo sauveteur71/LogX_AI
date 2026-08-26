@@ -170,6 +170,13 @@ def _load_from_disk_or_network():
                 return
 
         summits = _parse_summits_csv(content)
+        # Index de recherche plié (sans accents, minuscule) précalculé UNE fois :
+        # search_summits le refaisait pour les ~181k sommets à CHAQUE frappe,
+        # sous _summits_lock — coût O(n) par caractère tapé, bloquant les autres
+        # lecteurs du verrou.
+        for s in summits:
+            s['_name_folded'] = _strip_accents(s.get('name', '')).lower()
+            s['_region_folded'] = _strip_accents(s.get('region', '')).lower()
         by_code = {s['code']: s for s in summits}
         with _summits_lock:
             _summits['by_code'] = by_code
@@ -258,8 +265,8 @@ def search_summits(query, limit=25):
         if len(by_code_prefix) >= limit:
             return by_code_prefix[:limit]
         by_name = [s for s in summits
-                   if q_folded in _strip_accents(s['name']).lower()
-                   or q_folded in _strip_accents(s['region']).lower()]
+                   if q_folded in (s.get('_name_folded') or _strip_accents(s['name']).lower())
+                   or q_folded in (s.get('_region_folded') or _strip_accents(s['region']).lower())]
         seen = {s['code'] for s in by_code_prefix}
         merged = by_code_prefix + [s for s in by_name if s['code'] not in seen]
         return merged[:limit]
