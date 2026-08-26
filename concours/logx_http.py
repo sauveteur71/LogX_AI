@@ -424,7 +424,62 @@ ACTION_TOOLS = [
             'required': ['freq_khz', 'cible'],
         },
     },
+    {
+        'name': 'filtrer_spots',
+        'description': "Proposer de filtrer les spots du cluster par CONTINENT (des "
+                       "stations DX et/ou des spotteurs). À utiliser quand l'opérateur "
+                       "veut se concentrer sur une région (ex. « montre-moi l'Asie »). "
+                       "Codes continent : AF, AS, EU, NA, OC, SA, AN.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'dx_continents': {'type': 'array', 'items': {'type': 'string'},
+                                  'description': "continents des stations DX à garder (AF/AS/EU/NA/OC/SA/AN)"},
+                'spotter_continents': {'type': 'array', 'items': {'type': 'string'},
+                                       'description': "continents des spotteurs à garder (mêmes codes)"},
+            },
+        },
+    },
+    {
+        'name': 'changer_bande_mode',
+        'description': "Proposer de changer de BANDE et de MODE (ex. « passe en 40 m CW »). "
+                       "La fréquence est résolue par le plan de bandes : fréquence d'appel "
+                       "pour les modes numériques (FT8, RTTY…), sinon entrée de bande.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'bande': {'type': 'string', 'description': "bande (ex. '40m', '20m', '2m')"},
+                'mode': {'type': 'string', 'description': 'CW, SSB, FT8, RTTY...'},
+            },
+            'required': ['bande', 'mode'],
+        },
+    },
+    {
+        'name': 'pointer_vers',
+        'description': "Proposer d'orienter le rotor vers une STATION ou un PAYS donné par "
+                       "son indicatif (ex. « pointe vers EA8 »). L'azimut est calculé par le "
+                       "serveur depuis cty.dat et le locator de la station — ne PAS fournir "
+                       "d'azimut ici, seulement l'indicatif.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'indicatif': {'type': 'string', 'description': "indicatif ou préfixe de la cible (ex. 'EA8AA', 'JA')"},
+            },
+            'required': ['indicatif'],
+        },
+    },
 ]
+
+# Continents ADIF/ham (codes à 2 lettres) — vocabulaire fermé pour filtrer_spots.
+KNOWN_CONTINENTS = {'AF', 'AS', 'EU', 'NA', 'OC', 'SA', 'AN'}
+
+
+def _continents_valides(v):
+    """Liste de codes continent connus (MAJUSCULES, ordre préservé) ; ignore
+    tout code inconnu plutôt que d'inventer un filtre absurde."""
+    if not isinstance(v, list):
+        return []
+    return [c for c in (str(x).strip().upper() for x in v) if c in KNOWN_CONTINENTS]
 
 
 def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
@@ -460,11 +515,13 @@ def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
     return {'text': text, 'action': action}
 
 
-def pending_action_from_tool(action):
+def pending_action_from_tool(action, cfg=None):
     """Valide et normalise l'action proposée par le modèle en une `pending_action`
     exploitable par le client — ou None si elle est aberrante (azimut hors 0-360,
-    fréquence non positive) : on ne propose JAMAIS de piloter la station sur une
-    valeur absurde, même si le modèle la sort."""
+    fréquence non positive, continent inconnu, bande/indicatif non résolus) : on
+    ne propose JAMAIS de piloter la station sur une valeur absurde, même si le
+    modèle la sort. `cfg` fournit le locator station (pour résoudre l'azimut de
+    pointer_vers)."""
     if not action or not isinstance(action, dict):
         return None
     inp = action.get('input') or {}
@@ -488,6 +545,42 @@ def pending_action_from_tool(action):
         return {'type': 'qsy', 'freq_khz': round(khz, 3),
                 'mode': str(inp.get('mode', '') or '')[:6],
                 'cible': str(inp.get('cible', ''))[:40]}
+    if tool == 'filtrer_spots':
+        dx = _continents_valides(inp.get('dx_continents'))
+        spot = _continents_valides(inp.get('spotter_continents'))
+        if not dx and not spot:
+            return None                      # filtre qui ne filtre rien : no-op
+        return {'type': 'filtre', 'dx_continents': dx, 'spotter_continents': spot}
+    if tool == 'changer_bande_mode':
+        import logx_frequences as _fq
+        bande = str(inp.get('bande', '') or '').strip()
+        mode = str(inp.get('mode', '') or '').strip().upper()
+        if not bande or not mode:
+            return None
+        mhz = _fq.dial_freq(bande, mode)      # fréquence d'appel (modes numériques)
+        approx = False
+        if mhz is None:                       # CW/SSB : pas de fréquence unique
+            rng = _fq.band_range(bande)
+            if not rng or rng[0] is None:
+                return None                   # bande inconnue
+            mhz, approx = rng[0], True        # entrée de bande, marquée approximative
+        return {'type': 'qsy', 'freq_khz': round(float(mhz) * 1000, 3),
+                'mode': mode[:6], 'cible': ('%s %s' % (bande, mode))[:40], 'approx': approx}
+    if tool == 'pointer_vers':
+        import logx_dxcc as _dxcc
+        from logx_utils import bearing as _bearing, locator_to_latlon as _l2ll
+        call = str(inp.get('indicatif', '') or '').strip().upper()
+        info = _dxcc.lookup(call) if call else None
+        if not info or info.get('lat') is None or info.get('lon') is None:
+            return None                       # cible non résolue : on ne devine pas
+        myll = _l2ll(((cfg or {}).get('locator', '') or ''))
+        if myll[0] is None:
+            return None                       # sans mon locator, pas d'azimut
+        az = _bearing(myll[0], myll[1], info['lat'], info['lon'])
+        if not math.isfinite(az):
+            return None
+        return {'type': 'rotor', 'azimut': round(az) % 360,
+                'cible': (info.get('country') or call)[:40], 'bande': ''}
     return None
 
 
@@ -7890,7 +7983,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             except Exception as e:
                                 print(f"[ACT] contexte indisponible : {e}")
                         r = call_llm_actions(cfg, sysp, [{'role': 'user', 'content': enriched}])
-                        pending = pending_action_from_tool(r.get('action'))
+                        pending = pending_action_from_tool(r.get('action'), cfg)
                         with _act_lock:
                             if aid in _act_jobs:
                                 _act_jobs[aid].update(status='done', reply=r.get('text', ''), action=pending)
