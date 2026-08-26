@@ -140,8 +140,11 @@ def server():
 
 
 def _near(base, call):
+    # /call/near exige désormais le jeton de session (A09 : données dérivées du
+    # carnet). Comme les autres tests d'endpoints, on l'envoie via X-RC-Token.
     url = base + '/call/near?call=' + urllib.parse.quote(call)
-    with urllib.request.urlopen(url, timeout=20) as r:
+    req = urllib.request.Request(url, headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode('utf-8'))['matches']
 
 
