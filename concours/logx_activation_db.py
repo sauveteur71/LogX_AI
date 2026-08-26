@@ -112,7 +112,10 @@ class ActivationDatabase:
     def items(self):
         self.ensure_loading_started()
         with self._lock:
-            return self._state['list']
+            # Copie (comme search()) : renvoyer la liste interne telle quelle
+            # laisserait un appelant qui trie/ajoute/vide corrompre l'état
+            # partagé, lu sans copie par d'autres threads de requête.
+            return list(self._state['list'])
 
     def search(self, query, limit=25, name_keys=('name', 'region')):
         self.ensure_loading_started()
