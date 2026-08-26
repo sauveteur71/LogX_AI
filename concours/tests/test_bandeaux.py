@@ -1,0 +1,122 @@
+# -*- coding: utf-8 -*-
+"""Framework des bandeaux défilants (logx_bandeaux.js) — étape 1. On teste la
+MÉCANIQUE PURE en V8 : filtrage live/7-jours des DXpéditions (règle F4GLD
+26/08), disponibilité par activité, rendu HTML, config persistée. Les sources
+de données réelles sont branchées par les pages (étapes 2-3), pas ici."""
+import os
+
+import pytest
+
+CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JS = os.path.join(CONCOURS, 'logx_bandeaux.js')
+py_mini_racer = pytest.importorskip('py_mini_racer')
+
+
+def _ctx(localstorage=True):
+    ctx = py_mini_racer.MiniRacer()
+    if localstorage:
+        ctx.eval("""
+          var __ls = {};
+          var localStorage = {
+            getItem:function(k){ return (k in __ls) ? __ls[k] : null; },
+            setItem:function(k,v){ __ls[k] = String(v); },
+          };
+        """)
+    with open(JS, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    return ctx
+
+
+# ─── Règle de contenu : DXpéditions limitées aux 7 prochains jours ──────────
+
+def _expes_json():
+    # base « maintenant » = 2026-09-01T12:00Z ; on met des débuts variés
+    return """[
+      {call:'A', debut:'2026-09-03T00:00Z'},                         /* dans 2 j : GARDÉ */
+      {call:'B', debut:'2026-09-07T23:00Z'},                         /* dans ~6.5 j : GARDÉ */
+      {call:'C', debut:'2026-09-15T00:00Z'},                         /* dans 14 j : ÉCARTÉ */
+      {call:'D', debut:'2026-08-25T00:00Z', fin:'2026-08-28T00:00Z'},/* déjà finie : ÉCARTÉ */
+      {call:'E', debut:'2026-08-30T00:00Z', fin:'2026-09-05T00:00Z'},/* EN COURS : GARDÉ */
+      {call:'F', debut:'date invalide'}                              /* illisible : ÉCARTÉ */
+    ]"""
+
+
+def test_filtre_expeditions_7_jours():
+    ctx = _ctx()
+    now = "Date.parse('2026-09-01T12:00Z')"
+    gardes = ctx.eval(
+        "LogxBandeaux.filtrerExpeditions(%s, %s, 7).map(function(e){return e.call}).join(',')"
+        % (_expes_json(), now))
+    assert gardes == 'A,B,E'          # dans 7 j OU en cours ; ni lointain, ni fini, ni illisible
+
+
+def test_filtre_expeditions_fenetre_configurable():
+    ctx = _ctx()
+    now = "Date.parse('2026-09-01T12:00Z')"
+    # fenêtre 21 j -> C (dans 14 j) entre aussi
+    gardes = ctx.eval(
+        "LogxBandeaux.filtrerExpeditions(%s, %s, 21).map(function(e){return e.call}).join(',')"
+        % (_expes_json(), now))
+    assert gardes == 'A,B,C,E'
+
+
+# ─── Disponibilité par activité ─────────────────────────────────────────────
+
+def _registre_test(ctx):
+    ctx.eval("""
+      LogxBandeaux.enregistrerBandeau({id:'propag', cat:'PROPAG', contextes:'*',
+        construire:function(){ return [{texte:'SFI 143'}]; }});
+      LogxBandeaux.enregistrerBandeau({id:'concours', cat:'CONCOURS', contextes:['concours'],
+        construire:function(c){ return [{texte:'mults: '+(c.mults||0)}]; }});
+      LogxBandeaux.enregistrerBandeau({id:'ft8', cat:'NUMERIQUE', contextes:['numerique'],
+        construire:function(){ return []; }});   // pas de données -> aucune ligne
+    """)
+
+
+def test_disponibles_par_activite():
+    ctx = _ctx()
+    _registre_test(ctx)
+    assert ctx.eval("LogxBandeaux.bandeauxDisponibles('accueil').join(',')") == 'propag'
+    assert ctx.eval("LogxBandeaux.bandeauxDisponibles('concours').sort().join(',')") == 'concours,propag'
+
+
+# ─── Rendu HTML ─────────────────────────────────────────────────────────────
+
+def test_rendu_produit_les_lignes_et_double_le_bloc():
+    ctx = _ctx()
+    _registre_test(ctx)
+    html = ctx.eval("LogxBandeaux.rendreTicker(['concours','propag'], {mults:18}, {})")
+    assert 'CONCOURS' in html and 'mults: 18' in html and 'PROPAG' in html
+    # boucle sans couture : le bloc d'items est dupliqué -> 'SFI 143' apparaît 2x
+    assert html.count('SFI 143') == 2
+
+
+def test_rendu_saute_un_bandeau_sans_donnees():
+    ctx = _ctx()
+    _registre_test(ctx)
+    # ft8 renvoie [] -> pas de ligne vide (règle : pas de bandeau mort à l'écran)
+    html = ctx.eval("LogxBandeaux.rendreTicker(['ft8','propag'], {}, {})")
+    assert 'NUMERIQUE' not in html and 'PROPAG' in html
+
+
+def test_rendu_echappe_les_donnees_texte():
+    ctx = _ctx()
+    ctx.eval("""LogxBandeaux.enregistrerBandeau({id:'x', cat:'X', contextes:'*',
+      construire:function(){ return [{texte:'<img src=x onerror=1>'}]; }});""")
+    html = ctx.eval("LogxBandeaux.rendreTicker(['x'], {}, {})")
+    assert '<img' not in html and '&lt;img' in html     # pas d'injection via champ texte
+
+
+# ─── Config persistée ───────────────────────────────────────────────────────
+
+def test_config_persiste_les_bandeaux_actifs():
+    ctx = _ctx()
+    ctx.eval("LogxBandeaux.enregistrerConfig({parActivite:{chasse:['propag','dx']}, masque:false});")
+    assert ctx.eval("LogxBandeaux.bandeauxActifs('chasse', {}).join(',')") == 'propag,dx'
+
+
+def test_config_repli_sur_defauts_activite():
+    ctx = _ctx()
+    # rien de persisté pour 'numerique' -> repli sur les défauts fournis
+    val = ctx.eval("LogxBandeaux.bandeauxActifs('numerique', {numerique:['ft8','propag']}).join(',')")
+    assert val == 'ft8,propag'
