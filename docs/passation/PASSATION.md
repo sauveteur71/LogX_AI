@@ -280,10 +280,21 @@ et bugs de F4GLD. Toutes mergées sauf mention.
   `vucc` désactivé → la fusion par max (`0 > -900`) écrasait un doublon CONFIRMÉ en
   `new_grid`/0. Le test unitaire existant **encodait le bug** (assertait score 0) —
   corrigé pour exiger None. + garde `len(g4)==4` (locator tronqué ≠ carré neuf).
-- **2 revues adversariales par sous-agent** (Python puis JS/HTML) : au-delà de #294,
-  tout le reste **vérifié sain** (operator_goals atomique/sans injection, endpoints
-  sous auth globale, `_est_vhf` fire sur libellés MHz réels, moyennage sans dérive,
-  palettes bornées, cadence waterfall sans div/0, objectifs persistés correctement).
+- **#295 — test fonctionnel round-trip HTTP** du profil (vrai serveur + http.client +
+  cookie d'auth, stockage tmp isolé) : GET défaut / POST-persiste-GET / clés inconnues
+  jetées / POST sans auth refusé. Contre-épreuve par mutation.
+- **#296 — 2e vrai bug trouvé par revue adversariale (panadapter contraste)** :
+  `bornesContraste` calculait le min/max sur TOUTE la FFT alors que seuls
+  `nBinsActuel()` bins sont affichés → en audio, une porteuse forte hors span
+  assombrissait le contraste visible. Corrigé : `bornesContraste(arr, n)` borné aux
+  bins affichés (n absent/0 → tableau entier pour CI-V/TCI + compat).
+- **4 revues adversariales par sous-agent** (Python credit / JS-HTML / panadapter cœur /
+  PROPAG warm) : 2 bugs réels trouvés+corrigés (#294, #296), **tout le reste vérifié
+  sain** (operator_goals atomique/sans injection, endpoints sous auth globale,
+  `_est_vhf` fire sur libellés MHz réels, moyennage sans dérive, palettes bornées,
+  cadence waterfall sans div/0, QSY clic-pour-accorder bien gardé + inversion LSB
+  correcte, réchauffement PROPAG #279 throttle/verrou/clés cohérents). Chaque constat
+  d'agent **reproduit moi-même** avant correction (règle du dépôt).
 - **Vérif statique projet-wide** : ruff E9,F sur 116 .py = propre ; node --check sur
   68 .js = propre ; 22 blocs `<script>` inline (20 pages, extraction robuste hors
   commentaires/CSS) = propres ; **suite pytest complète verte (exit 0)**.
