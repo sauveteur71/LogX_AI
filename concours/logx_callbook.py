@@ -19,6 +19,9 @@ import threading
 import time
 
 _cache = {}          # CALL -> {'ts', 'data'}
+CACHE_MAX = 4000     # borne mémoire : au-delà, on évince les plus anciennes (un
+                     # serveur station laissé tourner des jours accumulait sinon
+                     # une entrée par indicatif, sans jamais purger).
 CACHE_TTL = 24 * 3600  # les fiches HamQTH/HamDB gratuites ne sont pas mises en
                        # cache en amont (contrairement à QRZ) : on évite ici de
                        # marteler ces services publics pour le même indicatif.
@@ -36,6 +39,19 @@ CIRCUIT_THRESHOLD = 3
 CIRCUIT_COOLDOWN = 90
 _lock = threading.Lock()  # protège _cache/_circuit, mutés depuis le thread HTTP
                           # ET depuis _bulk_resolve_run() dans son propre thread
+
+
+def _mettre_en_cache(call, data):
+    """Insère dans _cache en bornant sa taille : au-delà de CACHE_MAX, évince
+    les entrées les plus ANCIENNES (jusqu'à ~90 % du plafond, éviction amortie
+    pour ne pas trier à chaque insertion). L'appelant doit détenir _lock — les
+    3 sites d'insertion le tiennent déjà ; le test l'appelle en mono-thread."""
+    _cache[call] = {'ts': time.time(), 'data': data}
+    if len(_cache) > CACHE_MAX:
+        cible = int(CACHE_MAX * 0.9)
+        anciens = sorted(_cache, key=lambda c: _cache[c]['ts'])[:len(_cache) - cible]
+        for c in anciens:
+            _cache.pop(c, None)
 
 
 def circuit_status():
@@ -152,7 +168,7 @@ def lookup(call, cfg, shared_log=None):
                 'country': hq.get('country', ''), 'grid': hq.get('locator', '').upper(),
                 'dxcc': '', 'source': 'hamqth'}
         with _lock:
-            _cache[call] = {'ts': time.time(), 'data': data}
+            _mettre_en_cache(call, data)
             _circuit['fails'] = 0
         return data
     errors.append("HamQTH : indicatif introuvable ou service injoignable")
@@ -160,7 +176,7 @@ def lookup(call, cfg, shared_log=None):
     hd = lookup_hamdb(call)
     if hd.get('ok'):
         with _lock:
-            _cache[call] = {'ts': time.time(), 'data': hd}
+            _mettre_en_cache(call, hd)
             _circuit['fails'] = 0
         return hd
     errors.append(f"HamDB : {hd.get('error', '?')}")
@@ -171,7 +187,7 @@ def lookup(call, cfg, shared_log=None):
 
     result = {'ok': False, 'error': ' · '.join(errors)}
     with _lock:
-        _cache[call] = {'ts': time.time(), 'data': result}
+        _mettre_en_cache(call, result)
         _circuit['fails'] += 1
         if _circuit['fails'] >= CIRCUIT_THRESHOLD:
             _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
