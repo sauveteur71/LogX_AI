@@ -300,10 +300,19 @@ et bugs de F4GLD. Toutes mergées sauf mention.
   commentaires/CSS) = propres ; **suite pytest complète verte (exit 0)**.
 - **`.gitignore`** : ajout de `.operator_goals.json` (fichier d'état runtime).
 - **RESTE À VÉRIFIER PAR F4GLD (navigateur, non automatisable ici)** : rendu des
-  panneaux Objectifs (CHASSE) et contrôles panadapter en thèmes JOUR **et** NUIT.
-  Nuance UX à trancher : faut-il masquer un badge dont l'objectif est désactivé
-  (fait) ou juste l'atténuer ? (choisi : masquer, cohérent avec « l'interface se
-  règle sur ce que l'opérateur FAIT »).
+  panneaux Objectifs (CHASSE) et contrôles panadapter en thèmes JOUR **et** NUIT ;
+  que les traductions i18n (#298) ne débordent pas les badges dans les 7 langues.
+
+**Suite au réveil partiel de F4GLD (26/08, « je débloque les items »)** :
+- **#297 — badge d'objectif désactivé ATTÉNUÉ** (décision F4GLD, révision de mon
+  choix #293 de masquer) : `cr-off` opacity .4/saturate .4, visible mais en retrait.
+- **#298 — i18n des libellés dynamiques CHASSE** (badges crédit + cases Objectifs)
+  dans les 7 langues via `rcT()` + 70 traductions dans `T_I18N_AUDIT_FIX`.
+- **Découverte importante** : TOUS les items gated que F4GLD croyait en attente
+  (ADIF-B, refonte saisie LOGBOOK, IA-1) sont **DÉJÀ MERGÉS** (#232/#234/#242/
+  #243/#244/#245/#246). Les 5 worktrees LOGBOOK sont du **cruft** (branches en
+  retard sur main, PR mergées). Le plan saisie (42 cases non cochées) décrit #242,
+  déjà fait — cases jamais cochées. RIEN à finaliser côté LOGBOOK/ADIF.
 
 **Audits (vérification, sans PR)** : largeurs des pages (aucun autre défaut type
 MODE NUMÉRIQUE — rtty/sstv/cw volontairement étroits) ; textes FR en dur (~399
