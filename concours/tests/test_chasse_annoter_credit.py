@@ -144,6 +144,28 @@ def test_objectif_vucc_desactive_pas_de_new_grid(monkeypatch):
     assert s['credit_classe'] == cp.CLASSE_NEEDED_CONFIRM
 
 
+def test_locator_tronque_ne_compte_pas_comme_carre_neuf(monkeypatch):
+    # Un locator de spot malformé (2-3 car.) ne doit pas donner un new_grid à
+    # tort (revue adversariale 26/08).
+    monkeypatch.setattr(aw, 'collect_all_qsos', lambda shared_log=None: list(_LOG_VHF))
+    s = _spot_loc('50', 'CW', 'JN')              # 2 car. seulement
+    aw.annoter_credit([s])
+    assert s['credit_classe'] != cp.CLASSE_NEW_GRID
+
+
+def test_vucc_desactive_ne_ecrase_pas_le_malus_confirme(monkeypatch):
+    # Régression (revue adversariale 26/08) : vucc désactivé + carré neuf sur un
+    # doublon CONFIRMÉ écrasait le malus -900 par un new_grid à 0. Le crédit
+    # d'un objectif désactivé ne doit RIEN écraser.
+    monkeypatch.setattr(aw, 'collect_all_qsos', lambda shared_log=None: list(_LOG_VHF))
+    monkeypatch.setattr(aw, '_creneaux_confirmes_lotw',
+                        lambda qsos, conf: {('Japan', '50', 'CW')})
+    s = _spot_loc('50', 'CW', 'JO01')            # carré neuf JO01, 6 m CW
+    aw.annoter_credit([s], objectifs={'vucc': False})
+    assert s['credit_classe'] == cp.CLASSE_CONFIRMED
+    assert s['credit_score'] == -900             # malus doublon préservé, pas 0
+
+
 def test_un_seul_scan_pour_toute_la_liste(monkeypatch):
     # collect_all_qsos ne doit être appelé qu'UNE fois quel que soit le nb de spots
     n = {'c': 0}
