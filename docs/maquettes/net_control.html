@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Maquette Contrôle de réseau</title>
+<!--
+  MAQUETTE — CONTRÔLE DE RÉSEAU (net control) pour LogX AI.
+  Chantier ouvert par la veille concurrentielle (docs/veille/opslog.md,
+  26/08/2026) : le contrôle de réseau dirigé est un fort levier sur le marché
+  francophone (réseaux de clubs) et un trou identifié chez nous.
+
+  PARTI PRIS — battre le concurrent par l'INTUITIVITÉ, pas par la densité
+  (maître-mot du dépôt). Là où le concurrent aligne deux grilles brutes,
+  LogX AI met en avant UNE action évidente : « qui est au micro, et le
+  loguer + passer au suivant en un geste ». Le répertoire et la file
+  restent visibles, mais ne noient pas le chemin critique.
+
+  Standalone (démo, données factices) : à valider visuellement par F4GLD
+  avant toute mise en production. Tokens verrouillés graphite & cuivre,
+  jour + nuit. Rien de branché au serveur ici.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;
+  --green:#00FF88;--red:#FF2D55;--yellow:#FFD60A;--purple:#BF5AF2;
+  --text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode{
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;
+  --green:#007030;--red:#CC0030;--yellow:#7A5A00;--purple:#8040B0;
+  --text:#232320;--muted:#665F55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);
+  display:flex;flex-direction:column;overflow:hidden}
+svg{width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));
+  border-bottom:1px solid var(--border);padding:9px 20px;display:flex;
+  align-items:center;justify-content:space-between;flex-shrink:0;gap:16px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand b{font-family:var(--font-mono);color:var(--accent);letter-spacing:1px;font-size:17px}
+.brand .t{font-family:var(--font-display);font-weight:900;font-size:16px;letter-spacing:.2px}
+.net-pick{display:flex;align-items:center;gap:8px;font-size:13px}
+.net-pick select{background:var(--bg3);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:5px 9px;font-family:var(--font-mono);font-size:12px}
+.freq{font-family:var(--font-mono);color:var(--accent);font-weight:700;font-size:13px;
+  padding:4px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg3)}
+.theme-btn{background:var(--bg3);border:1px solid var(--border);color:var(--muted);
+  border-radius:7px;padding:5px 10px;cursor:pointer;font-family:var(--font-mono);font-size:11px}
+.theme-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+
+.sub{font-size:12.5px;color:var(--muted);padding:8px 20px 0;flex-shrink:0}
+.sub b{color:var(--text)}
+
+.grid{flex:1;display:grid;grid-template-columns:300px 1fr 320px;gap:14px;
+  padding:14px 20px 18px;min-height:0}
+.col{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.col-h{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;justify-content:space-between;flex-shrink:0}
+.col-h .ttl{font-family:var(--font-display);font-weight:900;font-size:13px;letter-spacing:.3px}
+.col-h .ct{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.col-body{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
+
+/* ── Répertoire (roster) ─────────────────────────────────────────────── */
+.search{margin:8px 8px 2px;display:flex;gap:6px}
+.search input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  border-radius:7px;padding:6px 9px;font-family:var(--font-mono);font-size:12px}
+.mini-btn{background:var(--bg3);border:1px solid var(--border);color:var(--accent2);
+  border-radius:7px;padding:6px 9px;cursor:pointer;font-size:12px;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;font-family:var(--font)}
+.mini-btn:hover{border-color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+.member{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;
+  border:1px solid transparent;cursor:grab}
+.member:hover{background:var(--bg3);border-color:var(--border)}
+.member .call{font-family:var(--font-mono);font-weight:700;font-size:13px}
+.member .who{font-size:11.5px;color:var(--muted);line-height:1.25}
+.member .add{margin-left:auto;color:var(--muted)}
+.member:hover .add{color:var(--accent2)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.off{background:var(--muted)}
+
+/* ── AU MICRO (chemin critique mis en avant) ─────────────────────────── */
+.mic-wrap{padding:14px;flex-shrink:0}
+.mic{background:linear-gradient(180deg,rgba(var(--accent-rgb),.14),rgba(var(--accent-rgb),.04));
+  border:1px solid var(--accent2);border-radius:14px;padding:16px 18px;
+  box-shadow:0 0 0 1px rgba(var(--accent-rgb),.25),0 8px 30px -12px rgba(var(--accent-rgb),.5)}
+.mic .lbl{font-family:var(--font-mono);font-size:10.5px;letter-spacing:2px;color:var(--accent2);
+  display:flex;align-items:center;gap:7px}
+.mic .live{width:9px;height:9px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.mic .call{font-family:var(--font-mono);font-weight:700;font-size:34px;letter-spacing:1px;margin:6px 0 2px}
+.mic .who{font-size:13px;color:var(--muted)}
+.mic .row{display:flex;align-items:center;gap:10px;margin-top:14px}
+.big-btn{flex:1;background:var(--accent2);color:#0b0d10;border:none;border-radius:10px;
+  padding:12px 14px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px}
+body.day-mode .big-btn{color:#F8F6EF}
+.big-btn:hover{filter:brightness(1.08)}
+.ghost-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  border-radius:10px;padding:12px 14px;font-family:var(--font);font-size:13px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px}
+.ghost-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.hint{font-size:11px;color:var(--muted);text-align:center;margin-top:9px}
+
+/* ── File d'attente (ordre de passage du micro) ──────────────────────── */
+.queue-h{padding:2px 16px 8px;font-family:var(--font-mono);font-size:11px;color:var(--muted);
+  display:flex;align-items:center;gap:6px;flex-shrink:0}
+.queue{flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:6px}
+.q-item{display:flex;align-items:center;gap:11px;padding:9px 11px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:9px;cursor:grab}
+.q-item:hover{border-color:var(--accent2)}
+.q-item .num{font-family:var(--font-mono);font-size:12px;color:var(--accent2);font-weight:700;width:16px}
+.q-item .grip{color:var(--muted);cursor:grab}
+.q-item .call{font-family:var(--font-mono);font-weight:700;font-size:14px}
+.q-item .who{font-size:11px;color:var(--muted)}
+.q-item .worked{margin-left:auto;font-family:var(--font-mono);font-size:10px;padding:2px 7px;
+  border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.q-item .worked.new{color:var(--green);border-color:var(--green)}
+
+/* ── Derniers loggés ─────────────────────────────────────────────────── */
+.logged{border-top:1px solid var(--border);padding:8px 12px;flex-shrink:0;max-height:150px;overflow-y:auto}
+.logged .lh{font-family:var(--font-mono);font-size:10.5px;letter-spacing:1.5px;color:var(--muted);margin:2px 4px 6px}
+.lrow{display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:12px}
+.lrow .call{font-family:var(--font-mono);font-weight:700}
+.lrow .tm{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.lrow svg{color:var(--green)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <b>LogX AI</b>
+    <span class="t">Contrôle de réseau</span>
+  </div>
+  <div class="net-pick">
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="5" r="2.4"/><circle cx="4" cy="13" r="2.1"/><circle cx="14" cy="13" r="2.1"/><path d="M9 7.4v3M7.4 11.6 5.4 12M10.6 11.6 12.6 12"/></svg>
+    <select>
+      <option>Réseau F8KGS — dimanche 09:00</option>
+      <option>Réseau départemental 43</option>
+      <option>Réseau d'urgence ADRASEC</option>
+    </select>
+    <span class="freq">3.650 MHz · LSB</span>
+    <button class="mini-btn"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="9" y1="3" x2="9" y2="15"/><line x1="3" y1="9" x2="15" y2="9"/></svg>Nouveau</button>
+  </div>
+  <button class="theme-btn" onclick="document.body.classList.toggle('day-mode')">jour / nuit</button>
+</header>
+
+<div class="sub">
+  Le répertoire à gauche, la file de passage au centre, l'action au micro en avant.
+  <b>Un seul geste</b> pour loguer la station qui parle et passer à la suivante —
+  la fréquence et le mode viennent du poste (CAT), rien à ressaisir.
+</div>
+
+<div class="grid">
+
+  <!-- Répertoire -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">RÉPERTOIRE</span><span class="ct" id="rosterCount">6 stations</span></div>
+    <div class="search">
+      <input placeholder="Chercher / ajouter un indicatif…" id="rosterSearch">
+      <button class="mini-btn" onclick="alert('Démo : ajouterait au répertoire')">+</button>
+    </div>
+    <div class="col-body" id="roster"></div>
+  </div>
+
+  <!-- Au micro + file -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">AU MICRO</span><span class="ct" id="clock">09:14:23 UTC</span></div>
+    <div class="mic-wrap" id="micWrap"></div>
+    <div class="queue-h">
+      <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h10M4 9h10M4 12h6"/></svg>
+      ORDRE DE PASSAGE — glisser pour réordonner, double-clic pour éditer
+    </div>
+    <div class="queue" id="queue"></div>
+    <div class="logged">
+      <div class="lh">DÉJÀ LOGUÉS CE RÉSEAU</div>
+      <div id="loggedList"></div>
+    </div>
+  </div>
+
+  <!-- Infos du réseau -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">CE RÉSEAU</span><span class="ct" id="netCount">0 loggé</span></div>
+    <div class="col-body" style="gap:10px;padding:14px">
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.5">
+        <b style="color:var(--text)">F8KGS</b> — réseau du dimanche.<br>
+        Contrôleur : <b style="color:var(--text)">F4GLD</b>.<br>
+        Bande <b style="color:var(--text)">80 m</b> · LSB · 3.650 MHz.
+      </div>
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6">
+        <div>Sur l'air : <b style="color:var(--green)" id="onairN">0</b></div>
+        <div>Répertoire : <b style="color:var(--text)" id="rostN">6</b></div>
+        <div>Loguées ce réseau : <b style="color:var(--text)" id="doneN">0</b></div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <button class="mini-btn" style="width:100%;justify-content:center" onclick="alert('Démo : loguerait toutes les stations à l\'air d\'un coup')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9l3 3 7-7"/></svg>
+        Loguer tout le réseau
+      </button>
+      <div style="font-size:11px;color:var(--muted);text-align:center">
+        Le carnet reste unique et chronologique — un réseau est une VUE, jamais un second carnet.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Données de démonstration ────────────────────────────────────────────
+const roster = [
+  {call:'F5ABC', nom:'Jean',    qth:'Lyon',        on:true },
+  {call:'F6DEF', nom:'Marie',   qth:'Clermont',    on:true },
+  {call:'F4GHI', nom:'Paul',    qth:'Saint-Étienne',on:true },
+  {call:'F8JKL', nom:'Sophie',  qth:'Valence',     on:false},
+  {call:'F1MNO', nom:'Luc',     qth:'Grenoble',    on:false},
+  {call:'F5PQR', nom:'Anne',    qth:'Annecy',      on:false},
+];
+// File d'attente = stations à l'air, dans l'ordre de passage. La 1re est AU MICRO.
+let queue = [
+  {call:'F5ABC', who:'Jean · Lyon · JN25',        worked:'new'},
+  {call:'F6DEF', who:'Marie · Clermont · JN05',   worked:''},
+  {call:'F4GHI', who:'Paul · Saint-Étienne · JN25',worked:''},
+];
+let logged = [];
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function renderRoster(){
+  const box = document.getElementById('roster');
+  box.innerHTML = roster.map(m =>
+    `<div class="member" title="Glisser vers la file, ou cliquer pour mettre à l'air">
+       <span class="dot ${m.on?'on':'off'}"></span>
+       <div><div class="call">${esc(m.call)}</div><div class="who">${esc(m.nom)} · ${esc(m.qth)}</div></div>
+       <svg class="add" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+     </div>`).join('');
+  document.getElementById('rosterCount').textContent = roster.length + ' stations';
+  document.getElementById('rostN').textContent = roster.length;
+}
+
+function renderMic(){
+  const wrap = document.getElementById('micWrap');
+  if(!queue.length){
+    wrap.innerHTML = `<div class="mic" style="text-align:center;color:var(--muted)">
+      <div class="lbl" style="justify-content:center">FILE VIDE</div>
+      <div style="margin-top:10px;font-size:14px">Mets une station à l'air depuis le répertoire.</div></div>`;
+    return;
+  }
+  const m = queue[0];
+  const next = queue[1];
+  wrap.innerHTML = `<div class="mic">
+    <div class="lbl"><span class="live"></span>AU MICRO MAINTENANT</div>
+    <div class="call">${esc(m.call)}</div>
+    <div class="who">${esc(m.who)}</div>
+    <div class="row">
+      <button class="big-btn" onclick="loguerEtSuivant()">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 9l3 3 7-7"/></svg>
+        Loguer &amp; passer au suivant
+      </button>
+      <button class="ghost-btn" onclick="passer()" title="Passer sans loguer">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4l7 5-7 5z"/></svg>
+      </button>
+    </div>
+    <div class="hint">${next ? 'Ensuite : <b style="color:var(--text)">'+esc(next.call)+'</b>' : 'Dernière station de la file'}</div>
+  </div>`;
+}
+
+function renderQueue(){
+  const box = document.getElementById('queue');
+  box.innerHTML = queue.slice(1).map((m,i) =>
+    `<div class="q-item" title="Glisser pour réordonner">
+       <span class="grip">⋮⋮</span>
+       <span class="num">${i+2}</span>
+       <div><div class="call">${esc(m.call)}</div><div class="who">${esc(m.who)}</div></div>
+       ${m.worked==='new'?'<span class="worked new">nouveau</span>':'<span class="worked">déjà fait</span>'}
+     </div>`).join('') || `<div style="color:var(--muted);font-size:12px;padding:10px;text-align:center">Personne d'autre en attente.</div>`;
+  document.getElementById('onairN').textContent = queue.length;
+  document.getElementById('netCount').textContent = logged.length + ' loggé' + (logged.length>1?'s':'');
+}
+
+function renderLogged(){
+  const box = document.getElementById('loggedList');
+  box.innerHTML = logged.slice().reverse().map(l =>
+    `<div class="lrow"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 9l3 3 7-7"/></svg>
+       <span class="call">${esc(l.call)}</span><span class="tm">${l.tm}</span></div>`).join('')
+    || `<div style="color:var(--muted);font-size:11.5px;padding:4px 6px">Aucun QSO logué pour l'instant.</div>`;
+  document.getElementById('doneN').textContent = logged.length;
+}
+
+function loguerEtSuivant(){
+  if(!queue.length) return;
+  const m = queue.shift();
+  const tm = new Date().toISOString().slice(11,16) + 'z';
+  logged.push({call:m.call, tm});
+  renderAll();
+}
+function passer(){
+  if(queue.length<2) return;      // rien derrière : on ne fait rien
+  queue.push(queue.shift());      // renvoie l'actuel en fin de file
+  renderAll();
+}
+function renderAll(){ renderRoster(); renderMic(); renderQueue(); renderLogged(); }
+renderAll();
+
+// Horloge de démo
+setInterval(()=>{ document.getElementById('clock').textContent =
+  new Date().toISOString().slice(11,19) + ' UTC'; }, 1000);
+</script>
+</body>
+</html>
