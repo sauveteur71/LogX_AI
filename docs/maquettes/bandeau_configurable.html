@@ -135,6 +135,7 @@ body.day-mode .ticker-cat{color:#F8F6EF}
     <li><span class="em">Adapté à l'ACTIVITÉ</span> (ta doctrine) : change « Activité » — les bandeaux pertinents apparaissent et leur contenu se cale dessus. Un bandeau <span class="em">Concours</span> n'existe qu'en concours (mults manquants, rythme…) ; en <span class="em">Chasse</span>, DX/POTA/SOTA ; en <span class="em">Numérique</span>, décodages FT8 / PSK Reporter.</li>
     <li><span class="em">Adapté à la BANDE/MODE</span> : change « Bande / Mode » — le bandeau « Bande &amp; mode » se réadapte en direct (spots de CETTE bande, ouverture, appel recommandé). Dans le logbook simple, c'est LUI qui suit ce que tu fais.</li>
     <li><span class="em">Même composant partout</span> : une seule mécanique de bandeau, un contenu qui dépend du contexte de la page — cohérent, pas 5 systèmes différents.</li>
+    <li><span class="em">Règle de contenu (F4GLD 26/08)</span> : on diffuse du <span class="em">live en priorité</span> (spots en cours, activations en direct, propagation courante, passages imminents). Les <span class="em">DXpéditions</span> sont filtrées aux <span class="em">7 prochains jours</span> — pas d'annonces lointaines qui prennent la place de l'info utile maintenant.</li>
   </ul>
   <span class="faux">⚠️ Données = exemples fictifs pour la maquette (indicatifs, fréquences, multiplicateurs inventés).</span>
 </div>
@@ -165,7 +166,7 @@ const BANNERS = {
       `<span class="k">DX</span> <span class="call">F5ABC</span> <span class="f">14.075</span> FT8 <span class="new">nouveau pays</span>`,
       `<span class="k">POTA</span> <span class="call">F-0123</span> <span class="f">14.244</span> SSB`,
       `<span class="k">SOTA</span> <span class="call">F/AB-045</span> <span class="f">145.500</span> FM`,
-      `<span class="k">DXpédition</span> <span class="call">TX7X</span> annoncée 10-24 sept.`,
+      `<span class="k">DXpédition</span> <span class="call">TX7X</span> <span class="new">départ dans 3 j</span> — 160-6 m`,
     ]},
   sat: { cat:'SATELLITES', cls:'c-purple', ico:ICO.sat, contextes:['accueil'],
     items: () => [
