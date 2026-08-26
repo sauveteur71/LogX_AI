@@ -43,6 +43,8 @@ FENETRE_MIN = 15          # fenêtre « maintenant »
 BASELINE_MIN = 120        # fenêtre de référence, juste avant la fenêtre courante
 GARDE_MIN = FENETRE_MIN + BASELINE_MIN + 10   # marge avant purge de l'historique
 FETCH_CACHE_S = 90        # ne pas re-solliciter les clusters plus souvent que ça
+FETCH_RETRY_S = 15        # après un ÉCHEC réseau, re-tenter vite (au lieu d'attendre
+                          # FETCH_CACHE_S) — mais borné pour ne pas marteler en boucle
 
 _lock = threading.Lock()
 _history = {b: [] for b in BANDES}     # bande -> [{'ts','call','dist_km'}, ...]
@@ -198,6 +200,11 @@ def opening_index(band, my_locator='', now=None, fetch_fn=None):
             if spots is not None:
                 _fusionner(band, my_lat, my_lon, now, spots)  # purge aussi, en interne
             else:
+                # Échec réseau : ne pas confisquer toute la collecte pendant
+                # FETCH_CACHE_S sur un blip transitoire. On recule _last_fetch
+                # pour autoriser une re-tentative dans FETCH_RETRY_S (borné, pas
+                # de storm), au lieu de laisser la propagation à blanc 90 s.
+                _last_fetch[band] = now - FETCH_CACHE_S + FETCH_RETRY_S
                 _purge(band, now)
     else:
         # La collecte (et sa purge) est sautée la plupart des appels, à
