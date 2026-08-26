@@ -554,7 +554,7 @@ function creditBadge(s){
   const off = !(s.credit_score > 0);
   const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '')
           + (off ? ' — objectif désactivé' : '');
-  return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${lbl}</span>`;
+  return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${rcT(lbl)}</span>`;
 }
 
 // ── Profil d'OBJECTIFS opérateur (option b) ────────────────────────────────
@@ -573,7 +573,7 @@ function construireObjectifs(goals){
   if(!box) return;
   // absent => coché (défaut = objectif actif, comme le serveur)
   box.innerHTML = OBJECTIFS_DEF.map(o =>
-    `<label class="obj-item"><input type="checkbox" data-cle="${o.cle}"${goals[o.cle] === false ? '' : ' checked'}> ${o.label}</label>`
+    `<label class="obj-item"><input type="checkbox" data-cle="${o.cle}"${goals[o.cle] === false ? '' : ' checked'}> ${rcT(o.label)}</label>`
   ).join('');
   box.querySelectorAll('input[data-cle]').forEach(inp => { inp.onchange = enregistrerObjectifs; });
 }
