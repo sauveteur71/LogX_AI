@@ -8,8 +8,6 @@ TRONQUÉ (write partiel après un crash, vieux mauvais téléchargement) était 
 import os
 import sys
 
-import pytest
-
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if CONCOURS not in sys.path:
     sys.path.insert(0, CONCOURS)
