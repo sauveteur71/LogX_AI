@@ -235,6 +235,9 @@ async function saveEdit(){
     });
   }catch(e){ console.warn('Serveur hors ligne, correction locale uniquement'); }
 
+  // Multi-poste : propager l'ÉDITION aux autres postes (deleteQSOSilent diffuse
+  // déjà 'delete', mais saveEdit/undoLastQSO ne diffusaient rien -> désync).
+  bcBroadcast('update', q);
   closeEdit();
   renderLog();
   updateStats();
@@ -267,6 +270,7 @@ async function undoLastQSO(){
   try{
     await fetch(`/log/delete/${last.id}`, {method:'DELETE'});
   }catch(e){}
+  bcBroadcast('delete', {id: last.id});   // multi-poste : l'undo est une suppression
   renderLog();
   updateStats();
 }
