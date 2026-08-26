@@ -113,6 +113,12 @@ def ajouter(call, freq_khz, band='', mode='', note='', maintenant=None):
         for s in _spots:
             if _cle(s.get('call'), s.get('freq_khz')) == cle:
                 s['ts'] = now
+                # Aligner la fréquence stockée sur la dernière notée : _cle
+                # identifie au kHz près, donc renoter à 14025,4 tombe sur un
+                # spot noté à 14025,1. Sans cette mise à jour, la liste garde
+                # l'ancienne valeur alors que la réponse renvoie la nouvelle
+                # (réponse incohérente avec l'état affiché).
+                s['freq_khz'] = f
                 if band:
                     s['band'] = str(band)
                 if mode:
