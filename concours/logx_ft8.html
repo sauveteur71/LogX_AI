@@ -3180,35 +3180,45 @@ if(localStorage.getItem('rc_theme') === null){
   async function jouerForme(wave, sampleRate){
     const outId = document.getElementById('ft8OutDevice').value;
     const txCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});
-    const buf = txCtx.createBuffer(1, wave.length, sampleRate);
-    buf.copyToChannel(wave, 0);
-    const src = txCtx.createBufferSource();
-    src.buffer = buf;
-    // Prise sur la source en cours, pour que STOP/Échap/chien de garde
-    // puissent réellement couper le son (voir couperAudioTx). src.stop()
-    // déclenche onended, donc l'attente ci-dessous se résout normalement :
-    // le finally d'envoyerMessage() s'exécute et relâche le PTT.
-    sourcesTxVivantes.add(src);
-    if(outId && HTMLMediaElement.prototype.setSinkId){
-      // Route vers un périphérique de sortie précis : MediaStreamDestination
-      // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
-      // directement sur AudioContext dans la plupart des navigateurs).
-      const dest = txCtx.createMediaStreamDestination();
-      src.connect(dest);
-      const audioEl = new Audio();
-      audioEl.srcObject = dest.stream;
-      await audioEl.setSinkId(outId);
-      audioEl.play();
-      src.start();
-      await new Promise(resolve => { src.onended = resolve; });
-      audioEl.pause();
-    } else {
-      src.connect(txCtx.destination);
-      src.start();
-      await new Promise(resolve => { src.onended = resolve; });
+    // src déclaré hors du try : le finally doit pouvoir le retirer de
+    // sourcesTxVivantes et fermer txCtx MÊME si l'émission échoue (ex.
+    // setSinkId qui rejette sur un périphérique de sortie mal configuré).
+    // Sans ça, chaque trame ratée fuyait un AudioContext (pool navigateur
+    // ~6 max) et laissait une source fantôme dans le Set que balaie
+    // couperAudioTx.
+    let src = null;
+    try{
+      const buf = txCtx.createBuffer(1, wave.length, sampleRate);
+      buf.copyToChannel(wave, 0);
+      src = txCtx.createBufferSource();
+      src.buffer = buf;
+      // Prise sur la source en cours, pour que STOP/Échap/chien de garde
+      // puissent réellement couper le son (voir couperAudioTx). src.stop()
+      // déclenche onended, donc l'attente ci-dessous se résout normalement :
+      // le finally d'envoyerMessage() s'exécute et relâche le PTT.
+      sourcesTxVivantes.add(src);
+      if(outId && HTMLMediaElement.prototype.setSinkId){
+        // Route vers un périphérique de sortie précis : MediaStreamDestination
+        // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
+        // directement sur AudioContext dans la plupart des navigateurs).
+        const dest = txCtx.createMediaStreamDestination();
+        src.connect(dest);
+        const audioEl = new Audio();
+        audioEl.srcObject = dest.stream;
+        await audioEl.setSinkId(outId);
+        audioEl.play();
+        src.start();
+        await new Promise(resolve => { src.onended = resolve; });
+        audioEl.pause();
+      } else {
+        src.connect(txCtx.destination);
+        src.start();
+        await new Promise(resolve => { src.onended = resolve; });
+      }
+    } finally {
+      if(src) sourcesTxVivantes.delete(src);
+      try{ txCtx.close(); }catch(e){}
     }
-    sourcesTxVivantes.delete(src);
-    try{ txCtx.close(); }catch(e){}
   }
 
   // Le jeton d'annulation des émissions programmées (generationTx /
