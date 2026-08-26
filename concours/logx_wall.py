@@ -58,6 +58,10 @@ def _load_calldb():
             _calldb_cache['calls'] = data.get('calls', {}) if isinstance(data, dict) else {}
             _calldb_cache['mtime'] = mtime
         except (OSError, ValueError):
+            # Fichier illisible/corrompu : mémoriser SON mtime pour ne pas le
+            # re-parser à chaque poll du mur (il ne changera pas tant qu'il n'est
+            # pas réécrit) ; on conserve les dernières données valides.
+            _calldb_cache['mtime'] = mtime
             return _calldb_cache['calls']
     return _calldb_cache['calls']
 
