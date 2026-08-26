@@ -139,11 +139,19 @@ def evaluer(grille_lotw, band, mode_cat, poids=None, objectifs=None):
 
 def evaluer_grid(neuf_a_vie, poids=None, objectifs=None):
     """Crédit d'un carré VHF/UHF entendu : {'classe', 'score', 'raison'} si le
-    carré est neuf à vie, sinon None. PURE — le test « neuf » est fait par
-    l'appelant (logx_awards, qui tient l'index des carrés du carnet). Le score
-    suit les poids/objectifs comme les crédits DXCC (objectif 'vucc')."""
+    carré est neuf à vie ET l'objectif 'vucc' actif, sinon None. PURE — le test
+    « neuf » est fait par l'appelant (logx_awards, qui tient l'index des carrés
+    du carnet).
+
+    Renvoie None (pas un dict à score 0) quand l'objectif est désactivé : sinon
+    la fusion par max de l'appelant (0 > -900) écraserait une classification
+    DXCC légitime — un doublon CONFIRMÉ passerait de -900 à 0. Contrat du
+    module : « un objectif désactivé annule le crédit correspondant »."""
     if not neuf_a_vie:
         return None
+    score = score_classe(CLASSE_NEW_GRID, poids, objectifs)
+    if score <= 0:                     # objectif 'vucc' désactivé (ou poids nul)
+        return None
     return {'classe': CLASSE_NEW_GRID,
-            'score': score_classe(CLASSE_NEW_GRID, poids, objectifs),
+            'score': score,
             'raison': raison(CLASSE_NEW_GRID)}

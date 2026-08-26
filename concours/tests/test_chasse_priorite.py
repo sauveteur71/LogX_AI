@@ -117,9 +117,12 @@ def test_grid_deja_fait_ne_donne_aucun_credit():
 
 
 def test_grid_objectif_vucc_desactive_annule_le_credit():
-    r = cp.evaluer_grid(True, objectifs={'vucc': False})
-    assert r['classe'] == cp.CLASSE_NEW_GRID     # classe inchangée
-    assert r['score'] == 0                        # crédit annulé
+    # Objectif désactivé -> AUCUN crédit (None). Renvoyer un dict à score 0
+    # laisserait la fusion par max (annoter_credit) écraser une classification
+    # DXCC légitime : 0 > -900 remplacerait un doublon CONFIRMÉ par un
+    # « new_grid » neutre. Le contrat du module : « un objectif désactivé
+    # annule le crédit correspondant » -> None, pas score 0.
+    assert cp.evaluer_grid(True, objectifs={'vucc': False}) is None
 
 
 def test_grid_poids_surchargeable():

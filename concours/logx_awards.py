@@ -603,7 +603,10 @@ def annoter_credit(spots, shared_log=None, poids=None, objectifs=None):
         band_s = str(s.get('band', '') or '')
         loc = str(s.get('locator') or s.get('grid') or '').strip().upper()
         g4 = loc[:4]
-        if (g4 and _est_vhf(band_s)
+        # len==4 exigé : un locator de spot tronqué (2-3 car.) n'est jamais dans
+        # grids_a_vie (qui ne contient que des carrés de 4) et compterait donc à
+        # tort comme « carré neuf ».
+        if (len(g4) == 4 and _est_vhf(band_s)
                 and not _locator_factice(loc) and not _locator_factice(g4)):
             rg = cp.evaluer_grid(g4 not in grids_a_vie, poids, objectifs)
             if rg and rg['score'] > r['score']:
