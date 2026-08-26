@@ -3401,6 +3401,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
+        # Résumé À VIE des activations/chasses par programme (POTA/SOTA/IOTA...) :
+        # nombre de références UNIQUES activées (my_sig_info) et chassées
+        # (sig_info). Agrégation pure du log, aucune confirmation externe.
+        if path == '/activation/summary':
+            import logx_activation as activation
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(activation.activation_summary(log_copy))
+            return
+
         # Carrés QRA travaillés, pour la carte VUCC. ?band=144 restreint à une
         # bande : le VUCC s'obtient bande par bande, jamais toutes bandes
         # confondues — une carte « toutes bandes » ne correspondrait à aucun

@@ -217,3 +217,41 @@ def programs_meta():
     return {k: {'name': v['name'], 'example': v['example'],
                 'min_qso': v['min_qso'], 'p2p': v['p2p']}
             for k, v in PROGRAM_SPECS.items()}
+
+
+def activation_summary(shared_log):
+    """Résumé À VIE, par programme d'activation (POTA/SOTA/IOTA/WWFF/...), du
+    nombre de références UNIQUES que l'opérateur a ACTIVÉES (champ ADIF
+    my_sig_info : c'est MA référence) et CHASSÉES (champ sig_info : la référence
+    de l'activateur d'en face que j'ai contacté).
+
+    Agrégation PURE du log commun — aucune confirmation externe requise (à la
+    différence des diplômes DXCC/WAS). Complète le tableau des diplômes pour les
+    programmes d'activation, jusque-là suivis seulement pour l'activation EN
+    COURS (activation_state), pas sur la durée de vie de la station.
+
+    Retour : {PROGRAMME: {'activated': N, 'hunted': M}} pour les seuls
+    programmes ayant au moins une référence (activée ou chassée)."""
+    prog_keys = set(PROGRAM_SPECS)
+    activated = {p: set() for p in prog_keys}
+    hunted = {p: set() for p in prog_keys}
+    for q in (shared_log or []):
+        if not isinstance(q, dict):
+            continue
+        msig = str(q.get('my_sig', '')).upper().strip()
+        if msig in prog_keys:
+            ref = normalize_ref(q.get('my_sig_info', ''))
+            if ref:
+                activated[msig].add(ref)
+        sig = str(q.get('sig', '')).upper().strip()
+        if sig in prog_keys:
+            ref = normalize_ref(q.get('sig_info', ''))
+            if ref:
+                hunted[sig].add(ref)
+    out = {}
+    for p in prog_keys:
+        if activated[p] or hunted[p]:
+            out[p] = {'activated': len(activated[p]), 'hunted': len(hunted[p]),
+                      'activated_refs': sorted(activated[p]),
+                      'hunted_refs': sorted(hunted[p])}
+    return out
