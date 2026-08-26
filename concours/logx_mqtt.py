@@ -59,7 +59,10 @@ def mqtt_settings(cfg):
     host = cfg.get('mqtt_host')
     port = cfg.get('mqtt_port')
     prefix = cfg.get('mqtt_topic_prefix')
-    if not enabled or not host:
+    # Consulter le repli disque dès qu'UN champ manque, pas seulement quand
+    # host/enabled manquent : sinon un cfg fournissant host mais pas port/prefix
+    # (redémarrage sans /config/save) ignorait le port/prefix du config.json.
+    if not enabled or not host or not port or not prefix:
         try:
             with open('config.json', encoding='utf-8') as f:
                 m = (json.load(f).get('mqtt', {}) or {})
