@@ -1,0 +1,32 @@
+/* logx_theme.css — Tokens de thème PARTAGÉS (« graphite & cuivre »).
+ *
+ * Mutualisation des palettes jusque-là dupliquées dans le :root de chaque page
+ * (décision F4GLD). Le mode JOUR (body.day-mode) est prioritaire, la NUIT est
+ * le défaut. Chargé AVANT le <style> inline de chaque page, il définit tous les
+ * tokens du noyau ; une page ne garde en local que ses extras réels.
+ *
+ * Choix figés :
+ *  - --muted / --text NUIT unifiés sur la palette majoritaire (14 pages) —
+ *    bande/panadapter/panel/scope/wall/mobile étaient légèrement divergents
+ *    (dérive non intentionnelle), désormais alignés.
+ *  - ALIAS de noms pour ne casser AUCUN usage existant : la police corps est
+ *    disponible sous --font, --font-main ET --sans ; la mono sous --font-mono
+ *    ET --mono. Même valeur, trois/deux noms.
+ *  - Le mode JOUR était déjà parfaitement identique sur les 20 pages : repris
+ *    tel quel.
+ */
+:root {
+  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#464950;
+  --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74;
+  --green:#00FF88; --red:#FF2D55; --yellow:#FFD60A; --purple:#BF5AF2; --orange:#FF9500;
+  --text:#E9ECF5; --muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace; --mono:'Share Tech Mono',monospace;
+  --font:'Exo 2',sans-serif; --font-main:'Exo 2',sans-serif; --sans:'Exo 2',sans-serif;
+  --font-display:'Fraunces',serif;
+}
+body.day-mode {
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096;
+  --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31;
+  --green:#007030; --red:#CC0030; --yellow:#7A5A00; --purple:#8040B0; --orange:#B35900;
+  --text:#232320; --muted:#665F55;
+}
