@@ -4,7 +4,7 @@
 // globale partagee (meme convention que les 19 increments precedents).
 //
 // Contenu : VOICE_SLOTS (const), _mediaRec/_recSlot/_recChunks (etat REC du
-// keyer vocal -- a ne pas confondre avec _recStream/_recMediaRec de
+// keyer vocal -- a ne pas confondre avec _vkStream/_recMediaRec de
 // l'ENREGISTREUR AUDIO PAR QSO, feature voisine mais distincte restee dans
 // logx_logbook.js), voiceSlots (etat serveur), voiceRefreshSlots(),
 // _voiceMigrationFaite + voiceMigrerAnciens(), renderVoicePanel(),
@@ -41,7 +41,7 @@ const VOICE_SLOTS = [
   {key:'V1', label:'CQ'}, {key:'V2', label:'RÉPONSE'},
   {key:'V3', label:'REPORT'}, {key:'V4', label:'MERCI'},
 ];
-let _mediaRec = null, _recSlot = null, _recChunks = [];
+let _mediaRec = null, _recSlot = null, _recChunks = [], _vkStream = null;
 
 // Emplacements DVK réellement enregistrés, tels que le SERVEUR les connaît.
 // Ils y sont stockés (et non plus en localStorage) pour deux raisons : ils sont
@@ -120,15 +120,31 @@ async function voiceRecord(key){
     _mediaRec.stop();
     return;
   }
+  if(_mediaRec){
+    // Un AUTRE slot enregistre encore (clic REC ailleurs sans avoir arrêté) :
+    // on l'abandonne PROPREMENT avant d'en ouvrir un nouveau. Sinon son flux
+    // micro restait ouvert (fuite) et ses chunks se mélangeaient au nouveau
+    // slot. On neutralise son onstop pour qu'il ne fasse QUE fermer son propre
+    // flux -- surtout PAS remettre à zéro _mediaRec/_recSlot/_recChunks, qui
+    // vont appartenir au nouvel enregistrement (l'onstop est asynchrone et se
+    // déclencherait APRÈS qu'on a installé le nouveau : il écraserait son état).
+    const ancienStream = _vkStream;
+    const ancienBtn = document.getElementById('rec_' + _recSlot);
+    _mediaRec.ondataavailable = null;
+    _mediaRec.onstop = () => { if(ancienStream) ancienStream.getTracks().forEach(t=>t.stop()); };
+    try{ _mediaRec.stop(); }catch(_){}
+    if(ancienBtn){ ancienBtn.textContent = '⏺'; ancienBtn.style.color=''; }
+    _mediaRec = null; _recSlot = null; _vkStream = null;
+  }
   try{
     const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    _recChunks = []; _recSlot = key;
+    _recChunks = []; _recSlot = key; _vkStream = stream;
     _mediaRec = new MediaRecorder(stream);
     _mediaRec.ondataavailable = e => { if(e.data.size) _recChunks.push(e.data); };
     _mediaRec.onstop = async () => {
       stream.getTracks().forEach(t=>t.stop());
       const blob = new Blob(_recChunks, {type: _mediaRec.mimeType||'audio/webm'});
-      _mediaRec = null; _recSlot = null;
+      _mediaRec = null; _recSlot = null; _vkStream = null;
       if(btn){ btn.textContent = '⏺'; btn.style.color=''; }
       // Réencodage en WAV AVANT l'envoi : le navigateur enregistre en WebM/Opus,
       // que le serveur ne sait pas jouer (wave.open). On réutilise l'encodeur
