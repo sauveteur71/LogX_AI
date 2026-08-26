@@ -5596,7 +5596,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 payload = json.loads(body) if body else {}
                 import logx_qsl as qsl
-                res = qsl.sync_lotw(self._cfg_snapshot(), since=payload.get('since'))
+                service = (payload.get('service') or 'lotw').lower()
+                cfg = self._cfg_snapshot()
+                since = payload.get('since')
+                if service == 'eqsl':
+                    res = qsl.sync_eqsl(cfg, since=since)
+                else:
+                    res = qsl.sync_lotw(cfg, since=since)
+                # Journal d'audit (garde-fou copilote) : trace horodatée du
+                # service synchronisé et du résultat (non destructif, jamais
+                # d'émission — niveau « automatisation limitée »).
+                print(f"[QSL-SYNC] service={service} ok={res.get('ok')} "
+                      f"telecharges={res.get('confirmed_downloaded')} "
+                      f"ajoutes={res.get('newly_added')} err={res.get('error')}")
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
