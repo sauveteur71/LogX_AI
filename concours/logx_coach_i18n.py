@@ -437,9 +437,12 @@ def t(lang, key, **params):
         tpl = _FR.get(key, '')
     try:
         return tpl.format(**params)
-    except (KeyError, IndexError, ValueError):
-        # Placeholder inattendu dans la traduction → on tente le FR, sinon brut.
+    except (KeyError, IndexError, ValueError, TypeError):
+        # Placeholder inattendu OU type incompatible (ex. None sur un spec
+        # numérique '{n:d}' → TypeError) : on tente le FR, sinon le brut.
+        # TypeError doit être attrapé ici sinon le contrat « ne lève jamais »
+        # de la docstring est violé.
         try:
             return _FR.get(key, tpl).format(**params)
-        except (KeyError, IndexError, ValueError):
+        except (KeyError, IndexError, ValueError, TypeError):
             return tpl
