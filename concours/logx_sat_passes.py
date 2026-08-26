@@ -256,6 +256,15 @@ def doppler_hz(range_rate_ms, freq_mhz):
 
 # ─── Passages ────────────────────────────────────────────────────────────────
 
+def _fenetre_heures(heures):
+    """Durée de la fenêtre de passages (heures). Défaut 24 h SEULEMENT pour une
+    valeur absente (None/'') — pas pour un 0 EXPLICITE : `float(heures or 24)`
+    traitait 0 (falsy) comme 24, écrasant une demande de fenêtre nulle."""
+    if heures is None or heures == '':
+        return 24.0
+    return float(heures)
+
+
 def passages(cache, nom, lat, lon, altitude_m=0, heures=24,
              elevation_min=0.0, quand=None, maxi=20):
     """Passages à venir dans les `heures` qui suivent.
@@ -271,7 +280,7 @@ def passages(cache, nom, lat, lon, altitude_m=0, heures=24,
     if sat is None:
         return {'available': False, 'error': 'Satellite inconnu du jeu TLE : %s' % nom}
     debut = quand or utcnow()
-    fin = debut + datetime.timedelta(hours=float(heures or 24))
+    fin = debut + datetime.timedelta(hours=_fenetre_heures(heures))
     obs = _observer(lat, lon, altitude_m, debut)
     out = []
     try:
