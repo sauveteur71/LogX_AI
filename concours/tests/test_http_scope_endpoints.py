@@ -269,6 +269,40 @@ def test_qtc_add_serie_ligne_incomplete_refusee(server, monkeypatch):
     assert not storage.qtc_log      # rien n'a été enregistré
 
 
+def test_qtc_add_heure_invalide_refusee(server, monkeypatch):
+    """Dernier rempart serveur : une heure hors format HHMM ne doit jamais
+    être stockée, même si le client la laissait passer (décision F4GLD :
+    la validation client ne peut pas être la seule protection)."""
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    for mauvaise in ('9999', '2460', '1260', '1', 'abcd', '13:01'):
+        status, res = _post(server, '/qtc/add', {
+            'call': 'DL0XM',
+            'entries': [{'time': mauvaise, 'call': 'YU1ZZ', 'nr': '62'}]})
+        assert status == 400 and not res['ok'], mauvaise
+    assert not storage.qtc_log      # rien n'a été enregistré
+
+
+def test_qtc_add_heure_valide_acceptee(server, monkeypatch):
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    status, res = _post(server, '/qtc/add', {
+        'call': 'DL0XM',
+        'entries': [{'time': '2359', 'call': 'YU1ZZ', 'nr': '62'}]})
+    assert status == 200 and res['ok']
+    assert storage.qtc_log[-1]['entries'][0]['time'] == '2359'
+
+
 def test_qtc_add_serie_plus_de_10_qtc_refusee(server, monkeypatch):
     import logx_storage as storage
     monkeypatch.setattr(httpmod, 'current_config',

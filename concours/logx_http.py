@@ -100,6 +100,10 @@ PEER_VERSION_TTL = 300  # secondes
 # La borne de longueur ferme au passage la croissance non bornée de la valeur
 # (la ligne de requête HTTP autorise ~64 Ko, tous stockés verbatim auparavant).
 PEER_VERSION_RE = re.compile(r'[\w.+-]{1,32}')   # utilisé avec .fullmatch()
+# Heure QTC = HHMM UTC (HH 00-23, MM 00-59). La validation client (logx_qtc.js)
+# améliore l'UX mais ne doit JAMAIS être la seule protection avant l'écriture du
+# fichier de soumission WAE — dernier rempart serveur (décision F4GLD).
+_QTC_HHMM_RE = re.compile(r'^(?:[01]\d|2[0-3])[0-5]\d$')
 
 
 def _prune_stale_peer_versions():
@@ -7215,6 +7219,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         self._json({'ok': False, 'error':
                                     "Chaque QTC doit avoir heure + indicatif + n° "
                                     "(règlement WAE) — ligne incomplète"}, 400)
+                        return
+                    if not _QTC_HHMM_RE.match(e_time):
+                        self._json({'ok': False, 'error':
+                                    f"Heure QTC invalide « {e_time} » — format HHMM UTC "
+                                    "attendu (0000 à 2359)"}, 400)
                         return
                     entries.append({'time': e_time, 'call': e_call, 'nr': e_nr})
                 if entries and not 1 <= len(entries) <= 10:
