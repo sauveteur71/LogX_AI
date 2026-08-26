@@ -583,6 +583,7 @@ def upload_hrdlog(cfg, qsos):
     for idx, q in enumerate(qsos):
         record = _single_qso_adif(q, cfg)
         ok_one = False
+        got_response = False   # un hôte a-t-il RÉPONDU (serveur joignable) ?
         for host in HRDLOG_HOSTS:
             try:
                 resp = _NET_EXECUTOR.submit(
@@ -591,6 +592,7 @@ def upload_hrdlog(cfg, qsos):
             except Exception as e:
                 last_error = str(e)
                 continue
+            got_response = True
             # Succès = <insert>1</insert> (compte réel d'enregistrements insérés,
             # PAS l'absence d'une balise <error> — vérifié en direct contre le
             # vrai serveur : des identifiants invalides renvoient <insert>0</insert>
@@ -611,6 +613,14 @@ def upload_hrdlog(cfg, qsos):
             consecutive_fails = 0
         else:
             failed += 1
+            # Le disjoncteur détecte une injoignabilité RÉSEAU (« HRDLog
+            # probablement injoignable »). Un serveur qui RÉPOND — même en
+            # rejetant le QSO (indicatif/code invalide, <insert>0</insert>) —
+            # est joignable : un rejet de contenu ne doit pas avorter les QSO
+            # valides suivants. Seule une absence totale de réponse compte.
+            if got_response:
+                consecutive_fails = 0
+                continue
             consecutive_fails += 1
             if consecutive_fails >= HRDLOG_FAIL_CIRCUIT:
                 remaining = total - (idx + 1)

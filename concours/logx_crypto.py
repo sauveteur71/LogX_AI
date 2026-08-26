@@ -46,7 +46,7 @@ SECRET_FIELDS = (
     'relay_password', 'icomremote_password',
 )
 
-_cache = {'key': None, 'warned_missing_lib': False}
+_cache = {'key': None, 'warned_missing_lib': False, 'echec_chiffrement': None}
 
 
 def _load_or_create_key():
@@ -86,6 +86,7 @@ def reset_key_cache():
     relise/régénère KEY_FILE plutôt que de garder une clé d'un test précédent."""
     _cache['key'] = None
     _cache['warned_missing_lib'] = False
+    _cache['echec_chiffrement'] = None
 
 
 def encrypt(plaintext):
@@ -105,6 +106,12 @@ def encrypt(plaintext):
         ct = AESGCM(key).encrypt(nonce, plaintext.encode('utf-8'), None)
         return ENC_PREFIX + base64.b64encode(nonce + ct).decode('ascii')
     except Exception as e:
+        # Échec INATTENDU (la lib est là mais le chiffrement a levé) : on garde
+        # l'écriture pour ne jamais casser la sauvegarde, MAIS on mémorise
+        # l'échec pour que l'appelant (/config/save) le rende VISIBLE à
+        # l'opérateur — un print stdout seul lui échapperait, et il ignorerait
+        # que ce secret vient d'être écrit en clair (décision F4GLD 26/08/2026).
+        _cache['echec_chiffrement'] = str(e)
         print(f"[CRYPTO] Chiffrement echoue, valeur laissee en clair : {e}")
         return plaintext
 
@@ -135,11 +142,22 @@ def encrypt_config(cfg):
     """Nouveau dict, champs secrets chiffrés — pour écrire .server_config.json.
     Ne modifie JAMAIS le dict reçu : current_config doit rester en clair en
     mémoire, le reste de l'appli ne doit rien savoir de ce chiffrement."""
+    # Remis à zéro pour ne rapporter que les échecs de CE chiffrement (donc de
+    # CE /config/save) — voir echec_chiffrement_recent().
+    _cache['echec_chiffrement'] = None
     out = dict(cfg)
     for f in SECRET_FIELDS:
         if out.get(f):
             out[f] = encrypt(str(out[f]))
     return out
+
+
+def echec_chiffrement_recent():
+    """Message d'erreur si le dernier encrypt_config() a subi un ÉCHEC de
+    chiffrement (un secret écrit en clair malgré la présence de `cryptography`),
+    sinon None. Distinct du cas 'lib absente' (dégradation connue et voulue).
+    /config/save s'en sert pour AVERTIR l'opérateur de façon visible."""
+    return _cache.get('echec_chiffrement')
 
 
 def decrypt_config(cfg):

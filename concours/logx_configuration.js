@@ -5342,6 +5342,11 @@ function saveConfig(silent = false, feedbackBtn = null) {
   _lastConfigSavePromise = fetch('/config/save', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(config)
+  }).then(r=>r.json()).then(data=>{
+    // Rare : un secret n'a pas pu être chiffré et a été écrit EN CLAIR côté
+    // serveur. L'échec DOIT être visible, même en sauvegarde silencieuse
+    // (le secret est stocké tel quel dans .server_config.json).
+    if(data && data.secret_clair_avertissement) _configToast('⚠ ' + data.secret_clair_avertissement, 10000);
   }).catch(e=>console.warn('[CFG] serveur non joignable :', e));
   // Optimiste (comme le feedback "ENREGISTRÉ" ci-dessous, avant même la
   // réponse serveur) : la section actuellement ouverte n'a plus de

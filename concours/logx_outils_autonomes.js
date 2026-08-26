@@ -233,8 +233,11 @@ function latLonToMaidenhead(lat, lon){
   lon += 180; lat += 90;
   const L = 'ABCDEFGHIJKLMNOPQRSTUVWX';
   let loc = '';
-  loc += L[Math.floor(lon/20)];
-  loc += L[Math.floor(lat/10)];
+  // Aux bornes exactes lon=+180 / lat=+90 (antiméridien / pôle Nord, ou un
+  // arrondi GPS qui y tombe), Math.floor donne l'index 18 -> 'S', hors du champ
+  // valide A-R (0..17). On borne à R, le dernier champ légitime.
+  loc += L[Math.min(17, Math.floor(lon/20))];
+  loc += L[Math.min(17, Math.floor(lat/10))];
   loc += Math.floor((lon%20)/2).toString();
   loc += Math.floor(lat%10).toString();
   loc += L[Math.floor(((lon%20)%2)*12)];

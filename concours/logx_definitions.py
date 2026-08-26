@@ -1306,6 +1306,13 @@ def load_custom_contests():
             data = json.load(f)
         for cid, entry in data.items():
             cdef = entry.get('definition', entry)  # tolère les 2 formats
+            # Ne JAMAIS écraser une définition INTÉGRÉE (même garde que
+            # save_custom_contest, l.1321) : un fichier custom édité à la main —
+            # ou réutilisant un id ajouté depuis à la base codée — remplacerait
+            # sinon en silence les règles curées du concours intégré.
+            if cid in CONTEST_DEFINITIONS and cid not in CUSTOM_CONTEST_IDS:
+                print(f"[CUSTOM] '{cid}' ignoré : collision avec un concours intégré")
+                continue
             CONTEST_DEFINITIONS[cid] = cdef
             CUSTOM_CONTEST_IDS.add(cid)
         if CUSTOM_CONTEST_IDS:

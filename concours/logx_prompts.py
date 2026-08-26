@@ -26,6 +26,16 @@ def sanitize_external_text(text, max_len=120):
     return f"<<{text}>>"
 
 
+def _int_ou(val, defaut):
+    """int() tolérant : une valeur de config non-numérique (corrompue/éditée à
+    la main) retombe sur le défaut au lieu de lever. build_system_prompt utilise
+    déjà ces champs sans jamais planter ; build_terrain_context s'aligne."""
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return defaut
+
+
 # ─── GÉNÉRATION DU SYSTÈME PROMPT ────────────────────────────────────────────
 def build_system_prompt(cfg):
     call     = cfg.get('callsign', 'STATION')
@@ -681,8 +691,8 @@ def build_terrain_context(logs, spots_by_band, cfg):
     contest = cfg.get('contest', 'CUSTOM')
     no_digi = cfg.get('toggles', {}).get('flag_no_digi', False)
     call_c = cfg.get('callsign_contest', cfg.get('callsign', 'STATION'))
-    alert_dx = int(cfg.get('alert_dx_km', 1200))
-    spotter_ok = int(cfg.get('spotter_reliable_km', 600))
+    alert_dx = _int_ou(cfg.get('alert_dx_km', 1200), 1200)
+    spotter_ok = _int_ou(cfg.get('spotter_reliable_km', 600), 600)
 
     lines = [f"=== DONNÉES TERRAIN EN TEMPS RÉEL — {contest} ===\n"]
 
