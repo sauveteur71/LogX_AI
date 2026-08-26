@@ -31,6 +31,7 @@ HTTP fiable pour ce cas d'usage :
     l'expédition en aurait justement besoin. Vérifié en direct (juillet 2026)
     via les requêtes réseau du site avant de conclure à l'absence de repli.
 """
+import copy
 import re
 import socket
 import time
@@ -76,7 +77,10 @@ def where_heard(my_call, timeout=9):
     with _lock:
         if (_cache['data'] and _cache['call'] == my_call
                 and time.time() - _cache['ts'] < CACHE_S):
-            return _cache['data']
+            # Copie : sinon un appelant qui mute le résultat (ex. filtre/tri sur
+            # 'spots') corromprait le dict PARTAGÉ du cache pour les appels
+            # suivants. Coût négligeable devant l'appel réseau qu'il remplace.
+            return copy.deepcopy(_cache['data'])
 
     def _dialog():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
