@@ -158,9 +158,23 @@ def activation_state(shared_log, program, my_ref):
     entries = activation_qsos(shared_log, program, my_ref)
 
     calls, per_band, per_mode = set(), {}, {}
+    # Compteur d'ÉLIGIBILITÉ (décision F4GLD ④) : pour le seuil d'activation,
+    # un même indicatif recontacté sur la MÊME bande + MÊME mode + MÊME jour UTC
+    # ne compte qu'une fois (POTA ET WWFF). On garde à part le total BRUT (toutes
+    # les lignes enregistrées) : la liste exportée n'est JAMAIS dédupliquée, seul
+    # le compteur d'éligibilité exclut les doublons. Bande/mode/date absents
+    # (log sans horodatage) → chaîne vide : rétro-compatible, deux indicatifs
+    # distincts restent distincts.
+    eligible = set()
     p2p = []
     for q in entries:
-        calls.add(str(q.get('call', '')).upper())
+        call_u = str(q.get('call', '')).upper().strip()
+        calls.add(call_u)
+        if call_u:
+            eligible.add((call_u,
+                          str(q.get('band', '')).strip().lower(),
+                          str(q.get('mode', '')).upper().strip(),
+                          str(q.get('date', '')).strip()))
         b = str(q.get('band', '?'))
         m = str(q.get('mode', '?')).upper()
         per_band[b] = per_band.get(b, 0) + 1
@@ -177,16 +191,19 @@ def activation_state(shared_log, program, my_ref):
                         'ref': their, 'band': b, 'mode': m})
 
     total = len(entries)
+    qso_eligible = len(eligible)
     return {
         'program': program,
         'program_name': spec.get('name', program),
         'my_ref': my_ref,
         'valid_ref': validate_ref(program, my_ref) if my_ref else False,
-        'qso_total': total,
+        'qso_total': total,                       # lignes brutes enregistrées
+        'qso_eligible': qso_eligible,             # uniques (call+band+mode+jour)
+        'doublons': max(0, total - qso_eligible),
         'unique_calls': len(calls),
         'min_qso': min_qso,
-        'valid': total >= min_qso,
-        'needed': max(0, min_qso - total),
+        'valid': qso_eligible >= min_qso,         # le seuil se juge sur l'éligible
+        'needed': max(0, min_qso - qso_eligible),
         'p2p_label': spec.get('p2p', 'P2P'),
         'p2p_count': len(p2p),
         'p2p': p2p[-25:],
