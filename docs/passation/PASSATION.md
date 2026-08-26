@@ -268,6 +268,32 @@ et bugs de F4GLD. Toutes mergées sauf mention.
   « parcs/sommets déjà chassés » + « spot portant une réf. » n'existe pas.
   Le bâtir serait une supposition.
 
+**Auto-relecture + revues adversariales de la fenêtre (26/08, tout vérifié moi-même)** :
+- **#293 — 2 correctifs UX auto-détectés sur le profil #292** : (a) le changement
+  d'objectif appelait `renderSpots()` (re-rendu des ANCIENS crédits) au lieu de
+  `loadSpots()` (re-fetch) → badges figés jusqu'au poll 60 s. (b) `creditBadge`
+  s'appuyait sur la classe, pas le score → décocher un objectif ne masquait aucun
+  badge (profil quasi inerte). Corrigé : badge affiché seulement si
+  `credit_score > 0`. Le need-list reflète enfin ce que l'opérateur chasse.
+- **#294 — vrai bug de correction trouvé par revue adversariale (sous-agent), reproduit
+  moi-même** : `evaluer_grid` renvoyait un dict à score 0 (au lieu de None) quand
+  `vucc` désactivé → la fusion par max (`0 > -900`) écrasait un doublon CONFIRMÉ en
+  `new_grid`/0. Le test unitaire existant **encodait le bug** (assertait score 0) —
+  corrigé pour exiger None. + garde `len(g4)==4` (locator tronqué ≠ carré neuf).
+- **2 revues adversariales par sous-agent** (Python puis JS/HTML) : au-delà de #294,
+  tout le reste **vérifié sain** (operator_goals atomique/sans injection, endpoints
+  sous auth globale, `_est_vhf` fire sur libellés MHz réels, moyennage sans dérive,
+  palettes bornées, cadence waterfall sans div/0, objectifs persistés correctement).
+- **Vérif statique projet-wide** : ruff E9,F sur 116 .py = propre ; node --check sur
+  68 .js = propre ; 22 blocs `<script>` inline (20 pages, extraction robuste hors
+  commentaires/CSS) = propres ; **suite pytest complète verte (exit 0)**.
+- **`.gitignore`** : ajout de `.operator_goals.json` (fichier d'état runtime).
+- **RESTE À VÉRIFIER PAR F4GLD (navigateur, non automatisable ici)** : rendu des
+  panneaux Objectifs (CHASSE) et contrôles panadapter en thèmes JOUR **et** NUIT.
+  Nuance UX à trancher : faut-il masquer un badge dont l'objectif est désactivé
+  (fait) ou juste l'atténuer ? (choisi : masquer, cohérent avec « l'interface se
+  règle sur ce que l'opérateur FAIT »).
+
 **Audits (vérification, sans PR)** : largeurs des pages (aucun autre défaut type
 MODE NUMÉRIQUE — rtty/sstv/cw volontairement étroits) ; textes FR en dur (~399
 chaînes visibles hors `T`, mais l'essentiel est de la prose/aide **délibérément
