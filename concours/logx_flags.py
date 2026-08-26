@@ -79,7 +79,11 @@ _ALIAS = {'W': 'K', 'N': 'K', 'AA': 'K', 'M': 'G', '2E': 'G', 'R': 'UA'}
 def flag_emoji(iso2):
     """ISO-3166 alpha-2 -> emoji drapeau (indicateurs régionaux Unicode)."""
     iso2 = (iso2 or '').upper()
-    if len(iso2) != 2 or not iso2.isalpha():
+    # isalpha() SEUL accepte des lettres non-ASCII (É, Ñ, cyrillique…) : ord(c)
+    # dépasserait alors la plage A-Z et 0x1F1E6+ord(c)-ord('A') donnerait un
+    # codepoint hors des indicateurs régionaux (drapeau parasite). On exige
+    # strictement de l'ASCII A-Z.
+    if len(iso2) != 2 or not (iso2.isascii() and iso2.isalpha()):
         return ''
     return ''.join(chr(0x1F1E6 + ord(c) - ord('A')) for c in iso2)
 
