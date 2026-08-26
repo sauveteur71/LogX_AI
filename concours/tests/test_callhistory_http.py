@@ -52,7 +52,10 @@ def server():
 
 
 def _get(base, path):
-    with urllib.request.urlopen(base + path, timeout=5) as r:
+    # /call/index et /call/near exigent désormais le jeton (A09). On l'envoie
+    # partout via X-RC-Token — inoffensif pour /callhistory/status (non protégé).
+    req = urllib.request.Request(base + path, headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=5) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
