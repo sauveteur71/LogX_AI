@@ -1247,6 +1247,12 @@ if(localStorage.getItem('rc_theme') === null){
   let lastProcessedSlot = 0;
   let cycleTimer = null;
   let rxActif = false;
+  // Garde anti-ré-entrance du démarrage RX : rxActif n'est posé qu'à la FIN de
+  // demarrerRx (après await getUserMedia), donc un double-clic sur « Écouter »
+  // pendant l'invite de permission relançait un second pipeline concurrent qui
+  // écrasait ctx/stream/source (le premier fuyait). Même garde que le
+  // panadapter (logx_panadapter.html:972).
+  let rxDemarrageEnCours = false;
   // Nombre de resynchronisations de l'horloge du tampon audio depuis le
   // démarrage — voir pousserEchantillons(). Non nul = la machine n'arrive pas
   // à suivre, information utile pour diagnostiquer une absence de décodage.
@@ -2559,11 +2565,15 @@ if(localStorage.getItem('rc_theme') === null){
       status.textContent = 'arrêté';
       return;
     }
+    if(rxDemarrageEnCours) return;   // ignore un second clic tant que le démarrage n'est pas résolu
+    rxDemarrageEnCours = true;
     demarrerRx().then(() => {
       btn.textContent = '■ Arrêter'; btn.classList.add('on');
       status.textContent = 'écoute en cours…';
     }).catch(e => {
       status.textContent = 'périphérique indisponible : ' + e.message;
+    }).finally(() => {
+      rxDemarrageEnCours = false;
     });
   };
 
