@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Contrôle de réseau</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  CONTRÔLE DE RÉSEAU (net control) — tranche 2. La logique et les données
+  viennent de logx_net_control.js branché sur les endpoints serveur (tranche 1) :
+  GET /data/nets + POST /nets/{create,delete,roster/add,roster/remove}. La file
+  de passage du micro est tenue côté client ; le log dans le carnet UNIQUE =
+  tranche 3. Design repris de la maquette validée docs/maquettes/net_control.html
+  (jour/nuit, tokens verrouillés graphite & cuivre). Le carnet reste UNIQUE — un
+  réseau est une VUE, jamais un second carnet.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;
+  --green:#00FF88;--red:#FF2D55;--yellow:#FFD60A;--purple:#BF5AF2;
+  --text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode{
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;
+  --green:#007030;--red:#CC0030;--yellow:#7A5A00;--purple:#8040B0;
+  --text:#232320;--muted:#665F55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+svg{width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);
+  padding:9px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand b{font-family:var(--font-mono);color:var(--accent);letter-spacing:1px;font-size:17px}
+.brand .t{font-family:var(--font-display);font-weight:900;font-size:16px;letter-spacing:.2px}
+.net-pick{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.net-pick select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:7px;
+  padding:5px 9px;font-family:var(--font-mono);font-size:12px;max-width:280px}
+.hbtn{background:var(--bg3);border:1px solid var(--border);color:var(--accent2);border-radius:7px;padding:6px 10px;
+  cursor:pointer;font-size:12px;font-family:var(--font);display:inline-flex;align-items:center;gap:5px}
+.hbtn:hover{border-color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+.hbtn.danger{color:var(--red)}
+a.back{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none}
+a.back:hover{color:var(--text)}
+.sub{font-size:12.5px;color:var(--muted);padding:8px 20px 0;flex-shrink:0}
+.sub b{color:var(--text)}
+.grid{flex:1;display:grid;grid-template-columns:300px 1fr 300px;gap:14px;padding:14px 20px 18px;min-height:0}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.col{background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.col-h{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.col-h .ttl{font-family:var(--font-display);font-weight:900;font-size:13px;letter-spacing:.3px}
+.col-h .ct{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.col-body{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
+.search{margin:8px 8px 2px;display:flex;gap:6px}
+.search input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 9px;font-family:var(--font-mono);font-size:12px}
+.vide{color:var(--muted);font-size:12px;padding:10px;text-align:center}
+.member{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;border:1px solid transparent;cursor:pointer}
+.member:hover{background:var(--bg3);border-color:var(--border)}
+.member .call{font-family:var(--font-mono);font-weight:700;font-size:13px}
+.member .who{font-size:11.5px;color:var(--muted);line-height:1.25}
+.member .rm{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px}
+.member .rm:hover{color:var(--red)}
+.mic-wrap{padding:14px;flex-shrink:0}
+.mic{background:linear-gradient(180deg,rgba(var(--accent-rgb),.14),rgba(var(--accent-rgb),.04));border:1px solid var(--accent2);
+  border-radius:14px;padding:16px 18px}
+.mic.vide{background:var(--bg3);border-color:var(--border);color:var(--muted);text-align:center}
+.mic .lbl{font-family:var(--font-mono);font-size:10.5px;letter-spacing:2px;color:var(--accent2);display:flex;align-items:center;gap:7px}
+.mic .live{width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.mic .call{font-family:var(--font-mono);font-weight:700;font-size:34px;letter-spacing:1px;margin:6px 0 2px}
+.mic .row{display:flex;align-items:center;gap:10px;margin-top:14px}
+.big-btn{flex:1;background:var(--accent2);color:#0b0d10;border:none;border-radius:10px;padding:12px 14px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer}
+body.day-mode .big-btn{color:#F8F6EF}
+.big-btn:hover{filter:brightness(1.08)}
+.ghost-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:12px 14px;font-size:13px;cursor:pointer}
+.ghost-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.hint{font-size:11px;color:var(--muted);text-align:center;margin-top:9px}
+.queue-h{padding:2px 16px 8px;font-family:var(--font-mono);font-size:11px;color:var(--muted);flex-shrink:0}
+.queue{flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:6px}
+.q-item{display:flex;align-items:center;gap:11px;padding:9px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:9px}
+.q-item .num{font-family:var(--font-mono);font-size:12px;color:var(--accent2);font-weight:700;width:16px}
+.q-item .call{font-family:var(--font-mono);font-weight:700;font-size:14px}
+.logged{border-top:1px solid var(--border);padding:8px 12px;flex-shrink:0;max-height:150px;overflow-y:auto}
+.logged .lh{font-family:var(--font-mono);font-size:10.5px;letter-spacing:1.5px;color:var(--muted);margin:2px 4px 6px}
+.lrow{display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:12px}
+.lrow .call{font-family:var(--font-mono);font-weight:700}
+.lrow .ok{color:var(--green)}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>LogX AI</b><span class="t">Contrôle de réseau</span></div>
+  <div class="net-pick">
+    <select id="netSelect" onchange="NetControl.onSelectNet(this.value)"></select>
+    <button class="hbtn" onclick="NetControl.nouveauNet()">+ Nouveau réseau</button>
+    <button class="hbtn danger" onclick="if(confirm('Supprimer ce réseau et son répertoire ?'))NetControl.supprimerNet(parseInt(document.getElementById('netSelect').value,10))">Supprimer</button>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center">
+    <a class="back" href="logx_logbook.html">← LOGBOOK</a>
+    <button class="hbtn" onclick="document.body.classList.toggle('day-mode')">jour / nuit</button>
+  </div>
+</header>
+
+<div class="sub">
+  Le répertoire à gauche, la file de passage au centre. <b>Un seul geste</b> pour
+  loguer la station au micro et passer à la suivante. Le carnet reste unique — un
+  réseau est une <b>vue</b>, jamais un second carnet.
+</div>
+
+<div class="grid">
+  <!-- Répertoire -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">RÉPERTOIRE</span><span class="ct" id="rosterCount">0 station</span></div>
+    <div class="search">
+      <input id="rosterInput" placeholder="Ajouter un indicatif…" onkeydown="if(event.key==='Enter')NetControl.ajouterDepuisChamp()">
+      <button class="hbtn" onclick="NetControl.ajouterDepuisChamp()">+</button>
+    </div>
+    <div class="col-body" id="roster"></div>
+  </div>
+
+  <!-- Au micro + file -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">AU MICRO</span><span class="ct">ordre de passage</span></div>
+    <div class="mic-wrap" id="micWrap"></div>
+    <div class="queue-h">EN ATTENTE — clique une station du répertoire pour la mettre à l'air</div>
+    <div class="queue" id="queue"></div>
+    <div class="logged"><div class="lh">DÉJÀ LOGUÉS CE RÉSEAU</div><div id="loggedList"></div></div>
+  </div>
+
+  <!-- Aide -->
+  <div class="col">
+    <div class="col-h"><span class="ttl">COMMENT ÇA MARCHE</span></div>
+    <div class="col-body" style="gap:10px;padding:14px;font-size:12.5px;color:var(--muted);line-height:1.6">
+      <div><b style="color:var(--text)">1.</b> Choisis ou crée un réseau (fréquence en option).</div>
+      <div><b style="color:var(--text)">2.</b> Ajoute les indicatifs habitués au répertoire — ils reviennent d'un réseau à l'autre.</div>
+      <div><b style="color:var(--text)">3.</b> Clique une station pour la <b style="color:var(--text)">mettre à l'air</b> : elle rejoint la file de passage.</div>
+      <div><b style="color:var(--text)">4.</b> « <b style="color:var(--text)">Loguer &amp; passer au suivant</b> » enchaîne les contacts.</div>
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      <div>Le répertoire est <b style="color:var(--text)">persisté côté serveur</b> ; la file de passage vit le temps du réseau.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+</script>
+<script src="logx_net_control.js"></script>
+</body>
+</html>

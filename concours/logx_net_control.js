@@ -1,229 +1,174 @@
-// ─── CONTRÔLE DE NET (EV-7, docs/LogX_AI_PRD.md) ─────────────────────────────
-// Extrait hors du monolithe logx_logbook.js (chantier EV-7, même logique que
-// logx_filter_builder.js/logx_dup_finder.js/logx_bulk_resolve.js à côté).
-// Roster (liste des participants habituels) + session active (l'appel de ce
-// soir). Roster en localStorage — par poste, pas synchronisé réseau, comme
-// les préréglages de filtre (logx_filter_builder.js) : c'est la préférence
-// de l'opérateur qui anime le net, pas un réglage de station partagé.
-const NET_ROSTER_KEY = 'rc_net_roster';
-const NET_SESSION_KEY = 'rc_net_session';
+// ─── CONTRÔLE DE RÉSEAU (net control) — page, tranche 2 ──────────────────────
+// Branche la maquette validée (#306) sur les endpoints serveur (tranche 1,
+// #308) : GET /data/nets + POST /nets/{create,delete,roster/add,roster/remove}.
+// La FILE de passage du micro (session) est tenue CÔTÉ CLIENT le temps du
+// réseau ; le log réel des QSO dans le carnet UNIQUE = tranche 3.
+//
+// Doctrine du dépôt : le carnet reste UNIQUE — un réseau est une VUE, jamais un
+// second carnet. « Intuitif » : une seule action évidente (loguer & suivant).
+//
+// La logique de session est PURE et exposée sur window.NetControl (testée en
+// V8, mêmes règles que le serveur logx_net_control.py). Aucun effet DOM au
+// chargement du fichier : l'init est déclenchée par DOMContentLoaded.
 
-// Compteur monotone, PAS Date.now() seul : plusieurs ajouts dans la même
-// milliseconde (saisie rapide, script) recevaient sinon le même id — trouvé
-// en vérification navigateur (3 ajouts synchrones = 3 entrées avec un id
-// identique), pas en écrivant le code.
-let _netUidCounter = 0;
-function netUid(){ return Date.now() + '_' + (_netUidCounter++); }
+(function(global){
+  'use strict';
 
-function netLoadRoster(){
-  try{ return JSON.parse(localStorage.getItem(NET_ROSTER_KEY) || '[]'); }
-  catch(e){ return []; }
-}
-function netSaveRoster(list){ localStorage.setItem(NET_ROSTER_KEY, JSON.stringify(list)); }
-
-function netLoadSession(){
-  try{ return JSON.parse(localStorage.getItem(NET_SESSION_KEY) || 'null'); }
-  catch(e){ return null; }
-}
-function netSaveSession(session){
-  if(session) localStorage.setItem(NET_SESSION_KEY, JSON.stringify(session));
-  else localStorage.removeItem(NET_SESSION_KEY);
-}
-
-function openNetControl(){
-  document.getElementById('netOverlay').classList.add('show');
-  netRenderList();
-}
-
-function closeNetControl(){
-  document.getElementById('netOverlay').classList.remove('show');
-}
-
-function netRosterAdd(){
-  const callInput = document.getElementById('netAddCall');
-  const nameInput = document.getElementById('netAddName');
-  const call = callInput.value.trim().toUpperCase();
-  if(!call) return;
-  const name = nameInput.value.trim();
-  const roster = netLoadRoster();
-  const id = 'n' + netUid();
-  roster.push({id, call, name});
-  netSaveRoster(roster);
-  // Un ajout en cours de session est un check-in tardif : la station rejoint
-  // l'appel EN COURS, pas seulement le roster pour la prochaine fois.
-  const session = netLoadSession();
-  if(session){
-    session.entries.push({id: 'e' + netUid(), call, name, checked: true, contacted: false});
-    netSaveSession(session);
+  // ── Logique de session PURE (miroir du serveur) ─────────────────────────
+  function _norm(call){ return String(call == null ? '' : call).trim().toUpperCase(); }
+  function _sess(s){
+    s = s || {};
+    return { on_air: (s.on_air || []).slice(), logged: (s.logged || []).slice() };
   }
-  callInput.value = ''; nameInput.value = '';
-  netRenderList();
-}
+  function mettreALAir(session, call){
+    var s = _sess(session), c = _norm(call);
+    if(c && s.on_air.indexOf(c) < 0) s.on_air.push(c);
+    return s;
+  }
+  function retirerDeLAir(session, call){
+    var s = _sess(session), c = _norm(call);
+    s.on_air = s.on_air.filter(function(x){ return x !== c; });
+    return s;
+  }
+  function passerAuSuivant(session){
+    var s = _sess(session);
+    if(s.on_air.length > 1) s.on_air.push(s.on_air.shift());
+    return s;
+  }
+  function loguerCourant(session){
+    var s = _sess(session);
+    if(s.on_air.length) s.logged.push(s.on_air.shift());
+    return s;
+  }
 
-function netRosterRemove(id){
-  netSaveRoster(netLoadRoster().filter(r => r.id !== id));
-  netRenderList();
-}
-
-function netStartSession(){
-  const roster = netLoadRoster();
-  if(!roster.length){ notify('Ajoute au moins une station au roster.'); return; }
-  const session = {
-    startedAt: Date.now(),
-    entries: roster.map(r => ({id: 'e' + r.id, call: r.call, name: r.name, checked: true, contacted: false})),
+  var NetControl = {
+    mettreALAir: mettreALAir, retirerDeLAir: retirerDeLAir,
+    passerAuSuivant: passerAuSuivant, loguerCourant: loguerCourant,
   };
-  netSaveSession(session);
-  netRenderList();
-}
+  global.NetControl = NetControl;
+  if(typeof module !== 'undefined' && module.exports) module.exports = NetControl;
 
-async function netEndSession(){
-  if(!(await _confirmDupBanner(trT('Terminer la session de net ? (le roster reste enregistré pour la prochaine fois)'), 'Terminer', 'Annuler'))) return;
-  netSaveSession(null);
-  netRenderList();
-}
+  // ── Au-delà d'ici : couche navigateur (fetch + rendu). Ignorée en V8. ───
+  if(typeof document === 'undefined' || !document.getElementById) return;
 
-function netToggleChecked(entryId){
-  const session = netLoadSession();
-  if(!session) return;
-  const e = session.entries.find(x => x.id === entryId);
-  if(e) e.checked = !e.checked;
-  netSaveSession(session);
-  netRenderList();
-}
+  var _nets = [];          // réseaux + répertoires (GET /data/nets)
+  var _netId = null;       // réseau sélectionné
+  var _session = { on_air: [], logged: [] };
 
-function netBuildQso(call){
-  return {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    date: nowDateUTC(), time: nowUTC(),
-    call, band: currentBand, mode: currentMode,
-    freq: (document.getElementById('inputFreq')?.value || '').trim(),
-    rst_sent: '59', num_sent: '',
-    rst_rcvd: '59', num_rcvd: '',
-    locator: '', dist: 0, points: 0,
-    operator: myOp, my_call: myCall, my_locator: myLocator,
-    contest: currentContest,
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function netCourant(){ return _nets.filter(function(n){ return n.id === _netId; })[0] || null; }
+
+  // ── Appels serveur (même origine -> cookie d'auth envoyé automatiquement) ─
+  function _post(path, payload){
+    return fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify(payload || {})}).then(function(r){ return r.json(); });
+  }
+  function chargerNets(){
+    return fetch('/data/nets').then(function(r){ return r.json(); }).then(function(d){
+      _nets = (d && d.nets) || [];
+      if(_netId == null && _nets.length) _netId = _nets[0].id;
+      rendre();
+    }).catch(function(){});
+  }
+  function creerNet(champs){
+    return _post('/nets/create', champs).then(function(d){
+      if(d && d.net){ _netId = d.net.id; } return chargerNets();
+    });
+  }
+  function supprimerNet(id){
+    return _post('/nets/delete', {id:id}).then(function(){
+      if(_netId === id){ _netId = null; _session = {on_air:[],logged:[]}; }
+      return chargerNets();
+    });
+  }
+  function ajouterMembre(membre){
+    if(_netId == null) return Promise.resolve();
+    return _post('/nets/roster/add', {net_id:_netId, membre:membre}).then(function(){ return chargerNets(); });
+  }
+  function retirerMembre(call){
+    if(_netId == null) return Promise.resolve();
+    return _post('/nets/roster/remove', {net_id:_netId, call:call}).then(function(){ return chargerNets(); });
+  }
+
+  // ── Actions session (client) ────────────────────────────────────────────
+  function alAir(call){ _session = mettreALAir(_session, call); rendre(); }
+  function loguerEtSuivant(){ _session = loguerCourant(_session); rendre(); }
+  function passer(){ _session = passerAuSuivant(_session); rendre(); }
+
+  // ── Rendu ───────────────────────────────────────────────────────────────
+  function _set(id, html){ var el = document.getElementById(id); if(el) el.innerHTML = html; }
+
+  function rendreSelecteur(){
+    var sel = document.getElementById('netSelect');
+    if(!sel) return;
+    sel.innerHTML = _nets.map(function(n){
+      return '<option value="' + n.id + '"' + (n.id === _netId ? ' selected' : '') + '>'
+           + esc(n.nom || ('Réseau ' + n.id))
+           + (n.freq ? ' · ' + esc(n.freq) + ' MHz' : '') + '</option>';
+    }).join('') || '<option value="">— aucun réseau —</option>';
+  }
+
+  function rendreRepertoire(){
+    var net = netCourant();
+    var roster = (net && net.roster) || [];
+    _set('roster', roster.map(function(m){
+      return '<div class="member" onclick="NetControl.alAir(\'' + esc(m.call) + '\')" title="Mettre à l\'air">'
+           + '<div><div class="call">' + esc(m.call) + '</div>'
+           + '<div class="who">' + esc([m.nom, m.qth].filter(Boolean).join(' · ')) + '</div></div>'
+           + '<button class="rm" onclick="event.stopPropagation();NetControl.retirerMembre(\'' + esc(m.call) + '\')" title="Retirer du répertoire">✕</button>'
+           + '</div>';
+    }).join('') || '<div class="vide">Répertoire vide — ajoute un indicatif ci-dessus.</div>');
+    var ct = document.getElementById('rosterCount');
+    if(ct) ct.textContent = roster.length + ' station' + (roster.length > 1 ? 's' : '');
+  }
+
+  function rendreMic(){
+    var m = _session.on_air[0], next = _session.on_air[1];
+    if(!m){ _set('micWrap', '<div class="mic vide">File vide — mets une station à l\'air depuis le répertoire.</div>'); return; }
+    _set('micWrap',
+      '<div class="mic"><div class="lbl"><span class="live"></span>AU MICRO MAINTENANT</div>'
+      + '<div class="call">' + esc(m) + '</div>'
+      + '<div class="row"><button class="big-btn" onclick="NetControl.loguerEtSuivant()">✔ Loguer &amp; passer au suivant</button>'
+      + '<button class="ghost-btn" onclick="NetControl.passer()" title="Passer sans loguer">▶</button></div>'
+      + '<div class="hint">' + (next ? 'Ensuite : <b>' + esc(next) + '</b>' : 'Dernière station de la file') + '</div></div>');
+  }
+
+  function rendreFile(){
+    _set('queue', _session.on_air.slice(1).map(function(c, i){
+      return '<div class="q-item"><span class="num">' + (i + 2) + '</span><span class="call">' + esc(c) + '</span></div>';
+    }).join('') || '<div class="vide">Personne d\'autre en attente.</div>');
+    _set('loggedList', _session.logged.slice().reverse().map(function(c){
+      return '<div class="lrow"><span class="ok">✔</span><span class="call">' + esc(c) + '</span></div>';
+    }).join('') || '<div class="vide">Aucun QSO logué pour l\'instant.</div>');
+  }
+
+  function rendre(){ rendreSelecteur(); rendreRepertoire(); rendreMic(); rendreFile(); }
+
+  // ── Actions UI exposées inline ──────────────────────────────────────────
+  NetControl.alAir = alAir;
+  NetControl.loguerEtSuivant = loguerEtSuivant;
+  NetControl.passer = passer;
+  NetControl.retirerMembre = retirerMembre;
+  NetControl.creerNet = creerNet;
+  NetControl.supprimerNet = supprimerNet;
+
+  NetControl.onSelectNet = function(v){ _netId = parseInt(v, 10); _session = {on_air:[],logged:[]}; rendre(); };
+  NetControl.nouveauNet = function(){
+    var nom = window.prompt('Nom du réseau (ex. Réseau du dimanche) :', '');
+    if(nom == null) return;
+    var freq = window.prompt('Fréquence en MHz (optionnel, ex. 3.650) :', '') || '';
+    creerNet({nom: nom, freq: freq});
   };
-}
+  NetControl.ajouterDepuisChamp = function(){
+    var inp = document.getElementById('rosterInput');
+    if(!inp || !inp.value.trim()) return;
+    ajouterMembre({call: inp.value}); inp.value = '';
+  };
 
-async function netLogQso(qso){
-  try{
-    const res = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(qso)});
-    if(res.ok){
-      // Adopter l'id attribué par le serveur AVANT le push, comme sur les deux
-      // chemins de logx_logbook.js. Ce site avait été manqué au premier
-      // passage (revue adversariale du lot, 18/08/2026) : le contrôle de net
-      // est le cas le PLUS exposé, puisque netLogAllChecked() enregistre tout
-      // un lot d'un coup — donc plusieurs QSO à la même milliseconde, ce qui
-      // est exactement la condition de collision d'id.
-      if(typeof _adopterIdServeur === 'function') await _adopterIdServeur(res, qso);
-      qsoLog.push(qso);
-      bcBroadcast('add', qso);
-      return true;
-    }
-  }catch(e){}
-  return false;
-}
+  document.addEventListener('DOMContentLoaded', chargerNets);
 
-async function netLogOne(entryId){
-  const session = netLoadSession();
-  if(!session) return;
-  const e = session.entries.find(x => x.id === entryId);
-  if(!e || e.contacted) return;
-  const qso = netBuildQso(e.call);
-  if(await netLogQso(qso)){
-    e.contacted = true;
-    e.qsoId = qso.id;
-    netSaveSession(session);
-    renderLog(); updateStats();
-    netRenderList();
-  }
-}
-
-async function netLogAllChecked(){
-  const session = netLoadSession();
-  if(!session) return;
-  const targets = session.entries.filter(e => e.checked && !e.contacted);
-  if(!targets.length){ notify('Aucune station cochée à logger.'); return; }
-  if(!(await _confirmDupBanner(trF('Logger {n} station(s) à {band} MHz / {mode} ?', {n: targets.length, band: currentBand, mode: currentMode}), 'Logger', 'Annuler'))) return;
-  for(const e of targets){
-    const qso = netBuildQso(e.call);
-    if(await netLogQso(qso)){
-      e.contacted = true;
-      e.qsoId = qso.id;
-    }
-  }
-  netSaveSession(session);
-  renderLog(); updateStats();
-  netRenderList();
-}
-
-// Glisser-déposer : réordonne le ROSTER (mode sans session) ou les entrées
-// de la SESSION active (mode session) — l'ordre pilote qui est "en attente"
-// ensuite (première ligne cochée non contactée).
-let _netDragId = null;
-function netDragStart(id){ _netDragId = id; }
-function netDragOver(ev){ ev.preventDefault(); }
-function netDrop(ev, targetId){
-  ev.preventDefault();
-  if(_netDragId == null || _netDragId === targetId) return;
-  const session = netLoadSession();
-  if(session){
-    const list = session.entries;
-    const from = list.findIndex(x => x.id === _netDragId);
-    const to = list.findIndex(x => x.id === targetId);
-    if(from < 0 || to < 0) return;
-    list.splice(to, 0, list.splice(from, 1)[0]);
-    netSaveSession(session);
-  } else {
-    const list = netLoadRoster();
-    const from = list.findIndex(x => x.id === _netDragId);
-    const to = list.findIndex(x => x.id === targetId);
-    if(from < 0 || to < 0) return;
-    list.splice(to, 0, list.splice(from, 1)[0]);
-    netSaveRoster(list);
-  }
-  _netDragId = null;
-  netRenderList();
-}
-
-function netRenderList(){
-  const wrap = document.getElementById('netList');
-  if(!wrap) return;
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const session = netLoadSession();
-  document.getElementById('netStartBtn').style.display = session ? 'none' : 'inline-block';
-  document.getElementById('netEndBtn').style.display = session ? 'inline-block' : 'none';
-  document.getElementById('netLogAllBtn').style.display = session ? 'inline-block' : 'none';
-  document.getElementById('netSessionInfo').textContent = session
-    ? trF('Session en cours — {c} contacté(s) / {t}', {
-        c: session.entries.filter(e=>e.contacted).length, t: session.entries.length})
-    : trT('Session non démarrée');
-
-  if(!session){
-    const roster = netLoadRoster();
-    document.getElementById('netCount').textContent = trF('{n} station(s) au roster', {n: roster.length});
-    wrap.innerHTML = roster.length ? roster.map(r => `
-      <div class="net-row" draggable="true" ondragstart="netDragStart('${r.id}')" ondragover="netDragOver(event)" ondrop="netDrop(event,'${r.id}')">
-        <span>⠿</span><span></span>
-        <span><span class="net-call">${esc(r.call)}</span>${r.name?` <span class="net-name">${esc(r.name)}</span>`:''}</span>
-        <span></span><span></span>
-        <span class="net-del" onclick="netRosterRemove('${r.id}')" title="Retirer du roster">✕</span>
-      </div>`).join('') : '<div class="net-empty">Roster vide — ajoute des stations ci-dessus.</div>';
-    return;
-  }
-
-  const currentId = (session.entries.find(e => e.checked && !e.contacted) || {}).id;
-  document.getElementById('netCount').textContent = trF('{n} station(s) dans la session', {n: session.entries.length});
-  wrap.innerHTML = session.entries.map(e => `
-    <div class="net-row${e.id===currentId?' current':''}${e.contacted?' contacted':''}" draggable="true"
-         ondragstart="netDragStart('${e.id}')" ondragover="netDragOver(event)" ondrop="netDrop(event,'${e.id}')">
-      <span>⠿</span>
-      <span><input type="checkbox" ${e.checked?'checked':''} ${e.contacted?'disabled':''} onchange="netToggleChecked('${e.id}')"></span>
-      <span><span class="net-call">${esc(e.call)}</span>${e.name?` <span class="net-name">${esc(e.name)}</span>`:''}</span>
-      <span class="net-name">${e.contacted?'✓ contacté':''}</span>
-      <span>${e.contacted?'':`<button class="net-log-btn" onclick="netLogOne('${e.id}')">LOGGER</button>`}</span>
-      <span></span>
-    </div>`).join('');
-}
+})(typeof window !== 'undefined' ? window : this);
