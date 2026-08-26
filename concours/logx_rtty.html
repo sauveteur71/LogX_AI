@@ -402,6 +402,7 @@ if(localStorage.getItem('rc_theme') === null){
     {key:'R4', label:'AGN?',    text:'AGN?'},
   ];
   let _rttyTxArmed = false;
+  let _rttyTxBusy = false;   // verrou anti-ré-entrance : un seul envoi RTTY à la fois
 
   window.rttyOnArmChange = function rttyOnArmChange(){
     _rttyTxArmed = document.getElementById('rttyArmTx').checked;
@@ -446,19 +447,29 @@ if(localStorage.getItem('rc_theme') === null){
       return;
     }
     if(!texte) return;
+    // Verrou anti-ré-entrance : #rttySendBtn est désactivé pendant l'envoi mais
+    // les boutons macro (F1-F12) appellent ce chemin directement et ne le sont
+    // pas — sans ce garde, un clic macro pendant un envoi en vol lancerait un
+    // txAudioPtt concurrent (deux formes d'onde RTTY simultanées brouillées).
+    if(_rttyTxBusy) return;
+    _rttyTxBusy = true;
     const statut = document.getElementById('rttyTxStatus');
     const sendBtn = document.getElementById('rttySendBtn');
     sendBtn.disabled = true;
     if(statut){ statut.textContent = '🔊 ' + texte; statut.style.color = 'var(--accent2)'; }
-    const t = rttyTons();
-    const sampleRate = 44100;
-    const wave = rttyEncodeSamples(texte, {sampleRate, mark: t.mark, space: t.space});
-    const outId = document.getElementById('rttyOutDevice')?.value || '';
-    const res = await txAudioPtt(wave, sampleRate, outId);
-    sendBtn.disabled = !_rttyTxArmed;
-    if(statut){
-      statut.textContent = res.ok ? ('Émis : ' + texte) : ('❌ ' + res.error);
-      statut.style.color = res.ok ? 'var(--muted)' : 'var(--red)';
+    try {
+      const t = rttyTons();
+      const sampleRate = 44100;
+      const wave = rttyEncodeSamples(texte, {sampleRate, mark: t.mark, space: t.space});
+      const outId = document.getElementById('rttyOutDevice')?.value || '';
+      const res = await txAudioPtt(wave, sampleRate, outId);
+      if(statut){
+        statut.textContent = res.ok ? ('Émis : ' + texte) : ('❌ ' + res.error);
+        statut.style.color = res.ok ? 'var(--muted)' : 'var(--red)';
+      }
+    } finally {
+      _rttyTxBusy = false;
+      sendBtn.disabled = !_rttyTxArmed;
     }
   }
 
