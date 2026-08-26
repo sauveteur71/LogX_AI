@@ -379,6 +379,10 @@
          title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
       📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
     </div>
+    <div class="rcsb-item" id="rcsbDxccItem" style="display:none"
+         title="cty.dat absent — la résolution des pays, zones et entités DXCC est désactivée. Clic : ouvrir CONFIG pour recharger cty.dat.">
+      <a href="logx_configuration.html">⚠ <span class="rcsb-val" id="rcsbDxccText" style="color:var(--red,#FF2D55)">DXCC indisponible</span></a>
+    </div>
     <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
          id="rcsbRateItem" style="cursor:pointer">
       ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
@@ -891,6 +895,20 @@
         } else {
           item.style.display = 'none';
         }
+      }).catch(function(){ /* le serveur n'est pas indispensable pour la barre */ });
+  }
+
+  // État de la base DXCC (cty.dat) : bandeau discret « ⚠ DXCC indisponible »
+  // visible sur toutes les pages quand la résolution pays/zones est désactivée
+  // (cty.dat absent/illisible). Clic → CONFIG pour recharger. Décision F4GLD
+  // ②(b) : exposer explicitement l'état dégradé plutôt que laisser croire à des
+  // champs vides.
+  function refreshDxccStatus(){
+    fetch('/dxcc/status', {cache: 'no-store'}).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        const item = document.getElementById('rcsbDxccItem');
+        if (!item || !d) return;
+        item.style.display = (d.available === false) ? 'flex' : 'none';
       }).catch(function(){ /* le serveur n'est pas indispensable pour la barre */ });
   }
   rcPoll(refreshNetworkStatus, 20 * 1000);
@@ -2155,6 +2173,9 @@
     rcPoll(refreshRules, 10 * 60 * 1000);
     rcPoll(refreshUpdateCheck, 30 * 60 * 1000);
     rcPoll(refreshErrorsCheck, 60 * 1000);
+    // cty.dat ne change qu'au (re)chargement manuel dans CONFIG : poll lent.
+    refreshDxccStatus();
+    rcPoll(refreshDxccStatus, 5 * 60 * 1000);
     // Réagir aux sauvegardes faites dans un autre onglet -- updateRateItemVisibility()
     // aussi : #rcsbRateItem dépend de cfg.contest, sinon il resterait masqué/affiché
     // à tort jusqu'à 60s (prochain tic de refreshRate) après un changement de
