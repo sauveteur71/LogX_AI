@@ -724,7 +724,14 @@ function matchesFilterCondition(q, cond){
 
 function matchesAdvancedFilter(q, tree){
   if(!tree || !Array.isArray(tree.groups) || !tree.groups.length) return true;
-  return tree.groups.some(group => !group.length || group.every(cond => matchesFilterCondition(q, cond)));
+  // Les groupes vides sont IGNORÉS, pas traités comme « matche tout » : sinon
+  // un seul groupe vide (fltAddGroup pousse `[]`) forcerait le match de tout le
+  // log via le OU entre groupes (some), annulant en silence les conditions des
+  // autres groupes. Plus aucun groupe peuplé -> aucun critère -> pas de filtre
+  // (état par défaut {groups:[[]]} : tout matche, comportement voulu).
+  const peuples = tree.groups.filter(group => group.length);
+  if(!peuples.length) return true;
+  return peuples.some(group => group.every(cond => matchesFilterCondition(q, cond)));
 }
 
 let qsoLog = [];       // log local (cache)
