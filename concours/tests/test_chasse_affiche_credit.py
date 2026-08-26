@@ -62,6 +62,18 @@ def test_confirme_et_inconnu_rien():
     assert ctx.eval("creditBadge({})") == ''       # spot sans crédit (API ancienne) : rien
 
 
+def test_objectif_desactive_masque_le_badge():
+    # Un objectif décoché -> score 0 côté serveur (score_classe neutralise le
+    # crédit). La classe reste factuelle, mais le badge ne doit PAS s'afficher :
+    # sinon le profil d'objectifs n'aurait AUCUN effet visible sur le need-list
+    # (l'intention de l'option b : « le moteur ajuste score ET badges »).
+    ctx = _ctx()
+    assert ctx.eval("creditBadge(%s)" % _spot('atno', 'Nouvelle entité', 0)) == ''
+    assert ctx.eval("creditBadge(%s)" % _spot('new_grid', 'Nouveau carré', 0)) == ''
+    # mais un objectif ACTIF (score > 0) reste affiché
+    assert 'cr-atno' in ctx.eval("creditBadge(%s)" % _spot('atno', 'x', 1000))
+
+
 def test_cable_dans_le_gabarit_et_css():
     src = _lire()
     assert '${creditBadge(s)}' in src                        # appelé dans la ligne de spot
