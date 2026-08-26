@@ -388,6 +388,18 @@ let _wsjtxState = {enabled:false};
 // FT8/FT4 récents) — notifiée UNE SEULE fois par indicatif/type via ce Set,
 // même principe anti-répétition que les autres alertes de l'appli.
 const _wsjtxAlerted = new Set();
+// Borne mémoire des Sets d'alertes : sur une longue session FT8 ils croîtraient
+// sans limite (une entrée par décodage unique). Au-delà du plafond on oublie les
+// plus ANCIENS (ordre d'insertion du Set) — ré-alerter un très vieux décodage
+// après des milliers d'autres est sans conséquence.
+const _MAX_ALERTES = 5000;
+function _capSet(set){
+  if(set.size <= _MAX_ALERTES) return;
+  const surplus = set.size - Math.floor(_MAX_ALERTES * 0.9);
+  const anciens = [];
+  for(const v of set){ anciens.push(v); if(anciens.length >= surplus) break; }
+  for(const v of anciens) set.delete(v);
+}
 // ── Interrupteur voix (🔊/🔇) pour les alertes FT8. Pilote rc_tts, le MÊME flag
 // global que le bouton voix de la carte (window.rcTtsEnabled/rcSpeak dans
 // logx_statusbar.js) : l'activer ici fait aussi parler le coach sur la carte, et
@@ -442,7 +454,7 @@ function applyWsjtxState(d){
     for(const m of (d.missing || [])){
       const key = m.call + '|' + m.type;
       if(_wsjtxAlerted.has(key)) continue;
-      _wsjtxAlerted.add(key);
+      _wsjtxAlerted.add(key); _capSet(_wsjtxAlerted);
       const freqTxt = m.freq ? trF(' ({f} MHz)', {f: m.freq}) : '';
       const txt = trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt});
       notify(txt);
@@ -457,7 +469,7 @@ function applyWsjtxState(d){
     for(const m of (d.lotw || [])){
       const key = m.call + '|lotw';
       if(_wsjtxAlerted.has(key)) continue;
-      _wsjtxAlerted.add(key);
+      _wsjtxAlerted.add(key); _capSet(_wsjtxAlerted);
       const txt = trF('📡 {call} décodé — {label}', {call: m.call, label: m.label});
       notify(txt);
       try{ if(window.rcAlert) window.rcAlert('lotw_need', txt); }catch(e){}
@@ -670,7 +682,7 @@ function appliquerSuiviCarres(carres){
   for(const c of items){
     const cle = c.grid + '|' + (c.band || '');
     if(_carresAlertes.has(cle)) continue;
-    _carresAlertes.add(cle);
+    _carresAlertes.add(cle); _capSet(_carresAlertes);
     if(!_pounceLocal.n1) continue;
     if(c.interet === 2){
       const txt = trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
