@@ -299,6 +299,11 @@ if(localStorage.getItem('rc_theme') === null){
 
   // ─── DÉCODEUR RTTY (adapté de logx_rtty_panel.js) ───────────────────────
   let _rttyDecoder = null;
+  // Garde anti-ré-entrance du démarrage décodeur : _rttyDecoder n'est désormais
+  // assigné qu'APRÈS le succès de start(), donc un double-clic pendant l'invite
+  // de permission ne peut plus entrer dans la branche STOP et saborder un
+  // décodeur encore en démarrage. Même garde que toggleRx FT8.
+  let _rttyDecoderDemarrageEnCours = false;
   let _rttyTexte = '';
 
   window.rttyTons = function rttyTons(){
@@ -322,8 +327,13 @@ if(localStorage.getItem('rc_theme') === null){
       if(etat) etat.textContent = '';
       return;
     }
+    if(_rttyDecoderDemarrageEnCours) return;   // ignore un 2e clic tant que le démarrage n'est pas résolu
+    _rttyDecoderDemarrageEnCours = true;
     const t = rttyTons();
-    _rttyDecoder = new RttyAudioDecoder({
+    // Décodeur construit en LOCAL puis publié dans _rttyDecoder seulement après
+    // succès : tant que start() est en vol, _rttyDecoder reste null et un
+    // second clic tombe sur la garde ci-dessus au lieu de la branche STOP.
+    const dec = new RttyAudioDecoder({
       mark: t.mark, space: t.space,
       onChar: c => {
         _rttyTexte += c;
@@ -332,12 +342,15 @@ if(localStorage.getItem('rc_theme') === null){
       },
     });
     try{
-      await _rttyDecoder.start(document.getElementById('rttyDevice')?.value || '');
+      await dec.start(document.getElementById('rttyDevice')?.value || '');
+      _rttyDecoder = dec;
       if(btn){ btn.textContent = '■ Arrêter'; btn.classList.add('active'); }
       if(etat) etat.textContent = t.mark + '/' + t.space + ' Hz';
     }catch(e){
-      _rttyDecoder = null;
+      try{ dec.stop(); }catch(_){}   // libère un flux micro éventuellement à moitié acquis
       notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+    }finally{
+      _rttyDecoderDemarrageEnCours = false;
     }
   };
 
