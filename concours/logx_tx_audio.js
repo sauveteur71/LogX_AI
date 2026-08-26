@@ -34,8 +34,11 @@ async function txAudioPtt(wave, sampleRate, outDeviceId){
   const pttOk = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({on:true, duree_max: dureeMax})}).then(r=>r.json()).then(d=>!!d.ok).catch(()=>false);
   if(!pttOk) return {ok:false, error:"PTT refusé — vérifie le pilotage radio (CONFIG)"};
+  let ctx = null;   // déclaré hors du try pour être fermé dans le finally même
+                    // si l'émission échoue (sinon un AudioContext fuit par
+                    // émission ratée et le pool navigateur s'épuise).
   try{
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});
+    ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});
     const buf = ctx.createBuffer(1, wave.length, sampleRate);
     buf.copyToChannel(wave, 0);
     const src = ctx.createBufferSource();
@@ -58,11 +61,11 @@ async function txAudioPtt(wave, sampleRate, outDeviceId){
       src.start();
       await new Promise(resolve => { src.onended = resolve; });
     }
-    try{ ctx.close(); }catch(e){}
     return {ok:true};
   }catch(e){
     return {ok:false, error: e.message};
   } finally {
+    if(ctx){ try{ ctx.close(); }catch(e){} }
     fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({on:false})}).catch(()=>{});
   }
