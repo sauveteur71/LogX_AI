@@ -56,6 +56,15 @@ def test_driver_respecte_pas_de_bande_morte():
     assert 'Bandeaux masqu' in s              # tout masqué -> strip de réactivation
 
 
+def test_driver_gear_reste_atteignable_en_reglage():
+    """Piège évité : si l'opérateur règle (panneau ouvert) et ne laisse que des
+    bandeaux sans info live, le ⚙ reste visible (sinon il ne pourrait plus rien
+    réactiver, barre disparue)."""
+    s = _src()
+    assert 'else if(reouvrir)' in s
+    assert 'Aucune info en direct' in s
+
+
 def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     """Un bandeau masqué ne doit pas déclencher son fetch : le driver ne
     récupère que les flux des bandeaux affichés (opts.besoins)."""

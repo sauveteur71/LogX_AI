@@ -103,7 +103,15 @@
         } else {
           var html = LB.rendreTicker(aff, { activite: activite, maintenant: Date.now() }, donnees);
           if(html){ wrap.innerHTML = reglage + html; wrap.hidden = false; }
-          else { wrap.innerHTML = ''; wrap.hidden = true; }   // ON mais rien de live -> pas de bande morte
+          else if(reouvrir){
+            // Opérateur EN TRAIN DE RÉGLER (panneau ⚙ ouvert) : garder le ⚙
+            // accessible même si les bandeaux actifs n'ont rien de live —
+            // sinon la barre disparaîtrait et il ne pourrait plus rien
+            // réactiver (piège : ⚙ inatteignable).
+            wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Aucune info en direct') + '</div>';
+            wrap.hidden = false;
+          }
+          else { wrap.innerHTML = ''; wrap.hidden = true; }   // ON mais rien de live, pas en réglage -> pas de bande morte
         }
         if(!wrap.hidden){
           _wire(wrap, activite, defauts, rendre);
