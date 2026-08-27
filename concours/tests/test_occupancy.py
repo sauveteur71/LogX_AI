@@ -173,3 +173,39 @@ def test_cloud_lit_les_pairs_et_alimente_loccupation(tmp_path):
     cs._lire_occupation(folder, {'callsign': 'TM6KJS'})
     v = occ.vue(_t.time())
     assert any(s['station'] == 'PEER' and s['band'] == '40' for s in v['stations'])
+
+
+# ─── Canal MySQL (distant temps réel, radioclub) ─────────────────────────────
+
+class _FakeCur:
+    def __init__(self, conn): self.conn = conn; self._res = []
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def execute(self, sql, params=None):
+        self.conn.calls.append((sql, params))
+        self._res = self.conn.rows if sql.strip().upper().startswith('SELECT STATION') else []
+    def fetchall(self): return self._res
+
+
+class _FakeConn:
+    def __init__(self, rows=None): self.calls = []; self.rows = rows or []
+    def cursor(self): return _FakeCur(self)
+
+
+def test_mysql_ensure_occ_schema_cree_la_table():
+    import logx_mysql_sync as mysql
+    conn = _FakeConn()
+    mysql._ensure_occ_schema(conn)
+    assert any('create table' in s.lower() and 'occupancy' in s.lower() for s, _ in conn.calls)
+
+
+def test_mysql_publie_upsert_et_lit_les_pairs():
+    import logx_mysql_sync as mysql
+    occ._reset_pour_test()
+    conn = _FakeConn(rows=[('PEER', 'TM6KJS', '40', 'CW', 1000.0)])
+    occ.poser_mon_statut('MOI', 'TM6KJS', '20', 'SSB', 1000.0)
+    mysql._publier_occupation_mysql(conn, 'MOI', occ._mon_statut[0])
+    assert any('insert' in s.lower() and 'occupancy' in s.lower() for s, _ in conn.calls)
+    mysql._lire_occupation_mysql(conn, 'MOI')
+    v = occ.vue(1000.0)
+    assert any(x['station'] == 'PEER' and x['band'] == '40' for x in v['stations'])
