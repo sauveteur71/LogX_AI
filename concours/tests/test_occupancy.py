@@ -76,3 +76,40 @@ def test_station_sans_id_ignoree():
     statuts = [{'call': 'X', 'band': '20', 'mode': 'SSB', 'ts': 195}]   # pas de 'station'
     v = occ.vue_occupation(statuts, maintenant=200, ttl_s=180)
     assert v['stations'] == [] and v['conflits'] == []
+
+
+# ─── Registre serveur ────────────────────────────────────────────────────────
+
+def test_registre_mon_statut_et_pairs():
+    occ._reset_pour_test()
+    occ.poser_mon_statut('A', 'TM6KJS', '20', 'SSB', maintenant=200)
+    occ.enregistrer_pair({'station': 'B', 'call': 'TM6KJS', 'band': '40', 'mode': 'CW', 'ts': 198})
+    v = occ.vue(maintenant=200)
+    assert sorted(s['station'] for s in v['stations']) == ['A', 'B']
+    assert v['conflits'] == []                               # bandes différentes
+
+
+def test_registre_conflit_moi_vs_pair():
+    occ._reset_pour_test()
+    occ.poser_mon_statut('A', 'TM6KJS', '20', 'SSB', maintenant=200)
+    occ.enregistrer_pair({'station': 'B', 'call': 'TM6KJS', 'band': '20', 'mode': 'SSB', 'ts': 199})
+    v = occ.vue(maintenant=200)
+    assert len(v['conflits']) == 1 and v['conflits'][0]['band'] == '20'
+
+
+def test_registre_pair_perime_purge():
+    occ._reset_pour_test()
+    occ.poser_mon_statut('A', 'X', '20', 'SSB', maintenant=1000)
+    occ.enregistrer_pair({'station': 'B', 'call': 'Y', 'band': '40', 'mode': 'CW', 'ts': 100})  # vieux
+    v = occ.vue(maintenant=1000, ttl_s=180)
+    assert [s['station'] for s in v['stations']] == ['A']    # B périmé, absent
+    # et purgé du registre : une 2e vue sans le ré-enregistrer reste sans B
+    assert 'B' not in occ._pairs
+
+
+def test_registre_pair_plus_frais_ecrase_lancien():
+    occ._reset_pour_test()
+    occ.enregistrer_pair({'station': 'B', 'call': 'Y', 'band': '20', 'mode': 'SSB', 'ts': 100})
+    occ.enregistrer_pair({'station': 'B', 'call': 'Y', 'band': '40', 'mode': 'CW', 'ts': 200})  # plus frais
+    v = occ.vue(maintenant=200)
+    assert len(v['stations']) == 1 and v['stations'][0]['band'] == '40'

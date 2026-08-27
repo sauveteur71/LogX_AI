@@ -23,6 +23,60 @@ est l'identifiant d'installation (iid), unique par poste — jamais l'indicatif
 """
 
 
+import threading
+
+# ─── Registre serveur (état vivant, thread-safe) ─────────────────────────────
+# CE poste tient : son propre statut (posé par le heartbeat du client, qui seul
+# connaît la bande/mode EN COURS de saisie) + les statuts des PAIRS reçus des
+# canaux actifs (LAN/Cloud/MySQL). /data/occupancy sert la vue fusionnée. Tout
+# est en mémoire et borné par TTL — rien à purger sur disque.
+_lock = threading.Lock()
+_mon_statut = [None]        # {station, call, band, mode, ts} de CE poste
+_pairs = {}                 # station_id -> statut reçu d'un canal
+
+
+def poser_mon_statut(iid, call, band, mode, maintenant):
+    """Heartbeat local : CE poste déclare sa bande/mode courants."""
+    with _lock:
+        _mon_statut[0] = {'station': iid, 'call': call or '',
+                          'band': band or '', 'mode': mode or '', 'ts': maintenant}
+
+
+def enregistrer_pair(statut):
+    """Statut d'un AUTRE poste reçu d'un canal (LAN/Cloud/MySQL). On garde le
+    plus frais par poste (priorité locale gérée aussi à la lecture, mais on évite
+    de stocker un plus vieux que ce qu'on a déjà)."""
+    if not isinstance(statut, dict):
+        return
+    st = statut.get('station')
+    if not st:
+        return
+    ts = statut.get('ts', 0) or 0
+    with _lock:
+        anc = _pairs.get(st)
+        if anc is None or ts >= (anc.get('ts', 0) or 0):
+            _pairs[st] = statut
+
+
+def vue(maintenant, ttl_s=180):
+    """Vue d'occupation fusionnée (CE poste + pairs). Purge les pairs périmés du
+    registre au passage (borne mémoire)."""
+    with _lock:
+        statuts = ([_mon_statut[0]] if _mon_statut[0] else []) + list(_pairs.values())
+        # purge des pairs muets (borne mémoire)
+        for st in [k for k, v in _pairs.items()
+                   if (maintenant - (v.get('ts', 0) or 0)) > ttl_s]:
+            _pairs.pop(st, None)
+    return vue_occupation(statuts, maintenant, ttl_s)
+
+
+def _reset_pour_test():
+    """Remise à zéro du registre (tests uniquement)."""
+    with _lock:
+        _mon_statut[0] = None
+        _pairs.clear()
+
+
 def vue_occupation(statuts, maintenant, ttl_s=180):
     """statuts (list[dict]) -> {'stations': [...], 'conflits': [...]}.
 
