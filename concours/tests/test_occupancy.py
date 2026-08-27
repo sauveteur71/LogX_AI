@@ -113,3 +113,30 @@ def test_registre_pair_plus_frais_ecrase_lancien():
     occ.enregistrer_pair({'station': 'B', 'call': 'Y', 'band': '40', 'mode': 'CW', 'ts': 200})  # plus frais
     v = occ.vue(maintenant=200)
     assert len(v['stations']) == 1 and v['stations'][0]['band'] == '40'
+
+
+# ─── Canal LAN (priorité locale, instantané) ─────────────────────────────────
+
+def test_lan_note_beacon_alimente_occupation():
+    """Un beacon LAN reçu avec band/mode alimente l'occupation
+    (enregistrer_pair) — la carte multi-postes en temps réel local."""
+    import time as _t
+    import logx_lan_sync as lan
+    occ._reset_pour_test()
+    raw = ('{"logx":1,"iid":"PEER1","http_port":8080,"call":"TM6KJS",'
+           '"band":"20","mode":"SSB"}').encode('utf-8')
+    lan.note_beacon('192.168.1.50', raw, '')          # jeton ouvert (LAN de confiance)
+    v = occ.vue(_t.time())
+    assert any(s['station'] == 'PEER1' and s['band'] == '20' and s['mode'] == 'SSB'
+               for s in v['stations'])
+
+
+def test_lan_beacon_porte_ma_bande_mode():
+    """Le beacon émis inclut la bande/mode de CE poste (depuis mon_statut), pour
+    que les pairs voient mon occupation."""
+    import json as _j
+    import logx_lan_sync as lan
+    occ._reset_pour_test()
+    occ.poser_mon_statut('MOI', 'TM6KJS', '40', 'CW', maintenant=1000)
+    d = _j.loads(lan._my_beacon({'callsign': 'TM6KJS'}).decode('utf-8'))
+    assert d['band'] == '40' and d['mode'] == 'CW'
