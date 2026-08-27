@@ -208,3 +208,17 @@ def test_i4_action_aberrante_rejetee_de_bout_en_bout(serveur, monkeypatch):
         assert state['action'] is None                 # valeur aberrante -> aucune action proposable
     finally:
         _restore_cfg(saved)
+
+
+# ─────────────── I5 — le jeton de consentement n'est jamais journalisé ───────
+
+def test_i5_audit_ne_journalise_jamais_le_jeton_en_clair():
+    """Confidentialité : le journal d'audit d'émission ne contient JAMAIS le
+    jeton de consentement en clair (il pourrait rejouer une autorisation).
+    Rougit si _audit_entry expose consent.token au lieu de 'redacted'."""
+    c = txc.create_tx_consent('F4GLD', 'r1', 14074000, 'USB', 5, 'CQ TEST')
+    rs = {'cat_connected': True, 'ptt_locked': False,
+          'frequency_hz': c.frequency_hz, 'mode': c.mode, 'power_w': c.power_w}
+    entry = txc.authorize_transmission(c, rs)
+    assert entry['consent_token'] == 'redacted'
+    assert c.token not in str(entry)          # le vrai jeton n'apparaît nulle part
