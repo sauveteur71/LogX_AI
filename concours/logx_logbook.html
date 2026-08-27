@@ -2683,5 +2683,21 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div id="occupationCorps"></div>
 </div>
 
+<!-- Assistant « Activer un log partagé » (radioclub / expé / activation spéciale).
+     Porte d'entrée : choisir le type préconfigure le sync conseillé + ouvre la
+     carte. Ouvert par le bouton Occupation à la 1re utilisation. -->
+<div id="logPartageOverlay" hidden>
+  <div class="lp-box">
+    <div class="lp-head"><span>📻 ACTIVER UN LOG PARTAGÉ</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.fermerAssistant()" aria-label="Fermer">✕</button></div>
+    <div id="lpChoix">
+      <p class="lp-intro">Plusieurs postes, un seul log. Quel type d'opération ?</p>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('radioclub')"><b>🏛 Radioclub</b><span>Plusieurs opérateurs, souvent en temps réel</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('expedition')"><b>🏝 Expédition</b><span>Équipe répartie à distance ou sur site</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('activation')"><b>📻 Activation spéciale</b><span>Un indicatif spécial depuis plusieurs stations</span></button>
+    </div>
+    <div id="lpDetail" hidden></div>
+  </div>
+</div>
+
 </body>
 </html>

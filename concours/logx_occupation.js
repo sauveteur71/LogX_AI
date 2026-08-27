@@ -92,11 +92,87 @@
     _timer = null;
   }
 
-  function basculer(){ _actif ? arreter() : demarrer(); }
+  // ── Assistant de session « Activer un log partagé » ────────────────────────
+  // Porte d'entrée : choisir le TYPE d'opération partagée préconfigure le sync
+  // conseillé et ouvre la carte. Les 3 types partagent la même mécanique (log
+  // fusionné + occupation) ; ils ne changent QUE la recommandation de canal et
+  // le vocabulaire — la vraie config du sync (dossier / MySQL / LAN) reste dans
+  // CONFIG, vers laquelle l'assistant renvoie.
+  var SCENARIOS = {
+    radioclub: {
+      titre: '🏛 Radioclub',
+      resume: 'Plusieurs opérateurs partagent le log, souvent en temps réel (concours).',
+      sync: 'MySQL (temps réel) si vous avez un serveur, sinon dossier partagé (Cloud Sync).'
+    },
+    expedition: {
+      titre: '🏝 Expédition',
+      resume: 'Équipe répartie à distance, ou plusieurs postes sur le site.',
+      sync: 'Dossier partagé (Cloud Sync) à distance ; LAN (auto) quand les postes sont sur place.'
+    },
+    activation: {
+      titre: '📻 Activation spéciale',
+      resume: 'Un indicatif spécial (ex. TM6KJS) opéré depuis plusieurs stations.',
+      sync: 'LAN (auto) si même lieu ; dossier partagé (Cloud Sync) si réseaux internet différents.'
+    }
+  };
+  var CLE_TYPE = 'rc_log_partage_type';
+
+  function _typePersiste(){
+    try { return localStorage.getItem(CLE_TYPE) || ''; } catch(e){ return ''; }
+  }
+
+  // HTML du détail d'un scénario (testable) : rappel + sync conseillé + actions.
+  function _detailScenario(type){
+    var sc = SCENARIOS[type];
+    if(!sc) return '';
+    return '<div class="lp-detail-titre">' + _esc(sc.titre) + '</div>'
+      + '<p class="lp-resume">' + _esc(sc.resume) + '</p>'
+      + '<div class="lp-sync"><b>Sync conseillé :</b> ' + _esc(sc.sync) + '</div>'
+      + '<p class="lp-rappel">Tous les postes doivent utiliser le <b>même indicatif</b> '
+      + 'et le <b>même sync</b>. La carte prend automatiquement le canal actif '
+      + '(LAN instantané en local, sinon Cloud/MySQL).</p>'
+      + '<div class="lp-actions">'
+      + '<a class="lp-btn" href="logx_configuration.html">⚙ Configurer le sync</a>'
+      + '<button type="button" class="lp-btn lp-btn-primaire" onclick="LogxOccupation.ouvrirCarte()">📻 Afficher la carte</button>'
+      + '</div>';
+  }
+
+  function choisirScenario(type){
+    if(!SCENARIOS[type]) return;
+    try { localStorage.setItem(CLE_TYPE, type); } catch(e){}
+    var d = document.getElementById('lpDetail');
+    var c = document.getElementById('lpChoix');
+    if(d){ d.innerHTML = _detailScenario(type); d.hidden = false; }
+    if(c) c.hidden = true;
+  }
+
+  function ouvrirAssistant(){
+    var ov = document.getElementById('logPartageOverlay');
+    if(!ov) return;
+    var d = document.getElementById('lpDetail'), c = document.getElementById('lpChoix');
+    var t = _typePersiste();
+    if(t && d && c){ d.innerHTML = _detailScenario(t); d.hidden = false; c.hidden = true; }
+    else if(d && c){ d.hidden = true; c.hidden = false; }
+    ov.hidden = false;
+  }
+  function fermerAssistant(){
+    var ov = document.getElementById('logPartageOverlay'); if(ov) ov.hidden = true;
+  }
+  // Depuis l'assistant : fermer + ouvrir la carte.
+  function ouvrirCarte(){ fermerAssistant(); demarrer(); }
+
+  // Le bouton « Occupation » : 1re fois (aucun type choisi) -> assistant ;
+  // ensuite -> bascule directe de la carte.
+  function basculer(){
+    if(_actif){ arreter(); return; }
+    if(_typePersiste()) demarrer(); else ouvrirAssistant();
+  }
 
   global.LogxOccupation = {
     demarrer: demarrer, arreter: arreter, basculer: basculer,
-    _rendre: _rendre, estActif: function(){ return _actif; }
+    ouvrirAssistant: ouvrirAssistant, fermerAssistant: fermerAssistant,
+    choisirScenario: choisirScenario, ouvrirCarte: ouvrirCarte,
+    _rendre: _rendre, _detailScenario: _detailScenario, estActif: function(){ return _actif; }
   };
 
 })(typeof window !== 'undefined' ? window : this);

@@ -71,3 +71,23 @@ def test_logbook_cable_la_carte():
     assert 'id="occupationToggle"' in h
     assert 'id="occupationPanel"' in h and 'id="occupationCorps"' in h
     assert 'LogxOccupation.basculer' in h
+
+
+def test_assistant_detail_recommande_sync_et_actions():
+    """Chaque scénario donne un sync conseillé + le bouton carte + le lien config.
+    Type inconnu -> vide."""
+    ctx = _ctx()
+    for t in ('radioclub', 'expedition', 'activation'):
+        h = ctx.eval("window.LogxOccupation._detailScenario('%s')" % t)
+        assert 'Sync conseillé' in h
+        assert 'ouvrirCarte' in h and 'logx_configuration' in h
+    assert ctx.eval("window.LogxOccupation._detailScenario('inconnu')") == ''
+
+
+def test_logbook_a_lassistant_de_session():
+    with open(os.path.join(CONCOURS, 'logx_logbook.html'), encoding='utf-8') as f:
+        h = f.read()
+    assert 'id="logPartageOverlay"' in h
+    assert 'id="lpChoix"' in h and 'id="lpDetail"' in h
+    assert "choisirScenario('radioclub')" in h
+    assert "choisirScenario('activation')" in h
