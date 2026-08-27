@@ -100,6 +100,27 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 .rcb-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .rcb-vide{padding:9px 20px 9px 20px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
+/* ─── Carte d'occupation des bandes multi-postes (log partagé) ────────────────
+   Panneau flottant opt-in (radioclub / expé / activation). Qui est sur quelle
+   bande/mode ; recouvrement bande+mode surligné en rouge. */
+#occupationToggle{position:fixed;left:14px;bottom:14px;z-index:1400;display:flex;align-items:center;gap:6px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent2);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+#occupationToggle:hover{background:var(--bg3)}
+#occupationPanel{position:fixed;left:14px;bottom:56px;z-index:1400;width:340px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+#occupationPanel[hidden]{display:none}
+.occ-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.occ-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+#occupationCorps{padding:8px 12px}
+.occ-vide{color:var(--muted);font-size:12px;padding:8px 0}
+.occ-alerte{color:var(--red);font-weight:700;font-size:12px;margin-bottom:8px}
+.occ-table{width:100%;border-collapse:collapse;font-size:13px}
+.occ-table th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;letter-spacing:1px;border-bottom:1px solid var(--border);padding:3px 6px}
+.occ-table td{padding:4px 6px;border-bottom:1px solid var(--border)}
+.occ-call{font-weight:700;color:var(--text)}
+.occ-band{color:var(--accent2);font-weight:700}
+.occ-mode{color:var(--yellow)}
+.occ-table tr.occ-conflit td{background:rgba(255,45,85,.14)}
+.occ-table tr.occ-conflit .occ-flag{color:var(--red);font-weight:700;font-size:11px}
+
 /* ─── Menu « Outils ▾ » de la nav (refonte nav approche A, F4GLD 27/08) ───────
    Partagé (chargé par toutes les pages via <link>) : le HTML du menu est posé
    par page, le comportement par logx_statusbar.js (_wireNavTools). Bouton
