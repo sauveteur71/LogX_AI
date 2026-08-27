@@ -66,11 +66,16 @@ def resume(prix_usd_par_mtok=None):
         total = 0.0
         tarife = False
         for p, d in out['par_fournisseur'].items():
-            tar = prix_usd_par_mtok.get(p)
+            tar = prix_usd_par_mtok.get(p) if hasattr(prix_usd_par_mtok, 'get') else None
             if not tar:
                 continue
+            # Parse DÉFENSIF : un tarif malformé (config opérateur) est ignoré,
+            # jamais une exception (aucun 500 sur /ai/usage).
+            try:
+                c = (d['in'] / 1e6) * float(tar.get('in', 0)) + (d['out'] / 1e6) * float(tar.get('out', 0))
+            except (TypeError, ValueError, AttributeError):
+                continue
             tarife = True
-            c = (d['in'] / 1e6) * float(tar.get('in', 0)) + (d['out'] / 1e6) * float(tar.get('out', 0))
             d['cout_usd_estime'] = round(c, 4)
             total += c
         if tarife:

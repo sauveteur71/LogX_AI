@@ -53,6 +53,14 @@ def test_cout_seulement_si_tarif_fourni():
     assert r['cout_usd_estime'] == 18.0
 
 
+def test_tarif_malforme_est_ignore_sans_planter():
+    usage.enregistrer('anthropic', 'claude-x', 1_000_000, 1_000_000)
+    # Tarifs malformés (config opérateur douteuse) : ni exception, ni coût inventé.
+    assert usage.resume({'anthropic': 'pas-un-dict'}).get('cout_usd_estime') is None
+    assert usage.resume({'anthropic': {'in': 'x', 'out': 5}}).get('cout_usd_estime') is None
+    assert usage.resume('pas-un-dict-du-tout')['calls'] == 1   # robuste même si l'arg est absurde
+
+
 def test_resume_vide_par_defaut():
     r = usage.resume()
     assert r['calls'] == 0 and r['in_tokens'] == 0 and r['par_fournisseur'] == {}
