@@ -260,9 +260,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
   </div>
 </nav>
+<!-- Bandeau défilant (ticker HUD) : DX ≤7j + bandes ouvertes, en direct sous la
+     nav. Composant .rcb-* dans logx_theme.css ; rendu par le framework partagé.
+     hidden par défaut : reste caché tant qu'il n'y a aucune info live. -->
+<div id="bandeaux" class="rcb-wrap" hidden></div>
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
+<script src="logx_bandeaux.js"></script>
+<script src="logx_bandeaux_defs.js"></script>
 
 <div class="page-intro"><b>CHASSE</b> = qui contacter maintenant — spots du cluster triés par intérêt pour ton concours, POTA/SOTA/WWFF/WCA en direct, DXpéditions annoncées. Pour les conditions de propagation (indices solaires, MUF, bandes ouvertes), c'est <b>PROPAG</b>.</div>
 
@@ -948,6 +954,31 @@ rcPollOr(loadSota, 60 * 1000);                 // SOTA : cache serveur 60 s
 rcPollOr(loadWwff, 60 * 1000);                 // WWFF : cache serveur 60 s
 rcPollOr(loadWca, 5 * 60 * 1000);              // WCA : simple flux RSS de blog, cache serveur 15 min
 rcPollOr(loadDxActive, 2 * 60 * 1000);         // DXpeditions : annonces NG3K cache 1h, mais le statut actif/fréquence dépend du cluster (rafraîchi comme POTA)
+
+// ── Bandeau défilant (ticker HUD) ──────────────────────────────────────────
+// DXpéditions ≤7j + bandes exploitables, défilant sous la nav. Réutilise le
+// moteur partagé (rendreTicker) et les deux endpoints live, exactement comme
+// l'accueil. rcPollOr suspend le rafraîchissement quand l'onglet est masqué
+// (même discipline que loadSpots/loadDxActive). Non-intrusif : aucune info
+// live -> conteneur caché, pas de bande morte.
+async function _chargerBandeauxChasse(){
+  const LB = window.LogxBandeaux;
+  const wrap = document.getElementById('bandeaux');
+  if(!LB || !wrap) return;
+  const donnees = {};
+  await Promise.all([
+    fetch('/data/dxpeditions_active').then(r => r.json())
+      .then(d => { donnees.dxpeditions = d; }).catch(() => {}),
+    fetch('/data/propagation').then(r => r.json())
+      .then(d => { donnees.propagation = d; }).catch(() => {}),
+  ]);
+  const ctx = { activite: 'chasse', maintenant: Date.now() };
+  const html = LB.rendreTicker(['dxped', 'propag'], ctx, donnees);
+  if(html){ wrap.innerHTML = html; wrap.hidden = false; }
+  else { wrap.innerHTML = ''; wrap.hidden = true; }   // aucune info live -> pas de bande morte
+}
+_chargerBandeauxChasse();                              // affichage immédiat au chargement (rcPoll ne fire qu'après le 1er délai)
+rcPollOr(_chargerBandeauxChasse, 2 * 60 * 1000);       // puis rafraîchi toutes les 2 min (suspendu si onglet masqué)
 </script>
 </body>
 </html>

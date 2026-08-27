@@ -67,33 +67,9 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 
 button:focus-visible,.activity-card:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 
-/* ── BANDEAU DÉFILANT (ticker HUD) — info ambiante live, en bas de page ──────
-   Rendu par logx_bandeaux.js (classes rcb-*). CSS repris du prototype validé
-   en navigateur (docs/maquettes/bandeau_defilant.html). Non-intrusif : bande
-   fine, ne pousse pas la grille (frère de .wrap, flex-shrink:0). Garde-fous :
-   pause au survol + arrêt total si prefers-reduced-motion (règle du dépôt). */
-.rcb-wrap{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border)}
-.rcb-row{display:flex;align-items:stretch;height:34px;overflow:hidden;border-top:1px solid var(--border)}
-.rcb-row:first-child{border-top:none}
-.rcb-cat{flex:0 0 auto;display:flex;align-items:center;padding:0 12px;
-  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1.5px;
-  color:#0b0d10;background:var(--accent2);z-index:2;white-space:nowrap;
-  box-shadow:6px 0 10px -4px var(--bg)}
-body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-encre (contraste jour) */
-.rcb-cat.rcb-propag{background:var(--green)}
-.rcb-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
-.rcb-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;
-  will-change:transform;animation:rcb-defile 46s linear infinite}
-.rcb-row:hover .rcb-move{animation-play-state:paused}  /* PAUSE AU SURVOL */
-@keyframes rcb-defile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.rcb-item{display:inline-flex;align-items:center;padding:0 26px;height:100%;
-  font-family:var(--font-mono);font-size:13px;color:var(--text);text-decoration:none;
-  border-right:1px solid var(--border)}
-.rcb-item:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
-@media (prefers-reduced-motion:reduce){
-  .rcb-move{animation:none}
-  .rcb-track{overflow-x:auto}                          /* défilable à la main si l'OS refuse le mouvement */
-}
+/* ── BANDEAU DÉFILANT (ticker HUD) : composant .rcb-* MUTUALISÉ dans
+   logx_theme.css (chargé via <link>), pour être réutilisable par d'autres
+   pages (CHASSE…). Ne plus le redéclarer ici. ── */
 </style>
 </head>
 <body>

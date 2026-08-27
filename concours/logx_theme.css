@@ -52,28 +52,36 @@ body.high-contrast.day-mode {
   --text:#000000; --muted:#1A1A1A;
 }
 
-/* ─── TICKERS DÉFILANTS (chantier bandeaux, maquette bandeau_configurable.html) ─
-   Composant partagé. Défilement auto (translateX), pause au survol, repli
-   prefers-reduced-motion -> scroll manuel. Étiquette de catégorie colorée
-   collée à gauche. Adapté aux tokens LogX (--font-mono ; --blue en fallback). */
-.ticker{border-bottom:1px solid var(--border);background:var(--bg);min-height:6px}
-.ticker.vide{padding:9px 20px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
-.ticker-row{display:flex;align-items:center;height:34px;overflow:hidden;border-top:1px solid var(--border)}
-.ticker-row:first-child{border-top:none}
-.ticker-cat{flex:0 0 auto;display:flex;align-items:center;gap:6px;height:100%;padding:0 12px;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1.5px;color:#0b0d10;background:var(--accent2);z-index:2;white-space:nowrap;box-shadow:6px 0 10px -4px var(--bg)}
-body.day-mode .ticker-cat{color:#F8F6EF}
-.ticker-cat.c-green{background:var(--green)} .ticker-cat.c-purple{background:var(--purple)}
-.ticker-cat.c-yellow{background:var(--yellow)} .ticker-cat.c-blue{background:var(--blue,#4DA6FF)}
-.ticker-cat .ico{width:13px;height:13px;flex-shrink:0}
-.ticker-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
-.ticker-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;will-change:transform;animation:tickerDefile linear infinite}
-.ticker-row:hover .ticker-move{animation-play-state:paused}
-@keyframes tickerDefile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.ti{display:inline-flex;align-items:center;gap:8px;padding:0 26px;height:100%;font-family:var(--font-mono);font-size:13px;color:var(--text);text-decoration:none;border-right:1px solid var(--border)}
-.ti:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
-.ti .k{color:var(--muted)} .ti .f{color:var(--accent2);font-weight:700} .ti .call{font-weight:700}
-.ti .new{color:var(--green);font-weight:700} .ti .cw{color:var(--yellow)} .ti .warn{color:var(--red)}
-@media (prefers-reduced-motion:reduce){.ticker-move{animation:none}.ticker-track{overflow-x:auto}}
+/* ─── BANDEAU DÉFILANT (ticker HUD) — composant PARTAGÉ (classes rcb-*) ───────
+   Rendu par logx_bandeaux.js (rendreTicker). MUTUALISÉ ici depuis
+   logx_accueil.html pour être réutilisable par toute page (CHASSE, etc.) —
+   chargé par les 20 pages via <link>. Non-intrusif : bande fine, ne pousse pas
+   la grille (flex-shrink:0). Garde-fous (règles du dépôt) : pause au survol +
+   arrêt total si prefers-reduced-motion. Étiquette de catégorie colorée à
+   gauche (cuivre par défaut ; --green pour propag). CSS repris du prototype
+   validé en navigateur (docs/maquettes/bandeau_defilant.html). */
+.rcb-wrap{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border)}
+.rcb-row{display:flex;align-items:stretch;height:34px;overflow:hidden;border-top:1px solid var(--border)}
+.rcb-row:first-child{border-top:none}
+.rcb-cat{flex:0 0 auto;display:flex;align-items:center;padding:0 12px;
+  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1.5px;
+  color:#0b0d10;background:var(--accent2);z-index:2;white-space:nowrap;
+  box-shadow:6px 0 10px -4px var(--bg)}
+body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-encre (contraste jour) */
+.rcb-cat.rcb-propag{background:var(--green)}
+.rcb-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
+.rcb-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;
+  will-change:transform;animation:rcb-defile 46s linear infinite}
+.rcb-row:hover .rcb-move{animation-play-state:paused}  /* PAUSE AU SURVOL */
+@keyframes rcb-defile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.rcb-item{display:inline-flex;align-items:center;padding:0 26px;height:100%;
+  font-family:var(--font-mono);font-size:13px;color:var(--text);text-decoration:none;
+  border-right:1px solid var(--border)}
+.rcb-item:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+@media (prefers-reduced-motion:reduce){
+  .rcb-move{animation:none}
+  .rcb-track{overflow-x:auto}                          /* défilable à la main si l'OS refuse le mouvement */
+}
 
 /* ─── Menu « Outils ▾ » de la nav (refonte nav approche A, F4GLD 27/08) ───────
    Partagé (chargé par toutes les pages via <link>) : le HTML du menu est posé
