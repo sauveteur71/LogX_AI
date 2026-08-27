@@ -16,7 +16,7 @@
  *    tel quel.
  */
 :root {
-  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#464950;
+  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#464950; --border-strong:#6C6F76;
   --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74;
   --green:#00FF88; --red:#FF2D55; --yellow:#FFD60A; --purple:#BF5AF2; --orange:#FF9500;
   --text:#E9ECF5; --muted:#A9B0C8;
@@ -25,7 +25,7 @@
   --font-display:'Fraunces',serif;
 }
 body.day-mode {
-  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096;
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096; --border-strong:#847D68;
   --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31;
   --green:#007030; --red:#CC0030; --yellow:#7A5A00; --purple:#8040B0; --orange:#B35900;
   --text:#232320; --muted:#665F55;
@@ -40,13 +40,13 @@ body.day-mode {
  * (jour) pour tenir le contraste sur le fond. --accent2 = --accent (accent
  * unique) ; --accent-rgb suit pour les rgba(). */
 body.high-contrast {
-  --bg:#000000; --bg2:#0B0B0C; --bg3:#191A1C; --border:#FFFFFF;
+  --bg:#000000; --bg2:#0B0B0C; --bg3:#191A1C; --border:#FFFFFF; --border-strong:#FFFFFF;
   --accent:#FFB454; --accent2:#FFB454; --accent-rgb:255,180,84;
   --green:#38FF9A; --red:#FF7A7A; --yellow:#FFE44D; --purple:#DDA8FF; --orange:#FFB454;
   --text:#FFFFFF; --muted:#EDEDED;
 }
 body.high-contrast.day-mode {
-  --bg:#FFFFFF; --bg2:#F4F4F4; --bg3:#E6E6E6; --border:#000000;
+  --bg:#FFFFFF; --bg2:#F4F4F4; --bg3:#E6E6E6; --border:#000000; --border-strong:#000000;
   --accent:#6B3800; --accent2:#6B3800; --accent-rgb:107,56,0;
   --green:#004D1F; --red:#960018; --yellow:#4A3A00; --purple:#4E1C7A; --orange:#8A4500;
   --text:#000000; --muted:#1A1A1A;
