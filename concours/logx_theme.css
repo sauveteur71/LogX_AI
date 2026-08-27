@@ -129,6 +129,33 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 .occ-table tr.occ-conflit td{background:rgba(255,45,85,.14)}
 .occ-table tr.occ-conflit .occ-flag{color:var(--red);font-weight:700;font-size:11px}
 
+/* HUD « Opportunités » (LOGBOOK) : remonte la NEED LIST de CHASSE (même moteur)
+   avec la séparation FAIT / CALCUL / PROPOSITION. Panneau flottant à droite,
+   persistant ; le corps se replie via l'en-tête (masquer ≠ bloquer). */
+#opportunitesPanel{position:fixed;right:14px;bottom:56px;z-index:1400;width:300px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+.opp-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.opp-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+#opportunitesCorps{padding:6px 10px}
+#opportunitesCorps[hidden]{display:none}
+.opp-vide{color:var(--muted);font-size:12px;padding:8px 2px}
+.opp-row{border-bottom:1px solid var(--border)}
+.opp-row:last-child{border-bottom:0}
+.opp-sum{display:flex;align-items:center;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px}
+.opp-sum::-webkit-details-marker{display:none}
+.opp-emoji{flex-shrink:0}
+.opp-call{font-weight:700;color:var(--text);flex:1}
+.opp-score{color:var(--accent2);font-weight:700}
+.opp-body{padding:2px 2px 9px 2px;font-size:12px;display:flex;flex-direction:column;gap:5px}
+.opp-fait,.opp-calc,.opp-prop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.opp-tag{font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:4px;flex-shrink:0}
+.opp-fait .opp-tag{color:var(--muted);border:1px solid var(--border)}
+.opp-fait{color:var(--text)}
+.opp-calc .opp-tag{color:var(--accent2);border:1px solid var(--accent2)}
+.opp-calc{color:var(--muted)}
+.opp-prop .opp-tag{color:var(--accent);border:1px solid var(--accent)}
+.opp-appeler{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer}
+.opp-appeler:hover{background:rgba(var(--accent-rgb),.2)}
+
 /* Assistant « Activer un log partagé » (radioclub / expé / activation) */
 #logPartageOverlay{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
 #logPartageOverlay[hidden]{display:none}

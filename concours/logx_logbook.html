@@ -2574,6 +2574,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_contest_rules.js"></script>
 <script src="logx_logbook.js"></script>
 <script src="logx_occupation.js"></script>
+<script src="logx_opportunites.js"></script>
 <!-- Coquille d'onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) --
      module dédié pour ne pas grossir logx_logbook.js (déjà ~4100 lignes).
      APRÈS logx_logbook.js : ne dépend d'aucune fonction qu'il définit, mais
@@ -2682,6 +2683,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <div id="occupationPanel" hidden>
   <div class="occ-head"><span>📻 OCCUPATION DES BANDES</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.arreter()" aria-label="Fermer">✕</button></div>
   <div id="occupationCorps"></div>
+</div>
+
+<!-- HUD « Opportunités » : remonte dans le LOGBOOK la NEED LIST de CHASSE (même
+     moteur, /data/spots_ranked) avec la séparation FAIT / CALCUL / PROPOSITION.
+     Persistant (visible pendant la saisie), non-modal, repli natif <details>.
+     « Appeler » = pré-remplir l'indicatif + QSY si CAT — jamais d'émission. -->
+<div id="opportunitesPanel">
+  <div class="opp-head">
+    <span>🎯 OPPORTUNITÉS</span>
+    <button type="button" onclick="if(window.LogxOpportunites)LogxOpportunites.basculer()" aria-label="Masquer les opportunités" title="Masquer / afficher">▾</button>
+  </div>
+  <div id="opportunitesCorps"></div>
 </div>
 
 <!-- Assistant « Activer un log partagé » (radioclub / expé / indicatif spécial).
