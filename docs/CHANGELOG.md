@@ -34,6 +34,17 @@ poussé.
   concours VHF reste un concours). Une bande sans rien de vivant à dire ne
   s'affiche pas (pas de bandeau mort), et rien ne gêne jamais la saisie.
 
+- **Carte d'occupation des bandes multi-postes.** Pour un log partagé
+  (radioclub, expédition, ou indicatif spécial opéré depuis plusieurs stations),
+  un bouton **📻 Occupation** sur le LOGBOOK ouvre un assistant **« Activer un
+  log partagé »** (radioclub / expédition / indicatif spécial) qui conseille le
+  sync adapté, puis affiche **qui est sur quelle bande/mode** en direct, avec
+  **recouvrement surligné en rouge** (deux postes sur la même bande ET le même
+  mode). La carte prend automatiquement le canal actif avec **priorité au
+  local** : instantané entre postes du même réseau, sinon **Cloud Sync** (dossier
+  partagé, réseaux distants) ou **MySQL** (radioclub temps réel). Transport
+  **séparé du carnet** — le log n'est jamais touché.
+
 ### Modifié
 
 - **Cockpit du LOGBOOK réorganisé.** La barre de statut est regroupée en **blocs
