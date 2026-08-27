@@ -354,6 +354,16 @@
       #rcsbUpdateDD .rcsb-upd-progress{height:6px;border-radius:3px;background:var(--bg3,#14172C);
         overflow:hidden;margin-top:8px}
       #rcsbUpdateDD .rcsb-upd-progress-fill{height:100%;background:var(--green,#00FF88);width:0%;transition:width .3s}
+      /* Skip-link « Aller au contenu » (WCAG 2.4.1) : caché hors focus, visible
+         au focus clavier. Premier élément focalisable du body (voir
+         insererSkipLink). Tokens de thème -> lisible jour ET nuit. */
+      .rcsb-skip{position:fixed;z-index:100000;top:8px;left:8px;
+        padding:8px 14px;background:var(--bg2,#1D1F22);color:var(--text,#E9ECF5);
+        border:1px solid var(--accent,#E8964A);border-radius:6px;
+        font-family:inherit;font-size:13px;text-decoration:none;
+        transform:translateY(-250%);transition:transform .15s ease}
+      .rcsb-skip:focus{transform:translateY(0);outline:3px solid var(--accent,#E8964A);outline-offset:2px}
+      @media (prefers-reduced-motion:reduce){.rcsb-skip{transition:none}}
     </style>
     <div class="rcsb-item" title="Concours actif (choisi dans CONFIG)">
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
@@ -1013,6 +1023,27 @@
     if (nav && nav.parentNode) nav.parentNode.insertBefore(bar, nav.nextSibling);
     else if (header && header.parentNode) header.parentNode.insertBefore(bar, header.nextSibling);
     else document.body.insertBefore(bar, document.body.firstChild);
+  }
+
+  // Skip-link « Aller au contenu » (WCAG 2.4.1 Bypass Blocks) : sans lui, un
+  // utilisateur clavier doit tabuler toute la nav (11 liens) à CHAQUE page.
+  // Aucune page n'a de <main> ni de skip-link aujourd'hui -> on l'injecte ici,
+  // une fois pour les ~20 pages qui chargent cette barre, plutôt que d'éditer
+  // chaque HTML. insert() a posé la barre juste après la nav ; le contenu
+  // principal est donc l'élément qui SUIT la barre : on le tague comme cible
+  // focalisable. Le lien est le PREMIER enfant du body -> premier arrêt de Tab.
+  function insererSkipLink(){
+    if (document.body.querySelector && document.body.querySelector('.rcsb-skip')) return;
+    var cible = bar && bar.nextElementSibling;   // 1er contenu après la barre
+    if (cible){
+      if (!cible.id) cible.id = 'main-content';
+      cible.setAttribute('tabindex', '-1');
+    }
+    var a = document.createElement('a');
+    a.className = 'rcsb-skip';
+    a.href = '#' + ((cible && cible.id) || 'main-content');
+    a.textContent = (typeof rcT === 'function') ? rcT('Aller au contenu') : 'Aller au contenu';
+    document.body.insertBefore(a, document.body.firstChild);
   }
 
   // ── Concours actif + temps restant ─────────────────────────────────────────
@@ -2189,6 +2220,7 @@
   // ── Boot ───────────────────────────────────────────────────────────────────
   function boot(){
     insert();
+    insererSkipLink();      // après insert() : le contenu principal suit la barre
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
     refreshGuideLink();     // idem, purement local
     maybeApplyActivityPresetOnChange();     // preset de l'activité si elle a changé
