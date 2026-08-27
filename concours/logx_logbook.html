@@ -689,6 +689,18 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
    réseau, eux, apparaissent tout seuls SI ce poste est en retard — donc le
    widget multi-poste reste fonctionnel, juste invisible quand tout va bien. */
 .hdr-version-label{display:none}
+/* Alerte sécurité pylône (vent/rafales) — escaladée quand active : rouge,
+   encadrée, clignotante pour s'imposer. prefers-reduced-motion : pas de
+   clignotement (fond rouge statique fort à la place). Couleur sémantique
+   --red (contraste >=3:1 tenu par le verrou test_theme_contrast). */
+@keyframes weatherPylonePulse{0%,100%{opacity:1}50%{opacity:.4}}
+.weather-alert{display:none}
+.weather-alert.on{display:inline-flex;align-items:center;margin-left:12px;
+  font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--red);
+  padding:1px 9px;border:1px solid var(--red);border-radius:9px;
+  animation:weatherPylonePulse 1.15s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .weather-alert.on{animation:none;background:rgba(255,45,85,.16)}}
 .net-dot{width:8px;height:8px;border-radius:50%}
 .share-link{color:var(--accent2);font-weight:700;text-decoration:none;letter-spacing:.5px}
 .share-link:hover{text-decoration:underline}
@@ -1438,6 +1450,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <span aria-hidden="true" style="margin-left:12px;color:var(--border);user-select:none">│</span>
   <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;color:var(--muted)">Backup: —</span>
   <span id="weatherWidget" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;display:none" title="Météo du point haut (sécurité matériel)"></span>
+  <!-- Alerte SÉCURITÉ pylône (vent/rafales) extraite dans son propre nœud
+       role="alert" (stable, vide au repos) : quand elle s'active, un lecteur
+       d'écran l'annonce, et elle clignote pour s'imposer à l'œil (voir
+       refreshWeather + .weather-alert). Réservée à l'alerte, jamais à la météo
+       de routine (température/vent normal). -->
+  <span id="weatherAlert" role="alert" class="weather-alert"></span>
   <span id="wsjtxWidget" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;display:none" title="Pont WSJT-X : QSO FT8/FT4 auto-loggés"></span>
   <button type="button" id="btnTtsLog" onclick="toggleTtsLog()"
           title="Lecture vocale des alertes (nouveau pays/carré/besoin LoTW entendu en FT8) — mains-libres, casque de suivi, jamais sur l'air. Réglage partagé avec la carte."
