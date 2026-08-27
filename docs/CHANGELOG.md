@@ -15,6 +15,15 @@ poussé.
 
 ### Ajouté
 
+- **Récap « après-QSO » — voir sa progression à chaque contact.** Juste après
+  l'enregistrement d'un QSO, une pastille discrète (non-modale, sous la saisie)
+  annonce **ce que ce QSO vient d'apporter** — nouveau pays, nouvelle bande,
+  nouveau département — et **ce qui reste à confirmer** (LoTW non confirmé). Elle
+  reste **silencieuse sur un doublon** (aucun bruit) et s'efface seule après
+  quelques QSO. C'est la boucle de gratification : la même donnée que le panneau
+  d'avant-QSO (moteur diplômes via `/call/history`), rejouée **après** coup —
+  aucun recalcul, lecture seule, jamais d'écriture au log.
+
 - **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
   LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
   l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
