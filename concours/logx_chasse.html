@@ -269,6 +269,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_search.js"></script>
 <script src="logx_bandeaux.js"></script>
 <script src="logx_bandeaux_defs.js"></script>
+<script src="logx_bandeaux_driver.js"></script>
 
 <div class="page-intro"><b>CHASSE</b> = qui contacter maintenant — spots du cluster triés par intérêt pour ton concours, POTA/SOTA/WWFF/WCA en direct, DXpéditions annoncées. Pour les conditions de propagation (indices solaires, MUF, bandes ouvertes), c'est <b>PROPAG</b>.</div>
 
@@ -956,29 +957,18 @@ rcPollOr(loadWca, 5 * 60 * 1000);              // WCA : simple flux RSS de blog,
 rcPollOr(loadDxActive, 2 * 60 * 1000);         // DXpeditions : annonces NG3K cache 1h, mais le statut actif/fréquence dépend du cluster (rafraîchi comme POTA)
 
 // ── Bandeau défilant (ticker HUD) ──────────────────────────────────────────
-// DXpéditions ≤7j + bandes exploitables, défilant sous la nav. Réutilise le
-// moteur partagé (rendreTicker) et les deux endpoints live, exactement comme
-// l'accueil. rcPollOr suspend le rafraîchissement quand l'onglet est masqué
-// (même discipline que loadSpots/loadDxActive). Non-intrusif : aucune info
-// live -> conteneur caché, pas de bande morte.
-async function _chargerBandeauxChasse(){
-  const LB = window.LogxBandeaux;
-  const wrap = document.getElementById('bandeaux');
-  if(!LB || !wrap) return;
-  const donnees = {};
-  await Promise.all([
-    fetch('/data/dxpeditions_active').then(r => r.json())
-      .then(d => { donnees.dxpeditions = d; }).catch(() => {}),
-    fetch('/data/propagation').then(r => r.json())
-      .then(d => { donnees.propagation = d; }).catch(() => {}),
-  ]);
-  const ctx = { activite: 'chasse', maintenant: Date.now() };
-  const html = LB.rendreTicker(['dxped', 'propag'], ctx, donnees);
-  if(html){ wrap.innerHTML = html; wrap.hidden = false; }
-  else { wrap.innerHTML = ''; wrap.hidden = true; }   // aucune info live -> pas de bande morte
-}
-_chargerBandeauxChasse();                              // affichage immédiat au chargement (rcPoll ne fire qu'après le 1er délai)
-rcPollOr(_chargerBandeauxChasse, 2 * 60 * 1000);       // puis rafraîchi toutes les 2 min (suspendu si onglet masqué)
+// DXpéditions ≤7j + bandes exploitables, défilant sous la nav. Via le driver
+// PARTAGÉ (rendu + ⚙ afficher/masquer, comme LOGBOOK/accueil) ; il gère l'appel
+// immédiat + le rafraîchissement (rcPoll, suspendu si onglet masqué). Le clic
+// « fiche » est câblé plus bas, indépendamment du driver (délégué sur #bandeaux,
+// robuste aux re-rendus). Non-intrusif : caché si aucune info live.
+LogxBandeauxDriver.brancher({
+  wrapId: 'bandeaux', activite: 'chasse',
+  ids: ['dxped', 'propag'],
+  sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
+  besoins: { dxped: ['dxpeditions'], propag: ['propagation'] },
+  defauts: { chasse: ['dxped', 'propag'] }
+});
 
 // ── Fiche opérateur au clic sur un item ACTIF du bandeau ────────────────────
 // L'item porte data-fiche + call/freq/band/mode/entity/neuf (posés par
