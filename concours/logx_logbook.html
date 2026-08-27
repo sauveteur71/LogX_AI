@@ -1464,18 +1464,28 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_bandeaux_defs.js"></script>
 <script src="logx_bandeaux_driver.js"></script>
 <script>
+  // ADAPTATION PAR ACTIVITÉ : le LOGBOOK sert TOUTES les activités ; le bandeau
+  // se cale sur l'activité courante (choisie à l'accueil -> localStorage
+  // logx_activity), de sorte que les bandeaux disponibles ET le choix on/off
+  // sont propres à l'activité (doctrine « l'axe = l'activité »). Repli 'normal'.
+  var _actLog = 'normal';
+  try { _actLog = localStorage.getItem('logx_activity') || 'normal'; } catch(e) {}
+  var _defLog = {}; _defLog[_actLog] = ['dxped', 'propag'];   // dxped+propag actifs par défaut, quelle que soit l'activité
+  if(_actLog === 'concours') _defLog[_actLog].push('mults');   // les multiplicateurs : ON d'emblée EN concours
   LogxBandeauxDriver.brancher({
-    wrapId: 'bandeaux', activite: 'logbook',
-    ids: ['dxped', 'propag', 'spots'],
+    wrapId: 'bandeaux', activite: _actLog,
+    // 'mults' n'a de sens qu'en concours (contextes:['concours']) : le driver
+    // l'écarte automatiquement des autres activités (bandeauxAffichables).
+    ids: ['dxped', 'propag', 'spots', 'mults'],
     sources: {
       dxpeditions: '/data/dxpeditions_active',
       propagation: '/data/propagation',
       spots_ranked: '/data/spots_ranked'
     },
-    besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'] },
+    besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'], mults: ['spots_ranked'] },
     // spots DISPONIBLE (chip dans le ⚙) mais OFF par défaut : opt-in, car
     // /data/spots_ranked est lourd — fetch-aware, il n'est appelé que si activé.
-    defauts: { logbook: ['dxped', 'propag'] }
+    defauts: _defLog
   });
 </script>
 

@@ -80,6 +80,25 @@ def test_disponibles_par_activite():
     assert ctx.eval("LogxBandeaux.bandeauxDisponibles('concours').sort().join(',')") == 'concours,propag'
 
 
+def test_affichables_filtre_une_liste_par_contexte():
+    """bandeauxAffichables(ids, activite) : garde, DANS l'ordre de `ids`, ceux
+    dont le contexte matche l'activité (adaptation par activité). Un id inconnu
+    est écarté. Base du driver activity-aware."""
+    ctx = _ctx()
+    ctx.eval("""
+      LogxBandeaux.enregistrerBandeau({id:'uni', cat:'U', contextes:'*',
+        construire:function(){ return []; }});
+      LogxBandeaux.enregistrerBandeau({id:'cc', cat:'C', contextes:['concours'],
+        construire:function(){ return []; }});
+    """)
+    # activité 'normal' : seul l'universel passe (cc réservé au concours)
+    assert ctx.eval("LogxBandeaux.bandeauxAffichables(['uni','cc'],'normal').join(',')") == 'uni'
+    # activité 'concours' : les deux, dans l'ordre fourni
+    assert ctx.eval("LogxBandeaux.bandeauxAffichables(['cc','uni'],'concours').join(',')") == 'cc,uni'
+    # id inconnu écarté, pas de plantage
+    assert ctx.eval("LogxBandeaux.bandeauxAffichables(['uni','xxx'],'normal').join(',')") == 'uni'
+
+
 # ─── Rendu HTML ─────────────────────────────────────────────────────────────
 
 def test_rendu_produit_les_lignes_et_double_le_bloc():

@@ -70,6 +70,7 @@ body.high-contrast.day-mode {
 body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-encre (contraste jour) */
 .rcb-cat.rcb-propag{background:var(--green)}
 .rcb-cat.rcb-spots{background:var(--yellow)}
+.rcb-cat.rcb-mults{background:var(--purple)}
 .rcb-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
 .rcb-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;
   will-change:transform;animation:rcb-defile 46s linear infinite}

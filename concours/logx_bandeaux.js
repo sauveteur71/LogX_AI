@@ -37,6 +37,21 @@
     });
   }
 
+  // Filtre une LISTE de bandeaux (ordre préservé) par contexte d'activité :
+  // ne garde que ceux dont `contextes` matche l'activité. Base du driver
+  // « activity-aware » : une page déclare ses bandeaux candidats, seuls ceux
+  // qui ont un sens pour l'activité courante sont retenus (doctrine « l'axe =
+  // l'activité »). Un id absent du registre est écarté.
+  function bandeauxAffichables(ids, activite, registre){
+    registre = registre || REGISTRE;
+    return (ids || []).filter(function(id){
+      const def = registre[id];
+      if(!def) return false;
+      const c = def.contextes;
+      return c === '*' || (Array.isArray(c) && c.indexOf(activite) >= 0);
+    });
+  }
+
   // ── RÈGLE DE CONTENU (F4GLD) : ne garder que les DXpéditions des `jours`
   //    prochains jours. Une expé est retenue si elle est EN COURS (debut <= now
   //    <= fin) OU commence dans la fenêtre [now, now + jours]. Date illisible ->
@@ -132,6 +147,7 @@
   const API = {
     enregistrerBandeau: enregistrerBandeau,
     bandeauxDisponibles: bandeauxDisponibles,
+    bandeauxAffichables: bandeauxAffichables,
     filtrerExpeditions: filtrerExpeditions,
     chargerConfig: chargerConfig,
     enregistrerConfig: enregistrerConfig,

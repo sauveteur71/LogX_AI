@@ -239,3 +239,46 @@ def test_spots_echappe_le_call_reseau():
     html = ctx.eval("window.LogxBandeaux.rendreTicker(['spots'],{},"
                     "{spots_ranked:{spots:%s}})" % json.dumps(d))
     assert '<img' not in html and '&lt;img' in html
+
+
+# ─── Bandeau MULTS (concours uniquement) — source : /data/spots_ranked ───────
+
+def _mults_expr(spots):
+    return ("window.LogxBandeaux.REGISTRE.mults.construire({},"
+            "{spots_ranked:{spots:%s}})" % json.dumps(spots))
+
+
+def test_mults_reserve_au_concours():
+    """Le bandeau MULTS n'a de sens qu'en concours (contextes:['concours']) :
+    bandeauxAffichables l'écarte hors concours (« le jaune hors concours »)."""
+    ctx = _ctx()
+    assert ctx.eval("typeof window.LogxBandeaux.REGISTRE.mults") == 'object'
+    assert ctx.eval("window.LogxBandeaux.bandeauxAffichables(['mults'],'normal').length") == 0
+    assert ctx.eval("window.LogxBandeaux.bandeauxAffichables(['mults'],'concours').length") == 1
+
+
+def test_mults_ne_garde_que_les_nouveaux_multiplicateurs():
+    ctx = _ctx()
+    items = _j(ctx, _mults_expr([
+        {'call': 'K1ABC', 'band': '20m', 'freq': 14074, 'mode': 'CW',
+         'new_mult': True, 'mult_type': 'zone 5', 'dx_country': 'USA'},
+        {'call': 'F5ZZZ', 'band': '20m', 'freq': 14090, 'new_mult': False},  # pas un nouveau mult -> écarté
+    ]))
+    assert len(items) == 1
+    t = items[0]['texte']
+    assert 'K1ABC' in t and 'zone 5' in t and '14.074' in t
+    d = items[0]['data']
+    assert d['fiche'] == '1' and d['call'] == 'K1ABC' and d['entity'] == 'USA'
+
+
+def test_mults_vide_si_aucun_nouveau_mult():
+    ctx = _ctx()
+    items = _j(ctx, _mults_expr([{'call': 'A', 'band': '20m', 'new_mult': False}]))
+    assert items == []
+
+
+def test_mults_borne_le_nombre():
+    ctx = _ctx()
+    many = [{'call': 'C%d' % i, 'band': '20m', 'freq': 14000 + i, 'new_mult': True, 'mult_type': 'z'} for i in range(20)]
+    items = _j(ctx, _mults_expr(many))
+    assert len(items) == 12

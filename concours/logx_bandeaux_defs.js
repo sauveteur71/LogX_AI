@@ -146,9 +146,46 @@
     id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: '*',
     construire: _dxped
   });
+  // ── Multiplicateurs à chercher (CONCOURS uniquement) ───────────────────────
+  // Réutilise /data/spots_ranked (déjà classé côté serveur), filtré aux spots
+  // marqués new_mult=true : les NOUVEAUX multiplicateurs repérés sur le cluster.
+  // contextes:['concours'] -> n'apparaît qu'en mode concours (doctrine : « le
+  // score/mult n'a rien à faire à l'écran hors concours »). Item cliquable ->
+  // fiche (même chemin que spots/DXpéditions).
+  function _mults(ctx, donnees){
+    var src = donnees && donnees.spots_ranked;
+    var spots = (src && src.spots) ? src.spots
+              : (Array.isArray(src) ? src : []);
+    var out = [];
+    for(var i = 0; i < spots.length && out.length < 12; i++){
+      var s = spots[i];
+      if(!s || !s.call || !s.new_mult) continue;   // uniquement les NOUVEAUX multiplicateurs
+      var bits = [s.call];
+      if(s.mult_type) bits.push(s.mult_type);
+      if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');
+      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      out.push({
+        texte: '★ ' + bits.join(' · '),
+        title: s.dx_country || '',
+        href: 'logx_chasse.html',
+        data: {
+          fiche: '1', call: s.call,
+          freq: s.freq ? String(s.freq) : '',
+          band: s.band || '', mode: s.mode || '',
+          entity: s.dx_country || '', neuf: ''
+        }
+      });
+    }
+    return out;
+  }
+
   LB.enregistrerBandeau({
     id: 'spots', cat: 'SPOTS DX', cls: 'rcb-spots', contextes: '*',
     construire: _spots
+  });
+  LB.enregistrerBandeau({
+    id: 'mults', cat: 'MULTS', cls: 'rcb-mults', contextes: ['concours'],
+    construire: _mults
   });
   LB.enregistrerBandeau({
     id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: '*',

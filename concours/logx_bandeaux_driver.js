@@ -81,8 +81,12 @@
 
     function rendre(){
       var reouvrir = panneauOuvert();   // préserve l'ouverture à travers un re-rendu
+      // ADAPTATION : ne garder que les bandeaux qui ONT UN SENS pour l'activité
+      // courante (leur `contextes`). Un bandeau hors-contexte ne s'affiche pas
+      // et n'apparaît pas dans le ⚙ (ex. bandeau concours masqué hors concours).
+      var dispo = LB.bandeauxAffichables(ids, activite);
       var actifs = LB.bandeauxActifs(activite, defauts);
-      var aff = ids.filter(function(id){ return actifs.indexOf(id) >= 0; });
+      var aff = dispo.filter(function(id){ return actifs.indexOf(id) >= 0; });
       // Ne récupère QUE les flux nécessaires aux bandeaux AFFICHÉS : un bandeau
       // masqué ne doit pas déclencher son fetch (ex. /data/spots_ranked, lourd).
       // besoins = {id:[clesSource]} ; sans déclaration -> tous les flux (rétro-compat).
@@ -95,7 +99,7 @@
         });
       }
       _fetchSources(aFetch).then(function(donnees){
-        var reglage = _reglageHtml(ids, activite, defauts);
+        var reglage = _reglageHtml(dispo, activite, defauts);   // chips = bandeaux de l'activité courante
         if(aff.length === 0){
           // tout masqué par l'opérateur -> strip ⚙ (réactivation), pas de bande morte
           wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Bandeaux masqués') + '</div>';
