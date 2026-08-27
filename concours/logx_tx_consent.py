@@ -322,9 +322,17 @@ def authorize_transmission(consent, radio_state, ptt_method=None, now=None,
         raise PermissionError("Mode radio modifié depuis l'autorisation")
     if _radio_val(radio_state, 'power_w') != consent.power_w:
         raise PermissionError("Puissance TX modifiée depuis l'autorisation")
-    if max_power_w is not None and consent.power_w > float(max_power_w):
-        raise PermissionError(
-            f"Puissance {consent.power_w} W au-dessus du plafond configuré ({max_power_w} W)")
+    if max_power_w is not None:
+        # Parse DÉFENSIF : un plafond illisible (config malformée) revient à
+        # « pas de plafond » plutôt que de faire planter l'autorisation (fail-open
+        # sur ce garde-fou OPTIONNEL — les barrières primaires restent intactes).
+        try:
+            cap = float(max_power_w)
+        except (TypeError, ValueError):
+            cap = None
+        if cap is not None and consent.power_w > cap:
+            raise PermissionError(
+                f"Puissance {consent.power_w} W au-dessus du plafond configuré ({cap} W)")
     # OK : consommé une fois pour toutes, retiré du registre, journalisé.
     consent.used = True
     with _lock:

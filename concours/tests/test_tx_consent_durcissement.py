@@ -59,6 +59,21 @@ def test_plafond_puissance_ok_a_egalite():
     assert entry['power_w'] == 50 and c.used is True
 
 
+def test_plafond_chaine_numerique_est_honore():
+    # Un plafond fourni comme chaîne numérique (config) reste appliqué.
+    c = txc.create_tx_consent('F4GLD', 'r1', 14074000, 'USB', 100, 'CQ')
+    with pytest.raises(PermissionError):
+        txc.authorize_transmission(c, _radio_ok(c), max_power_w='50')
+
+
+def test_plafond_illisible_ne_fait_pas_planter_et_n_impose_rien():
+    # Config malformée (fail-OPEN sur ce garde-fou OPTIONNEL) : pas d'exception,
+    # revient au comportement « pas de plafond » — jamais un 500 sur /tx/authorize.
+    c = txc.create_tx_consent('F4GLD', 'r1', 14074000, 'USB', 100, 'CQ')
+    entry = txc.authorize_transmission(c, _radio_ok(c), max_power_w='oops')
+    assert entry['event'] == 'TX_AUTHORIZED_AND_EXECUTED'
+
+
 def test_sans_plafond_aucun_refus_de_puissance():
     # Rétro-compat : max_power_w=None (défaut) -> aucun plafond, même à 1500 W.
     c = txc.create_tx_consent('F4GLD', 'r1', 14074000, 'USB', 1500, 'CQ')
