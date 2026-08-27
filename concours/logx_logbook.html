@@ -676,6 +676,9 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,160,.2)}
 /* CONNEXION RÉSEAU */
 .net-status{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:14px;color:var(--muted);padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:nowrap;white-space:nowrap;overflow-x:auto}
+/* Le lien réseau complet est long et faisait déborder la barre : on le plafonne
+   (ellipsis). L'URL entière reste dans le title + copiable via le bouton. */
+.net-status .share-link{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Retour terrain F4GLD (24/08) : barre d'état sur UNE ligne. Météo, pont
    WSJT-X et soapbox EDI ne sont plus cachés EN DUR ici — ils sont devenus des
    bascules du menu ⚙ AFFICHAGE (OFF par défaut = écran épuré, rappelables d'un

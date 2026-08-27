@@ -300,7 +300,7 @@
          à l'autre. Marge à GAUCHE = robuste même si des items du bloc précédent
          sont masqués (orage/réseau/dxcc/bandchange en display:none). Blocs :
          CONCOURS │ PROPAG/MÉTÉO │ STATION/MAINTENANCE │ ACTIONS. */
-      #rcStatusBar .rcsb-blockstart{margin-left:18px}
+      #rcStatusBar .rcsb-blockstart{margin-left:12px}
       #rcStatusBar .rcsb-val{color:var(--text,#E9ECF5)}
       #rcStatusBar .rcsb-contest{color:var(--accent,#FF5030);font-weight:700;letter-spacing:1px}
       #rcStatusBar .rcsb-running{color:var(--green,#00FF88)}
