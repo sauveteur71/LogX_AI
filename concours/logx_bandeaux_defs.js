@@ -61,11 +61,26 @@
         bout = ' · ' + (e.dates || 'à venir');
       }
       var neuf = e.worked_status === 'new' ? ' · nouveau pays' : '';
-      return {
+      var item = {
         texte: tete + call + ' · ' + lieu + bout + neuf,
         href: 'logx_chasse.html',
         title: e.dates || ''
       };
+      // Item ACTIF -> cliquable « fiche » : la page ouvre un popup (indicatif,
+      // fréquence/bande/mode du cluster, QSY...). Les à-venir restent de simples
+      // liens : on ne peut pas QSY sur une station pas encore active.
+      if(actif){
+        item.data = {
+          fiche: '1',
+          call: call,
+          freq: (e.freq_khz != null) ? String(e.freq_khz) : '',
+          band: e.spot_band || '',
+          mode: e.spot_mode || '',
+          entity: e.entity || '',
+          neuf: (e.worked_status === 'new') ? '1' : ''
+        };
+      }
+      return item;
     });
   }
 

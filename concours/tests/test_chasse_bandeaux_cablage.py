@@ -46,6 +46,20 @@ def test_driver_rend_dxped_et_propag_depuis_les_deux_flux():
     assert '/data/propagation' in corps
 
 
+def test_clic_item_actif_ouvre_une_fiche():
+    """Un item ACTIF du bandeau (data-fiche) ouvre une fiche popup au clic :
+    handler de clic DÉLÉGUÉ sur #bandeaux + openFicheModal agrégeant l'info
+    live du cluster, le nom (/calldb/lookup) et un lien direct QRZ.com."""
+    h = _lire()
+    assert 'function openFicheModal' in h
+    assert "addEventListener('click'" in h                  # clic délégué (pas d'onclick inline par item)
+    assert 'rcb-item' in h and 'data-fiche' in h            # cible les items actifs cliquables
+    assert 'closest' in h                                   # remonte au <a> depuis la cible du clic
+    assert 'qrz.com/db/' in h                               # « toutes les infos QRZ.com »
+    assert '/calldb/lookup/' in h                           # nom de l'opérateur
+    assert 'closeFiche' in h                                # fermeture du popup
+
+
 def test_driver_est_reellement_appele():
     """Défini ne suffit pas : le driver doit être INVOQUÉ (poll rcPollOr ou
     appel direct), sinon le bandeau ne s'affiche jamais bien que tout existe."""

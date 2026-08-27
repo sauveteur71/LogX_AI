@@ -107,6 +107,33 @@ def test_rendu_echappe_les_donnees_texte():
     assert '<img' not in html and '&lt;img' in html     # pas d'injection via champ texte
 
 
+def test_rendu_expose_les_data_attributs():
+    """Un item peut porter it.data -> attributs data-* sur le <a> (support du
+    clic « fiche » côté page : data-call/freq/band/mode/fiche). Valeurs vides
+    ou nulles omises (pas d'attribut mort)."""
+    ctx = _ctx()
+    ctx.eval("""LogxBandeaux.enregistrerBandeau({id:'d', cat:'D', contextes:'*',
+      construire:function(){ return [{texte:'V51WH',
+        data:{call:'V51WH', freq:'14074', mode:'', fiche:'1'}}]; }});""")
+    html = ctx.eval("LogxBandeaux.rendreTicker(['d'], {}, {})")
+    assert 'data-call="V51WH"' in html
+    assert 'data-freq="14074"' in html
+    assert 'data-fiche="1"' in html
+    assert 'data-mode=' not in html          # valeur vide -> attribut omis
+
+
+def test_rendu_echappe_les_data_attributs():
+    """Les valeurs data-* (indicatif cluster/NG3K = source externe) sont
+    échappées comme le reste — pas d'évasion d'attribut."""
+    ctx = _ctx()
+    ctx.eval("""LogxBandeaux.enregistrerBandeau({id:'d', cat:'D', contextes:'*',
+      construire:function(){ return [{texte:'x',
+        data:{call:'\\"><img src=x onerror=1>'}}]; }});""")
+    html = ctx.eval("LogxBandeaux.rendreTicker(['d'], {}, {})")
+    assert '<img' not in html                 # pas d'injection via une valeur data-*
+    assert '&quot;' in html and '&lt;img' in html
+
+
 # ─── Config persistée ───────────────────────────────────────────────────────
 
 def test_config_persiste_les_bandeaux_actifs():

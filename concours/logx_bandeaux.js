@@ -93,8 +93,18 @@
       if(!items.length) return '';                // pas de LIVE -> pas de ligne morte
       const cells = items.map(function(it){
         const contenu = (it.html != null) ? it.html : esc(it.texte);
+        // Attributs data-* optionnels (it.data) : permettent à la page de
+        // reconnaître un item actionnable (clic « fiche » : data-call/freq/...).
+        // Clé ET valeur échappées (l'indicatif vient du cluster/NG3K = externe).
+        let attrs = '';
+        if(it.data){
+          Object.keys(it.data).forEach(function(k){
+            const v = it.data[k];
+            if(v != null && v !== '') attrs += ' data-' + esc(k) + '="' + esc(v) + '"';
+          });
+        }
         return '<a class="rcb-item" href="' + esc(it.href || '#')
-             + '" title="' + esc(it.title || '') + '">' + contenu + '</a>';
+             + '" title="' + esc(it.title || '') + '"' + attrs + '>' + contenu + '</a>';
       }).join('');
       // bloc dupliqué -> boucle CSS translateX(-50%) sans couture
       return '<div class="rcb-row"><span class="rcb-cat ' + esc(def.cls || '') + '">'

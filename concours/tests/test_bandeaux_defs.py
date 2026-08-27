@@ -102,6 +102,41 @@ def test_dxped_echappe_le_contenu_reseau():
     assert '&lt;img' in html            # présent sous forme échappée
 
 
+def test_dxped_actif_porte_data_fiche_cliquable():
+    """Item ACTIF -> data.fiche + call/freq/band/mode : la page ouvre un popup
+    « fiche » au clic (indicatif, fréquence cluster, QSY...)."""
+    ctx = _ctx()
+    items = _j(ctx, _dxped_expr([
+        {'callsign': 'TX9A', 'entity': 'Chatham', 'status': 'active',
+         'freq_khz': 14074, 'spot_band': '20m', 'spot_mode': 'CW',
+         'worked_status': 'new'},
+    ]))
+    d = items[0].get('data')
+    assert d, "un item actif doit porter data (fiche cliquable)"
+    assert d.get('fiche') == '1'
+    assert d.get('call') == 'TX9A'
+    assert d.get('freq') == '14074'
+    assert d.get('band') == '20m' and d.get('mode') == 'CW'
+    assert d.get('entity') == 'Chatham'      # pays affiché dans la fiche
+    assert d.get('neuf') == '1'              # « nouveau pays » signalé dans la fiche
+
+
+def test_dxped_a_venir_nest_pas_cliquable():
+    """Une expédition à VENIR (gardée car ≤7j) reste un simple lien, pas une
+    fiche : on ne peut pas QSY sur une station pas encore active."""
+    ctx = _ctx()
+    js = (
+        "(function(){var now=%d;var iso=function(off){return new Date(now+off*%d)"
+        ".toISOString().slice(0,10);};"
+        "var d=[{callsign:'A1B',entity:'Proche',status:'upcoming',starts:iso(3),ends:iso(9)}];"
+        "return window.LogxBandeaux.REGISTRE.dxped.construire({maintenant:now},"
+        "{dxpeditions:{expeditions:d}});})()" % (NOW_MS, JOUR)
+    )
+    items = json.loads(ctx.eval("JSON.stringify(" + js + ")"))
+    assert items and 'A1B' in items[0]['texte']
+    assert 'data' not in items[0]        # à venir -> pas de fiche cliquable
+
+
 def _propag_expr(bandes):
     return ("window.LogxBandeaux.REGISTRE.propag.construire({},"
             "{propagation:{etat_bandes:{bandes:%s,muf_mhz:21.0,soleil_deg:30}}})"
