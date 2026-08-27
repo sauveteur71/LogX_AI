@@ -67,33 +67,46 @@
       + '<tbody>' + lignes + '</tbody></table>';
   }
 
-  // Heartbeat de FOND : dès qu'une SESSION de log partagé est active (type choisi
-  // via l'assistant), CE poste publie sa bande/mode en continu — MÊME panneau
-  // fermé — pour être visible des autres. Indépendant de l'affichage. Idempotent.
-  var _hbTimer = null;
-  function _demarrerHeartbeat(){
-    if(_hbTimer) return;
-    _heartbeat();
-    var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
-    _hbTimer = poll(_heartbeat, INTERVALLE_MS);
+  // Indicateur PASSIF sur le bouton : nombre de postes en direct + alerte
+  // recouvrement, pour être au courant SANS ouvrir la carte.
+  function _majIndicateur(vue){
+    var btn = document.getElementById('occupationToggle');
+    if(!btn) return;
+    var n = (vue && vue.stations) ? vue.stations.length : 0;
+    var conflit = !!(vue && vue.conflits && vue.conflits.length);
+    btn.classList.toggle('occ-toggle-conflit', conflit);
+    btn.textContent = conflit ? '📻 ⚠️ recouvrement'
+                    : (n ? '📻 ' + n + ' poste' + (n > 1 ? 's' : '') + ' en direct'
+                         : '📻 Occupation');
   }
 
-  // Affichage seul : lit /data/occupancy et rend la carte.
-  function _afficher(){
-    fetch('/data/occupancy').then(function(r){ return r.json(); })
-      .then(_rendre).catch(function(){});
+  // Cycle de FOND (dès qu'une session de log partagé est active) : CE poste
+  // publie sa bande/mode (heartbeat, visible des autres MÊME carte fermée) + lit
+  // l'occupation -> met à jour l'indicateur, et la carte détaillée si ouverte.
+  // Idempotent (un seul minuteur).
+  var _hbTimer = null;
+  function _cycleFond(){
+    _heartbeat();
+    fetch('/data/occupancy').then(function(r){ return r.json(); }).then(function(vue){
+      _majIndicateur(vue);
+      if(_actif) _rendre(vue);           // panneau ouvert -> table détaillée
+    }).catch(function(){});
+  }
+  function _demarrerFond(){
+    if(_hbTimer) return;
+    _cycleFond();
+    // rcPoll suspend sur onglet masqué si dispo, sinon setInterval.
+    var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
+    _hbTimer = poll(_cycleFond, INTERVALLE_MS);
   }
 
   function demarrer(){
-    _demarrerHeartbeat();               // s'assure que CE poste participe (visible des autres)
+    _demarrerFond();                     // participe + fait vivre l'indicateur
     if(_actif) return;
     _actif = true;
     var p = document.getElementById('occupationPanel');
     if(p) p.hidden = false;
-    _afficher();
-    // rcPoll suspend sur onglet masqué si dispo, sinon setInterval.
-    var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
-    _timer = poll(_afficher, INTERVALLE_MS);
+    _cycleFond();                        // rendu immédiat de la carte
   }
 
   function arreter(){
@@ -185,14 +198,14 @@
   // chargement — le poste devient visible des autres SANS ouvrir la carte, et
   // sans POST parasite pour un opérateur solo (aucun type -> rien).
   if(typeof document !== 'undefined'){
-    var _demSiSession = function(){ if(_typePersiste()) _demarrerHeartbeat(); };
+    var _demSiSession = function(){ if(_typePersiste()) _demarrerFond(); };
     if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _demSiSession);
     else _demSiSession();
   }
 
   global.LogxOccupation = {
     demarrer: demarrer, arreter: arreter, basculer: basculer,
-    _demarrerHeartbeat: _demarrerHeartbeat,
+    _demarrerFond: _demarrerFond, _majIndicateur: _majIndicateur,
     ouvrirAssistant: ouvrirAssistant, fermerAssistant: fermerAssistant,
     choisirScenario: choisirScenario, ouvrirCarte: ouvrirCarte,
     _rendre: _rendre, _detailScenario: _detailScenario, estActif: function(){ return _actif; }
