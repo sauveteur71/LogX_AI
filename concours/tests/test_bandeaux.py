@@ -147,3 +147,26 @@ def test_config_repli_sur_defauts_activite():
     # rien de persisté pour 'numerique' -> repli sur les défauts fournis
     val = ctx.eval("LogxBandeaux.bandeauxActifs('numerique', {numerique:['ft8','propag']}).join(',')")
     assert val == 'ft8,propag'
+
+
+def test_basculer_retire_puis_reajoute_et_persiste():
+    """basculerBandeau = point d'entrée du ⚙ « afficher/masquer » : flippe
+    l'appartenance d'un bandeau à l'activité, persiste, renvoie la liste à jour.
+    Part d'abord des défauts de l'activité (rien encore persisté)."""
+    ctx = _ctx()
+    d = "{chasse:['dxped','propag']}"
+    # dxped actif par défaut -> bascule = retrait
+    a1 = ctx.eval("LogxBandeaux.basculerBandeau('chasse','dxped',%s).join(',')" % d)
+    assert a1 == 'propag'
+    # persisté : la relecture reflète le retrait (pas un repli sur les défauts)
+    assert ctx.eval("LogxBandeaux.bandeauxActifs('chasse',%s).join(',')" % d) == 'propag'
+    # re-bascule -> ré-ajout
+    a2 = ctx.eval("LogxBandeaux.basculerBandeau('chasse','dxped',%s).join(',')" % d)
+    assert 'dxped' in a2.split(',')
+
+
+def test_basculer_naffecte_pas_les_autres_activites():
+    ctx = _ctx()
+    ctx.eval("LogxBandeaux.basculerBandeau('chasse','dxped',{chasse:['dxped']});")
+    # 'accueil' n'a jamais été touché -> repli intact sur ses défauts
+    assert ctx.eval("LogxBandeaux.bandeauxActifs('accueil',{accueil:['dxped','propag']}).join(',')") == 'dxped,propag'

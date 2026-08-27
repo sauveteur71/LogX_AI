@@ -1455,6 +1455,23 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
 
+<!-- Bandeau défilant (ticker HUD) : DX ≤7j + bandes exploitables, en direct
+     sous la nav. Bande fine NON-INTRUSIVE (flex-shrink:0, la saisie a son propre
+     overflow-y:auto -> jamais coupée) ; ⚙ afficher/masquer (choix opérateur
+     persisté) ; jamais le chemin critique. Rendu par le driver partagé. -->
+<div id="bandeaux" class="rcb-wrap" hidden></div>
+<script src="logx_bandeaux.js"></script>
+<script src="logx_bandeaux_defs.js"></script>
+<script src="logx_bandeaux_driver.js"></script>
+<script>
+  LogxBandeauxDriver.brancher({
+    wrapId: 'bandeaux', activite: 'logbook',
+    ids: ['dxped', 'propag'],
+    sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
+    defauts: { logbook: ['dxped', 'propag'] }
+  });
+</script>
+
 <!-- RÉSEAU -->
 <div class="net-status">
   <div class="net-dot" id="netDot"></div>

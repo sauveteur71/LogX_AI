@@ -60,7 +60,7 @@ body.high-contrast.day-mode {
    arrêt total si prefers-reduced-motion. Étiquette de catégorie colorée à
    gauche (cuivre par défaut ; --green pour propag). CSS repris du prototype
    validé en navigateur (docs/maquettes/bandeau_defilant.html). */
-.rcb-wrap{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border)}
+.rcb-wrap{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);position:relative}
 .rcb-row{display:flex;align-items:stretch;height:34px;overflow:hidden;border-top:1px solid var(--border)}
 .rcb-row:first-child{border-top:none}
 .rcb-cat{flex:0 0 auto;display:flex;align-items:center;padding:0 12px;
@@ -82,6 +82,20 @@ body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-
   .rcb-move{animation:none}
   .rcb-track{overflow-x:auto}                          /* défilable à la main si l'OS refuse le mouvement */
 }
+/* ⚙ « afficher / masquer » les bandeaux (driver logx_bandeaux_driver.js). Le ⚙
+   flotte en haut à droite de la bande ; le panneau de chips s'ouvre en dessous.
+   « masquer ≠ bloquer » : purement visuel, la config/les endpoints restent. */
+.rcb-gear{position:absolute;right:0;top:0;height:34px;width:32px;z-index:6;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:none;border-left:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:15px;line-height:1}
+.rcb-gear:hover,.rcb-gear[aria-expanded="true"]{color:var(--accent2);background:var(--bg3)}
+.rcb-gear:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.rcb-chips{position:absolute;right:0;top:34px;z-index:2001;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:8px;display:flex;flex-direction:column;gap:6px;min-width:150px}
+.rcb-chips[hidden]{display:none}
+.rcb-chip{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;text-align:left;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .12s}
+.rcb-chip:hover{border-color:var(--accent)}
+.rcb-chip.on{background:var(--accent2);color:#0b0d10;border-color:var(--accent2)}
+body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuivre-encre (contraste jour) */
+.rcb-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rcb-vide{padding:9px 20px 9px 20px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
 /* ─── Menu « Outils ▾ » de la nav (refonte nav approche A, F4GLD 27/08) ───────
    Partagé (chargé par toutes les pages via <link>) : le HTML du menu est posé

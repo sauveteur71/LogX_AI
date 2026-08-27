@@ -72,6 +72,22 @@
     return (defauts && defauts[activite]) || [];
   }
 
+  // Bascule (on/off) un bandeau pour une activité : flippe l'appartenance de
+  // `id` à la liste active, PERSISTE, et renvoie la nouvelle liste. Point
+  // d'entrée du ⚙ « afficher/masquer » côté page. Part des défauts de
+  // l'activité tant que rien n'est persisté (première bascule).
+  function basculerBandeau(activite, id, defauts){
+    const cfg = chargerConfig();
+    cfg.parActivite = cfg.parActivite || {};
+    const base = cfg.parActivite[activite] || (defauts && defauts[activite]) || [];
+    const actifs = base.slice();
+    const i = actifs.indexOf(id);
+    if(i >= 0) actifs.splice(i, 1); else actifs.push(id);
+    cfg.parActivite[activite] = actifs;
+    enregistrerConfig(cfg);
+    return actifs;
+  }
+
   // ── Rendu (PUR) -> chaîne HTML du ticker. esc() protège tout champ réseau
   //    passé en {texte}. Un item {html} est réputé DÉJÀ construit sûr par son
   //    `construire` (qui doit esc() ses propres champs bruts).
@@ -120,6 +136,7 @@
     chargerConfig: chargerConfig,
     enregistrerConfig: enregistrerConfig,
     bandeauxActifs: bandeauxActifs,
+    basculerBandeau: basculerBandeau,
     rendreTicker: rendreTicker,
     esc: esc,
     REGISTRE: REGISTRE,
