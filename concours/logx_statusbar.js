@@ -358,7 +358,7 @@
     <div class="rcsb-item" title="Concours actif (choisi dans CONFIG)">
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
     </div>
-    <div class="rcsb-item" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
+    <div class="rcsb-item" id="rcsbTimeItem" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
       ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
     <div class="rcsb-item" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
@@ -1039,6 +1039,16 @@
 
   function refreshCountdown(){
     const cfg = getConfig();
+    // Hors concours, le compte à rebours n'a aucun sens : on masque l'item
+    // ENTIER (⏱ + valeur) plutôt que d'afficher un « — » qui encombre la barre
+    // pour rien (retour F4GLD 27/08/2026 : « le chrono n'a rien à faire là si je
+    // ne suis pas en mode concours »). Cohérent avec la doctrine « l'axe est
+    // l'activité » : un outil de concours n'apparaît que quand un concours est
+    // choisi. Le masque utilisateur du menu AFFICHAGE, lui, passe par une classe
+    // CSS en !important qui prime sur ce display inline — ce réglage n'est donc
+    // jamais écrasé par la ligne ci-dessous.
+    const item = document.getElementById('rcsbTimeItem');
+    if (item) item.style.display = cfg.contest ? '' : 'none';
     const el = document.getElementById('rcsbTime');
     // .rc-i18n-live exclut ce texte purement numérique de la re-traduction i18n
     // (voir logx_i18n.js) : il ne faut PAS l'écraser en réinitialisant className.
