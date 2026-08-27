@@ -13,6 +13,51 @@ poussé.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
+  LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
+  l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
+  fréquence du cluster), **PROPAG** (bandes exploitables maintenant, **votre
+  bande en cours de saisie mise en tête et marquée**), **SPOTS DX** (meilleurs
+  spots du cluster classés par intérêt, optionnel), et **MULTS** (nouveaux
+  multiplicateurs à chercher, **uniquement en concours**). Le défilement
+  **s'arrête au survol** ; un **clic sur un item actif ouvre une fiche** :
+  entité/pays, fréquence·bande·mode du cluster, nom de l'opérateur (recherché
+  automatiquement), bouton **▶ QSY** si la radio est pilotée, et lien direct
+  **QRZ.com**. Un **⚙** à droite de chaque bande permet d'**afficher/masquer**
+  chaque bandeau, choix **retenu par activité**.
+- **Adaptation des bandeaux à votre activité** (doctrine « l'axe, c'est
+  l'activité »). En VHF/UHF/SHF/satellites, les bandeaux **HF** (DX ≤7J, PROPAG
+  déca) **disparaissent** — ils n'ont rien à faire là. Le bandeau **MULTS**
+  n'apparaît **que lorsqu'un concours est actif**, quelle que soit la bande (un
+  concours VHF reste un concours). Une bande sans rien de vivant à dire ne
+  s'affiche pas (pas de bandeau mort), et rien ne gêne jamais la saisie.
+
+### Modifié
+
+- **Cockpit du LOGBOOK réorganisé.** La barre de statut est regroupée en **blocs
+  sémantiques** (concours, propagation, maintenance) séparés visuellement, pour
+  retrouver chaque indicateur d'un coup d'œil. Les items sont ordonnés par usage
+  plutôt que par hasard historique.
+- **Navigation refondue.** Le **cœur** (CONFIG · LOGBOOK · CHASSE · PROPAG) reste
+  au premier niveau ; les **outils secondaires** passent dans un menu **« Outils
+  ▾ »** (disclosure accessible : bouton `aria-expanded`, panneau `hidden`, Échap
+  ferme et rend le focus, clic-dehors). Moins de bruit, l'essentiel toujours à
+  portée.
+- **Alerte sécurité pylône escaladée et accessible.** L'avertissement
+  vent/rafales (« surveille le pylône ») sort du widget météo dans un nœud dédié
+  `role="alert"` (annoncé par les lecteurs d'écran), avec clignotement — coupé
+  sous `prefers-reduced-motion`. La météo de routine n'est plus assertive.
+
+### Accessibilité
+
+- Champs de saisie en **bordure renforcée** (`--border-strong`) pour un contour
+  net et contrasté.
+- Tableaux avec en-têtes `scope`, lien courant `aria-current="page"`, langue de
+  page (`<html lang>`) alignée sur le contenu, motif **disclosure clavier**
+  unifié (Échap + retour focus) pour les menus.
+
 ## [1.2-beta1] - 2026-08-26
 
 ### Ajouté
