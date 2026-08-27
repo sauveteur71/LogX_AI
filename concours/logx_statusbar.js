@@ -300,7 +300,7 @@
          à l'autre. Marge à GAUCHE = robuste même si des items du bloc précédent
          sont masqués (orage/réseau/dxcc/bandchange en display:none). Blocs :
          CONCOURS │ PROPAG/MÉTÉO │ STATION/MAINTENANCE │ ACTIONS. */
-      #rcStatusBar .rcsb-blockstart{margin-left:18px}
+      #rcStatusBar .rcsb-blockstart{margin-left:12px}
       #rcStatusBar .rcsb-val{color:var(--text,#E9ECF5)}
       #rcStatusBar .rcsb-contest{color:var(--accent,#FF5030);font-weight:700;letter-spacing:1px}
       #rcStatusBar .rcsb-running{color:var(--green,#00FF88)}
@@ -1054,6 +1054,34 @@
     a.href = '#' + ((cible && cible.id) || 'main-content');
     a.textContent = (typeof rcT === 'function') ? rcT('Aller au contenu') : 'Aller au contenu';
     document.body.insertBefore(a, document.body.firstChild);
+  }
+
+  // ── Menu « Outils ▾ » de la nav (disclosure accessible) ────────────────────
+  // Refonte nav approche A (F4GLD 27/08) : le cœur (CONFIG·LOGBOOK·CHASSE·PROPAG)
+  // reste au 1er niveau, les outils secondaires sont rangés dans ce menu.
+  // Motif DISCLOSURE (pas ARIA menu) : bouton natif + aria-expanded + panneau
+  // `hidden` ; Échap ferme et rend le focus au bouton ; clic-extérieur ferme.
+  // Le focus n'est PAS déplacé dans le panneau (Tab y entre naturellement).
+  function _wireNavTools(){
+    const btn = document.getElementById('navToolsBtn');
+    const menu = document.getElementById('navToolsMenu');
+    if (!btn || !menu) return;   // page sans le menu (pas encore déployé)
+    function ouvrir(o){
+      btn.setAttribute('aria-expanded', o ? 'true' : 'false');
+      if (o) menu.removeAttribute('hidden'); else menu.setAttribute('hidden', '');
+    }
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();   // ne pas déclencher le clic-extérieur ci-dessous
+      ouvrir(btn.getAttribute('aria-expanded') !== 'true');
+    });
+    btn.addEventListener('keydown', function(e){ if (e.key === 'Escape') ouvrir(false); });
+    menu.addEventListener('keydown', function(e){
+      if (e.key === 'Escape'){ ouvrir(false); btn.focus(); }
+    });
+    document.addEventListener('click', function(e){
+      if (!menu.hasAttribute('hidden') && !btn.contains(e.target) && !menu.contains(e.target))
+        ouvrir(false);
+    });
   }
 
   // ── Concours actif + temps restant ─────────────────────────────────────────
@@ -2231,6 +2259,7 @@
   function boot(){
     insert();
     insererSkipLink();      // après insert() : le contenu principal suit la barre
+    _wireNavTools();        // menu « Outils ▾ » de la nav (si présent sur la page)
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
     refreshGuideLink();     // idem, purement local
     maybeApplyActivityPresetOnChange();     // preset de l'activité si elle a changé
