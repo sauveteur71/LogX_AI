@@ -294,6 +294,13 @@
       #rcStatusBar .rcsb-item{display:flex;align-items:center;gap:6px;
         padding:6px 14px;border-right:1px solid var(--border,#2B2F4A);white-space:nowrap}
       #rcStatusBar .rcsb-item:last-child{border-right:none}
+      /* Frontière de BLOC (cockpit, retour F4GLD 27/08) : les fins traits
+         (border-right) séparent les items DANS un groupe ; un écart plus large
+         (margin-left sur le PREMIER item d'un bloc) marque le passage d'un bloc
+         à l'autre. Marge à GAUCHE = robuste même si des items du bloc précédent
+         sont masqués (orage/réseau/dxcc/bandchange en display:none). Blocs :
+         CONCOURS │ PROPAG/MÉTÉO │ STATION/MAINTENANCE │ ACTIONS. */
+      #rcStatusBar .rcsb-blockstart{margin-left:18px}
       #rcStatusBar .rcsb-val{color:var(--text,#E9ECF5)}
       #rcStatusBar .rcsb-contest{color:var(--accent,#FF5030);font-weight:700;letter-spacing:1px}
       #rcStatusBar .rcsb-running{color:var(--green,#00FF88)}
@@ -365,16 +372,23 @@
       .rcsb-skip:focus{transform:translateY(0);outline:3px solid var(--accent,#E8964A);outline-offset:2px}
       @media (prefers-reduced-motion:reduce){.rcsb-skip{transition:none}}
     </style>
+    <!-- ── BLOC CONCOURS (contest · chrono · rate · règle 10 min) ──────────── -->
     <div class="rcsb-item" title="Concours actif (choisi dans CONFIG)">
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
     </div>
     <div class="rcsb-item" id="rcsbTimeItem" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
       ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
-    <div class="rcsb-item" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
-      💾 <span class="rcsb-val" id="rcsbSave">—</span>
+    <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
+         id="rcsbRateItem" style="cursor:pointer">
+      ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
     </div>
-    <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
+    <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
+         title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
+      🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
+    </div>
+    <!-- ── BLOC PROPAGATION / ENVIRONNEMENT (SFI · balise · orage) ──────────── -->
+    <div class="rcsb-item rcsb-blockstart" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
       <a href="logx_propagation.html#solarPanel">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
@@ -385,6 +399,10 @@
          target="_blank" rel="noopener noreferrer">
         <span id="rcsbStormIcon">⚡</span> <span class="rcsb-val" id="rcsbStorm">—</span></a>
     </div>
+    <!-- ── BLOC STATION / MAINTENANCE (disque · réseau · dxcc · règlements) ── -->
+    <div class="rcsb-item rcsb-blockstart" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
+      💾 <span class="rcsb-val" id="rcsbSave">—</span>
+    </div>
     <div class="rcsb-item" id="rcsbNetworkItem" style="display:none"
          title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
       📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
@@ -393,18 +411,10 @@
          title="cty.dat absent — la résolution des pays, zones et entités DXCC est désactivée. Clic : ouvrir CONFIG pour recharger cty.dat.">
       <a href="logx_configuration.html">⚠ <span class="rcsb-val" id="rcsbDxccText" style="color:var(--red,#FF2D55)">DXCC indisponible</span></a>
     </div>
-    <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
-         id="rcsbRateItem" style="cursor:pointer">
-      ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
-    </div>
-    <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
-         title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
-      🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
-    </div>
     <div class="rcsb-item" id="rcsbRulesItem" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
-    <div class="rcsb-item expert-only" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
+    <div class="rcsb-item expert-only rcsb-blockstart" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>
