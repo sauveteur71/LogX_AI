@@ -1,5 +1,5 @@
 // ─── Carte d'occupation des bandes multi-postes (frontend) ───────────────────
-// Log partagé (radioclub / expédition / activation spéciale type TM6KJS) : qui
+// Log partagé (radioclub / expédition / indicatif spécial type TM6KJS) : qui
 // est sur quelle bande/mode, et alerte si deux postes se recouvrent (même bande
 // + même mode). S'appuie sur le backend logx_occupancy (transport-agnostique :
 // LAN instantané + Cloud/MySQL pour le distant, priorité locale).
@@ -109,8 +109,8 @@
       resume: 'Équipe répartie à distance, ou plusieurs postes sur le site.',
       sync: 'Dossier partagé (Cloud Sync) à distance ; LAN (auto) quand les postes sont sur place.'
     },
-    activation: {
-      titre: '📻 Activation spéciale',
+    special: {
+      titre: '📻 Indicatif spécial',
       resume: 'Un indicatif spécial (ex. TM6KJS) opéré depuis plusieurs stations.',
       sync: 'LAN (auto) si même lieu ; dossier partagé (Cloud Sync) si réseaux internet différents.'
     }

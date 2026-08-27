@@ -77,7 +77,7 @@ def test_assistant_detail_recommande_sync_et_actions():
     """Chaque scénario donne un sync conseillé + le bouton carte + le lien config.
     Type inconnu -> vide."""
     ctx = _ctx()
-    for t in ('radioclub', 'expedition', 'activation'):
+    for t in ('radioclub', 'expedition', 'special'):
         h = ctx.eval("window.LogxOccupation._detailScenario('%s')" % t)
         assert 'Sync conseillé' in h
         assert 'ouvrirCarte' in h and 'logx_configuration' in h
@@ -90,4 +90,4 @@ def test_logbook_a_lassistant_de_session():
     assert 'id="logPartageOverlay"' in h
     assert 'id="lpChoix"' in h and 'id="lpDetail"' in h
     assert "choisirScenario('radioclub')" in h
-    assert "choisirScenario('activation')" in h
+    assert "choisirScenario('special')" in h

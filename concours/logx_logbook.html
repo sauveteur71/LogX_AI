@@ -2675,7 +2675,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 </div>
 
 <!-- Carte d'occupation des bandes multi-postes (log partagé : radioclub / expé /
-     activation spéciale). Opt-in : le bouton démarre le heartbeat + l'affichage.
+     indicatif spécial). Opt-in : le bouton démarre le heartbeat + l'affichage.
      hidden au repos ; rien ne tourne pour un opérateur solo tant qu'on n'ouvre pas. -->
 <button type="button" id="occupationToggle" onclick="if(window.LogxOccupation)LogxOccupation.basculer()" title="Qui est sur quelle bande / mode (log partagé multi-postes)">📻 Occupation</button>
 <div id="occupationPanel" hidden>
@@ -2683,7 +2683,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div id="occupationCorps"></div>
 </div>
 
-<!-- Assistant « Activer un log partagé » (radioclub / expé / activation spéciale).
+<!-- Assistant « Activer un log partagé » (radioclub / expé / indicatif spécial).
      Porte d'entrée : choisir le type préconfigure le sync conseillé + ouvre la
      carte. Ouvert par le bouton Occupation à la 1re utilisation. -->
 <div id="logPartageOverlay" hidden>
@@ -2693,7 +2693,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <p class="lp-intro">Plusieurs postes, un seul log. Quel type d'opération ?</p>
       <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('radioclub')"><b>🏛 Radioclub</b><span>Plusieurs opérateurs, souvent en temps réel</span></button>
       <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('expedition')"><b>🏝 Expédition</b><span>Équipe répartie à distance ou sur site</span></button>
-      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('activation')"><b>📻 Activation spéciale</b><span>Un indicatif spécial depuis plusieurs stations</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('special')"><b>📻 Indicatif spécial</b><span>Un indicatif spécial depuis plusieurs stations</span></button>
     </div>
     <div id="lpDetail" hidden></div>
   </div>
