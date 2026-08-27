@@ -91,3 +91,36 @@ def test_logbook_a_lassistant_de_session():
     assert 'id="lpChoix"' in h and 'id="lpDetail"' in h
     assert "choisirScenario('radioclub')" in h
     assert "choisirScenario('special')" in h
+
+
+def test_heartbeat_de_fond_et_auto_participation():
+    """Le cycle de fond (heartbeat + indicateur) démarre tout seul au chargement
+    si une session de log partagé est active -> le poste est visible des autres
+    même panneau fermé."""
+    with open(os.path.join(CONCOURS, 'logx_occupation.js'), encoding='utf-8') as f:
+        src = f.read()
+    assert 'function _demarrerFond' in src                    # cycle de fond séparé
+    assert '_demSiSession' in src and '_typePersiste()' in src  # auto-start conditionné à une session
+    i = src.index('function demarrer')
+    assert '_demarrerFond' in src[i:i + 160]                  # ouvrir la carte fait participer
+
+
+def test_indicateur_bouton_postes_et_conflit():
+    """L'indicateur passif du bouton montre le nombre de postes, ou ⚠️ si
+    recouvrement (au courant sans ouvrir la carte)."""
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval("""
+      var window = {};
+      var __btn = { textContent: '', classList: { _s:{}, toggle:function(c,v){ this._s[c]=v; }, contains:function(c){ return !!this._s[c]; } } };
+      var document = { getElementById: function(id){ return id === 'occupationToggle' ? __btn : null; } };
+    """)
+    with open(JS, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    # 2 postes, pas de conflit
+    ctx.eval("window.LogxOccupation._majIndicateur({stations:[{},{}], conflits:[]})")
+    assert '2 postes' in ctx.eval("__btn.textContent")
+    assert ctx.eval("__btn.classList.contains('occ-toggle-conflit')") is False
+    # conflit -> alerte
+    ctx.eval("window.LogxOccupation._majIndicateur({stations:[{},{}], conflits:[{band:'20',mode:'SSB'}]})")
+    assert 'recouvrement' in ctx.eval("__btn.textContent")
+    assert ctx.eval("__btn.classList.contains('occ-toggle-conflit')") is True
