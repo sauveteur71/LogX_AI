@@ -139,3 +139,39 @@ clavier). Donc : composant JS/CSS mutualisé + une passe scriptée sur les pages
 
 Convergence future vers **C** (nav pilotée par activité) quand le chantier
 « accueil par activité » mûrit — A est la marche, pas l'arrivée.
+
+## 9. Accessibilité du menu « Outils ▾ » (règles mgifford/keyboard)
+
+Source : skill `keyboard` (WCAG 2.2 AA) installée dans `.claude/skills/`.
+**Contrainte de conception dès le Lot 1** — ne pas ajouter d'a11y après coup.
+
+- **Motif = DISCLOSURE, PAS `role="menu"`.** Le contenu est une liste de liens
+  de navigation → un bouton natif + panneau suffit (le skill : « for simple
+  show/hide content, a button with `aria-expanded` is sufficient » ; un vrai
+  ARIA menu imposerait roving-tabindex/flèches, sur-ingénierie ici) :
+  ```html
+  <button type="button" aria-expanded="false" aria-controls="rcOutilsDD">Outils ▾</button>
+  <div id="rcOutilsDD" hidden> …<a href="logx_modes_numeriques.html">MODE NUMÉRIQUE</a>… </div>
+  ```
+- **Élément NATIF** (`<button>`), pas `<div role="button">` : Entrée/Espace,
+  focusabilité, état, nom accessible gratuits.
+- **Pas de piège focus** (disclosure non-modale) : `Échap` ferme ET **rend le
+  focus au bouton** ; fermeture au clic-extérieur / quand le focus quitte le
+  panneau. Panneau fermé = `hidden` (retiré du Tab), **jamais `aria-hidden`**
+  sur un conteneur focusable.
+- **Focus visible** sur les 2 thèmes + `forced-colors` :
+  `:focus-visible{outline:3px solid var(--accent);outline-offset:3px}` +
+  `@media (forced-colors:active){:focus-visible{outline-color:Highlight}}`.
+- **Focus non masqué** : le panneau ouvert ne doit pas cacher l'élément focalisé.
+- **Landmark + skip-link** : `<nav aria-label="Primary">` (déjà `<nav>` ; ajouter
+  le nom) + un **skip-link** « Aller au contenu » (premier dans le DOM, visible
+  au focus, `display:none` interdit) vers `<main id="main-content" tabindex="-1">`.
+  À vérifier : LogX ne semble PAS avoir de skip-link aujourd'hui.
+- **Cibles ≥ 24×24 px** ; **label visible contenu dans le nom accessible**.
+- **Chemin critique** (CONFIG · LOGBOOK · CHASSE · PROPAG) = liens `<a>` natifs
+  directs, déjà accessibles — jamais dans le panneau.
+- **WCAG** visés : 2.1.1 / 2.1.2 (clavier, pas de piège — Critiques), 2.4.1
+  (bypass), 2.4.3 (ordre focus), 2.4.7 (focus visible), 2.5.8 (cible 24px).
+- **Tests V8 (Lot 1)** : `aria-expanded` bascule true/false ; `Échap` ferme +
+  focus rendu au bouton ; panneau `hidden` quand fermé (hors Tab) ; les 7
+  destinations présentes dans le panneau ; CONFIG/LOGBOOK hors panneau.
