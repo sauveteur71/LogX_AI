@@ -620,6 +620,31 @@ Une barre commune accompagne toutes les pages du logiciel (logbook, config, cart
 - **🗔 DISPOSITION** : ce menu ouvre ou ferme d'un clic les quatre panneaux flottants (Coach, Cluster/need list, Soleil & ionosphère, Band Map) depuis n'importe quelle page, et permet d'**enregistrer des dispositions nommées** (« 💾 enregistrer l'actuelle », charger, supprimer, tout fermer) — pratique pour basculer entre un agencement « concours » et un agencement « trafic calme ».
 - **🌦️ Météo du point haut** (logbook) : température, vent et rafales, pluie à votre QTH, avec avertissement rouge en cas de conditions dangereuses — pensé pour la sécurité du matériel en portable /P. Données open-meteo, sans clé ni compte.
 
+### 6.9 Les bandeaux défilants — l'info live sous la nav
+
+Juste sous la barre de navigation, de fines bandes défilent avec l'information **en direct** qui compte à l'instant. On les retrouve sur l'**accueil**, le **LOGBOOK** et la page **CHASSE**. Chaque bande porte une catégorie colorée à gauche, puis les items qui défilent en boucle. Passez la souris dessus : **le défilement s'arrête** le temps de lire, et vous pouvez cliquer.
+
+Les catégories possibles :
+
+| Bande | Contenu | Couleur |
+|---|---|---|
+| **DX ≤7J** | Les DXpéditions actives (●) ou annoncées dans les 7 prochains jours (△), avec la fréquence du cluster quand elle est connue, et « nouveau pays » si ce serait un ATNO. | cuivre |
+| **PROPAG** | Les bandes exploitables maintenant (ouverte / possible). **Votre bande en cours de saisie passe en tête, marquée « ▸ … · ta bande ».** | vert |
+| **SPOTS DX** | Les meilleurs spots du cluster classés par intérêt, avec un badge quand c'est un nouveau pays/bande. *Optionnel* (à activer via le ⚙, voir plus bas). | jaune |
+| **MULTS** | Les **nouveaux multiplicateurs** à chercher sur le cluster. **N'apparaît qu'en concours.** | violet |
+
+**Cliquez un item actif** (une DXpédition ●, un spot) et une **fiche** s'ouvre : l'entité/pays, la fréquence·bande·mode du cluster, le nom de l'opérateur (recherché automatiquement), un bouton **▶ QSY** si votre radio est pilotée, et un lien **« Ouvrir sur QRZ.com ↗ »** pour toutes les infos. Fermez par ✕, la touche **Échap**, ou un clic en dehors.
+
+**Choisir ce qui s'affiche — le ⚙.** À droite de la bande, une roue crantée ouvre des pastilles pour **afficher ou masquer** chaque bandeau. Votre choix est **retenu par activité** : votre réglage en concours n'est pas celui de votre trafic VHF tranquille. (Menu accessible au clavier : Échap le referme.)
+
+**L'adaptation à ce que vous faites** — le principe « l'axe, c'est l'activité » :
+
+- En **VHF / UHF / SHF / satellites**, les bandeaux HF (DX ≤7J, PROPAG déca) **disparaissent** : ils n'ont rien à faire là. La bande reste vide (donc invisible) tant qu'il n'y a rien de pertinent.
+- Le bandeau **MULTS** n'apparaît **que lorsqu'un concours est actif** — quelle que soit la bande, y compris un concours VHF. Fini le « jaune » de score qui traîne hors concours.
+- **PROPAG** met **votre bande en cours** en avant.
+
+**Non-intrusif par principe** : une bande sans rien de vivant à dire ne s'affiche pas (pas de bandeau mort à l'écran), et rien de tout cela ne gêne jamais la saisie du QSO.
+
 ---
 
 
