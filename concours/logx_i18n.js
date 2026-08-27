@@ -5970,16 +5970,26 @@
     // selon la configuration du navigateur, et l'échec ne doit pas empêcher
     // la traduction elle-même (sinon l'écran file:// resterait en français).
     try { localStorage.setItem('rc_lang', lang); } catch (e) {}
+    // LogX gère sa PROPRE i18n : on interdit l'auto-traduction du navigateur
+    // (qui re-traduirait le DOM déjà traduit — double traduction). translate=no
+    // permet ALORS de déclarer la VRAIE langue du contenu ci-dessous sans
+    // déclencher le bandeau « traduire cette page » — c'était la crainte
+    // derrière l'ancien `lang='fr'` codé en dur.
+    document.documentElement.setAttribute('translate', 'no');
     if (lang === 'fr' || lang === 'auto') {
       // Restaure le français source (le mode 'auto' laisse le navigateur agir)
       const dict = {};
       walk(dict, document.body);   // dict vide → ORIG restauré
-      document.documentElement.lang = 'fr';
+      document.documentElement.lang = 'fr';   // source FR (jamais 'auto', invalide)
       signalerLangue(lang);   // le RETOUR au français doit se signaler aussi,
       return;                 // sinon la page resterait figée en allemand
     }
     const dict = T[lang] || {};
-    document.documentElement.lang = 'fr';   // source réelle = FR (aide le navigateur)
+    // Langue RÉELLE du contenu affiché (WCAG 3.1.1) : après traduction, le DOM
+    // est en `lang`, donc `documentElement.lang` doit suivre — sinon un lecteur
+    // d'écran lit p.ex. l'allemand avec une voix française. translate=no
+    // ci-dessus empêche le navigateur de re-traduire.
+    document.documentElement.lang = lang;
     walk(dict, document.body);
     signalerLangue(lang);
   }
