@@ -44,3 +44,17 @@ def test_brancher_sur_logbook_avec_les_deux_flux():
     assert "'dxped'" in appel and "'propag'" in appel
     assert '/data/dxpeditions_active' in appel
     assert '/data/propagation' in appel
+
+
+def test_spots_disponible_mais_off_par_defaut():
+    """Spots DX est proposé (chip du ⚙) mais PAS actif par défaut sur le chemin
+    critique (opt-in) ; fetch-aware -> /data/spots_ranked (lourd) n'est appelé
+    que si l'opérateur l'active."""
+    h = _lire()
+    m = re.search(r'LogxBandeauxDriver\.brancher\(\{.*?\}\);', h, re.S)
+    appel = m.group(0)
+    assert "'spots'" in appel and '/data/spots_ranked' in appel   # disponible
+    assert 'besoins' in appel                                     # fetch-aware déclaré
+    # défauts logbook = dxped+propag SANS spots
+    d = re.search(r"defauts:\s*\{\s*logbook:\s*\[([^\]]*)\]", appel)
+    assert d and 'spots' not in d.group(1)

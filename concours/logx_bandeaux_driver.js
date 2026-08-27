@@ -72,9 +72,20 @@
 
     function rendre(){
       var reouvrir = panneauOuvert();   // préserve l'ouverture à travers un re-rendu
-      _fetchSources(opts.sources).then(function(donnees){
-        var actifs = LB.bandeauxActifs(activite, defauts);
-        var aff = ids.filter(function(id){ return actifs.indexOf(id) >= 0; });
+      var actifs = LB.bandeauxActifs(activite, defauts);
+      var aff = ids.filter(function(id){ return actifs.indexOf(id) >= 0; });
+      // Ne récupère QUE les flux nécessaires aux bandeaux AFFICHÉS : un bandeau
+      // masqué ne doit pas déclencher son fetch (ex. /data/spots_ranked, lourd).
+      // besoins = {id:[clesSource]} ; sans déclaration -> tous les flux (rétro-compat).
+      var sources = opts.sources || {};
+      var aFetch = sources;
+      if(opts.besoins){
+        aFetch = {};
+        aff.forEach(function(id){
+          (opts.besoins[id] || []).forEach(function(k){ if(sources[k]) aFetch[k] = sources[k]; });
+        });
+      }
+      _fetchSources(aFetch).then(function(donnees){
         var reglage = _reglageHtml(ids, activite, defauts);
         if(aff.length === 0){
           // tout masqué par l'opérateur -> strip ⚙ (réactivation), pas de bande morte

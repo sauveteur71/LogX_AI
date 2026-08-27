@@ -1466,8 +1466,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script>
   LogxBandeauxDriver.brancher({
     wrapId: 'bandeaux', activite: 'logbook',
-    ids: ['dxped', 'propag'],
-    sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
+    ids: ['dxped', 'propag', 'spots'],
+    sources: {
+      dxpeditions: '/data/dxpeditions_active',
+      propagation: '/data/propagation',
+      spots_ranked: '/data/spots_ranked'
+    },
+    besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'] },
+    // spots DISPONIBLE (chip dans le ⚙) mais OFF par défaut : opt-in, car
+    // /data/spots_ranked est lourd — fetch-aware, il n'est appelé que si activé.
     defauts: { logbook: ['dxped', 'propag'] }
   });
 </script>

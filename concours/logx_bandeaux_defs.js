@@ -106,9 +106,49 @@
     });
   }
 
+  // ── Spots DX classés (source : /data/spots_ranked) ─────────────────────────
+  // donnees.spots_ranked = { spots: [ {call, band, freq(kHz), mode, dx_country,
+  //   new_mult, mult_type, credit_raison, credit_score, ...} ], meta } — top ~40
+  //   déjà classés par VALEUR côté serveur (logx_scoring.build_ranked_spots). On
+  //   montre les mieux classés, bornés pour ne pas noyer le ruban. Badge =
+  //   credit_raison (texte serveur lisible : « Nouveau pays ! », « Nouvelle
+  //   bande »…) quand credit_score > 0. Chaque item est cliquable (data-fiche)
+  //   -> la page ouvre la fiche opérateur (même chemin que les DXpéditions).
+  function _spots(ctx, donnees){
+    var src = donnees && donnees.spots_ranked;
+    var spots = (src && src.spots) ? src.spots
+              : (Array.isArray(src) ? src : []);
+    var out = [];
+    for(var i = 0; i < spots.length && out.length < 15; i++){
+      var s = spots[i];
+      if(!s || !s.call) continue;
+      var bits = [s.call];
+      if(s.freq != null && s.freq !== '') bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');
+      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      if(s.mode) bits.push(s.mode);
+      var badge = (s.credit_score && s.credit_raison) ? ' · ' + s.credit_raison : '';
+      out.push({
+        texte: bits.join(' · ') + badge,
+        title: s.dx_country || '',
+        href: 'logx_chasse.html',
+        data: {
+          fiche: '1', call: s.call,
+          freq: (s.freq != null) ? String(s.freq) : '',
+          band: s.band || '', mode: s.mode || '',
+          entity: s.dx_country || '', neuf: ''
+        }
+      });
+    }
+    return out;
+  }
+
   LB.enregistrerBandeau({
     id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: '*',
     construire: _dxped
+  });
+  LB.enregistrerBandeau({
+    id: 'spots', cat: 'SPOTS DX', cls: 'rcb-spots', contextes: '*',
+    construire: _spots
   });
   LB.enregistrerBandeau({
     id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: '*',

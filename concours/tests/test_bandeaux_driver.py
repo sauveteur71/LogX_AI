@@ -54,3 +54,12 @@ def test_driver_respecte_pas_de_bande_morte():
     s = _src()
     assert 'wrap.hidden = true' in s          # actif mais pas de contenu -> caché
     assert 'Bandeaux masqu' in s              # tout masqué -> strip de réactivation
+
+
+def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
+    """Un bandeau masqué ne doit pas déclencher son fetch : le driver ne
+    récupère que les flux des bandeaux affichés (opts.besoins)."""
+    s = _src()
+    assert 'opts.besoins' in s
+    # les bandeaux affichés sont calculés AVANT le fetch (aff filtré, puis aFetch)
+    assert 'aFetch' in s

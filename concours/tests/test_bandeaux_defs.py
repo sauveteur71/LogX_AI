@@ -162,3 +162,61 @@ def test_propag_aucune_bande_ouverte_pas_de_ligne_morte():
         {'band': '10', 'etat': 'fermee', 'score': 5, 'raison': 'nuit'},
     ]))
     assert items == []
+
+
+# ─── Bandeau SPOTS DX (source : /data/spots_ranked) ─────────────────────────
+
+def _spots_expr(spots):
+    return ("window.LogxBandeaux.REGISTRE.spots.construire({},"
+            "{spots_ranked:{spots:%s}})" % json.dumps(spots))
+
+
+def test_spots_enregistre():
+    ctx = _ctx()
+    assert ctx.eval("typeof window.LogxBandeaux.REGISTRE.spots") == 'object'
+
+
+def test_spots_rend_call_freq_et_badge_credit():
+    """Item = indicatif + fréquence + bande + mode, badge = credit_raison (texte
+    serveur) quand credit_score > 0 ; cliquable -> fiche (data-*)."""
+    ctx = _ctx()
+    items = _j(ctx, _spots_expr([
+        {'call': 'K1ABC', 'band': '20m', 'freq': 14074, 'mode': 'CW',
+         'dx_country': 'USA', 'credit_raison': 'Nouveau pays !', 'credit_score': 1000},
+    ]))
+    assert len(items) == 1
+    t = items[0]['texte']
+    assert 'K1ABC' in t and '14.074' in t and 'Nouveau pays' in t
+    d = items[0]['data']
+    assert d['fiche'] == '1' and d['call'] == 'K1ABC' and d['freq'] == '14074'
+    assert d['band'] == '20m' and d['mode'] == 'CW' and d['entity'] == 'USA'
+
+
+def test_spots_sans_credit_pas_de_badge_parasite():
+    ctx = _ctx()
+    items = _j(ctx, _spots_expr([
+        {'call': 'F1XYZ', 'band': '40m', 'freq': 7100, 'mode': 'SSB', 'credit_score': 0},
+    ]))
+    t = items[0]['texte']
+    assert 'F1XYZ' in t
+    assert 'undefined' not in t and 'None' not in t     # pas de champ manquant recraché
+
+
+def test_spots_borne_le_nombre_affiche():
+    ctx = _ctx()
+    many = [{'call': 'C%d' % i, 'band': '20m', 'freq': 14000 + i, 'mode': 'CW'} for i in range(30)]
+    items = _j(ctx, _spots_expr(many))
+    assert len(items) == 15         # borné pour ne pas noyer le ticker
+
+
+def test_spots_vide_pas_de_ligne_morte():
+    ctx = _ctx()
+    assert _j(ctx, _spots_expr([])) == []
+
+
+def test_spots_echappe_le_call_reseau():
+    ctx = _ctx()
+    d = [{'call': '<img src=x onerror=1>', 'band': '20m', 'freq': 14074}]
+    html = ctx.eval("window.LogxBandeaux.rendreTicker(['spots'],{},"
+                    "{spots_ranked:{spots:%s}})" % json.dumps(d))
+    assert '<img' not in html and '&lt;img' in html
