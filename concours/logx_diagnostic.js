@@ -75,6 +75,18 @@
     t.push({id: 'dxcc', nom: 'Base DXCC (cty.dat)', couleur: dxcc.available ? 'green' : 'red',
             detail: dxcc.available ? 'chargée' : 'indisponible'});
 
+    // IA — consommation de tokens (via /ai/usage). Informatif : vert dès qu'un
+    // appel a eu lieu (montre l'activité + le total), muté si aucun appel ou si
+    // le suivi n'est pas disponible (dégradation gracieuse). Aide à l'économie
+    // de crédits (l'opérateur paie ses appels).
+    var ai = data.aiUsage || {};
+    if(ai.calls){
+      t.push({id: 'ia', nom: 'IA (consommation)', couleur: 'green',
+              detail: ai.calls + ' appels · ' + (ai.in_tokens || 0) + ' / ' + (ai.out_tokens || 0) + ' tok'});
+    }else{
+      t.push({id: 'ia', nom: 'IA (consommation)', couleur: 'muted', detail: 'aucun appel'});
+    }
+
     t.push({id: 'tx', nom: 'Émission (consentement)', couleur: tx.tx_locked ? 'red' : 'green',
             detail: tx.tx_locked ? 'verrouillé — réarmement requis' : 'prêt (aucun verrou)'});
 
@@ -98,9 +110,9 @@
       return fetch(u).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; });
     }
     Promise.all([grab('/hardware/state'), grab('/data/network_status'),
-                 grab('/tx/audit'), grab('/dxcc/status')])
+                 grab('/tx/audit'), grab('/dxcc/status'), grab('/ai/usage')])
       .then(function(v){
-        _rendre(construireTuiles({hardware: v[0], network: v[1], tx: v[2], dxcc: v[3]}));
+        _rendre(construireTuiles({hardware: v[0], network: v[1], tx: v[2], dxcc: v[3], aiUsage: v[4]}));
       });
   }
 

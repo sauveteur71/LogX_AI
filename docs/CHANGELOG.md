@@ -17,8 +17,9 @@ poussé.
 
 - **Écran « Santé de la station ».** Une page de diagnostic qui montre en un coup
   d'œil l'état des sous-systèmes — **Radio (CAT)**, **Rotor**, **FT8/WSJT-X**,
-  **Callbook**, **Synchro Cloud/MySQL**, **Base DXCC** et **Émission
-  (consentement)** — chacun avec une pastille **verte** (OK) / **jaune**
+  **Callbook**, **Synchro Cloud/MySQL**, **Base DXCC**, **Émission
+  (consentement)** et **IA (consommation de tokens)** — chacun avec une pastille
+  **verte** (OK) / **jaune**
   (attention) / **rouge** (à corriger) / **grise** (non configuré), plus
   l'**horloge UTC**. Lecture seule (agrège des endpoints d'état existants), rien
   n'est piloté. Rafraîchi automatiquement. Répond tout de suite à « est-ce que

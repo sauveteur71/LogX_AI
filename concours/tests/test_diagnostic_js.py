@@ -85,6 +85,15 @@ def test_callbook_jaune_si_disjoncteur_ouvert():
     assert c == 'yellow'
 
 
+def test_ia_verte_avec_conso_muette_sans():
+    ctx = _ctx()
+    assert ctx.eval("window.LogxDiagnostic.construireTuiles({aiUsage:{calls:5, in_tokens:100, out_tokens:20}}).filter(function(t){return t.id==='ia';})[0].couleur") == 'green'
+    d = ctx.eval("window.LogxDiagnostic.construireTuiles({aiUsage:{calls:5, in_tokens:100, out_tokens:20}}).filter(function(t){return t.id==='ia';})[0].detail")
+    assert '5 appels' in d
+    # Absent (endpoint non dispo / aucun appel) -> muté, jamais planté.
+    assert ctx.eval("window.LogxDiagnostic.construireTuiles({}).filter(function(t){return t.id==='ia';})[0].couleur") == 'muted'
+
+
 def test_rendre_produit_les_tuiles_et_echappe():
     ctx = _ctx()
     ctx.eval("window.LogxDiagnostic._rendre(window.LogxDiagnostic.construireTuiles(%s));" % _DATA_OK)
