@@ -65,6 +65,14 @@ def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     assert 'aFetch' in s
 
 
+def test_driver_gear_disclosure_accessible():
+    """Motif disclosure du dépôt : aria-expanded + fermeture clic-dehors + Échap
+    qui ferme et rend le focus au ⚙."""
+    s = _src()
+    assert "aria-expanded" in s
+    assert "'Escape'" in s and '.focus()' in s        # Échap ferme + rend le focus
+
+
 def test_driver_ouvre_le_panneau_dans_le_bon_sens():
     """Le panneau ⚙ s'ouvre vers le HAUT si la barre est en bas d'écran (accueil)
     -> ne sort pas sous le viewport."""

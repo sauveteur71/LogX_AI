@@ -112,15 +112,23 @@
       });
     }
 
-    // Fermeture du panneau au clic en dehors (posé UNE fois pour la page).
+    // Fermeture du panneau (posée UNE fois pour la page) : clic en dehors, ET
+    // Échap qui ferme + rend le focus au ⚙ (motif disclosure accessible du dépôt).
     if(!wrap._rcbOutside){
       wrap._rcbOutside = true;
-      document.addEventListener('click', function(e){
+      function _fermer(rendreFocus){
         var c = wrap.querySelector('.rcb-chips');
-        if(c && !c.hidden && !(e.target.closest && e.target.closest('.rcb-reglage'))){
+        if(c && !c.hidden){
           c.hidden = true;
-          var g = wrap.querySelector('.rcb-gear'); if(g) g.setAttribute('aria-expanded', 'false');
+          var g = wrap.querySelector('.rcb-gear');
+          if(g){ g.setAttribute('aria-expanded', 'false'); if(rendreFocus) g.focus(); }
         }
+      }
+      document.addEventListener('click', function(e){
+        if(!(e.target.closest && e.target.closest('.rcb-reglage'))) _fermer(false);
+      });
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape') _fermer(true);
       });
     }
 
