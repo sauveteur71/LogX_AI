@@ -15,6 +15,15 @@ poussé.
 
 ### Ajouté
 
+- **Écran « Santé de la station ».** Une page de diagnostic qui montre en un coup
+  d'œil l'état des sous-systèmes — **Radio (CAT)**, **Rotor**, **FT8/WSJT-X**,
+  **Callbook**, **Synchro Cloud/MySQL**, **Base DXCC** et **Émission
+  (consentement)** — chacun avec une pastille **verte** (OK) / **jaune**
+  (attention) / **rouge** (à corriger) / **grise** (non configuré), plus
+  l'**horloge UTC**. Lecture seule (agrège des endpoints d'état existants), rien
+  n'est piloté. Rafraîchi automatiquement. Répond tout de suite à « est-ce que
+  tout est prêt ? ».
+
 - **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
   LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
   l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
