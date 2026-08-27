@@ -72,8 +72,42 @@ entre postes :
 - **À décider** : périmètre (juste la carte ? + l'alerte temps réel ?), et si on
   le fait maintenant ou après le chantier tickers.
 
-## Questions ouvertes
+## Décisions F4GLD (27/08)
 
-- Combien de postes en pratique chez toi (2 ? 3 ?) ?
-- Tous en filaire/WiFi commun (LAN sync OK) ou un poste distant (cloudsync) ?
-- La carte d'occupation : sur le LOGBOOK (bandeau/panneau) ou une page dédiée ?
+- **À distance sur réseaux internet différents = OUI** (Cloud Sync / MySQL, pas
+  le LAN qui est même-réseau).
+- **Carte d'occupation** : oui, **s'adapte au sync actif avec PRIORITÉ LOCALE** —
+  LAN instantané entre postes locaux, bascule auto sur cloud/MySQL pour les
+  distants, merge de tous les canaux, sans config manuelle.
+- **Option** : un **assistant de session** « Activer un log partagé »
+  (radioclub / expédition / activation spéciale) qui préconfigure indicatif
+  commun + sync conseillé + affiche la carte.
+
+## Plan d'implémentation (incrémental, TDD)
+
+1. ✅ **Cœur pur** (`logx_occupancy.vue_occupation`) — vue + conflits (bande/mode).
+2. ✅ **Registre serveur** (`poser_mon_statut` / `enregistrer_pair` / `vue`) —
+   mon statut + pairs, TTL, thread-safe. Priorité locale = latest-ts-wins.
+3. **Endpoints HTTP** (additifs) :
+   - `POST /occupancy/heartbeat {band,mode}` → `poser_mon_statut` (le client
+     LOGBOOK envoie sa bande/mode courantes, seul à les connaître en direct) ;
+   - `GET /data/occupancy` → `vue()` (le panneau lit).
+4. **Canaux** (transport SÉPARÉ du log → le sync du carnet n'est jamais touché) :
+   - **LAN** : band/mode dans le beacon UDP + collecte des pairs (instantané) ;
+   - **Cloud** : petit fichier `logx_occupancy_<call>_<iid>.json` par poste,
+     lu par les autres (distant) ;
+   - **MySQL** : table `occupancy` (upsert + lecture) (distant temps réel).
+   - Chaque canal appelle `enregistrer_pair`.
+5. **UI** : panneau « occupation des bandes » sur LOGBOOK (qui est où, conflits
+   en rouge) + heartbeat client (currentBand/currentMode).
+6. **Assistant de session** (radioclub / expé / activation) : préréglage.
+
+**Risque** : l'étape 4 touche les modules de sync — d'où le transport SÉPARÉ
+(fichiers/table/champ dédiés) pour ne jamais casser le log. Étapes 5-6 = UI, à
+valider en navigateur avec F4GLD.
+
+## Questions ouvertes (pour le point)
+
+- Combien de postes en pratique (2 ? 3 ?) ?
+- MySQL déjà en place chez toi (radioclub) ou on part sur Cloud folder ?
+- La carte : panneau sur LOGBOOK, ou une page dédiée ?
