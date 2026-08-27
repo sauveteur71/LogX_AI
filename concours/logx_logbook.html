@@ -1080,7 +1080,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div>
     <div class="logo-wrap">
       <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
-      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)"><span class="hdr-version-label">V: <span class="net-version" id="netVersion">—</span></span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
+      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><button type="button" id="validationBadge" class="vl-badge" hidden onclick="if(window.LogxValidationLive)LogxValidationLive.ouvrir()" title="QSO à vérifier — cliquer pour ouvrir VÉRIFIER"></button><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)"><span class="hdr-version-label">V: <span class="net-version" id="netVersion">—</span></span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
     </div>
   </div>
   <div class="hdr-info">
@@ -2523,6 +2523,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_net_control.js"></script>
 <script src="logx_rate_panel.js"></script>
 <script src="logx_verif_panel.js"></script>
+<script src="logx_validation_live.js"></script>
 <script src="logx_awards.js"></script>
 <script src="logx_qsl_card.js"></script>
 <script src="logx_popout_selfspot.js"></script>
