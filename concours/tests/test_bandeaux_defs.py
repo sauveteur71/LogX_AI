@@ -121,6 +121,17 @@ def test_dxped_actif_porte_data_fiche_cliquable():
     assert d.get('neuf') == '1'              # « nouveau pays » signalé dans la fiche
 
 
+def test_dxped_actif_sans_frequence_pas_de_freq_fantome():
+    """freq_khz = 0 (actif mais pas de fréquence cluster) -> data.freq VIDE :
+    sinon la fiche afficherait « QSY 0 kHz » / « 0.000 MHz »."""
+    ctx = _ctx()
+    items = _j(ctx, _dxped_expr([
+        {'callsign': 'TX0', 'entity': 'X', 'status': 'active', 'freq_khz': 0},
+    ]))
+    assert items[0]['data']['freq'] == ''        # pas de '0' fantôme
+    assert '0.000' not in items[0]['texte']
+
+
 def test_dxped_a_venir_nest_pas_cliquable():
     """Une expédition à VENIR (gardée car ≤7j) reste un simple lien, pas une
     fiche : on ne peut pas QSY sur une station pas encore active."""
@@ -212,6 +223,14 @@ def test_spots_borne_le_nombre_affiche():
 def test_spots_vide_pas_de_ligne_morte():
     ctx = _ctx()
     assert _j(ctx, _spots_expr([])) == []
+
+
+def test_spots_sans_frequence_pas_de_freq_fantome():
+    """freq = 0 -> ni « 0.000 MHz » dans le texte, ni data.freq='0' (fiche)."""
+    ctx = _ctx()
+    items = _j(ctx, _spots_expr([{'call': 'K0', 'band': '20m', 'freq': 0, 'mode': 'CW'}]))
+    assert '0.000' not in items[0]['texte']
+    assert items[0]['data']['freq'] == ''
 
 
 def test_spots_echappe_le_call_reseau():

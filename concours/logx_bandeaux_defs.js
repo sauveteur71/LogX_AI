@@ -73,7 +73,7 @@
         item.data = {
           fiche: '1',
           call: call,
-          freq: (e.freq_khz != null) ? String(e.freq_khz) : '',
+          freq: e.freq_khz ? String(e.freq_khz) : '',   // 0/absent -> pas de fréquence (évite « QSY 0 kHz »)
           band: e.spot_band || '',
           mode: e.spot_mode || '',
           entity: e.entity || '',
@@ -123,7 +123,7 @@
       var s = spots[i];
       if(!s || !s.call) continue;
       var bits = [s.call];
-      if(s.freq != null && s.freq !== '') bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');
+      if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');   // 0/absent -> pas de fréquence
       if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
       if(s.mode) bits.push(s.mode);
       var badge = (s.credit_score && s.credit_raison) ? ' · ' + s.credit_raison : '';
@@ -133,7 +133,7 @@
         href: 'logx_chasse.html',
         data: {
           fiche: '1', call: s.call,
-          freq: (s.freq != null) ? String(s.freq) : '',
+          freq: s.freq ? String(s.freq) : '',   // 0/absent -> pas de fréquence (évite « QSY 0 kHz »)
           band: s.band || '', mode: s.mode || '',
           entity: s.dx_country || '', neuf: ''
         }
