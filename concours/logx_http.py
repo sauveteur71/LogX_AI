@@ -4533,6 +4533,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Occupation des bandes multi-postes (log partagé : radioclub / expé /
+        # activation spéciale) : qui est sur quelle bande/mode, et conflits.
+        # Vue FUSIONNÉE (ce poste + pairs reçus des canaux LAN/Cloud/MySQL),
+        # calculée par logx_occupancy. Lecture seule, ouverte comme les /data/.
+        if path == '/data/occupancy':
+            import logx_occupancy as occ
+            self._json(occ.vue(time.time()))
+            return
+
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min,
         # lecture seule ici — le rafraîchissement réseau se fait en tâche de fond).
         if path == '/data/propagation':
@@ -5415,6 +5424,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # attendant des octets qui n'arriveront jamais.
         self._corps_lu = True
         body = self.rfile.read(length)
+
+        # Occupation des bandes multi-postes : CE poste déclare sa bande/mode
+        # COURANTES (le client LOGBOOK envoie currentBand/currentMode par
+        # heartbeat). Auth déjà exigée plus haut (anti-usurpation LAN). L'iid
+        # (identifiant d'installation, cloudsync) distingue les postes qui
+        # partagent le MÊME indicatif en activation spéciale.
+        if self.path == '/occupancy/heartbeat':
+            try:
+                payload = json.loads(body) if body else {}
+                cfg = self._cfg_snapshot()
+                import logx_cloudsync as cs
+                import logx_occupancy as occ
+                iid = cs._instance_id()
+                call = cfg.get('callsign_contest') or cfg.get('callsign') or ''
+                occ.poser_mon_statut(iid, call, str(payload.get('band', '')),
+                                     str(payload.get('mode', '')), time.time())
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
 
         # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur).
         # NB : cette route vivait dans do_GET avec un test "method == 'POST'"
