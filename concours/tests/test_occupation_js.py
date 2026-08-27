@@ -91,3 +91,16 @@ def test_logbook_a_lassistant_de_session():
     assert 'id="lpChoix"' in h and 'id="lpDetail"' in h
     assert "choisirScenario('radioclub')" in h
     assert "choisirScenario('special')" in h
+
+
+def test_heartbeat_de_fond_et_auto_participation():
+    """Le heartbeat tourne en FOND (séparé de l'affichage) et démarre tout seul
+    au chargement si une session de log partagé est active -> le poste est
+    visible des autres même panneau fermé."""
+    with open(os.path.join(CONCOURS, 'logx_occupation.js'), encoding='utf-8') as f:
+        src = f.read()
+    assert 'function _demarrerHeartbeat' in src               # heartbeat de fond séparé
+    assert '_demSiSession' in src and '_typePersiste()' in src  # auto-start conditionné à une session
+    # demarrer (ouverture panneau) démarre aussi le heartbeat (participation)
+    i = src.index('function demarrer')
+    assert '_demarrerHeartbeat' in src[i:i + 160]

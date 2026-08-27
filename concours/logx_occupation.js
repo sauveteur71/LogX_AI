@@ -67,21 +67,33 @@
       + '<tbody>' + lignes + '</tbody></table>';
   }
 
-  function _cycle(){
+  // Heartbeat de FOND : dès qu'une SESSION de log partagé est active (type choisi
+  // via l'assistant), CE poste publie sa bande/mode en continu — MÊME panneau
+  // fermé — pour être visible des autres. Indépendant de l'affichage. Idempotent.
+  var _hbTimer = null;
+  function _demarrerHeartbeat(){
+    if(_hbTimer) return;
     _heartbeat();
+    var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
+    _hbTimer = poll(_heartbeat, INTERVALLE_MS);
+  }
+
+  // Affichage seul : lit /data/occupancy et rend la carte.
+  function _afficher(){
     fetch('/data/occupancy').then(function(r){ return r.json(); })
       .then(_rendre).catch(function(){});
   }
 
   function demarrer(){
+    _demarrerHeartbeat();               // s'assure que CE poste participe (visible des autres)
     if(_actif) return;
     _actif = true;
     var p = document.getElementById('occupationPanel');
     if(p) p.hidden = false;
-    _cycle();
+    _afficher();
     // rcPoll suspend sur onglet masqué si dispo, sinon setInterval.
     var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
-    _timer = poll(_cycle, INTERVALLE_MS);
+    _timer = poll(_afficher, INTERVALLE_MS);
   }
 
   function arreter(){
@@ -168,8 +180,19 @@
     if(_typePersiste()) demarrer(); else ouvrirAssistant();
   }
 
+  // AUTO-PARTICIPATION : si une session de log partagé est déjà active (type
+  // choisi précédemment via l'assistant), démarrer le heartbeat de fond au
+  // chargement — le poste devient visible des autres SANS ouvrir la carte, et
+  // sans POST parasite pour un opérateur solo (aucun type -> rien).
+  if(typeof document !== 'undefined'){
+    var _demSiSession = function(){ if(_typePersiste()) _demarrerHeartbeat(); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _demSiSession);
+    else _demSiSession();
+  }
+
   global.LogxOccupation = {
     demarrer: demarrer, arreter: arreter, basculer: basculer,
+    _demarrerHeartbeat: _demarrerHeartbeat,
     ouvrirAssistant: ouvrirAssistant, fermerAssistant: fermerAssistant,
     choisirScenario: choisirScenario, ouvrirCarte: ouvrirCarte,
     _rendre: _rendre, _detailScenario: _detailScenario, estActif: function(){ return _actif; }
