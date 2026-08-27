@@ -1411,6 +1411,82 @@ def worked_matrix(shared_log=None, scope_id=''):
     }
 
 
+# Bandes DX toujours affichées dans la matrice PAR INDICATIF : les 10 bandes du
+# DXCC Challenge (160 m → 6 m) + 2 m et 70 cm, car une pédition rare se tente
+# aussi en VHF/UHF (EME, satellite). Toute AUTRE bande réellement travaillée
+# avec la station s'ajoute en plus (voir worked_matrix_call) — jamais un
+# créneau bouclé masqué. Même format de bande stocké dans le log que partout
+# ici ('14', '3.5', '144'…), 70 cm = '432'.
+WMATRIX_CALL_BANDS = CHALLENGE_BANDS + ('144', '432')
+
+
+def worked_matrix_call(call, shared_log=None):
+    """Grille bande × catégorie de mode POUR UN INDICATIF PRÉCIS.
+
+    DEMANDE F4GLD (27/08/2026) : « afficher un worked matrix par call — une
+    pédition sur une île par exemple, on essaie de les faire dans tous les
+    modes et bandes ». Complète lotw_grid() (qui répond pour l'ENTITÉ DXCC et
+    seulement sur la confirmation LoTW) : ici la grille porte sur l'INDICATIF
+    EXACT et sur le statut du créneau AVEC CETTE STATION —
+      'confirmed' : ≥ 1 QSO confirmé, N'IMPORTE quelle source (LoTW, eQSL,
+                    papier). La question est « ai-je bouclé ce créneau avec
+                    elle », pas « est-ce créditable DXCC » — d'où la différence
+                    avec lotw_grid() qui, lui, ne compte QUE LoTW ;
+      'worked'    : loggé mais pas encore confirmé ;
+      'none'      : jamais fait sur ce créneau bande × mode.
+
+    Actif dès que l'indicatif fait 3 caractères, MÊME sans aucun QSO : la
+    grille toute en 'none' est justement la liste des créneaux à viser avant de
+    l'avoir contactée. Rapprochement indicatif/base identique à history()
+    (TX7X/MM compte pour TX7X). Retourne {'active': False} si trop court.
+
+    Retour : {'active', 'call', 'bands' (triées par fréquence), 'modes'
+    (['CW','PHONE','DIGITAL']), 'grid': {bande: {mode: statut}}, 'worked' (nb
+    de cases travaillées, confirmées incluses), 'confirmed' (nb confirmées)}.
+    """
+    call = str(call or '').upper().strip()
+    if len(call) < 3:
+        return {'active': False}
+    base_target = call.split('/')[0] if '/' in call else call
+    conf = _load_confirmations()
+    modes = ('CW', 'PHONE', 'DIGITAL')
+
+    worked_slots = set()       # (bande, catégorie) loggés avec cet indicatif
+    confirmed_slots = set()    # idem, confirmés (toute source)
+    bandes_vues = set()
+    for q in collect_all_qsos(shared_log):
+        c = str(q.get('call', '')).upper().strip()
+        if c != call and c.split('/')[0] != base_target:
+            continue
+        b = str(q.get('band', ''))
+        if not b:
+            continue
+        cat = _mode_category(q.get('mode'))
+        bandes_vues.add(b)
+        worked_slots.add((b, cat))
+        if conf.get(_confirm_key(q)):
+            confirmed_slots.add((b, cat))
+
+    bands = sorted(set(WMATRIX_CALL_BANDS) | bandes_vues, key=_band_sort_key)
+    grille = {}
+    n_worked = n_conf = 0
+    for b in bands:
+        grille[b] = {}
+        for m in modes:
+            if (b, m) in confirmed_slots:
+                grille[b][m] = 'confirmed'
+                n_conf += 1
+                n_worked += 1
+            elif (b, m) in worked_slots:
+                grille[b][m] = 'worked'
+                n_worked += 1
+            else:
+                grille[b][m] = 'none'
+    return {'active': True, 'call': call, 'bands': bands,
+            'modes': list(modes), 'grid': grille,
+            'worked': n_worked, 'confirmed': n_conf}
+
+
 # ─── RECORD DX (remplace l'ancien champ manuel record_dx) ────────────────────
 # Un chiffre unique saisi à la main n'a pas de sens pour un opérateur
 # multi-bandes : 3000 km est banal en HF, exceptionnel en VHF/UHF (le même

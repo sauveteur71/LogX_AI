@@ -3267,6 +3267,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # supplémentaire) : complète lotw_need (un seul créneau) par la
             # progression complète.
             h['lotw_grid'] = awards.lotw_grid(call, log_copy)
+            # Matrice bande×mode POUR CET INDICATIF EXACT (pas l'entité) : suit
+            # les créneaux déjà bouclés / à viser avec une station précise —
+            # une DXpedition qu'on essaie sur toutes les bandes et tous les
+            # modes. Complète lotw_grid (entité, LoTW seul) : ici c'est le call
+            # exact, et « confirmé » = n'importe quelle source. Même endpoint,
+            # aucune requête réseau de plus.
+            h['worked_matrix_call'] = awards.worked_matrix_call(call, log_copy)
             # État US / province canadienne. En ADIF, STATE porte la
             # « subdivision administrative primaire » : c'est le même champ des
             # deux côtés de la frontière (MA, TX… mais aussi ON, QC, BC). Seul
