@@ -65,7 +65,6 @@
     var LB = _LB();
     var wrap = document.getElementById(opts.wrapId || 'bandeaux');
     if(!LB || !wrap) return;
-    var activite = opts.activite || 'defaut';
     var ids = opts.ids || [];
     var defauts = opts.defauts || {};
     var interval = opts.intervalleMs || 120000;
@@ -81,11 +80,16 @@
 
     function rendre(){
       var reouvrir = panneauOuvert();   // préserve l'ouverture à travers un re-rendu
+      // Activité COURANTE, résolue à CHAQUE rendu : opts.activite peut être une
+      // FONCTION -> le contexte évolue en cours de session (ex. un concours qui
+      // démarre bascule en 'concours' même en activité VHF, faisant apparaître
+      // le bandeau MULTS ; il disparaît quand le concours s'arrête).
+      var act = (typeof opts.activite === 'function') ? (opts.activite() || 'defaut') : (opts.activite || 'defaut');
       // ADAPTATION : ne garder que les bandeaux qui ONT UN SENS pour l'activité
       // courante (leur `contextes`). Un bandeau hors-contexte ne s'affiche pas
       // et n'apparaît pas dans le ⚙ (ex. bandeau concours masqué hors concours).
-      var dispo = LB.bandeauxAffichables(ids, activite);
-      var actifs = LB.bandeauxActifs(activite, defauts);
+      var dispo = LB.bandeauxAffichables(ids, act);
+      var actifs = LB.bandeauxActifs(act, defauts);
       var aff = dispo.filter(function(id){ return actifs.indexOf(id) >= 0; });
       // Ne récupère QUE les flux nécessaires aux bandeaux AFFICHÉS : un bandeau
       // masqué ne doit pas déclencher son fetch (ex. /data/spots_ranked, lourd).
@@ -104,13 +108,13 @@
         // contexte, ou une globale pas encore prête, ne casse rien.
         var extra = {};
         try { if(typeof opts.contexte === 'function') extra = opts.contexte() || {}; } catch(e){}
-        var reglage = _reglageHtml(dispo, activite, defauts);   // chips = bandeaux de l'activité courante
+        var reglage = _reglageHtml(dispo, act, defauts);   // chips = bandeaux de l'activité courante
         if(aff.length === 0){
           // tout masqué par l'opérateur -> strip ⚙ (réactivation), pas de bande morte
           wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Bandeaux masqués') + '</div>';
           wrap.hidden = false;
         } else {
-          var html = LB.rendreTicker(aff, { activite: activite, maintenant: Date.now(), band: extra.band, mode: extra.mode }, donnees);
+          var html = LB.rendreTicker(aff, { activite: act, maintenant: Date.now(), band: extra.band, mode: extra.mode }, donnees);
           if(html){ wrap.innerHTML = reglage + html; wrap.hidden = false; }
           else if(reouvrir){
             // Opérateur EN TRAIN DE RÉGLER (panneau ⚙ ouvert) : garder le ⚙
@@ -123,7 +127,7 @@
           else { wrap.innerHTML = ''; wrap.hidden = true; }   // ON mais rien de live, pas en réglage -> pas de bande morte
         }
         if(!wrap.hidden){
-          _wire(wrap, activite, defauts, rendre);
+          _wire(wrap, act, defauts, rendre);
           if(reouvrir) ouvrirPanneau();
         }
       });

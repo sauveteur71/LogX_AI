@@ -35,15 +35,17 @@ def test_a_le_conteneur_bandeau():
     assert re.search(r'id="bandeaux"', _lire())
 
 
-def test_brancher_sur_lactivite_courante_avec_les_deux_flux():
-    """Adaptation : le LOGBOOK se cale sur l'activité courante (localStorage
-    logx_activity), pas un bucket 'logbook' fixe."""
+def test_brancher_sur_lactivite_effective_resolue_au_rendu():
+    """Adaptation : l'activité EFFECTIVE est une fonction résolue au rendu — un
+    concours ACTIF (contestActif, même en VHF) rend le contexte 'concours',
+    sinon l'activité choisie (localStorage). Pas un bucket figé au chargement."""
     h = _lire()
-    assert "localStorage.getItem('logx_activity')" in h          # lit l'activité courante
+    assert "localStorage.getItem('logx_activity')" in h          # activité choisie
     m = re.search(r'LogxBandeauxDriver\.brancher\(\{.*?\}\);', h, re.S)
     assert m, "appel brancher introuvable"
     appel = m.group(0)
-    assert 'activite: _actLog' in appel                          # activité dynamique
+    assert 'activite: function' in appel                         # résolue au rendu
+    assert 'contestActif' in appel                              # vrai signal concours
     assert "'dxped'" in appel and "'propag'" in appel
     assert '/data/dxpeditions_active' in appel
     assert '/data/propagation' in appel
@@ -71,8 +73,10 @@ def test_mults_deploye_concours_seulement():
     appel = m.group(0)
     assert "'mults'" in appel                                    # dans les ids
     assert re.search(r"mults:\s*\['spots_ranked'\]", appel)      # fetch-aware
-    # ON par défaut seulement si l'activité courante est le concours
-    assert re.search(r"_actLog\s*===\s*'concours'.*mults", h, re.S)
+    # MULTS ON par défaut dans le contexte 'concours', PAS dans l'activité de base
+    assert re.search(r"_defLog\['concours'\]\s*=\s*\[[^\]]*'mults'", h)
+    b = re.search(r"_defLog\[_actLog\]\s*=\s*\[([^\]]*)\]", h)
+    assert b and 'mults' not in b.group(1)
 
 
 def test_fournit_la_bande_mode_courante_pour_adaptation():

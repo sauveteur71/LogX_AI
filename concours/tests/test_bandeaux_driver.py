@@ -74,6 +74,14 @@ def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     assert 'aFetch' in s
 
 
+def test_driver_activite_resolue_au_rendu():
+    """opts.activite peut être une FONCTION : l'activité effective est résolue à
+    CHAQUE rendu (contexte évolutif — un concours qui démarre bascule le
+    contexte), pas figée au branchement."""
+    s = _src()
+    assert "typeof opts.activite === 'function'" in s
+
+
 def test_driver_transmet_le_contexte_bande_mode():
     """Adaptation : le driver appelle opts.contexte() (fonction de la page) et
     injecte band/mode dans le ctx passé aux bandeaux (protégé par try)."""
