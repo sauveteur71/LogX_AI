@@ -920,6 +920,53 @@ pousser le tag, comme l'exige la consigne ci-dessous.
    par mutation que le reste du dépôt, jamais « en passant » à côté d'un
    autre correctif.
 
+7. ✅ **FAIT — bandeaux défilants (tickers) + adaptation par activité**
+   (branche `feat/tickers-live`, ~20 commits, **NON mergée** — attend la
+   validation navigateur de F4GLD puis le merge). Bandes défilantes sous la nav
+   (accueil / LOGBOOK / CHASSE) : **DX ≤7J**, **PROPAG** (bande courante en
+   tête), **SPOTS DX** (opt-in), **MULTS** (concours seulement). Fiche popup au
+   clic sur un item actif (entité, fréquence cluster, nom via `/calldb/lookup`,
+   ▶ QSY, lien QRZ). **⚙ afficher/masquer par activité.** Adaptation à **DEUX
+   AXES INDÉPENDANTS** : classe de bande (HF masqué en VHF/SHF/sat) ET concours
+   actif (MULTS via `contestActif()`, PAS le bucket d'activité — un concours VHF
+   EST un concours).
+
+   Architecture : moteur pur `logx_bandeaux.js` (registre, rendu XSS-safe,
+   config, `bandeauxAffichables` par tags, `aReglageActivite`) ; définitions
+   `logx_bandeaux_defs.js` (dxped/propag/spots/mults, purs, V8-testés) ; driver
+   `logx_bandeaux_driver.js` (fetch-aware, ⚙, contexte évolutif) ; composant CSS
+   `.rcb-*` mutualisé dans `logx_theme.css`.
+
+   ⚠️ **8 bugs tranchés en revue adversariale** (garde-fous du dépôt) : sens
+   d'ouverture du ⚙ (barre en bas d'écran → panneau vers le haut) ; `freq=0`
+   traitée comme absente (sinon « QSY 0 kHz ») ; garde anti-course sur le lookup
+   nom de la fiche ; a11y Échap + retour focus ; ⚙ atteignable même sur un état
+   sans data ; « home call » pour les indicatifs portables (QRZ) ; pas de strip
+   « Bandeaux masqués » quand c'est vide par contexte (VHF). Vérifié end-to-end
+   en node (rendus HTML inspectés) + suites complètes 100 %.
+
+   Reste : **validation navigateur (2 thèmes) par F4GLD, puis merge.**
+   Documenté : GUIDE_UTILISATEUR §6.9 + CHANGELOG [Non publié].
+
+8. 🚧 **DÉMARRÉ — occupation des bandes multi-postes** (log partagé à distance :
+   activation spéciale type TM6KJS / radioclub / expédition). Question F4GLD
+   « partage à distance sur des réseaux internet DIFFÉRENTS » : **OUI, déjà
+   possible** via Cloud Sync (dossier partagé) ou MySQL Sync (quasi temps réel,
+   construit le 06/08 pour le radioclub) — le **LAN sync est même-réseau
+   seulement**.
+
+   **FAIT (fondation, testée) :** `logx_occupancy.py` — cœur pur
+   `vue_occupation(statuts, maintenant, ttl)` (vue « qui est sur quelle
+   bande/mode » + conflits **bande+mode** ; même bande + mode différent =
+   permis) + registre serveur thread-safe (mon statut via heartbeat + pairs des
+   canaux ; **priorité locale = latest-ts-wins** ; purge TTL). 10 tests, ruff OK.
+
+   **RESTE (à faire AVEC F4GLD — touche l'infra sync + l'UI) :** endpoints HTTP
+   (`POST /occupancy/heartbeat`, `GET /data/occupancy`) ; canaux (band/mode dans
+   le beacon LAN, fichier occupancy cloud, table MySQL — **transport SÉPARÉ du
+   log** pour ne rien casser) ; UI panneau + assistant de session (radioclub /
+   expé / activation). Plan complet : `docs/idees/2026-08-27-tm6kjs-multi-postes.md`.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats

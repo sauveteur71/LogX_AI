@@ -37,6 +37,27 @@
     });
   }
 
+  // Filtre une LISTE de bandeaux (ordre préservé) par CONTEXTE. Le contexte est
+  // un ou plusieurs TAGS (ex. ['vhf','concours']) : deux axes indépendants, la
+  // classe de bande (hf/vhf) ET l'état concours. Un bandeau est retenu si son
+  // `contextes` vaut '*', OU contient au moins un des tags du contexte. Base du
+  // driver « context-aware » (doctrine « l'axe = l'activité ») : un bandeau
+  // hors-contexte (ex. propag HF en VHF, MULTS hors concours) est écarté. Un
+  // `contexte` string reste accepté (traité comme un tag unique). Id inconnu écarté.
+  function bandeauxAffichables(ids, contexte, registre){
+    registre = registre || REGISTRE;
+    const tags = Array.isArray(contexte) ? contexte : [contexte];
+    return (ids || []).filter(function(id){
+      const def = registre[id];
+      if(!def) return false;
+      const c = def.contextes;
+      if(c === '*') return true;
+      if(!Array.isArray(c)) return false;
+      for(let i = 0; i < tags.length; i++){ if(c.indexOf(tags[i]) >= 0) return true; }
+      return false;
+    });
+  }
+
   // ── RÈGLE DE CONTENU (F4GLD) : ne garder que les DXpéditions des `jours`
   //    prochains jours. Une expé est retenue si elle est EN COURS (debut <= now
   //    <= fin) OU commence dans la fenêtre [now, now + jours]. Date illisible ->
@@ -72,6 +93,31 @@
     return (defauts && defauts[activite]) || [];
   }
 
+  // Bascule (on/off) un bandeau pour une activité : flippe l'appartenance de
+  // `id` à la liste active, PERSISTE, et renvoie la nouvelle liste. Point
+  // d'entrée du ⚙ « afficher/masquer » côté page. Part des défauts de
+  // l'activité tant que rien n'est persisté (première bascule).
+  // Vrai si l'opérateur a PERSISTÉ un choix on/off pour cette activité (par
+  // opposition au repli sur les défauts). Sert à distinguer « tout masqué
+  // exprès » (montrer le strip ⚙ de réactivation) de « vide par défaut ou par
+  // contexte » (ex. VHF hors concours : rien de dispo -> cacher, pas de strip).
+  function aReglageActivite(activite){
+    const cfg = chargerConfig();
+    return !!(cfg.parActivite && cfg.parActivite[activite]);
+  }
+
+  function basculerBandeau(activite, id, defauts){
+    const cfg = chargerConfig();
+    cfg.parActivite = cfg.parActivite || {};
+    const base = cfg.parActivite[activite] || (defauts && defauts[activite]) || [];
+    const actifs = base.slice();
+    const i = actifs.indexOf(id);
+    if(i >= 0) actifs.splice(i, 1); else actifs.push(id);
+    cfg.parActivite[activite] = actifs;
+    enregistrerConfig(cfg);
+    return actifs;
+  }
+
   // ── Rendu (PUR) -> chaîne HTML du ticker. esc() protège tout champ réseau
   //    passé en {texte}. Un item {html} est réputé DÉJÀ construit sûr par son
   //    `construire` (qui doit esc() ses propres champs bruts).
@@ -93,8 +139,18 @@
       if(!items.length) return '';                // pas de LIVE -> pas de ligne morte
       const cells = items.map(function(it){
         const contenu = (it.html != null) ? it.html : esc(it.texte);
+        // Attributs data-* optionnels (it.data) : permettent à la page de
+        // reconnaître un item actionnable (clic « fiche » : data-call/freq/...).
+        // Clé ET valeur échappées (l'indicatif vient du cluster/NG3K = externe).
+        let attrs = '';
+        if(it.data){
+          Object.keys(it.data).forEach(function(k){
+            const v = it.data[k];
+            if(v != null && v !== '') attrs += ' data-' + esc(k) + '="' + esc(v) + '"';
+          });
+        }
         return '<a class="rcb-item" href="' + esc(it.href || '#')
-             + '" title="' + esc(it.title || '') + '">' + contenu + '</a>';
+             + '" title="' + esc(it.title || '') + '"' + attrs + '>' + contenu + '</a>';
       }).join('');
       // bloc dupliqué -> boucle CSS translateX(-50%) sans couture
       return '<div class="rcb-row"><span class="rcb-cat ' + esc(def.cls || '') + '">'
@@ -106,10 +162,13 @@
   const API = {
     enregistrerBandeau: enregistrerBandeau,
     bandeauxDisponibles: bandeauxDisponibles,
+    bandeauxAffichables: bandeauxAffichables,
     filtrerExpeditions: filtrerExpeditions,
     chargerConfig: chargerConfig,
     enregistrerConfig: enregistrerConfig,
     bandeauxActifs: bandeauxActifs,
+    aReglageActivite: aReglageActivite,
+    basculerBandeau: basculerBandeau,
     rendreTicker: rendreTicker,
     esc: esc,
     REGISTRE: REGISTRE,

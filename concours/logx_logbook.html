@@ -1455,6 +1455,64 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
 
+<!-- Bandeau défilant (ticker HUD) : DX ≤7j + bandes exploitables, en direct
+     sous la nav. Bande fine NON-INTRUSIVE (flex-shrink:0, la saisie a son propre
+     overflow-y:auto -> jamais coupée) ; ⚙ afficher/masquer (choix opérateur
+     persisté) ; jamais le chemin critique. Rendu par le driver partagé. -->
+<div id="bandeaux" class="rcb-wrap" hidden></div>
+<script src="logx_bandeaux.js"></script>
+<script src="logx_bandeaux_defs.js"></script>
+<script src="logx_bandeaux_driver.js"></script>
+<script>
+  // ADAPTATION PAR ACTIVITÉ : le LOGBOOK sert TOUTES les activités ; le bandeau
+  // se cale sur l'activité courante (choisie à l'accueil -> localStorage
+  // logx_activity), de sorte que les bandeaux disponibles ET le choix on/off
+  // sont propres à l'activité (doctrine « l'axe = l'activité »). Repli 'normal'.
+  var _actLog = 'normal';
+  try { _actLog = localStorage.getItem('logx_activity') || 'normal'; } catch(e) {}
+  // Activités NON-HF : VHF/UHF, SHF, satellites -> classe 'vhf' (masque les
+  // bandeaux HF : DX≤7j, PROPAG déca). Tout le reste -> 'hf' (F4GLD : « masquer
+  // le HF hors HF »).
+  var _vhfAct = { vuhf: 1, shf: 1, sat: 1 };
+  var _defLog = {};
+  // Défaut ON = dxped+propag+mults ; la DISPONIBILITÉ (tags) filtre : dxped/
+  // propag seulement en HF, mults seulement en concours. Sur VHF hors concours,
+  // rien de tout ça n'est dispo -> barre cachée (pas de HF hors de propos).
+  _defLog[_actLog] = ['dxped', 'propag', 'mults'];
+  LogxBandeauxDriver.brancher({
+    wrapId: 'bandeaux',
+    activite: _actLog,                        // clé de config on/off (propre à l'activité)
+    // Contexte de DISPONIBILITÉ, résolu à chaque rendu (deux axes indépendants) :
+    // classe de bande de l'activité + 'concours' si un concours est ACTIF
+    // (contestActif, quelle que soit la bande — un concours VHF EST un concours).
+    tags: function(){
+      var t = [ _vhfAct[_actLog] ? 'vhf' : 'hf' ];
+      try { if(typeof contestActif === 'function' && contestActif()) t.push('concours'); } catch(e){}
+      return t;
+    },
+    ids: ['dxped', 'propag', 'spots', 'mults'],
+    sources: {
+      dxpeditions: '/data/dxpeditions_active',
+      propagation: '/data/propagation',
+      spots_ranked: '/data/spots_ranked'
+    },
+    besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'], mults: ['spots_ranked'] },
+    // spots DISPONIBLE (chip dans le ⚙) mais OFF par défaut : opt-in, car
+    // /data/spots_ranked est lourd — fetch-aware, il n'est appelé que si activé.
+    defauts: _defLog,
+    // ADAPTATION bande/mode : bande/mode EN COURS de saisie (currentBand/
+    // currentMode de logx_logbook.js). Fonction -> valeurs fraîches à chaque
+    // rendu. typeof : le driver s'appelle avant que logx_logbook.js ne charge,
+    // mais contexte() n'est invoqué qu'au rendu (async), quand elles existent.
+    contexte: function(){
+      return {
+        band: (typeof currentBand !== 'undefined') ? currentBand : '',
+        mode: (typeof currentMode !== 'undefined') ? currentMode : ''
+      };
+    }
+  });
+</script>
+
 <!-- RÉSEAU -->
 <div class="net-status">
   <div class="net-dot" id="netDot"></div>

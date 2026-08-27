@@ -209,7 +209,7 @@ body.simple-mode .expert-only{display:none!important}
 /* Stratégie pile-up FT8 (#8) */
 .strat-btn{cursor:pointer;background:transparent;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:13px;color:var(--accent2,#22e0ff)}
 .strat-btn:hover{background:rgba(0,224,255,.12)}
-#stratOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px}
+#stratOverlay,#ficheOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px}
 .strat-box{background:var(--bg2,#12172e);border:1px solid var(--accent2,#22e0ff);border-radius:10px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:14px 18px;font-family:var(--font-mono)}
 .strat-head{display:flex;align-items:center;justify-content:space-between;font-weight:700;color:var(--accent2,#22e0ff);margin-bottom:10px}
 .strat-x{cursor:pointer;background:none;border:0;color:var(--muted,#7a86b6);font-size:18px}
@@ -260,9 +260,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
   </div>
 </nav>
+<!-- Bandeau défilant (ticker HUD) : DX ≤7j + bandes ouvertes, en direct sous la
+     nav. Composant .rcb-* dans logx_theme.css ; rendu par le framework partagé.
+     hidden par défaut : reste caché tant qu'il n'y a aucune info live. -->
+<div id="bandeaux" class="rcb-wrap" hidden></div>
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
+<script src="logx_bandeaux.js"></script>
+<script src="logx_bandeaux_defs.js"></script>
+<script src="logx_bandeaux_driver.js"></script>
 
 <div class="page-intro"><b>CHASSE</b> = qui contacter maintenant — spots du cluster triés par intérêt pour ton concours, POTA/SOTA/WWFF/WCA en direct, DXpéditions annoncées. Pour les conditions de propagation (indices solaires, MUF, bandes ouvertes), c'est <b>PROPAG</b>.</div>
 
@@ -948,6 +955,103 @@ rcPollOr(loadSota, 60 * 1000);                 // SOTA : cache serveur 60 s
 rcPollOr(loadWwff, 60 * 1000);                 // WWFF : cache serveur 60 s
 rcPollOr(loadWca, 5 * 60 * 1000);              // WCA : simple flux RSS de blog, cache serveur 15 min
 rcPollOr(loadDxActive, 2 * 60 * 1000);         // DXpeditions : annonces NG3K cache 1h, mais le statut actif/fréquence dépend du cluster (rafraîchi comme POTA)
+
+// ── Bandeau défilant (ticker HUD) ──────────────────────────────────────────
+// DXpéditions ≤7j + bandes exploitables, défilant sous la nav. Via le driver
+// PARTAGÉ (rendu + ⚙ afficher/masquer, comme LOGBOOK/accueil) ; il gère l'appel
+// immédiat + le rafraîchissement (rcPoll, suspendu si onglet masqué). Le clic
+// « fiche » est câblé plus bas, indépendamment du driver (délégué sur #bandeaux,
+// robuste aux re-rendus). Non-intrusif : caché si aucune info live.
+LogxBandeauxDriver.brancher({
+  wrapId: 'bandeaux', activite: 'chasse',
+  tags: ['hf'],                              // page de chasse au DX HF
+  ids: ['dxped', 'propag'],
+  sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
+  besoins: { dxped: ['dxpeditions'], propag: ['propagation'] },
+  defauts: { chasse: ['dxped', 'propag'] }
+});
+
+// ── Fiche opérateur au clic sur un item ACTIF du bandeau ────────────────────
+// L'item porte data-fiche + call/freq/band/mode/entity/neuf (posés par
+// logx_bandeaux_defs.js). Clic DÉLÉGUÉ sur #bandeaux (un seul écouteur, robuste
+// au rafraîchissement du contenu) : on ouvre un popup « fiche » réutilisant
+// l'overlay .strat-* de la page. La fiche agrège l'info live du cluster (déjà
+// dans data-*), le nom (/calldb/lookup) et un lien direct QRZ.com — plus QSY si
+// le pilotage CAT est activé. Lecture seule : QSY = réglage VFO, jamais d'émission.
+var _ficheCall = null;   // garde anti-course : ignore un lookup revenu APRÈS ouverture d'une autre fiche
+// « home call » d'un indicatif portable : le plus long segment séparé par '/'
+// (gère les deux sens : DL1ABC/P -> DL1ABC ET VP8/DL1ABC -> DL1ABC), pour le
+// lookup nom et le lien QRZ. Un simple split('/')[0] renverrait le préfixe.
+function _homeCall(call){
+  var parts = String(call || '').split('/');
+  return parts.sort(function(a, b){ return b.length - a.length; })[0] || call;
+}
+function closeFiche(){ var ov = document.getElementById('ficheOverlay'); if(ov) ov.style.display = 'none'; }
+function openFicheModal(d){
+  var call = d.call || '?';
+  _ficheCall = call;
+  var ov = document.getElementById('ficheOverlay');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'ficheOverlay';
+    ov.onclick = function(e){ if(e.target === ov) closeFiche(); };
+    ov.innerHTML = '<div class="strat-box"><div class="strat-head"><span id="ficheTitle"></span>'
+      + '<button onclick="closeFiche()" class="strat-x" aria-label="' + rcT('fermer') + '">✕</button>'
+      + '</div><div id="ficheBody"></div></div>';
+    document.body.appendChild(ov);
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeFiche(); });
+  }
+  document.getElementById('ficheTitle').textContent = '📇 ' + rcT('Fiche') + ' — ' + call;
+
+  var lignes = [];
+  if(d.entity){
+    var neuf = d.neuf ? ' <span style="color:var(--green);font-weight:800">' + rcT('NOUVEAU PAYS') + '</span>' : '';
+    lignes.push('<div style="font-size:15px;font-weight:700">' + esc(d.entity) + neuf + '</div>');
+  }
+  var qrg = [];
+  if(d.freq) qrg.push(esc((Number(d.freq) / 1000).toFixed(3)) + ' MHz');
+  if(d.band) qrg.push(esc(d.band));
+  if(d.mode) qrg.push(esc(d.mode));
+  if(qrg.length) lignes.push('<div style="color:var(--accent2);font-weight:700;margin-top:4px">📡 ' + qrg.join(' · ') + '</div>');
+  lignes.push('<div id="ficheNom" style="color:var(--muted);margin-top:6px">' + rcT('Nom') + ' : …</div>');
+
+  var actions = [];
+  if(typeof rigEnabled !== 'undefined' && rigEnabled && d.freq)
+    actions.push('<button class="qsy-btn" onclick="qsyTo(' + (Number(d.freq) || 0) + ',\'' + jsCall(call) + '\')" title="' + rcT('Régler la radio sur') + ' ' + esc(d.freq) + ' kHz">▶ QSY ' + esc(d.freq) + ' kHz</button>');
+  actions.push('<a class="qsy-btn" style="text-decoration:none" href="https://www.qrz.com/db/' + encodeURIComponent(_homeCall(call)) + '" target="_blank" rel="noopener">' + rcT('Ouvrir sur QRZ.com') + ' ↗</a>');
+  lignes.push('<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' + actions.join('') + '</div>');
+
+  document.getElementById('ficheBody').innerHTML = lignes.join('');
+  ov.style.display = 'flex';
+
+  // Nom de l'opérateur : lookup best-effort (HamQTH + base interne). L'échec
+  // n'empêche rien — la fréquence live et le lien QRZ sont déjà là.
+  fetch('/calldb/lookup/' + encodeURIComponent(_homeCall(call))).then(function(r){ return r.json(); }).then(function(j){
+    if(_ficheCall !== call) return;   // une autre fiche a été ouverte entre-temps -> résultat obsolète ignoré
+    var el = document.getElementById('ficheNom'); if(!el) return;
+    if(j && j.name){
+      el.innerHTML = rcT('Nom') + ' : <b style="color:var(--text)">' + esc(j.name) + '</b>' + (j.locator ? ' · ' + esc(j.locator) : '');
+    } else {
+      el.textContent = rcT('Nom') + ' : ' + rcT('inconnu');
+    }
+  }).catch(function(){ var el = document.getElementById('ficheNom'); if(el) el.textContent = rcT('Nom') + ' : —'; });
+}
+(function(){
+  var wrap = document.getElementById('bandeaux');
+  if(!wrap) return;
+  wrap.addEventListener('click', function(ev){
+    var a = ev.target.closest ? ev.target.closest('a.rcb-item[data-fiche]') : null;
+    if(!a) return;
+    ev.preventDefault();                                 // pas de navigation : on ouvre la fiche
+    openFicheModal({
+      call:   a.getAttribute('data-call')   || '',
+      freq:   a.getAttribute('data-freq')   || '',
+      band:   a.getAttribute('data-band')   || '',
+      mode:   a.getAttribute('data-mode')   || '',
+      entity: a.getAttribute('data-entity') || '',
+      neuf:   a.getAttribute('data-neuf')   || ''
+    });
+  });
+})();
 </script>
 </body>
 </html>

@@ -61,11 +61,26 @@
         bout = ' · ' + (e.dates || 'à venir');
       }
       var neuf = e.worked_status === 'new' ? ' · nouveau pays' : '';
-      return {
+      var item = {
         texte: tete + call + ' · ' + lieu + bout + neuf,
         href: 'logx_chasse.html',
         title: e.dates || ''
       };
+      // Item ACTIF -> cliquable « fiche » : la page ouvre un popup (indicatif,
+      // fréquence/bande/mode du cluster, QSY...). Les à-venir restent de simples
+      // liens : on ne peut pas QSY sur une station pas encore active.
+      if(actif){
+        item.data = {
+          fiche: '1',
+          call: call,
+          freq: e.freq_khz ? String(e.freq_khz) : '',   // 0/absent -> pas de fréquence (évite « QSY 0 kHz »)
+          band: e.spot_band || '',
+          mode: e.spot_mode || '',
+          entity: e.entity || '',
+          neuf: (e.worked_status === 'new') ? '1' : ''
+        };
+      }
+      return item;
     });
   }
 
@@ -82,21 +97,106 @@
     var ouvertes = bandes.filter(function(b){
       return b && (b.etat === 'ouverte' || b.etat === 'possible');
     });
-    return ouvertes.map(function(b){
+    // ADAPTATION BANDE : la bande en cours de saisie (ctx.band) passe EN TÊTE et
+    // est marquée « ta bande ». Match tolérant sur les chiffres ('20'='20m'='20 m').
+    var courante = (ctx && ctx.band != null) ? String(ctx.band).replace(/[^0-9.]/g, '') : '';
+    var items = ouvertes.map(function(b){
+      var est = !!courante && String(b.band).replace(/[^0-9.]/g, '') === courante;
       var pastille = b.etat === 'ouverte' ? '● ' : '◐ ';
       return {
-        texte: pastille + b.band + ' m · ' + b.etat,
+        _c: est,
+        texte: (est ? '▸ ' : '') + pastille + b.band + ' m · ' + b.etat + (est ? ' · ta bande' : ''),
         title: b.raison || ''
       };
     });
+    var tete = [], reste = [];
+    items.forEach(function(it){ (it._c ? tete : reste).push({ texte: it.texte, title: it.title }); });
+    return tete.concat(reste);   // bande courante d'abord, reste dans l'ordre d'origine
+  }
+
+  // ── Spots DX classés (source : /data/spots_ranked) ─────────────────────────
+  // donnees.spots_ranked = { spots: [ {call, band, freq(kHz), mode, dx_country,
+  //   new_mult, mult_type, credit_raison, credit_score, ...} ], meta } — top ~40
+  //   déjà classés par VALEUR côté serveur (logx_scoring.build_ranked_spots). On
+  //   montre les mieux classés, bornés pour ne pas noyer le ruban. Badge =
+  //   credit_raison (texte serveur lisible : « Nouveau pays ! », « Nouvelle
+  //   bande »…) quand credit_score > 0. Chaque item est cliquable (data-fiche)
+  //   -> la page ouvre la fiche opérateur (même chemin que les DXpéditions).
+  function _spots(ctx, donnees){
+    var src = donnees && donnees.spots_ranked;
+    var spots = (src && src.spots) ? src.spots
+              : (Array.isArray(src) ? src : []);
+    var out = [];
+    for(var i = 0; i < spots.length && out.length < 15; i++){
+      var s = spots[i];
+      if(!s || !s.call) continue;
+      var bits = [s.call];
+      if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');   // 0/absent -> pas de fréquence
+      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      if(s.mode) bits.push(s.mode);
+      var badge = (s.credit_score && s.credit_raison) ? ' · ' + s.credit_raison : '';
+      out.push({
+        texte: bits.join(' · ') + badge,
+        title: s.dx_country || '',
+        href: 'logx_chasse.html',
+        data: {
+          fiche: '1', call: s.call,
+          freq: s.freq ? String(s.freq) : '',   // 0/absent -> pas de fréquence (évite « QSY 0 kHz »)
+          band: s.band || '', mode: s.mode || '',
+          entity: s.dx_country || '', neuf: ''
+        }
+      });
+    }
+    return out;
   }
 
   LB.enregistrerBandeau({
-    id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: '*',
+    id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: ['hf'],
     construire: _dxped
   });
+  // ── Multiplicateurs à chercher (CONCOURS uniquement) ───────────────────────
+  // Réutilise /data/spots_ranked (déjà classé côté serveur), filtré aux spots
+  // marqués new_mult=true : les NOUVEAUX multiplicateurs repérés sur le cluster.
+  // contextes:['concours'] -> n'apparaît qu'en mode concours (doctrine : « le
+  // score/mult n'a rien à faire à l'écran hors concours »). Item cliquable ->
+  // fiche (même chemin que spots/DXpéditions).
+  function _mults(ctx, donnees){
+    var src = donnees && donnees.spots_ranked;
+    var spots = (src && src.spots) ? src.spots
+              : (Array.isArray(src) ? src : []);
+    var out = [];
+    for(var i = 0; i < spots.length && out.length < 12; i++){
+      var s = spots[i];
+      if(!s || !s.call || !s.new_mult) continue;   // uniquement les NOUVEAUX multiplicateurs
+      var bits = [s.call];
+      if(s.mult_type) bits.push(s.mult_type);
+      if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');
+      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      out.push({
+        texte: '★ ' + bits.join(' · '),
+        title: s.dx_country || '',
+        href: 'logx_chasse.html',
+        data: {
+          fiche: '1', call: s.call,
+          freq: s.freq ? String(s.freq) : '',
+          band: s.band || '', mode: s.mode || '',
+          entity: s.dx_country || '', neuf: ''
+        }
+      });
+    }
+    return out;
+  }
+
   LB.enregistrerBandeau({
-    id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: '*',
+    id: 'spots', cat: 'SPOTS DX', cls: 'rcb-spots', contextes: '*',
+    construire: _spots
+  });
+  LB.enregistrerBandeau({
+    id: 'mults', cat: 'MULTS', cls: 'rcb-mults', contextes: ['concours'],
+    construire: _mults
+  });
+  LB.enregistrerBandeau({
+    id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: ['hf'],
     construire: _propag
   });
 
