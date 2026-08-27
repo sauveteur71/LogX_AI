@@ -683,6 +683,12 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
 /* Version : compacte, dans l'en-tête à côté du logo (voir #hdrVersion). */
 .hdr-version{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:10px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .hdr-version .net-version{color:var(--accent2)}
+/* Étiquette « V: version » masquée au repos (discrétion, retour F4GLD 27/08) :
+   la version installée reste dans le popup de mise à jour, la config et le
+   rapport de bug. Le badge d'alerte #netVersionWarn + le bouton de mise à jour
+   réseau, eux, apparaissent tout seuls SI ce poste est en retard — donc le
+   widget multi-poste reste fonctionnel, juste invisible quand tout va bien. */
+.hdr-version-label{display:none}
 .net-dot{width:8px;height:8px;border-radius:50%}
 .share-link{color:var(--accent2);font-weight:700;text-decoration:none;letter-spacing:.5px}
 .share-link:hover{text-decoration:underline}
@@ -1059,7 +1065,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div>
     <div class="logo-wrap">
       <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
-      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)">V: <span class="net-version" id="netVersion">—</span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
+      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)"><span class="hdr-version-label">V: <span class="net-version" id="netVersion">—</span></span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
     </div>
   </div>
   <div class="hdr-info">
