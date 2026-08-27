@@ -20,6 +20,15 @@
 
   function _LB(){ return global.LogxBandeaux; }
 
+  // Ouvre le panneau de chips vers le HAUT si la barre est près du bas de
+  // l'écran (sinon le menu sortirait sous le viewport — cas de l'accueil, barre
+  // en bas de page). Sinon vers le bas (défaut, barres en haut : logbook/chasse).
+  function _placerPanneau(wrap, chips){
+    if(!chips || typeof global.innerHeight !== 'number') return;
+    var r = wrap.getBoundingClientRect();
+    chips.classList.toggle('rcb-chips-haut', (global.innerHeight - r.bottom) < 160);
+  }
+
   // Récupère tous les flux déclarés (sources = {cleDonnees: url}) -> {cle: json}.
   // Un flux HS -> ce bandeau restera simplement vide, jamais de plantage.
   function _fetchSources(sources){
@@ -67,7 +76,7 @@
     }
     function ouvrirPanneau(){
       var g = wrap.querySelector('.rcb-gear'), c = wrap.querySelector('.rcb-chips');
-      if(g && c){ c.hidden = false; g.setAttribute('aria-expanded', 'true'); }
+      if(g && c){ c.hidden = false; g.setAttribute('aria-expanded', 'true'); _placerPanneau(wrap, c); }
     }
 
     function rendre(){
@@ -132,6 +141,7 @@
         var open = !chips.hidden;
         chips.hidden = open;
         gear.setAttribute('aria-expanded', String(!open));
+        if(!open) _placerPanneau(wrap, chips);   // sens d'ouverture selon la place
       });
     }
     wrap.querySelectorAll('.rcb-chip').forEach(function(btn){

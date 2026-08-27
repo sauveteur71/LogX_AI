@@ -63,3 +63,11 @@ def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     assert 'opts.besoins' in s
     # les bandeaux affichés sont calculés AVANT le fetch (aff filtré, puis aFetch)
     assert 'aFetch' in s
+
+
+def test_driver_ouvre_le_panneau_dans_le_bon_sens():
+    """Le panneau ⚙ s'ouvre vers le HAUT si la barre est en bas d'écran (accueil)
+    -> ne sort pas sous le viewport."""
+    s = _src()
+    assert '_placerPanneau' in s and 'getBoundingClientRect' in s
+    assert 'rcb-chips-haut' in s
