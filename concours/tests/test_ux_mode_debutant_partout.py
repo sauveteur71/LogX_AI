@@ -63,17 +63,19 @@ def _bloc_fonction(src, signature):
 # ── logx_statusbar.js : bouton 🎚 de bascule débutant/expert ────────────────
 
 def test_statusbar_nouvel_item_present_et_bien_positionne():
-    """L'item doit être inséré entre #rcsbVersion et #rcsbReportItem (ordre
+    """L'item doit être inséré entre #rcsbUpdateItem et #rcsbReportItem (ordre
     demandé), et rester cliquable (curseur + title explicite) comme les
-    autres items actionnables de la barre (#rcsbReportItem, #rcsbLayoutItem)."""
+    autres items actionnables de la barre (#rcsbReportItem, #rcsbLayoutItem).
+    (Ancre passée de #rcsbVersion à #rcsbUpdateItem après le retrait du tag de
+    version installée — dédup, LOT 1 refonte cockpit.)"""
     src = _lire(STATUSBAR_JS)
     assert 'id="rcsbUiModeItem"' in src
     assert 'id="rcsbUiModeLabel"' in src
-    i_version = src.index('id="rcsbVersion"')
+    i_avant = src.index('id="rcsbUpdateItem"')
     i_item = src.index('id="rcsbUiModeItem"')
     i_report = src.index('id="rcsbReportItem"')
-    assert i_version < i_item < i_report, (
-        "l'item #rcsbUiModeItem doit être inséré entre #rcsbVersion et "
+    assert i_avant < i_item < i_report, (
+        "l'item #rcsbUiModeItem doit être inséré entre #rcsbUpdateItem et "
         "#rcsbReportItem dans le template bar.innerHTML")
     bloc = src[i_item:i_item + 400]
     assert 'cursor:pointer' in bloc

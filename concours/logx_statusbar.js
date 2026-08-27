@@ -407,9 +407,6 @@
       🆕 <span id="rcsbUpdateLabel">mise à jour</span>
       <div id="rcsbUpdateDD" style="display:none"></div>
     </div>
-    <div class="rcsb-item" id="rcsbVersionItem" title="Version de LogX AI installée — à indiquer en cas de bug">
-      🏷️ <span class="rcsb-val" id="rcsbVersion">—</span>
-    </div>
     <div class="rcsb-item" id="rcsbUiModeItem" style="cursor:pointer"
          title="Mode débutant/expert : masque ou affiche les réglages avancés dans toute l'appli (même bascule que le bouton 🎚 de CONFIG) — clic pour changer">
       🎚 <span class="rcsb-val" id="rcsbUiModeLabel">—</span>
@@ -1245,10 +1242,9 @@
     fetch('/app/update_check').then(r => r.ok ? r.json() : null).then(function(d){
       if (!d) return;
       _updState = d;
-      // La version installée vient de 'current', toujours présent (même hors
-      // ligne — voir logx_update.get_cached_check) : pas de requête dédiée.
-      const vEl = document.getElementById('rcsbVersion');
-      if (vEl && d.current) vEl.textContent = 'v' + d.current;
+      // La version installée ('current') n'est plus affichée dans la barre
+      // (dédoublonnée — retour F4GLD 27/08) ; elle reste portée par _updState
+      // pour le popup de mise à jour et le rapport de bug.
       const item = document.getElementById('rcsbUpdateItem');
       if (!item) return;
       const dismissed = localStorage.getItem('rc_update_dismissed');
@@ -1585,7 +1581,6 @@
     {id: 'rcsbBeaconItem', label: 'Balise NCDXF/IBP', default: false},
     {id: 'rcsbRateItem', label: 'QSO/heure (rate meter)', default: true},
     {id: 'rcsbRulesItem', label: 'Dernière vérification des règlements', default: true},
-    {id: 'rcsbVersionItem', label: 'Version installée', default: false},
     // ── Éléments PROPRES AU LOGBOOK, fusionnés dans AFFICHAGE (retour F4GLD
     // 24/08 : « épurer + développer AFFICHAGE »). `section:'logbook'` = groupés
     // sous un sous-titre dédié ; la bascule n'apparaît que si l'élément existe
