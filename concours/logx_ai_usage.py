@@ -12,6 +12,7 @@ thread-safe (comme le journal d'audit TX). N'écrit rien sur disque, ne survit p
 au redémarrage. `enregistrer` ne lève JAMAIS : un défaut de comptage ne doit
 jamais casser un appel IA.
 """
+import json
 import threading
 
 _lock = threading.Lock()
@@ -46,6 +47,30 @@ def enregistrer(provider, model, in_tokens, out_tokens):
         md['calls'] += 1
         md['in'] += it
         md['out'] += ot
+
+
+def enregistrer_reponse(provider, model, data):
+    """Extrait les tokens d'une réponse d'API selon la forme du fournisseur, puis
+    enregistre. UNE SEULE vérité pour les formes de `usage` des fournisseurs :
+      - anthropic : usage.input_tokens / usage.output_tokens
+      - gemini    : usageMetadata.promptTokenCount / candidatesTokenCount
+      - openai-compatibles : usage.prompt_tokens / usage.completion_tokens
+    `data` : dict déjà parsé OU octets/chaîne JSON. Robuste : ignore tout ce qui
+    ne correspond pas, ne lève JAMAIS (un défaut de comptage ne casse rien)."""
+    try:
+        d = data if isinstance(data, dict) else json.loads(data)
+        if provider == 'anthropic':
+            u = d.get('usage') or {}
+            it, ot = u.get('input_tokens'), u.get('output_tokens')
+        elif provider == 'gemini':
+            u = d.get('usageMetadata') or {}
+            it, ot = u.get('promptTokenCount'), u.get('candidatesTokenCount')
+        else:
+            u = d.get('usage') or {}
+            it, ot = u.get('prompt_tokens'), u.get('completion_tokens')
+    except Exception:
+        return
+    enregistrer(provider, model, it, ot)
 
 
 def resume(prix_usd_par_mtok=None):

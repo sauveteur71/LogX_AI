@@ -276,8 +276,7 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
             data = json.loads(resp.read())
         try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
             import logx_ai_usage as _usage
-            _u = data.get('usage') or {}
-            _usage.enregistrer('anthropic', ai_model, _u.get('input_tokens'), _u.get('output_tokens'))
+            _usage.enregistrer_reponse('anthropic', ai_model, data)
         except Exception:
             pass
         return ''.join(b.get('text', '') for b in data.get('content', [])
@@ -8320,6 +8319,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         result = resp.read()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Anthropic OK ({len(result)} bytes)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('anthropic', ai_model, result)
+                    except Exception:
+                        pass
 
                 # ── OpenAI / Mistral / xAI / DeepSeek (même format d'API) ────
                 elif provider in OPENAI_COMPATIBLE_ENDPOINTS:
@@ -8349,6 +8353,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] {provider} OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse(provider, ai_model, oai_data)
+                    except Exception:
+                        pass
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
@@ -8374,6 +8383,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Gemini OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('gemini', model_id, gem_data)
+                    except Exception:
+                        pass
 
                 else:
                     self._json({'error': {'message': f'Fournisseur inconnu: {provider}'}}, 400)

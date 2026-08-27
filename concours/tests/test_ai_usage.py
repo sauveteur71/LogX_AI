@@ -61,6 +61,28 @@ def test_tarif_malforme_est_ignore_sans_planter():
     assert usage.resume('pas-un-dict-du-tout')['calls'] == 1   # robuste même si l'arg est absurde
 
 
+def test_enregistrer_reponse_par_forme_fournisseur():
+    # Anthropic : usage.input_tokens / output_tokens
+    usage.enregistrer_reponse('anthropic', 'claude-x', {'usage': {'input_tokens': 10, 'output_tokens': 3}})
+    # OpenAI-compatible : usage.prompt_tokens / completion_tokens
+    usage.enregistrer_reponse('openai', 'gpt-x', {'usage': {'prompt_tokens': 20, 'completion_tokens': 5}})
+    # Gemini : usageMetadata.promptTokenCount / candidatesTokenCount
+    usage.enregistrer_reponse('gemini', 'gem-x', {'usageMetadata': {'promptTokenCount': 7, 'candidatesTokenCount': 2}})
+    r = usage.resume()
+    assert r['calls'] == 3
+    assert r['par_fournisseur']['anthropic']['in'] == 10 and r['par_fournisseur']['anthropic']['out'] == 3
+    assert r['par_fournisseur']['openai']['in'] == 20 and r['par_fournisseur']['openai']['out'] == 5
+    assert r['par_fournisseur']['gemini']['in'] == 7 and r['par_fournisseur']['gemini']['out'] == 2
+
+
+def test_enregistrer_reponse_accepte_le_json_brut_et_ignore_le_bruit():
+    usage.enregistrer_reponse('anthropic', 'claude-x', b'{"usage":{"input_tokens":4,"output_tokens":1}}')
+    usage.enregistrer_reponse('anthropic', 'claude-x', b'pas du json')   # ignoré, ne lève pas
+    usage.enregistrer_reponse('anthropic', 'claude-x', {'rien': 1})      # pas d'usage -> 0/0 enregistré
+    r = usage.resume()
+    assert r['par_fournisseur']['anthropic']['in'] == 4
+
+
 def test_resume_vide_par_defaut():
     r = usage.resume()
     assert r['calls'] == 0 and r['in_tokens'] == 0 and r['par_fournisseur'] == {}
