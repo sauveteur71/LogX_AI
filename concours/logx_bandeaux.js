@@ -97,6 +97,15 @@
   // `id` à la liste active, PERSISTE, et renvoie la nouvelle liste. Point
   // d'entrée du ⚙ « afficher/masquer » côté page. Part des défauts de
   // l'activité tant que rien n'est persisté (première bascule).
+  // Vrai si l'opérateur a PERSISTÉ un choix on/off pour cette activité (par
+  // opposition au repli sur les défauts). Sert à distinguer « tout masqué
+  // exprès » (montrer le strip ⚙ de réactivation) de « vide par défaut ou par
+  // contexte » (ex. VHF hors concours : rien de dispo -> cacher, pas de strip).
+  function aReglageActivite(activite){
+    const cfg = chargerConfig();
+    return !!(cfg.parActivite && cfg.parActivite[activite]);
+  }
+
   function basculerBandeau(activite, id, defauts){
     const cfg = chargerConfig();
     cfg.parActivite = cfg.parActivite || {};
@@ -158,6 +167,7 @@
     chargerConfig: chargerConfig,
     enregistrerConfig: enregistrerConfig,
     bandeauxActifs: bandeauxActifs,
+    aReglageActivite: aReglageActivite,
     basculerBandeau: basculerBandeau,
     rendreTicker: rendreTicker,
     esc: esc,

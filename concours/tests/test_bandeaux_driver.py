@@ -54,6 +54,9 @@ def test_driver_respecte_pas_de_bande_morte():
     s = _src()
     assert 'wrap.hidden = true' in s          # actif mais pas de contenu -> caché
     assert 'Bandeaux masqu' in s              # tout masqué -> strip de réactivation
+    # le strip n'apparaît que si réglage explicite (persisté) ou panneau ouvert,
+    # pas quand c'est vide par défaut/contexte (ex. VHF hors concours)
+    assert 'aReglageActivite' in s
 
 
 def test_driver_gear_reste_atteignable_en_reglage():

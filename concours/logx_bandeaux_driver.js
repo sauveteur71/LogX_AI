@@ -116,9 +116,17 @@
         try { if(typeof opts.contexte === 'function') extra = opts.contexte() || {}; } catch(e){}
         var reglage = _reglageHtml(dispo, act, defauts);   // chips = bandeaux de l'activité courante
         if(aff.length === 0){
-          // tout masqué par l'opérateur -> strip ⚙ (réactivation), pas de bande morte
-          wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Bandeaux masqués') + '</div>';
-          wrap.hidden = false;
+          // aff vide : strip ⚙ de réactivation SEULEMENT si l'opérateur RÈGLE
+          // (panneau ouvert) ou a EXPLICITEMENT tout masqué (config persistée),
+          // ET qu'il reste des bandeaux à réactiver. Sinon (vide par DÉFAUT ou
+          // par CONTEXTE — ex. VHF hors concours : rien de dispo/actif) -> cacher,
+          // pas de strip « Bandeaux masqués » parasite.
+          if(dispo.length && (reouvrir || LB.aReglageActivite(act))){
+            wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Bandeaux masqués') + '</div>';
+            wrap.hidden = false;
+          } else {
+            wrap.innerHTML = ''; wrap.hidden = true;
+          }
         } else {
           var html = LB.rendreTicker(aff, { activite: act, maintenant: Date.now(), band: extra.band, mode: extra.mode }, donnees);
           if(html){ wrap.innerHTML = reglage + html; wrap.hidden = false; }

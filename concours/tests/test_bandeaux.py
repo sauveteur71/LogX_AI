@@ -210,3 +210,14 @@ def test_basculer_naffecte_pas_les_autres_activites():
     ctx.eval("LogxBandeaux.basculerBandeau('chasse','dxped',{chasse:['dxped']});")
     # 'accueil' n'a jamais été touché -> repli intact sur ses défauts
     assert ctx.eval("LogxBandeaux.bandeauxActifs('accueil',{accueil:['dxped','propag']}).join(',')") == 'dxped,propag'
+
+
+def test_a_reglage_activite_detecte_un_choix_persiste():
+    """aReglageActivite : vrai seulement si l'opérateur a PERSISTÉ un choix pour
+    cette activité (sert à distinguer « tout masqué exprès » de « vide par
+    défaut/contexte » -> ne pas afficher de strip ⚙ parasite)."""
+    ctx = _ctx()
+    assert ctx.eval("LogxBandeaux.aReglageActivite('vuhf')") is False   # rien persisté
+    ctx.eval("LogxBandeaux.basculerBandeau('vuhf','spots',{vuhf:[]});")  # l'opérateur touche vuhf
+    assert ctx.eval("LogxBandeaux.aReglageActivite('vuhf')") is True     # choix persisté
+    assert ctx.eval("LogxBandeaux.aReglageActivite('normal')") is False  # autre activité intacte
