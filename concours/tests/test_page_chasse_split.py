@@ -165,7 +165,7 @@ def test_propagation_garde_ses_propres_panneaux():
 # ── Navigation : la meme barre partout ─────────────────────────────────────
 
 def _nav(src):
-    m = re.search(r'<nav class="app-nav">(.*?)</nav>', src, flags=re.DOTALL)
+    m = re.search(r'<nav class="app-nav"[^>]*>(.*?)</nav>', src, flags=re.DOTALL)
     return m.group(1) if m else None
 
 
