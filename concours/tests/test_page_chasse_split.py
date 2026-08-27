@@ -44,9 +44,13 @@ PAGES_AVEC_NAV = [
 # CONFIG, LOGBOOK, CHASSE, MODE NUMERIQUE, PROPAG, CARTE IA, ZONES TRAVAILLEES
 # (ex-DEPARTEMENTS), PANADAPTER (popout javascript:void(0)), CALENDRIER,
 # WEBSDR, ECOLE CW.
+# Refonte nav approche A (27/08) : le CŒUR (CONFIG·LOGBOOK·CHASSE·PROPAG) reste
+# au 1er niveau ; les 7 autres sont rangés dans le menu « Outils ▾ » (toujours
+# des <a href> DANS le <nav>, donc toujours comptés ici, dans cet ordre). PROPAG
+# a remonté juste après CHASSE (cœur regroupé).
 ORDRE_NAV_ATTENDU = [
     'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
-    'logx_modes_numeriques.html', 'logx_propagation.html', 'logx_carte.html',
+    'logx_propagation.html', 'logx_modes_numeriques.html', 'logx_carte.html',
     'logx_departements.html', 'javascript:void(0)', 'logx_calendrier.html',
     'logx_websdr.html', 'logx_cw.html',
 ]
