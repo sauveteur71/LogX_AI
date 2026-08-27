@@ -274,6 +274,12 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                      'anthropic-version': '2023-06-01'}, method='POST')
         with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
             data = json.loads(resp.read())
+        try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
+            import logx_ai_usage as _usage
+            _u = data.get('usage') or {}
+            _usage.enregistrer('anthropic', ai_model, _u.get('input_tokens'), _u.get('output_tokens'))
+        except Exception:
+            pass
         return ''.join(b.get('text', '') for b in data.get('content', [])
                        if b.get('type') == 'text')
 
@@ -4298,6 +4304,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 a = dict(_act_jobs.get(aid) or {'status': 'unknown'})
             a['id'] = aid
             self._json(a)
+            return
+
+        # Suivi de consommation IA (tokens réels par fournisseur/modèle). FAITS
+        # seulement ; un coût n'apparaît que si l'opérateur a configuré ses
+        # tarifs (config ai_prix_usd_par_mtok) — aucun prix inventé.
+        if path == '/ai/usage':
+            import logx_ai_usage as _usage
+            self._json(_usage.resume((self._cfg_snapshot() or {}).get('ai_prix_usd_par_mtok')))
             return
 
         # État d'une stratégie pile-up FT8 (voir POST /wsjtx/strategy).
