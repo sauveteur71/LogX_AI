@@ -99,13 +99,18 @@
         });
       }
       _fetchSources(aFetch).then(function(donnees){
+        // ADAPTATION bande/mode : la page fournit sa bande/mode COURANTS via une
+        // fonction (valeurs fraîches à chaque rendu). Protégé : une page sans
+        // contexte, ou une globale pas encore prête, ne casse rien.
+        var extra = {};
+        try { if(typeof opts.contexte === 'function') extra = opts.contexte() || {}; } catch(e){}
         var reglage = _reglageHtml(dispo, activite, defauts);   // chips = bandeaux de l'activité courante
         if(aff.length === 0){
           // tout masqué par l'opérateur -> strip ⚙ (réactivation), pas de bande morte
           wrap.innerHTML = reglage + '<div class="rcb-vide">' + LB.esc('Bandeaux masqués') + '</div>';
           wrap.hidden = false;
         } else {
-          var html = LB.rendreTicker(aff, { activite: activite, maintenant: Date.now() }, donnees);
+          var html = LB.rendreTicker(aff, { activite: activite, maintenant: Date.now(), band: extra.band, mode: extra.mode }, donnees);
           if(html){ wrap.innerHTML = reglage + html; wrap.hidden = false; }
           else if(reouvrir){
             // Opérateur EN TRAIN DE RÉGLER (panneau ⚙ ouvert) : garder le ⚙

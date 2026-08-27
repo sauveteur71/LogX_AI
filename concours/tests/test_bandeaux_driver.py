@@ -74,6 +74,15 @@ def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     assert 'aFetch' in s
 
 
+def test_driver_transmet_le_contexte_bande_mode():
+    """Adaptation : le driver appelle opts.contexte() (fonction de la page) et
+    injecte band/mode dans le ctx passé aux bandeaux (protégé par try)."""
+    s = _src()
+    assert 'opts.contexte' in s
+    assert 'band: extra.band' in s and 'mode: extra.mode' in s
+    assert 'try {' in s or 'try{' in s        # appel protégé (globale page pas toujours prête)
+
+
 def test_driver_gear_disclosure_accessible():
     """Motif disclosure du dépôt : aria-expanded + fermeture clic-dehors + Échap
     qui ferme et rend le focus au ⚙."""

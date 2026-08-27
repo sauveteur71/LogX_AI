@@ -175,6 +175,30 @@ def test_propag_aucune_bande_ouverte_pas_de_ligne_morte():
     assert items == []
 
 
+def test_propag_met_en_avant_la_bande_courante():
+    """Adaptation bande (ctx.band) : la bande en cours de saisie passe EN TÊTE
+    et est marquée ; les autres restent normales. Match tolérant '20'/'20m'."""
+    ctx = _ctx()
+    expr = ("window.LogxBandeaux.REGISTRE.propag.construire({band:'20m'},"
+            "{propagation:{etat_bandes:{bandes:%s}}})" % json.dumps([
+                {'band': '40', 'etat': 'ouverte'},
+                {'band': '20', 'etat': 'possible'},
+            ]))
+    items = _j(ctx, expr)
+    assert '20' in items[0]['texte'] and 'ta bande' in items[0]['texte']   # courante en tête + marquée
+    assert 'ta bande' not in items[1]['texte']                             # les autres non marquées
+
+
+def test_propag_sans_bande_courante_inchange():
+    ctx = _ctx()
+    items = _j(ctx, _propag_expr([
+        {'band': '40', 'etat': 'ouverte'}, {'band': '20', 'etat': 'ouverte'},
+    ]))
+    txt = ''.join(i['texte'] for i in items)
+    assert 'ta bande' not in txt        # aucun ctx.band -> pas de marquage
+    assert '40' in items[0]['texte']    # ordre d'origine préservé
+
+
 # ─── Bandeau SPOTS DX (source : /data/spots_ranked) ─────────────────────────
 
 def _spots_expr(spots):

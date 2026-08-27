@@ -97,13 +97,21 @@
     var ouvertes = bandes.filter(function(b){
       return b && (b.etat === 'ouverte' || b.etat === 'possible');
     });
-    return ouvertes.map(function(b){
+    // ADAPTATION BANDE : la bande en cours de saisie (ctx.band) passe EN TÊTE et
+    // est marquée « ta bande ». Match tolérant sur les chiffres ('20'='20m'='20 m').
+    var courante = (ctx && ctx.band != null) ? String(ctx.band).replace(/[^0-9.]/g, '') : '';
+    var items = ouvertes.map(function(b){
+      var est = !!courante && String(b.band).replace(/[^0-9.]/g, '') === courante;
       var pastille = b.etat === 'ouverte' ? '● ' : '◐ ';
       return {
-        texte: pastille + b.band + ' m · ' + b.etat,
+        _c: est,
+        texte: (est ? '▸ ' : '') + pastille + b.band + ' m · ' + b.etat + (est ? ' · ta bande' : ''),
         title: b.raison || ''
       };
     });
+    var tete = [], reste = [];
+    items.forEach(function(it){ (it._c ? tete : reste).push({ texte: it.texte, title: it.title }); });
+    return tete.concat(reste);   // bande courante d'abord, reste dans l'ordre d'origine
   }
 
   // ── Spots DX classés (source : /data/spots_ranked) ─────────────────────────

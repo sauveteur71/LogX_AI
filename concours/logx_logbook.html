@@ -1485,7 +1485,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'], mults: ['spots_ranked'] },
     // spots DISPONIBLE (chip dans le ⚙) mais OFF par défaut : opt-in, car
     // /data/spots_ranked est lourd — fetch-aware, il n'est appelé que si activé.
-    defauts: _defLog
+    defauts: _defLog,
+    // ADAPTATION bande/mode : bande/mode EN COURS de saisie (currentBand/
+    // currentMode de logx_logbook.js). Fonction -> valeurs fraîches à chaque
+    // rendu. typeof : le driver s'appelle avant que logx_logbook.js ne charge,
+    // mais contexte() n'est invoqué qu'au rendu (async), quand elles existent.
+    contexte: function(){
+      return {
+        band: (typeof currentBand !== 'undefined') ? currentBand : '',
+        mode: (typeof currentMode !== 'undefined') ? currentMode : ''
+      };
+    }
   });
 </script>
 

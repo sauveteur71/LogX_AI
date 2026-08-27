@@ -73,3 +73,13 @@ def test_mults_deploye_concours_seulement():
     assert re.search(r"mults:\s*\['spots_ranked'\]", appel)      # fetch-aware
     # ON par défaut seulement si l'activité courante est le concours
     assert re.search(r"_actLog\s*===\s*'concours'.*mults", h, re.S)
+
+
+def test_fournit_la_bande_mode_courante_pour_adaptation():
+    """Adaptation bande/mode : le LOGBOOK passe currentBand/currentMode (via une
+    fonction contexte) pour que PROPAG mette en avant la bande en cours."""
+    h = _lire()
+    m = re.search(r'LogxBandeauxDriver\.brancher\(\{.*?\}\);', h, re.S)
+    appel = m.group(0)
+    assert 'contexte:' in appel and 'function' in appel
+    assert 'currentBand' in appel and 'currentMode' in appel
