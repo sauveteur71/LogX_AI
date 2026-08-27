@@ -85,10 +85,16 @@
       // démarre bascule en 'concours' même en activité VHF, faisant apparaître
       // le bandeau MULTS ; il disparaît quand le concours s'arrête).
       var act = (typeof opts.activite === 'function') ? (opts.activite() || 'defaut') : (opts.activite || 'defaut');
-      // ADAPTATION : ne garder que les bandeaux qui ONT UN SENS pour l'activité
-      // courante (leur `contextes`). Un bandeau hors-contexte ne s'affiche pas
-      // et n'apparaît pas dans le ⚙ (ex. bandeau concours masqué hors concours).
-      var dispo = LB.bandeauxAffichables(ids, act);
+      // Contexte de DISPONIBILITÉ (tags : classe de bande hf/vhf + 'concours'),
+      // DISTINCT de la clé de config `act`. opts.tags peut être une FONCTION
+      // (contexte évolutif : concours qui démarre, changement de bande). Sans
+      // tags -> [act] (rétro-compat : le contexte est l'activité elle-même).
+      var tags = (typeof opts.tags === 'function') ? opts.tags() : opts.tags;
+      if(!tags) tags = [act];
+      // ADAPTATION : ne garder que les bandeaux qui ONT UN SENS pour ce contexte
+      // (leur `contextes`). Un bandeau hors-contexte ne s'affiche pas et n'est
+      // pas proposé dans le ⚙ (ex. propag HF en VHF, MULTS hors concours).
+      var dispo = LB.bandeauxAffichables(ids, tags);
       var actifs = LB.bandeauxActifs(act, defauts);
       var aff = dispo.filter(function(id){ return actifs.indexOf(id) >= 0; });
       // Ne récupère QUE les flux nécessaires aux bandeaux AFFICHÉS : un bandeau

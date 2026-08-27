@@ -76,6 +76,7 @@ function _brancherBandeaux(){
   _bandeauxBranches = true;
   window.LogxBandeauxDriver.brancher({
     wrapId: 'bandeaux', activite: 'accueil',
+    tags: ['hf'],                              // l'accueil met en avant le DX/propag HF
     ids: ['dxped', 'propag'],
     sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
     besoins: { dxped: ['dxpeditions'], propag: ['propagation'] },

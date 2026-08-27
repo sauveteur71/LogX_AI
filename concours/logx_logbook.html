@@ -1470,22 +1470,26 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   // sont propres à l'activité (doctrine « l'axe = l'activité »). Repli 'normal'.
   var _actLog = 'normal';
   try { _actLog = localStorage.getItem('logx_activity') || 'normal'; } catch(e) {}
+  // Activités NON-HF : VHF/UHF, SHF, satellites -> classe 'vhf' (masque les
+  // bandeaux HF : DX≤7j, PROPAG déca). Tout le reste -> 'hf' (F4GLD : « masquer
+  // le HF hors HF »).
+  var _vhfAct = { vuhf: 1, shf: 1, sat: 1 };
   var _defLog = {};
-  _defLog[_actLog] = ['dxped', 'propag'];               // activité de base : dxped+propag
-  _defLog['concours'] = ['dxped', 'propag', 'mults'];   // concours ACTIF -> MULTS ON d'emblée
+  // Défaut ON = dxped+propag+mults ; la DISPONIBILITÉ (tags) filtre : dxped/
+  // propag seulement en HF, mults seulement en concours. Sur VHF hors concours,
+  // rien de tout ça n'est dispo -> barre cachée (pas de HF hors de propos).
+  _defLog[_actLog] = ['dxped', 'propag', 'mults'];
   LogxBandeauxDriver.brancher({
     wrapId: 'bandeaux',
-    // Activité EFFECTIVE, résolue À CHAQUE rendu : un concours ACTIF (VHF, HF,
-    // peu importe l'activité choisie) rend le contexte 'concours' -> le bandeau
-    // MULTS apparaît ; sans concours, l'activité choisie (localStorage). Le vrai
-    // signal est contestActif() (logx_logbook.js), pas le bucket d'activité —
-    // un concours VHF EST un concours. Appelée au rendu (fonction prête alors).
-    activite: function(){
-      try { if(typeof contestActif === 'function' && contestActif()) return 'concours'; } catch(e){}
-      return _actLog;
+    activite: _actLog,                        // clé de config on/off (propre à l'activité)
+    // Contexte de DISPONIBILITÉ, résolu à chaque rendu (deux axes indépendants) :
+    // classe de bande de l'activité + 'concours' si un concours est ACTIF
+    // (contestActif, quelle que soit la bande — un concours VHF EST un concours).
+    tags: function(){
+      var t = [ _vhfAct[_actLog] ? 'vhf' : 'hf' ];
+      try { if(typeof contestActif === 'function' && contestActif()) t.push('concours'); } catch(e){}
+      return t;
     },
-    // 'mults' n'a de sens qu'en concours (contextes:['concours']) : le driver
-    // l'écarte automatiquement hors concours (bandeauxAffichables).
     ids: ['dxped', 'propag', 'spots', 'mults'],
     sources: {
       dxpeditions: '/data/dxpeditions_active',

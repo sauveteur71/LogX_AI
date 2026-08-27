@@ -964,6 +964,7 @@ rcPollOr(loadDxActive, 2 * 60 * 1000);         // DXpeditions : annonces NG3K ca
 // robuste aux re-rendus). Non-intrusif : caché si aucune info live.
 LogxBandeauxDriver.brancher({
   wrapId: 'bandeaux', activite: 'chasse',
+  tags: ['hf'],                              // page de chasse au DX HF
   ids: ['dxped', 'propag'],
   sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
   besoins: { dxped: ['dxpeditions'], propag: ['propagation'] },

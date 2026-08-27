@@ -74,6 +74,16 @@ def test_driver_fetch_aware_ne_charge_que_les_flux_affiches():
     assert 'aFetch' in s
 
 
+def test_driver_disponibilite_par_tags_distincte_de_la_config():
+    """La DISPONIBILITÉ des bandeaux passe par opts.tags (classe de bande +
+    concours), distinct de la clé de config (opts.activite). opts.tags peut être
+    une fonction (contexte évolutif)."""
+    s = _src()
+    assert 'opts.tags' in s
+    assert 'LB.bandeauxAffichables(ids, tags)' in s
+    assert 'LB.bandeauxActifs(act, defauts)' in s     # config par activité, séparée
+
+
 def test_driver_activite_resolue_au_rendu():
     """opts.activite peut être une FONCTION : l'activité effective est résolue à
     CHAQUE rendu (contexte évolutif — un concours qui démarre bascule le

@@ -35,17 +35,20 @@ def test_a_le_conteneur_bandeau():
     assert re.search(r'id="bandeaux"', _lire())
 
 
-def test_brancher_sur_lactivite_effective_resolue_au_rendu():
-    """Adaptation : l'activité EFFECTIVE est une fonction résolue au rendu — un
-    concours ACTIF (contestActif, même en VHF) rend le contexte 'concours',
-    sinon l'activité choisie (localStorage). Pas un bucket figé au chargement."""
+def test_contexte_deux_axes_classe_de_bande_et_concours():
+    """Adaptation : deux axes indépendants. La clé de config est l'activité
+    choisie (_actLog) ; la DISPONIBILITÉ (tags) est résolue au rendu = classe de
+    bande (hf/vhf) + 'concours' si contestActif. Un concours VHF montre MULTS
+    sans montrer le propag HF."""
     h = _lire()
     assert "localStorage.getItem('logx_activity')" in h          # activité choisie
     m = re.search(r'LogxBandeauxDriver\.brancher\(\{.*?\}\);', h, re.S)
     assert m, "appel brancher introuvable"
     appel = m.group(0)
-    assert 'activite: function' in appel                         # résolue au rendu
-    assert 'contestActif' in appel                              # vrai signal concours
+    assert 'activite: _actLog' in appel                          # clé de config = activité
+    assert 'tags: function' in appel                             # disponibilité résolue au rendu
+    assert "'hf'" in appel and "'vhf'" in appel                  # classe de bande
+    assert 'contestActif' in appel                              # axe concours
     assert "'dxped'" in appel and "'propag'" in appel
     assert '/data/dxpeditions_active' in appel
     assert '/data/propagation' in appel
@@ -73,10 +76,12 @@ def test_mults_deploye_concours_seulement():
     appel = m.group(0)
     assert "'mults'" in appel                                    # dans les ids
     assert re.search(r"mults:\s*\['spots_ranked'\]", appel)      # fetch-aware
-    # MULTS ON par défaut dans le contexte 'concours', PAS dans l'activité de base
-    assert re.search(r"_defLog\['concours'\]\s*=\s*\[[^\]]*'mults'", h)
+    # MULTS est ON par défaut (défaut de base), mais sa DISPONIBILITÉ est gated
+    # par contextes:['concours'] -> ne s'affiche que si contestActif ajoute le
+    # tag 'concours' (le driver l'écarte hors concours).
     b = re.search(r"_defLog\[_actLog\]\s*=\s*\[([^\]]*)\]", h)
-    assert b and 'mults' not in b.group(1)
+    assert b and 'mults' in b.group(1)                           # dans le défaut
+    assert 'contestActif' in appel                              # gating concours via les tags
 
 
 def test_fournit_la_bande_mode_courante_pour_adaptation():

@@ -151,7 +151,7 @@
   }
 
   LB.enregistrerBandeau({
-    id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: '*',
+    id: 'dxped', cat: 'DX ≤7J', cls: 'rcb-dx', contextes: ['hf'],
     construire: _dxped
   });
   // ── Multiplicateurs à chercher (CONCOURS uniquement) ───────────────────────
@@ -196,7 +196,7 @@
     construire: _mults
   });
   LB.enregistrerBandeau({
-    id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: '*',
+    id: 'propag', cat: 'PROPAG', cls: 'rcb-propag', contextes: ['hf'],
     construire: _propag
   });
 

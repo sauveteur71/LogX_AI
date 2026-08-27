@@ -37,18 +37,24 @@
     });
   }
 
-  // Filtre une LISTE de bandeaux (ordre préservé) par contexte d'activité :
-  // ne garde que ceux dont `contextes` matche l'activité. Base du driver
-  // « activity-aware » : une page déclare ses bandeaux candidats, seuls ceux
-  // qui ont un sens pour l'activité courante sont retenus (doctrine « l'axe =
-  // l'activité »). Un id absent du registre est écarté.
-  function bandeauxAffichables(ids, activite, registre){
+  // Filtre une LISTE de bandeaux (ordre préservé) par CONTEXTE. Le contexte est
+  // un ou plusieurs TAGS (ex. ['vhf','concours']) : deux axes indépendants, la
+  // classe de bande (hf/vhf) ET l'état concours. Un bandeau est retenu si son
+  // `contextes` vaut '*', OU contient au moins un des tags du contexte. Base du
+  // driver « context-aware » (doctrine « l'axe = l'activité ») : un bandeau
+  // hors-contexte (ex. propag HF en VHF, MULTS hors concours) est écarté. Un
+  // `contexte` string reste accepté (traité comme un tag unique). Id inconnu écarté.
+  function bandeauxAffichables(ids, contexte, registre){
     registre = registre || REGISTRE;
+    const tags = Array.isArray(contexte) ? contexte : [contexte];
     return (ids || []).filter(function(id){
       const def = registre[id];
       if(!def) return false;
       const c = def.contextes;
-      return c === '*' || (Array.isArray(c) && c.indexOf(activite) >= 0);
+      if(c === '*') return true;
+      if(!Array.isArray(c)) return false;
+      for(let i = 0; i < tags.length; i++){ if(c.indexOf(tags[i]) >= 0) return true; }
+      return false;
     });
   }
 

@@ -99,6 +99,27 @@ def test_affichables_filtre_une_liste_par_contexte():
     assert ctx.eval("LogxBandeaux.bandeauxAffichables(['uni','xxx'],'normal').join(',')") == 'uni'
 
 
+def test_affichables_accepte_plusieurs_tags():
+    """Le contexte peut être un TABLEAU de tags (deux axes : classe de bande +
+    concours). Un bandeau passe si '*' OU si son contexte croise un des tags."""
+    ctx = _ctx()
+    ctx.eval("""
+      LogxBandeaux.enregistrerBandeau({id:'hf', cat:'HF', contextes:['hf'],
+        construire:function(){ return []; }});
+      LogxBandeaux.enregistrerBandeau({id:'cc', cat:'C', contextes:['concours'],
+        construire:function(){ return []; }});
+      LogxBandeaux.enregistrerBandeau({id:'uni', cat:'U', contextes:'*',
+        construire:function(){ return []; }});
+    """)
+    ids = "['hf','cc','uni']"
+    # VHF + concours : cc (concours) et uni ('*') ; le bandeau HF est écarté
+    assert ctx.eval(
+        "LogxBandeaux.bandeauxAffichables(%s,['vhf','concours']).sort().join(',')" % ids) == 'cc,uni'
+    # HF sans concours : hf et uni ; cc (concours) écarté
+    assert ctx.eval(
+        "LogxBandeaux.bandeauxAffichables(%s,['hf']).sort().join(',')" % ids) == 'hf,uni'
+
+
 # ─── Rendu HTML ─────────────────────────────────────────────────────────────
 
 def test_rendu_produit_les_lignes_et_double_le_bloc():
