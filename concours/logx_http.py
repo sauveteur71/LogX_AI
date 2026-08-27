@@ -4742,6 +4742,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_alerts as alerts
             import logx_awards as awards
             cfg_snap = self._cfg_snapshot()
+            # Réchauffe le cache de spots HF (fetch de fond, throttlé) AVANT de
+            # le lire. Défaut F4GLD (27/08/2026) : la need list CHASSE lisait
+            # _spots_from_caches() sans jamais le remplir -> « 0 spots » hors
+            # concours et sans détour par CARTE IA/PROPAG (les panneaux POTA/
+            # SOTA/WWFF, eux, tapent leurs propres API et s'affichaient). Même
+            # correctif que /data/focus (voir _warm_band_spots ligne ~1402) :
+            # le 1er appel sert le cache courant, la page se rafraîchit ~1-2 s
+            # après avec les spots. '14' -> clé 'HF' (fetch de TOUTES les bandes
+            # déca en un appel). Non bloquant.
+            _warm_band_spots('14', cfg_snap)
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
             # Toutes les correspondances (pas seulement les 40 affichées) : une
