@@ -91,6 +91,42 @@ personnes. État « calme » discret ; état « alerte » impossible à manquer.
 - **Composant partagé** : toute règle de couleur `background:var(--accent2?)`
   + `color:#hex` sombre sans override jour = piège connu à éviter.
 
+## 5bis. Accessibilité (règles mgifford/aria-live-regions + keyboard)
+
+Sources : skills `aria-live-regions` et `keyboard` (WCAG 2.2 AA) dans
+`.claude/skills/`. **Contrainte de conception du Lot 4 (alerte pylône) surtout.**
+
+- **Alerte pylône = `role="alert"`** (assertive, condition importante et
+  temporelle) — mais sur un **nœud STABLE exposé AVANT la mise à jour** :
+  ```html
+  <span id="rcsbStormAlert" role="alert"></span>   <!-- présent en permanence, vide au calme -->
+  ```
+  On **remplit** son texte quand les rafales dépassent le seuil, on le **vide**
+  au calme. **INTERDIT** : créer le nœud + le message dans la même opération, ou
+  vider/réinsérer après un délai fixe (50/100 ms) — patterns non fiables (skill).
+- **`role="alert"` réservé à l'alerte**, PAS à la télémétrie routinière : SFI/K,
+  vent, disque restent **visibles non annoncés** (les annoncer en assertif à
+  chaque tick = « Serious »). Ne pas annoncer les ticks d'horloge/polling.
+- **Pas d'`alertdialog`** : l'alerte pylône est informationnelle (« surveille le
+  pylône »), elle ne requiert pas de réponse modale — un `role="alert"` visible
+  suffit ; un alertdialog volerait le focus à tort.
+- **Visible d'abord** (l'alerte l'est déjà) ; **ne pas dupliquer** un message
+  visible ET une région cachée (double annonce).
+- **Clignotement** : respecter **`prefers-reduced-motion`** — repli sur une
+  bordure/couleur statique forte (pas de clignotement) quand l'utilisateur l'a
+  demandé.
+- **Contraste** : la couleur d'alerte (`--red`/`--yellow` sémantiques) doit
+  tenir **≥ 3:1** (Non-text Contrast, 1.4.11) sur les 2 thèmes.
+- **Menus « ⚙ Vue »** (lot 2) : mêmes règles disclosure que la nav — bouton
+  natif + `aria-expanded`, `Échap` ferme + focus rendu, `hidden` (pas
+  `aria-hidden`), focus visible sur les 2 thèmes.
+- **WCAG** visés : 4.1.3 (status messages — Critique si l'alerte n'est pas
+  annoncée), 4.1.2 (name/role/value), 2.3.3 (motion, AAA — via reduced-motion),
+  1.4.11 (non-text contrast).
+- **Tests V8 (Lot 4)** : nœud `role="alert"` présent dès le boot (stable) ;
+  se remplit quand `storm/rafales` actif, se vide au calme ; la télémétrie
+  routinière n'a PAS de `role="alert"`.
+
 ## 6. Découpage pressenti en lots (pour le futur plan TDD)
 
 1. **Dédup version + item version discret** (petit, isolé, faible risque).
