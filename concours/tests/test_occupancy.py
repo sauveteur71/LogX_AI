@@ -113,3 +113,99 @@ def test_registre_pair_plus_frais_ecrase_lancien():
     occ.enregistrer_pair({'station': 'B', 'call': 'Y', 'band': '40', 'mode': 'CW', 'ts': 200})  # plus frais
     v = occ.vue(maintenant=200)
     assert len(v['stations']) == 1 and v['stations'][0]['band'] == '40'
+
+
+# ─── Canal LAN (priorité locale, instantané) ─────────────────────────────────
+
+def test_lan_note_beacon_alimente_occupation():
+    """Un beacon LAN reçu avec band/mode alimente l'occupation
+    (enregistrer_pair) — la carte multi-postes en temps réel local."""
+    import time as _t
+    import logx_lan_sync as lan
+    occ._reset_pour_test()
+    raw = ('{"logx":1,"iid":"PEER1","http_port":8080,"call":"TM6KJS",'
+           '"band":"20","mode":"SSB"}').encode('utf-8')
+    lan.note_beacon('192.168.1.50', raw, '')          # jeton ouvert (LAN de confiance)
+    v = occ.vue(_t.time())
+    assert any(s['station'] == 'PEER1' and s['band'] == '20' and s['mode'] == 'SSB'
+               for s in v['stations'])
+
+
+def test_lan_beacon_porte_ma_bande_mode():
+    """Le beacon émis inclut la bande/mode de CE poste (depuis mon_statut), pour
+    que les pairs voient mon occupation."""
+    import json as _j
+    import logx_lan_sync as lan
+    occ._reset_pour_test()
+    occ.poser_mon_statut('MOI', 'TM6KJS', '40', 'CW', maintenant=1000)
+    d = _j.loads(lan._my_beacon({'callsign': 'TM6KJS'}).decode('utf-8'))
+    assert d['band'] == '40' and d['mode'] == 'CW'
+
+
+# ─── Canal Cloud (distant, dossier partagé) ──────────────────────────────────
+
+def test_cloud_publie_mon_statut_dans_un_fichier(tmp_path):
+    """Publier écrit MON statut dans un fichier occupancy DÉDIÉ (séparé des
+    fichiers de log) du dossier partagé."""
+    import glob
+    import os
+    import time as _t
+    import logx_cloudsync as cs
+    occ._reset_pour_test()
+    folder = str(tmp_path)
+    occ.poser_mon_statut('MOI', 'TM6KJS', '20', 'SSB', _t.time())
+    cs._publier_occupation(folder, {'callsign': 'TM6KJS'})
+    fichiers = glob.glob(os.path.join(folder, 'logx_occupancy_*.json'))
+    assert len(fichiers) == 1
+
+
+def test_cloud_lit_les_pairs_et_alimente_loccupation(tmp_path):
+    """Lire ramène les fichiers occupancy des AUTRES postes -> enregistrer_pair."""
+    import json
+    import os
+    import time as _t
+    import logx_cloudsync as cs
+    occ._reset_pour_test()
+    folder = str(tmp_path)
+    # un pair dépose son fichier dans le dossier partagé
+    with open(os.path.join(folder, 'logx_occupancy_TM6KJS_PEER.json'), 'w', encoding='utf-8') as f:
+        json.dump({'station': 'PEER', 'call': 'TM6KJS', 'band': '40', 'mode': 'CW', 'ts': _t.time()}, f)
+    cs._lire_occupation(folder, {'callsign': 'TM6KJS'})
+    v = occ.vue(_t.time())
+    assert any(s['station'] == 'PEER' and s['band'] == '40' for s in v['stations'])
+
+
+# ─── Canal MySQL (distant temps réel, radioclub) ─────────────────────────────
+
+class _FakeCur:
+    def __init__(self, conn): self.conn = conn; self._res = []
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def execute(self, sql, params=None):
+        self.conn.calls.append((sql, params))
+        self._res = self.conn.rows if sql.strip().upper().startswith('SELECT STATION') else []
+    def fetchall(self): return self._res
+
+
+class _FakeConn:
+    def __init__(self, rows=None): self.calls = []; self.rows = rows or []
+    def cursor(self): return _FakeCur(self)
+
+
+def test_mysql_ensure_occ_schema_cree_la_table():
+    import logx_mysql_sync as mysql
+    conn = _FakeConn()
+    mysql._ensure_occ_schema(conn)
+    assert any('create table' in s.lower() and 'occupancy' in s.lower() for s, _ in conn.calls)
+
+
+def test_mysql_publie_upsert_et_lit_les_pairs():
+    import logx_mysql_sync as mysql
+    occ._reset_pour_test()
+    conn = _FakeConn(rows=[('PEER', 'TM6KJS', '40', 'CW', 1000.0)])
+    occ.poser_mon_statut('MOI', 'TM6KJS', '20', 'SSB', 1000.0)
+    mysql._publier_occupation_mysql(conn, 'MOI', occ._mon_statut[0])
+    assert any('insert' in s.lower() and 'occupancy' in s.lower() for s, _ in conn.calls)
+    mysql._lire_occupation_mysql(conn, 'MOI')
+    v = occ.vue(1000.0)
+    assert any(x['station'] == 'PEER' and x['band'] == '40' for x in v['stations'])

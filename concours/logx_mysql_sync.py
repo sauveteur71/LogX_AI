@@ -156,6 +156,51 @@ def _ensure_schema(conn):
         """)
 
 
+# ─── OCCUPATION DES BANDES (canal MySQL, distant temps réel) ─────────────────
+# Table SÉPARÉE du log (une ligne par poste, clé = station/iid) — le sync du
+# carnet n'est jamais touché. Upsert de son propre statut, lecture des autres.
+OCC_TABLE = 'occupancy'
+
+
+def _ensure_occ_schema(conn):
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {OCC_TABLE} (
+                station VARCHAR(64) PRIMARY KEY,
+                call VARCHAR(32),
+                band VARCHAR(16),
+                mode VARCHAR(16),
+                ts DOUBLE NOT NULL,
+                INDEX idx_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+
+def _publier_occupation_mysql(conn, iid, statut):
+    """Upsert du statut de CE poste (band/mode) — une ligne par station."""
+    if not statut:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            f"INSERT INTO {OCC_TABLE} (station, call, band, mode, ts) "
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE call=VALUES(call), band=VALUES(band), "
+            "mode=VALUES(mode), ts=VALUES(ts)",
+            (iid, statut.get('call', ''), statut.get('band', ''),
+             statut.get('mode', ''), statut.get('ts', 0) or 0))
+
+
+def _lire_occupation_mysql(conn, my_iid):
+    """Lit les statuts des AUTRES postes -> enregistrer_pair (occupation fusionnée)."""
+    import logx_occupancy as occ
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT station, call, band, mode, ts FROM {OCC_TABLE} "
+                    "WHERE station <> %s", (my_iid,))
+        for row in cur.fetchall():
+            occ.enregistrer_pair({'station': row[0], 'call': row[1], 'band': row[2],
+                                  'mode': row[3], 'ts': row[4]})
+
+
 def test_connection(host, port, user, password, database):
     """Test ÉPHÉMÈRE (bouton CONFIG) : connecte, crée le schéma si absent,
     ferme — ne touche jamais à la synchronisation périodique."""
@@ -380,6 +425,21 @@ def _sync_now_locked(cfg, shared_log):
 
             stamp[key] = max_ts
             _save_stamp(stamp)
+
+        # Occupation des bandes (canal MySQL, temps réel) : APRÈS le sync du log
+        # (uniquement s'il a réussi), table SÉPARÉE, best-effort et ISOLÉE (jamais
+        # d'exception vers le carnet). Même iid que les autres canaux
+        # (cloudsync._instance_id) pour que LAN/Cloud/MySQL dédupliquent le poste.
+        try:
+            import logx_cloudsync as _cs
+            import logx_occupancy as _occ
+            _iid = _cs._instance_id()
+            _ensure_occ_schema(conn)
+            _publier_occupation_mysql(conn, _iid, _occ._mon_statut[0])
+            if s['mode'] == 'full':
+                _lire_occupation_mysql(conn, _iid)
+        except Exception:
+            pass
 
         _stamp_status(s['host'], s['database'], pushed, pulled)
         return {'ok': True, 'mode': s['mode'], 'pushed': pushed, 'pulled': pulled,

@@ -1336,6 +1336,14 @@ Le WiFi partagé couvre un même lieu ; pour combiner les QSO avec un **autre** 
 
 Réglages : **MODE** (« Désactivé », « Synchronisation complète (lit + écrit) », ou « Envoi seul (écrit, ne récupère rien) » pour un poste isolé qui alimente sans rien récupérer), **DOSSIER PARTAGÉ** (vide = même dossier que la sauvegarde ; il doit être identique sur tous les postes ; conseil de l'interface : réglez ce dossier en « toujours conserver sur cet appareil » dans votre outil de synchronisation, pour éviter les fichiers-placeholder téléchargés à la demande), **INTERVALLE (min)** (1 à 60, 3 par défaut), et un bouton **☁️ SYNCHRONISER MAINTENANT** pour forcer un passage.
 
+### La carte d'occupation des bandes — qui est sur quoi
+
+Quand plusieurs postes partagent le même log — radioclub, expédition, ou un **indicatif spécial** (ex. TM6KJS) opéré depuis plusieurs stations —, une règle d'or : ne jamais émettre à deux sur la **même bande ET le même mode**. La **carte d'occupation** la rend visible.
+
+Sur le LOGBOOK, le bouton **📻 Occupation** (en bas à gauche) ouvre un assistant **« Activer un log partagé »** : choisissez le type d'opération (**🏛 radioclub**, **🏝 expédition**, **📻 indicatif spécial**) et il vous indique le sync conseillé, puis affiche la carte. Celle-ci liste **qui est sur quelle bande/mode**, en direct, et **surligne en rouge** tout recouvrement (deux postes sur le même couple bande + mode — même bande mais mode différent reste permis).
+
+La carte s'adapte au canal de synchronisation actif, avec **priorité au local** : entre postes du même réseau, l'échange est **instantané** (par le WiFi partagé) ; dès qu'un poste est distant sur un autre réseau internet, l'information passe automatiquement par le **dossier partagé** (Cloud Sync) ou la **base MySQL** (radioclub temps réel) — sans réglage supplémentaire. Chaque poste utilise simplement le même indicatif et le même sync ; la carte fait le reste. Rien de tout cela ne touche votre carnet : c'est un canal séparé, réservé à l'occupation.
+
 ### Cohabiter avec N1MM ou DXLog
 
 Si une partie de l'équipe logge sous N1MM+ ou DXLog, la section **🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)** (même carte 8) fait dialoguer les deux mondes en temps réel via le format de diffusion réseau de N1MM (UDP, port 12060 par défaut). Quatre modes : « Désactivé », « Réception seule (importer leurs QSO) », « Émission seule (leur envoyer nos QSO) », « Réception + émission » ; le champ **IP CIBLE (émission)** vise par défaut tout le réseau local, ou une IP précise.

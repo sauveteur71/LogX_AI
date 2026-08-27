@@ -107,12 +107,26 @@ def _proofs_acceptables(cfg, maintenant=None):
 
 
 def _my_beacon(cfg):
+    # OCCUPATION DES BANDES : le beacon porte aussi ma bande/mode courants (posés
+    # par le heartbeat du client via logx_occupancy) pour que les pairs du LAN
+    # voient mon occupation INSTANTANÉMENT (priorité locale). Best-effort : sans
+    # heartbeat, band/mode vides — le beacon reste valide.
+    band = mode = ''
+    try:
+        import logx_occupancy as _occ
+        st = _occ._mon_statut[0]
+        if st:
+            band, mode = str(st.get('band', '')), str(st.get('mode', ''))
+    except Exception:
+        pass
     return json.dumps({
         'logx': 1,
         'iid': _my_iid(),
         'http_port': _HTTP_PORT,
         'call': (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or '',
         'token': _discovery_proof(cfg),
+        'band': band,
+        'mode': mode,
     }).encode('utf-8')
 
 
@@ -150,6 +164,16 @@ def note_beacon(ip, raw, expected_token=''):
     with _peers_lock:
         _peers[ip] = {'http_port': port, 'callsign': str(d.get('call') or ''),
                       'iid': iid, 'last_seen': time.time()}
+    # OCCUPATION DES BANDES (canal LAN, instantané) : alimente la carte « qui est
+    # sur quelle bande/mode ». Transport SÉPARÉ du log — best-effort, jamais
+    # d'exception vers la boucle réseau.
+    try:
+        import logx_occupancy as _occ
+        _occ.enregistrer_pair({'station': iid, 'call': str(d.get('call') or ''),
+                               'band': str(d.get('band') or ''),
+                               'mode': str(d.get('mode') or ''), 'ts': time.time()})
+    except Exception:
+        pass
 
 
 def peers():

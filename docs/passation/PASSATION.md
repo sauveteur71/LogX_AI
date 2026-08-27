@@ -948,7 +948,9 @@ pousser le tag, comme l'exige la consigne ci-dessous.
    Reste : **validation navigateur (2 thèmes) par F4GLD, puis merge.**
    Documenté : GUIDE_UTILISATEUR §6.9 + CHANGELOG [Non publié].
 
-8. 🚧 **DÉMARRÉ — occupation des bandes multi-postes** (log partagé à distance :
+8. ✅ **FAIT — occupation des bandes multi-postes** (branche `feat/occupation`,
+   NON mergée — attend la validation navigateur de F4GLD puis le merge). Log
+   partagé à distance :
    activation spéciale type TM6KJS / radioclub / expédition). Question F4GLD
    « partage à distance sur des réseaux internet DIFFÉRENTS » : **OUI, déjà
    possible** via Cloud Sync (dossier partagé) ou MySQL Sync (quasi temps réel,
@@ -961,11 +963,17 @@ pousser le tag, comme l'exige la consigne ci-dessous.
    permis) + registre serveur thread-safe (mon statut via heartbeat + pairs des
    canaux ; **priorité locale = latest-ts-wins** ; purge TTL). 10 tests, ruff OK.
 
-   **RESTE (à faire AVEC F4GLD — touche l'infra sync + l'UI) :** endpoints HTTP
-   (`POST /occupancy/heartbeat`, `GET /data/occupancy`) ; canaux (band/mode dans
-   le beacon LAN, fichier occupancy cloud, table MySQL — **transport SÉPARÉ du
-   log** pour ne rien casser) ; UI panneau + assistant de session (radioclub /
-   expé / activation). Plan complet : `docs/idees/2026-08-27-tm6kjs-multi-postes.md`.
+   **CONSTRUIT (tout testé) :** endpoints HTTP (`POST /occupancy/heartbeat`,
+   `GET /data/occupancy`) ; les **3 canaux** (band/mode dans le beacon LAN ;
+   fichier occupancy cloud ; table MySQL dédiée) — **transport SÉPARÉ du log**
+   partout, best-effort, 0 régression sur lan/cloud/mysql ; UI (heartbeat + carte
+   + recouvrement rouge) + assistant de session (radioclub / expé / indicatif
+   spécial). Fusion multi-canaux à **priorité locale** (même iid entre canaux).
+   ~60 tests. **Vocabulaire** : « activation » banni de l'UI (langage cibiste)
+   -> « indicatif spécial ». Plan : `docs/idees/2026-08-27-tm6kjs-multi-postes.md`.
+
+   **RESTE :** validation navigateur (F4GLD, avec 2 instances + LAN, puis un
+   canal distant) -> PR + merge. Ajustements design panneau/assistant avec lui.
 
 ---
 

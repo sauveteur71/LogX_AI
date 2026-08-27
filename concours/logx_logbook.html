@@ -2572,6 +2572,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      logx_configuration.js, voir logx_contest_rules.js pour le détail. -->
 <script src="logx_contest_rules.js"></script>
 <script src="logx_logbook.js"></script>
+<script src="logx_occupation.js"></script>
 <!-- Coquille d'onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) --
      module dédié pour ne pas grossir logx_logbook.js (déjà ~4100 lignes).
      APRÈS logx_logbook.js : ne dépend d'aucune fonction qu'il définit, mais
@@ -2670,6 +2671,31 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="chat-input-row">
     <input type="text" id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()">
     <button onclick="sendChat()" style="background:#C9822E;border:none;border-radius:4px;color:#001018;padding:5px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px">▶</button>
+  </div>
+</div>
+
+<!-- Carte d'occupation des bandes multi-postes (log partagé : radioclub / expé /
+     indicatif spécial). Opt-in : le bouton démarre le heartbeat + l'affichage.
+     hidden au repos ; rien ne tourne pour un opérateur solo tant qu'on n'ouvre pas. -->
+<button type="button" id="occupationToggle" onclick="if(window.LogxOccupation)LogxOccupation.basculer()" title="Qui est sur quelle bande / mode (log partagé multi-postes)">📻 Occupation</button>
+<div id="occupationPanel" hidden>
+  <div class="occ-head"><span>📻 OCCUPATION DES BANDES</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.arreter()" aria-label="Fermer">✕</button></div>
+  <div id="occupationCorps"></div>
+</div>
+
+<!-- Assistant « Activer un log partagé » (radioclub / expé / indicatif spécial).
+     Porte d'entrée : choisir le type préconfigure le sync conseillé + ouvre la
+     carte. Ouvert par le bouton Occupation à la 1re utilisation. -->
+<div id="logPartageOverlay" hidden>
+  <div class="lp-box">
+    <div class="lp-head"><span>📻 ACTIVER UN LOG PARTAGÉ</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.fermerAssistant()" aria-label="Fermer">✕</button></div>
+    <div id="lpChoix">
+      <p class="lp-intro">Plusieurs postes, un seul log. Quel type d'opération ?</p>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('radioclub')"><b>🏛 Radioclub</b><span>Plusieurs opérateurs, souvent en temps réel</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('expedition')"><b>🏝 Expédition</b><span>Équipe répartie à distance ou sur site</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('special')"><b>📻 Indicatif spécial</b><span>Un indicatif spécial depuis plusieurs stations</span></button>
+    </div>
+    <div id="lpDetail" hidden></div>
   </div>
 </div>
 
