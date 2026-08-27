@@ -1,9 +1,9 @@
 # Refonte de la hiérarchie de la barre de navigation — spec de conception
 
 **Date** : 2026-08-27
-**Statut** : EXPLORATION — décisions en attente de F4GLD (la nav est chemin
-critique : approches proposées, rien tranché unilatéralement). Aucun code avant
-choix d'approche + feu vert.
+**Statut** : APPROCHE **A** ACTÉE (F4GLD, 27/08/2026). Voir §8 pour la décision
+et le plan d'exécution. La nav est chemin critique — CONFIG↔LOGBOOK jamais
+cachables, intangible.
 **Spec sœur** : `2026-08-27-refonte-barre-statut-cockpit-design.md` (barre de
 statut). Celle-ci ne traite QUE la barre de navigation principale (`.app-nav`).
 
@@ -106,3 +106,36 @@ Spec détaillée de l'approche retenue → plan TDD en lots (structure nav testa
 en V8 : cœur présent, items rangés accessibles, chemin critique jamais masqué),
 chaque lot vérifié navigateur 2 thèmes avec toi. Le mécanisme `expert-only`
 existant (masquage CSS `!important`) et les icônes SVG mutualisées sont réutilisés.
+
+## 8. DÉCISION ACTÉE (F4GLD, 27/08/2026) + plan
+
+**Approche A** — cœur + « Outils ▾ ».
+- **Cœur (toujours visible, 1er niveau)** : CONFIG · LOGBOOK · CHASSE · PROPAG.
+- **Menu « Outils ▾ »** : MODE NUMÉRIQUE · CARTE IA · ZONES TRAVAILLÉES ·
+  PANADAPTER · CALENDRIER · WEBSDR · ÉCOLE CW.
+- **Indépendant** du chantier « accueil par activité » (on n'attend pas C).
+- Rappel intangible : CONFIG et LOGBOOK ne sont JAMAIS dans un menu (chemin
+  critique) — ils restent au 1er niveau quoi qu'il arrive.
+
+### Contrainte de mise en œuvre — la nav est DUPLIQUÉE
+La `.app-nav` est recopiée à l'identique dans ~10 pages HTML (pas de composant
+partagé ; historiquement éditée par script Python — CLAUDE.md, chantier icônes).
+Le dropdown « Outils ▾ » a besoin de HTML + CSS + JS (toggle, clic-extérieur,
+clavier). Donc : composant JS/CSS mutualisé + une passe scriptée sur les pages.
+
+### Plan d'exécution en lots (TDD ; chaque lot vérif navigateur 2 thèmes)
+1. **Composant « Outils ▾ »** (CSS + JS mutualisés) : dropdown accessible
+   (clic + clavier + clic-extérieur + `expert-only` respecté), rendu XSS-safe,
+   tokens `logx_theme.css`. Testable en V8 (ouverture/fermeture, focus).
+2. **Pilote sur UNE page** (LOGBOOK) : cœur = 4 liens directs + « Outils ▾ »
+   contenant les 7 autres. Valider le modèle end-to-end (doctrine : piloter
+   avant de dérouler) — test de structure (cœur présent, 7 items joignables,
+   CONFIG/LOGBOOK hors menu).
+3. **Déroulé scripté sur les ~9 autres pages** (substitution exacte du bloc nav,
+   comme la passe icônes) — un test vérifie que TOUTES les pages ont la même
+   nav (cœur + Outils) et qu'aucune n'a perdu une destination.
+4. **Responsive / débordement** : la nav + menu restent lisibles en largeur
+   réduite, aucun débordement horizontal de page (`overflow` maîtrisé).
+
+Convergence future vers **C** (nav pilotée par activité) quand le chantier
+« accueil par activité » mûrit — A est la marche, pas l'arrivée.
