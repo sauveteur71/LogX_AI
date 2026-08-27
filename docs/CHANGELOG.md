@@ -13,6 +13,18 @@ poussé.
 
 ## [Non publié]
 
+### Sécurité
+
+- **Durcissement du consentement d'émission (additif, rétro-compatible).** Le
+  journal d'audit d'émission grave désormais l'**empreinte SHA-256 du message**
+  (autorisation ET copilote FT8) : la trace prouve exactement ce qui a été
+  autorisé et émis, un caractère changé donnant une empreinte différente.
+  L'autorisation accepte en plus un **plafond de puissance** optionnel
+  (`tx_max_power_w` en configuration) : au-delà, l'émission est refusée et le
+  jeton n'est pas consommé — garde-fou anti-sur-puissance accidentelle. Sans
+  configuration, le comportement est **inchangé**. Rien de tout cela ne modifie
+  l'émission elle-même (la validation on-air reste le geste de l'opérateur).
+
 ### Ajouté
 
 - **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le

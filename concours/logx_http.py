@@ -6714,7 +6714,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             #    jeton (freq/mode/CAT/verrou), et CONSOMME le jeton (usage unique).
             rs = txc.radio_state_from_cat(cat_state, c, locked=txc.is_tx_locked())
             try:
-                entry = txc.authorize_transmission(c, rs)
+                # Plafond de puissance optionnel (config tx_max_power_w) : au-delà,
+                # l'autorisation est refusée. Absent -> aucun plafond (inchangé).
+                entry = txc.authorize_transmission(
+                    c, rs, max_power_w=(cfg_snap or {}).get('tx_max_power_w'))
             except (PermissionError, ConnectionError) as e:
                 self._json({'ok': False, 'error': str(e), 'blocked': True}, 403)
                 return
