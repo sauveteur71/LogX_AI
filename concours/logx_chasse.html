@@ -978,6 +978,13 @@ LogxBandeauxDriver.brancher({
 // dans data-*), le nom (/calldb/lookup) et un lien direct QRZ.com — plus QSY si
 // le pilotage CAT est activé. Lecture seule : QSY = réglage VFO, jamais d'émission.
 var _ficheCall = null;   // garde anti-course : ignore un lookup revenu APRÈS ouverture d'une autre fiche
+// « home call » d'un indicatif portable : le plus long segment séparé par '/'
+// (gère les deux sens : DL1ABC/P -> DL1ABC ET VP8/DL1ABC -> DL1ABC), pour le
+// lookup nom et le lien QRZ. Un simple split('/')[0] renverrait le préfixe.
+function _homeCall(call){
+  var parts = String(call || '').split('/');
+  return parts.sort(function(a, b){ return b.length - a.length; })[0] || call;
+}
 function closeFiche(){ var ov = document.getElementById('ficheOverlay'); if(ov) ov.style.display = 'none'; }
 function openFicheModal(d){
   var call = d.call || '?';
@@ -1009,7 +1016,7 @@ function openFicheModal(d){
   var actions = [];
   if(typeof rigEnabled !== 'undefined' && rigEnabled && d.freq)
     actions.push('<button class="qsy-btn" onclick="qsyTo(' + (Number(d.freq) || 0) + ',\'' + jsCall(call) + '\')" title="' + rcT('Régler la radio sur') + ' ' + esc(d.freq) + ' kHz">▶ QSY ' + esc(d.freq) + ' kHz</button>');
-  actions.push('<a class="qsy-btn" style="text-decoration:none" href="https://www.qrz.com/db/' + encodeURIComponent(call.split('/')[0]) + '" target="_blank" rel="noopener">' + rcT('Ouvrir sur QRZ.com') + ' ↗</a>');
+  actions.push('<a class="qsy-btn" style="text-decoration:none" href="https://www.qrz.com/db/' + encodeURIComponent(_homeCall(call)) + '" target="_blank" rel="noopener">' + rcT('Ouvrir sur QRZ.com') + ' ↗</a>');
   lignes.push('<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' + actions.join('') + '</div>');
 
   document.getElementById('ficheBody').innerHTML = lignes.join('');
@@ -1017,7 +1024,7 @@ function openFicheModal(d){
 
   // Nom de l'opérateur : lookup best-effort (HamQTH + base interne). L'échec
   // n'empêche rien — la fréquence live et le lien QRZ sont déjà là.
-  fetch('/calldb/lookup/' + encodeURIComponent(call.split('/')[0])).then(function(r){ return r.json(); }).then(function(j){
+  fetch('/calldb/lookup/' + encodeURIComponent(_homeCall(call))).then(function(r){ return r.json(); }).then(function(j){
     if(_ficheCall !== call) return;   // une autre fiche a été ouverte entre-temps -> résultat obsolète ignoré
     var el = document.getElementById('ficheNom'); if(!el) return;
     if(j && j.name){
