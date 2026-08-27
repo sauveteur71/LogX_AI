@@ -106,6 +106,13 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 #occupationToggle{position:fixed;left:14px;bottom:14px;z-index:1400;display:flex;align-items:center;gap:6px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent2);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.35)}
 #occupationToggle:hover{background:var(--bg3)}
 #occupationToggle.occ-toggle-conflit{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.12)}
+
+/* Badge de validation LIVE (copilote) : discret, dans l'en-tête, caché si log
+   propre. Jaune = attentions, rouge = au moins une erreur. */
+.vl-badge{margin-left:10px;padding:3px 10px;border-radius:12px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;border:1px solid var(--yellow);color:var(--yellow);background:rgba(255,214,10,.12)}
+.vl-badge[hidden]{display:none}
+.vl-badge:hover{background:rgba(255,214,10,.22)}
+.vl-badge.vl-erreur{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.14)}
 #occupationPanel{position:fixed;left:14px;bottom:56px;z-index:1400;width:340px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
 #occupationPanel[hidden]{display:none}
 .occ-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}

@@ -3018,6 +3018,9 @@ async function submitQSO(){
       document.getElementById('inputCall').focus();
       try{ renderLog(); }catch(e){ console.warn('renderLog',e); }
       try{ updateStats(); }catch(e){ console.warn('updateStats',e); }
+      // Copilote : re-valider le log en tâche de fond (badge discret). Jamais
+      // de correction auto — juste signaler. Debounce côté module.
+      try{ if(window.LogxValidationLive) LogxValidationLive.rafraichir(); }catch(e){}
       try{ updateLastQso(qso); }catch(e){}
       if(activationProgram) refreshActivation();   // MAJ immédiate du compteur d'activation
       playBeep(880, 80);
