@@ -140,3 +140,36 @@ def test_lan_beacon_porte_ma_bande_mode():
     occ.poser_mon_statut('MOI', 'TM6KJS', '40', 'CW', maintenant=1000)
     d = _j.loads(lan._my_beacon({'callsign': 'TM6KJS'}).decode('utf-8'))
     assert d['band'] == '40' and d['mode'] == 'CW'
+
+
+# ─── Canal Cloud (distant, dossier partagé) ──────────────────────────────────
+
+def test_cloud_publie_mon_statut_dans_un_fichier(tmp_path):
+    """Publier écrit MON statut dans un fichier occupancy DÉDIÉ (séparé des
+    fichiers de log) du dossier partagé."""
+    import glob
+    import os
+    import time as _t
+    import logx_cloudsync as cs
+    occ._reset_pour_test()
+    folder = str(tmp_path)
+    occ.poser_mon_statut('MOI', 'TM6KJS', '20', 'SSB', _t.time())
+    cs._publier_occupation(folder, {'callsign': 'TM6KJS'})
+    fichiers = glob.glob(os.path.join(folder, 'logx_occupancy_*.json'))
+    assert len(fichiers) == 1
+
+
+def test_cloud_lit_les_pairs_et_alimente_loccupation(tmp_path):
+    """Lire ramène les fichiers occupancy des AUTRES postes -> enregistrer_pair."""
+    import json
+    import os
+    import time as _t
+    import logx_cloudsync as cs
+    occ._reset_pour_test()
+    folder = str(tmp_path)
+    # un pair dépose son fichier dans le dossier partagé
+    with open(os.path.join(folder, 'logx_occupancy_TM6KJS_PEER.json'), 'w', encoding='utf-8') as f:
+        json.dump({'station': 'PEER', 'call': 'TM6KJS', 'band': '40', 'mode': 'CW', 'ts': _t.time()}, f)
+    cs._lire_occupation(folder, {'callsign': 'TM6KJS'})
+    v = occ.vue(_t.time())
+    assert any(s['station'] == 'PEER' and s['band'] == '40' for s in v['stations'])
