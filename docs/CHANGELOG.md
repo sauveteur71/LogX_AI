@@ -27,6 +27,15 @@ poussé.
 
 ### Ajouté
 
+- **Planificateur de session (assistant, consultatif).** Un nouvel écran **Plan
+  de session** : vous indiquez vos contraintes (durée, objectif, mode(s),
+  bande(s), puissance) et l'IA propose un **plan découpé en créneaux horaires**,
+  avec pour chaque créneau la bande/mode à privilégier, la cible visée, et des
+  **critères d'arrêt** clairs. C'est un **conseil** : rien n'est déclenché, aucun
+  réglage ni aucune émission automatique — vous gardez le contrôle de chaque
+  changement de fréquence et de chaque émission. Accessible depuis le menu
+  **Outils** de toutes les pages.
+
 - **Écran « Santé de la station ».** Une page de diagnostic qui montre en un coup
   d'œil l'état des sous-systèmes — **Radio (CAT)**, **Rotor**, **FT8/WSJT-X**,
   **Callbook**, **Synchro Cloud/MySQL**, **Base DXCC**, **Émission
