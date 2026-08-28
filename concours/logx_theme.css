@@ -171,8 +171,15 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 /* Fil IA unifié « Ce que l'IA remarque » (LOGBOOK) : agrège opportunités /
    validation / après-QSO / busted en un fil priorisé. Panneau flottant en haut
    à droite, caché tant qu'il n'y a rien. Pastille de couleur par type. */
-#filIaPanel{position:fixed;right:14px;top:74px;z-index:1400;width:300px;max-width:calc(100vw - 28px);max-height:42vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+/* Volet repliable ancré au bouton ◈ IA (positionnement/boîte via .lb-menu-dd) —
+   n'est plus un panneau flottant sur l'en-tête (retour F4GLD 28/08). */
+/* left:auto;right:0 via l'id (spécificité > .lb-menu-dd) : s'ouvre vers la
+   gauche, dans la colonne du log, sans déborder du bord droit de l'écran. */
+#filIaPanel{width:320px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;font-family:var(--font-mono);left:auto;right:0}
 #filIaPanel[hidden]{display:none}
+.fil-count{display:inline-block;margin-left:6px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--accent2);color:#17181A;font-size:11px;font-weight:800;text-align:center;line-height:16px;vertical-align:1px}
+.fil-count[hidden]{display:none}
+#filIaBtn.has-items{border-color:var(--accent2);color:var(--accent2)}
 .fil-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
 .fil-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
 #filIaCorps{padding:4px 8px}

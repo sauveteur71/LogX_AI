@@ -2395,6 +2395,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
                 title="Préparation et clôture : import, stats, contrôle, exports, archivage, diplômes">☰ DÉBUT / FIN ▾</button>
         <div class="lb-menu-dd" id="lbMenuDD" style="display:none"></div>
       </div>
+      <!-- Fil IA « Ce que l'IA remarque » : volet repliable (choix F4GLD 28/08) —
+           masqué par défaut, ouvert via ce bouton (badge = nb d'observations),
+           dropdown ancré ici plutôt que flottant sur l'en-tête. Actions au clic
+           conservées (propose-only). -->
+      <div class="lb-menu" id="filIaMenu">
+        <button class="export-btn" id="filIaBtn" onclick="if(window.LogxFilIA)LogxFilIA.basculer()"
+                title="Ce que l'IA remarque — opportunités, QSO à vérifier…">◈ IA<span class="fil-count" id="filIaCount" hidden></span></button>
+        <div class="lb-menu-dd fil-dd" id="filIaPanel" style="display:none">
+          <div class="fil-head"><span>🧠 CE QUE L'IA REMARQUE</span></div>
+          <div id="filIaCorps"></div>
+        </div>
+      </div>
       <!-- Point d'entrée léger vers l'assistant IA de CONFIG (retour audit
            trouvabilité 09/08/2026) : jusque-là, aucun secours IA n'existait
            depuis LOGBOOK, où l'opérateur passe pourtant le plus de temps. -->
@@ -2701,14 +2713,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <!-- Fil IA unifié « Ce que l'IA remarque » : agrège opportunités, validation,
      après-QSO et busted-call en un seul fil priorisé. Complète les widgets
      existants (v1), caché tant qu'il n'y a rien à signaler. Lecture seule. -->
-<div id="filIaPanel" hidden>
-  <div class="fil-head">
-    <span>🧠 CE QUE L'IA REMARQUE</span>
-    <button type="button" onclick="if(window.LogxFilIA)LogxFilIA.basculer()" aria-label="Masquer le fil IA" title="Masquer / afficher">▾</button>
-  </div>
-  <div id="filIaCorps"></div>
-</div>
-
 <div id="opportunitesPanel">
   <div class="opp-head">
     <span>🎯 OPPORTUNITÉS <span id="oppDemoBadge" class="opp-demo" hidden>DÉMO</span></span>
