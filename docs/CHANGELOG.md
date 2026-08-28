@@ -44,7 +44,8 @@ poussé.
   (attention) / **rouge** (à corriger) / **grise** (non configuré), plus
   l'**horloge UTC**. Lecture seule (agrège des endpoints d'état existants), rien
   n'est piloté. Rafraîchi automatiquement. Répond tout de suite à « est-ce que
-  tout est prêt ? ».
+  tout est prêt ? ». Une section **Progression des diplômes** (DXCC, départements
+  FR, WAC, WAZ, total QSO) complète l'écran.
 
 - **Suivi de consommation IA (tokens réels).** Comme vous payez vos propres
   crédits d'API, le logiciel compte désormais les **tokens réellement

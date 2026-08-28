@@ -105,14 +105,53 @@
     }).join('');
   }
 
+  // Progression des diplômes (sur toute la vie de la station) à partir de
+  // /awards/summary. Fonction PURE. Chaque diplôme suit la forme _paire :
+  // {worked, confirmed, total?}. Tolère les sections absentes.
+  function construireProgression(summary){
+    var s = summary || {};
+    var out = [];
+    function pousse(label, paire){
+      if(!paire || paire.worked == null) return;
+      var v = String(paire.worked);
+      if(paire.total) v += ' / ' + paire.total;
+      if(paire.confirmed != null) v += ' (conf. ' + paire.confirmed + ')';
+      out.push({label: label, valeur: v});
+    }
+    pousse('DXCC (pays)', s.dxcc);
+    if(s.departments && s.departments.metro_worked != null){
+      out.push({label: 'Départements FR',
+                valeur: s.departments.metro_worked + ' / ' + (s.departments.metro_total || '?')});
+    }
+    pousse('Continents (WAC)', s.wac);
+    pousse('Zones CQ (WAZ)', s.waz);
+    if(s.qso_total != null){
+      out.push({label: 'QSO au total', valeur: String(s.qso_total)});
+    }
+    return out;
+  }
+
+  function _rendreProgression(lignes){
+    var box = document.getElementById('diagProgression');
+    if(!box) return;
+    box.innerHTML = (lignes || []).map(function(l){
+      return '<div class="diag-prog">' +
+        '<span class="diag-prog-l">' + esc(l.label) + '</span>' +
+        '<span class="diag-prog-v">' + esc(l.valeur) + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
   function _maj(){
     function grab(u){
       return fetch(u).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; });
     }
     Promise.all([grab('/hardware/state'), grab('/data/network_status'),
-                 grab('/tx/audit'), grab('/dxcc/status'), grab('/ai/usage')])
+                 grab('/tx/audit'), grab('/dxcc/status'), grab('/ai/usage'),
+                 grab('/awards/summary')])
       .then(function(v){
         _rendre(construireTuiles({hardware: v[0], network: v[1], tx: v[2], dxcc: v[3], aiUsage: v[4]}));
+        _rendreProgression(construireProgression(v[5]));
       });
   }
 
@@ -134,7 +173,8 @@
   }
 
   global.LogxDiagnostic = {
-    demarrer: demarrer, construireTuiles: construireTuiles, _rendre: _rendre
+    demarrer: demarrer, construireTuiles: construireTuiles, _rendre: _rendre,
+    construireProgression: construireProgression, _rendreProgression: _rendreProgression
   };
 
   // Démarrage auto (VRAI navigateur uniquement — fetch présent).
