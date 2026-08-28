@@ -83,13 +83,29 @@
   function _rendre(spots, rigEnabled){
     _rig = !!rigEnabled;
     var box = document.getElementById('opportunitesCorps');
-    if(!box) return;
     var top = _filtrer(spots);
+    _pousserFil(top);                       // alimente le fil IA unifié (si présent)
+    if(!box) return;
     if(!top.length){
       box.innerHTML = '<div class="opp-vide">Pas d\'opportunité en direct.</div>';
       return;
     }
     box.innerHTML = top.map(_fiche).join('');
+  }
+
+  // Alimente le fil IA unifié « Ce que l'IA remarque » avec le top 3 des
+  // opportunités (proposition, action ▶ Appeler). Gardé : no-op si le fil n'est
+  // pas chargé. Ne remplace pas ce panneau — il le complète.
+  function _pousserFil(top){
+    if(!global.LogxFilIA) return;
+    var entrees = (top || []).slice(0, 3).map(function(s){
+      var freq = Number(s.freq) || 0;
+      return {icone: CLASSE_EMOJI[s.credit_classe] || '•',
+              texte: (s.call || '') + ' — ' + (s.credit_raison || 'à travailler'),
+              type: 'proposition',
+              onclick: "LogxOpportunites.appeler('" + jsCall(s.call) + "'," + freq + ')'};
+    });
+    global.LogxFilIA.pousser('opportunites', entrees);
   }
 
   // Action « un clic utile » : pré-remplit TOUJOURS l'indicatif dans la saisie

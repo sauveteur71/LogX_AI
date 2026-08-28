@@ -2526,6 +2526,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_net_control.js"></script>
 <script src="logx_rate_panel.js"></script>
 <script src="logx_verif_panel.js"></script>
+<script src="logx_fil_ia.js"></script>
 <script src="logx_validation_live.js"></script>
 <script src="logx_awards.js"></script>
 <script src="logx_qsl_card.js"></script>
@@ -2693,6 +2694,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      moteur, /data/spots_ranked) avec la séparation FAIT / CALCUL / PROPOSITION.
      Persistant (visible pendant la saisie), non-modal, repli natif <details>.
      « Appeler » = pré-remplir l'indicatif + QSY si CAT — jamais d'émission. -->
+<!-- Fil IA unifié « Ce que l'IA remarque » : agrège opportunités, validation,
+     après-QSO et busted-call en un seul fil priorisé. Complète les widgets
+     existants (v1), caché tant qu'il n'y a rien à signaler. Lecture seule. -->
+<div id="filIaPanel" hidden>
+  <div class="fil-head">
+    <span>🧠 CE QUE L'IA REMARQUE</span>
+    <button type="button" onclick="if(window.LogxFilIA)LogxFilIA.basculer()" aria-label="Masquer le fil IA" title="Masquer / afficher">▾</button>
+  </div>
+  <div id="filIaCorps"></div>
+</div>
+
 <div id="opportunitesPanel">
   <div class="opp-head">
     <span>🎯 OPPORTUNITÉS</span>

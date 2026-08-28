@@ -27,6 +27,15 @@ poussé.
 
 ### Ajouté
 
+- **Fil IA unifié « Ce que l'IA remarque » (LOGBOOK).** Un seul panneau discret
+  rassemble ce que l'IA observe, jusque-là éparpillé : les **opportunités** à
+  travailler maintenant, les **QSO à vérifier**, les **gains du dernier QSO** et
+  une éventuelle **correction d'indicatif** (busted-call) — chacun avec une
+  pastille de couleur (attention / proposition / info) et, quand c'est utile, une
+  action au clic (appeler, ouvrir VÉRIFIER, corriger). Priorisé, caché tant qu'il
+  n'y a rien à dire. **Lecture seule**, les actions réutilisent les fonctions
+  existantes (jamais d'émission). Les widgets d'origine restent en place.
+
 - **Planificateur de session (assistant, consultatif).** Un nouvel écran **Plan
   de session** : vous indiquez vos contraintes (durée, objectif, mode(s),
   bande(s), puissance) et l'IA propose un **plan découpé en créneaux horaires**,

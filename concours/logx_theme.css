@@ -156,6 +156,26 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 .opp-appeler{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer}
 .opp-appeler:hover{background:rgba(var(--accent-rgb),.2)}
 
+/* Fil IA unifié « Ce que l'IA remarque » (LOGBOOK) : agrège opportunités /
+   validation / après-QSO / busted en un fil priorisé. Panneau flottant en haut
+   à droite, caché tant qu'il n'y a rien. Pastille de couleur par type. */
+#filIaPanel{position:fixed;right:14px;top:74px;z-index:1400;width:300px;max-width:calc(100vw - 28px);max-height:42vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+#filIaPanel[hidden]{display:none}
+.fil-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.fil-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+#filIaCorps{padding:4px 8px}
+#filIaCorps[hidden]{display:none}
+.fil-item{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
+.fil-item:last-child{border-bottom:0}
+.fil-item[role="button"]{cursor:pointer}
+.fil-item[role="button"]:hover{background:rgba(var(--accent-rgb),.08)}
+.fil-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--muted)}
+.fil-attention .fil-dot{background:var(--yellow)}
+.fil-proposition .fil-dot{background:var(--accent2)}
+.fil-info .fil-dot{background:var(--green)}
+.fil-ico{flex-shrink:0}
+.fil-txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* Récap « après-QSO » : pastille non-modale sous la saisie, dit ce que le QSO
    vient d'apporter (gain en cuivre) et ce qui reste à confirmer LoTW. Discret,
    ne pousse pas le formulaire (width:fit-content). Silencieux sur un doublon. */

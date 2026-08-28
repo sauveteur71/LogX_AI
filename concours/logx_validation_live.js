@@ -20,11 +20,21 @@
 
   // Met à jour le badge depuis les compteurs de /log/validate. Caché si aucune
   // erreur NI attention (pas de bruit sur un log propre).
+  // Alimente le fil IA unifié (si présent) : « N QSO à vérifier » (attention),
+  // clic -> ouvre VÉRIFIER. Vide -> retire l'entrée. No-op si le fil est absent.
+  function _pousserFil(n){
+    if(!global.LogxFilIA) return;
+    var entrees = n ? [{icone: '⚠️', texte: n + ' QSO à vérifier', type: 'attention',
+                        onclick: 'LogxValidationLive.ouvrir()'}] : [];
+    global.LogxFilIA.pousser('validation', entrees);
+  }
+
   function _rendre(counts){
-    var b = document.getElementById('validationBadge');
-    if(!b) return;
     var e = (counts && counts.erreur) || 0;
     var a = (counts && counts.attention) || 0;
+    _pousserFil(e + a);
+    var b = document.getElementById('validationBadge');
+    if(!b) return;
     if(!e && !a){ b.hidden = true; return; }
     b.hidden = false;
     b.classList.toggle('vl-erreur', e > 0);   // rouge si vraie erreur, sinon jaune (attention)

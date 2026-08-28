@@ -47,11 +47,21 @@
 
   // Affiche la pastille. SILENCIEUSE si rien à dire (doublon) : ni gain ni « à
   // confirmer » -> on cache, pas de bruit.
+  // Alimente le fil IA unifié (si présent) : les gains du dernier QSO (info).
+  function _pousserFil(gains){
+    if(!global.LogxFilIA) return;
+    var entrees = (gains || []).map(function(g){
+      return {icone: g.emoji || '✨', texte: 'Dernier QSO : ' + (g.label || ''), type: 'info'};
+    });
+    global.LogxFilIA.pousser('apres_qso', entrees);
+  }
+
   function _rendre(ev){
-    var zone = document.getElementById('apresQsoPastille');
-    if(!zone) return;
     var gains = (ev && ev.gains) || [];
     var aconf = (ev && ev.aconf) || [];
+    _pousserFil(gains);
+    var zone = document.getElementById('apresQsoPastille');
+    if(!zone) return;
     if(!gains.length && !aconf.length){
       zone.style.display = 'none';
       zone.innerHTML = '';

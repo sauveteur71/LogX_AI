@@ -19,6 +19,8 @@ def _ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
       var window = {};
+      window.__filPush = [];
+      window.LogxFilIA = { pousser: function(s, e){ window.__filPush.push({source: s, n: (e||[]).length}); } };
       var __b = { hidden: true, textContent: '', _s: {},
         classList: { toggle:function(c,v){ __b._s[c]=v; }, contains:function(c){ return !!__b._s[c]; } },
         setAttribute:function(){} };
@@ -49,6 +51,15 @@ def test_badge_rouge_sur_erreur():
     assert ctx.eval("__b.hidden") is False
     assert ctx.eval("__b.classList.contains('vl-erreur')") is True     # au moins 1 erreur -> rouge
     assert '3' in ctx.eval("__b.textContent")                          # 1 + 2 à vérifier
+
+
+def test_alimente_le_fil_ia():
+    ctx = _ctx()
+    ctx.eval("window.LogxValidationLive._rendre({erreur:1, attention:2})")
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].source") == 'validation'
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].n") == 1   # une entrée attention
+    ctx.eval("window.LogxValidationLive._rendre({erreur:0, attention:0})")
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].n") == 0   # log propre -> retiré
 
 
 def test_cablage_logbook():
