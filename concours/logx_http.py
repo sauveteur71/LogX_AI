@@ -8286,6 +8286,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 500)
             return
 
+        # Planificateur de session (CONSULTATIF) : propose un plan par créneaux à
+        # partir des contraintes de l'opérateur. L'IA CONSEILLE — aucune action,
+        # aucune émission n'est déclenchée ; l'opérateur garde le contrôle.
+        if self.path == '/session/plan':
+            import logx_session as _session
+            cfg_snap = self._cfg_snapshot()
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            provider = cfg_snap.get('api_provider', 'anthropic')
+            api_key = cfg_snap.get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
+            if not api_key:
+                self._json({'error': 'Clé API non configurée'}, 400)
+                return
+            try:
+                msg = _session.build_session_message(payload)
+                plan = call_llm(cfg_snap, _session.SESSION_PLAN_SYSTEM,
+                                [{'role': 'user', 'content': msg}])
+                self._json({'plan': plan})
+            except Exception as e:  # noqa: BLE001 — un échec LLM ne doit pas planter le serveur
+                self._json({'error': str(e)}, 502)
+            return
+
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
             provider = cfg_snap.get('api_provider', 'anthropic')
