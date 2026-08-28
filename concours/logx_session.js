@@ -20,6 +20,8 @@
     var m = _val('sessMode').trim(); if(m) p.mode = m;
     var b = _val('sessBandes').trim(); if(b) p.bandes = b;
     var pw = _num(_val('sessPuissance')); if(pw) p.puissance_w = pw;
+    var cx = document.getElementById('sessContexte');
+    p.avec_contexte = !!(cx && cx.checked);   // tenir compte des conditions réelles
     return p;
   }
 

@@ -107,6 +107,31 @@ def test_endpoint_rend_un_plan(serveur, monkeypatch):
         _restore_cfg(saved)
 
 
+def test_endpoint_prefixe_le_contexte_si_demande(serveur, monkeypatch):
+    capte = {}
+    monkeypatch.setattr(h, 'do_refresh', lambda cfg: {'context': 'PROPAG: 20m ouvert vers EU'})
+    monkeypatch.setattr(h, 'call_llm', lambda cfg, s, m, *a, **k: capte.setdefault('msg', m[0]['content']) or 'plan')
+    saved = _seed_cfg({'api_key': 'x', 'api_provider': 'anthropic'})
+    try:
+        code, j = _post(serveur, '/session/plan', {'duree_min': 30, 'avec_contexte': True})
+        assert code == 200
+        assert 'PROPAG: 20m ouvert' in capte['msg']   # contexte terrain préfixé au message
+    finally:
+        _restore_cfg(saved)
+
+
+def test_endpoint_sans_contexte_n_appelle_pas_do_refresh(serveur, monkeypatch):
+    appels = []
+    monkeypatch.setattr(h, 'do_refresh', lambda cfg: appels.append(1) or {'context': 'X'})
+    monkeypatch.setattr(h, 'call_llm', lambda *a, **k: 'plan')
+    saved = _seed_cfg({'api_key': 'x', 'api_provider': 'anthropic'})
+    try:
+        _post(serveur, '/session/plan', {'duree_min': 30})   # avec_contexte absent -> pas de contexte
+        assert appels == []
+    finally:
+        _restore_cfg(saved)
+
+
 def test_endpoint_sans_cle_refuse(serveur):
     saved = _seed_cfg({'api_key': ''})
     try:

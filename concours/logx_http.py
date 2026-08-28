@@ -8303,6 +8303,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             try:
                 msg = _session.build_session_message(payload)
+                # Contexte terrain OPTIONNEL (propagation/spots réels) : rend le
+                # plan concret au lieu de générique. Best-effort — un échec de
+                # contexte n'empêche pas de planifier.
+                if payload.get('avec_contexte'):
+                    try:
+                        _ctx = do_refresh(cfg_snap)
+                        if _ctx.get('context'):
+                            msg = _ctx['context'] + '\n\n' + msg
+                    except Exception as _e:  # noqa: BLE001
+                        print(f"[SESSION] contexte indisponible : {_e}")
                 plan = call_llm(cfg_snap, _session.SESSION_PLAN_SYSTEM,
                                 [{'role': 'user', 'content': msg}])
                 self._json({'plan': plan})

@@ -19,8 +19,10 @@ def _ctx():
       var window = {};
       var __vals = {sessDuree:'30', sessObjectif:'3 DXCC', sessMode:'FT8', sessBandes:'20m, 15m', sessPuissance:'100'};
       var __plan = { textContent:'', _cls:{}, classList:{ add:function(c){__plan._cls[c]=true;}, remove:function(c){__plan._cls[c]=false;} } };
+      var __ctx = { checked: true };
       var document = { getElementById:function(id){
           if(id==='sessPlan') return __plan;
+          if(id==='sessContexte') return __ctx;
           return (id in __vals) ? { value: __vals[id] } : null; } };
     """)
     with open(JS, encoding='utf-8') as f:
@@ -36,6 +38,14 @@ def test_payload_lit_le_formulaire():
     assert ctx.eval("window.__p.mode") == 'FT8'
     assert ctx.eval("window.__p.bandes") == '20m, 15m'
     assert ctx.eval("window.__p.puissance_w") == 100
+    assert ctx.eval("window.__p.avec_contexte") is True     # case cochée par défaut
+
+
+def test_payload_contexte_decoche():
+    ctx = _ctx()
+    ctx.eval("__ctx.checked = false;")
+    ctx.eval("window.__p = window.LogxSession._payload();")
+    assert ctx.eval("window.__p.avec_contexte") is False
 
 
 def test_payload_ignore_les_champs_vides():
