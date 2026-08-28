@@ -30,6 +30,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:10p
 .diag-dot[data-c="muted"]{background:var(--muted);color:transparent}
 .diag-nom{font-weight:700;color:var(--text)}
 .diag-detail{color:var(--muted);font-size:12px;margin-left:auto;font-family:var(--font-mono);text-align:right}
+.diag-prog{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 15px}
+.diag-prog-l{color:var(--muted)}
+.diag-prog-v{color:var(--accent2);font-weight:700;font-family:var(--font-mono)}
 </style></head>
 
 <body>
@@ -78,6 +81,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:10p
 </div>
 <div class="diag-sub">État des sous-systèmes en un coup d'œil — lecture seule, rafraîchi automatiquement. Vert = OK · jaune = attention · rouge = à corriger · gris = non configuré.</div>
 <div class="diag-grid" id="diagTuiles"></div>
+
+<div class="diag-sub" style="margin-top:6px">Progression des diplômes (sur toute la vie de la station)</div>
+<div class="diag-grid" id="diagProgression"></div>
 
 <script src="logx_diagnostic.js"></script>
 

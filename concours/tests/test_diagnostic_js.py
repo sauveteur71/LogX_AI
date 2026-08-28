@@ -20,7 +20,11 @@ def _ctx():
     ctx.eval("""
       var window = {};
       var __c = { innerHTML: '' };
-      var document = { getElementById: function(id){ return id === 'diagTuiles' ? __c : null; } };
+      var __prog = { innerHTML: '' };
+      var document = { getElementById: function(id){
+          if(id === 'diagTuiles') return __c;
+          if(id === 'diagProgression') return __prog;
+          return null; } };
     """)
     with open(JS, encoding='utf-8') as f:
         ctx.eval(f.read())
@@ -110,10 +114,39 @@ def test_rendre_echappe_le_detail_xss():
     assert '<img' not in html and '&lt;img' in html
 
 
+def test_progression_mappe_les_diplomes():
+    ctx = _ctx()
+    ctx.eval("""window.__p = window.LogxDiagnostic.construireProgression({
+      dxcc:{worked:137, confirmed:120, total:340},
+      departments:{metro_worked:80, metro_total:96},
+      wac:{worked:5, confirmed:5, total:6},
+      waz:{worked:30, confirmed:28, total:40},
+      qso_total:5000});""")
+    txt = ctx.eval("window.__p.map(function(l){return l.label+'='+l.valeur;}).join('|')")
+    assert 'DXCC (pays)=137 / 340 (conf. 120)' in txt
+    assert 'Départements FR=80 / 96' in txt
+    assert 'Continents (WAC)=5 / 6 (conf. 5)' in txt
+    assert 'QSO au total=5000' in txt
+
+
+def test_progression_tolere_sections_absentes():
+    ctx = _ctx()
+    ctx.eval("window.__p = window.LogxDiagnostic.construireProgression({});")
+    assert ctx.eval("window.__p.length") == 0
+
+
+def test_rendre_progression_produit_le_html():
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendreProgression([{label:'DXCC (pays)', valeur:'137 / 340'}]);")
+    html = ctx.eval("__prog.innerHTML")
+    assert 'diag-prog' in html and 'DXCC' in html and '137 / 340' in html
+
+
 def test_cablage_page():
     with open(os.path.join(CONCOURS, 'logx_diagnostic.html'), encoding='utf-8') as f:
         h = f.read()
     assert 'src="logx_diagnostic.js"' in h
     assert 'id="diagTuiles"' in h
+    assert 'id="diagProgression"' in h
     assert 'logx_theme.css' in h            # tokens mutualisés
     assert 'logx_statusbar.js' in h         # barre de statut + expert-only
