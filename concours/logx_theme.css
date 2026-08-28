@@ -135,6 +135,8 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 #opportunitesPanel{position:fixed;right:14px;bottom:56px;z-index:1400;width:300px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
 .opp-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
 .opp-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+.opp-demo{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--yellow);color:#17181A;font-size:10px;font-weight:800;letter-spacing:.5px;vertical-align:1px}
+.opp-demo[hidden]{display:none}
 #opportunitesCorps{padding:6px 10px}
 #opportunitesCorps[hidden]{display:none}
 .opp-vide{color:var(--muted);font-size:12px;padding:8px 2px}
