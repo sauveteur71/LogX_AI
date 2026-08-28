@@ -265,6 +265,15 @@ MSG_IA_LOCAL = ('IA en mode local — aucun appel réseau (les calculs détermin
                 'configuration pour réactiver l\'IA en ligne.')
 
 
+def _demo_mode(cfg):
+    """True si le MODE DÉMO est actif (config demo_mode) : l'app est alimentée par
+    des données synthétiques, sans radio. Tolère booléen ou chaîne ('oui'/…)."""
+    v = (cfg or {}).get('demo_mode')
+    if isinstance(v, str):
+        return v.strip().lower() in ('1', 'true', 'oui', 'on', 'yes')
+    return bool(v)
+
+
 def _ia_local(cfg):
     """True si l'opérateur a coupé le réseau IA (config ia_local_only). Tolère un
     booléen OU une chaîne ('oui'/'true'/… venant du <select> de CONFIG) — sans
@@ -4827,6 +4836,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_alerts as alerts
             import logx_awards as awards
             cfg_snap = self._cfg_snapshot()
+            if _demo_mode(cfg_snap):        # MODE DÉMO : spots synthétiques, sans radio
+                import logx_demo as demo
+                self._json({'spots': demo.spots_demo(), 'demo': True})
+                return
             # Réchauffe le cache de spots HF (fetch de fond, throttlé) AVANT de
             # le lire. Défaut F4GLD (27/08/2026) : la need list CHASSE lisait
             # _spots_from_caches() sans jamais le remplir -> « 0 spots » hors

@@ -126,12 +126,19 @@
     }
   }
 
+  // Étiquette « DÉMO » quand /data/spots_ranked renvoie des spots synthétiques
+  // (mode démo). Purement visuel — no-op si l'élément n'existe pas.
+  function _demoBadge(on){
+    var b = document.getElementById('oppDemoBadge');
+    if(b) b.hidden = !on;
+  }
+
   // Relit le classement (même endpoint que CHASSE) + l'état CAT, puis rend.
   function _maj(){
     var rig = fetch('/rig/state').then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return !!(d && d.enabled); }).catch(function(){ return false; });
     var spots = fetch('/data/spots_ranked').then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ return (d && d.spots) || []; }).catch(function(){ return []; });
+      .then(function(d){ _demoBadge(d && d.demo); return (d && d.spots) || []; }).catch(function(){ return []; });
     Promise.all([spots, rig]).then(function(v){ _rendre(v[0], v[1]); });
   }
 

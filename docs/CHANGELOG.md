@@ -15,6 +15,14 @@ poussé.
 
 ### Ajouté
 
+- **Mode démo / simulation.** Un interrupteur **MODE DÉMO** (CONFIG → Assistant IA)
+  alimente l'app avec des **spots synthétiques** déterministes (JA1XYZ, 9M2JKL…),
+  pour présenter le programme **sans radio ni antenne connectée**. Tout est
+  **étiqueté « DÉMO »** (badge sur le HUD Opportunités), n'écrit **aucun QSO** et
+  n'émet **jamais** — purement visuel. Isolé : quand le mode démo est actif,
+  `/data/spots_ranked` renvoie les spots de démonstration ; désactivé, l'app
+  reprend les données réelles. Idéal pour une démonstration en salle ou en vidéo.
+
 - **Provenance par champ.** Sous la saisie d'un indicatif, un petit relevé montre
   **d'où vient chaque donnée enrichie** : Pays / Continent / Zones CQ & ITU depuis
   la **base DXCC (cty.dat)**, Distance / Azimut **calculés**. Pour la confiance :
