@@ -15,6 +15,14 @@ poussé.
 
 ### Ajouté
 
+- **Suivi de consommation IA (tokens réels).** Comme vous payez vos propres
+  crédits d'API, le logiciel compte désormais les **tokens réellement
+  consommés** (entrée / sortie) par fournisseur et par modèle, consultables via
+  `GET /ai/usage`. Ce sont des **faits** : aucun prix n'est inventé. Un **coût
+  estimé** n'apparaît **que si vous configurez vos propres tarifs**
+  (`ai_prix_usd_par_mtok`) — sinon le suivi n'affiche que des tokens. Le comptage
+  est branché de façon défensive (il ne peut jamais casser un appel IA).
+
 - **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
   LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
   l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
