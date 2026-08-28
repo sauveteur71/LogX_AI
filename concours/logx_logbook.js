@@ -3640,7 +3640,7 @@ function renderLog(){
     const emptyMsg = qsoLog.length === 0
       ? 'Aucun QSO enregistré — remplis le formulaire ci-dessus et clique ENREGISTRER LE QSO.'
       : 'Aucun QSO ne correspond à ce filtre ou cette recherche.';
-    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-mono)">${emptyMsg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-mono)">${emptyMsg}</td></tr>`;
     return;
   }
 
@@ -3657,9 +3657,8 @@ function renderLog(){
     const cap = _brg !== null ? cardinalDir(_brg) : '—';
     const rowClass = [isDupQ?'dup-entry':'', q._new?'new-entry':'', incomplete?'incomplete-entry':''].filter(Boolean).join(' ');
     return `<tr class="${rowClass}" id="qso_${q.id}" ondblclick="editQSO(${q.id})" title="Double-clic pour corriger ce QSO">
-      <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${posOf.get(q)||0}</td>
       <td class="td-time">${escHtml(q.time)||'—'}</td>
-      <td class="td-call">${escHtml(q.call)||'—'}${q.qsl_scan?` <span title="Scan QSL attaché">📎</span>`:''}</td>
+      <td class="td-call">${incomplete?'<span class="incomplete-flag" title="QSO incomplet — champ(s) manquant(s), à corriger">⚠️</span> ':''}${escHtml(q.call)||'—'}${q.qsl_scan?` <span title="Scan QSL attaché">📎</span>`:''}</td>
       <td class="td-band"${q.freq?` title="${escHtml(q.freq)} MHz"`:''}>${BAND_LABELS[q.band]||escHtml(q.band)||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${escHtml(q.freq)}</span>`:''}</td>
       <td class="td-mode">${escHtml(q.mode)||'—'}</td>
       <td class="td-sent">${escHtml(q.rst_sent)||'—'}/${escHtml(q.num_sent)||'—'}</td>

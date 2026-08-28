@@ -64,6 +64,14 @@ poussé.
   affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
   depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
   garde le message technique.
+- **LOGBOOK — trois réglages d'affichage (retours F4GLD).** (1) La colonne **#**
+  (numéro de QSO, sans usage visuel) est retirée du tableau ; l'indicateur ⚠️ de
+  QSO incomplet est conservé, désormais devant l'indicatif. (2) Le menu
+  **DÉBUT / FIN** s'ouvrait vers la gauche et passait **coupé derrière la band map** ;
+  il s'ouvre maintenant vers la droite (dans la colonne du log), lisible. (3) La zone
+  de **saisie** a été compactée (espacements/champs) pour **tenir sans défilement**
+  et garder le bouton ENREGISTRER visible.
+
 - **Modèle IA Anthropic invalide (fonctions IA en échec 400).** Le défaut/recommandé
   pointait sur `claude-sonnet-4-6`, un identifiant qui **n'existe pas** côté API →
   toute fonction IA sur ce modèle (chat, analyse de règlement, plan de session)
