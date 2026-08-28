@@ -670,6 +670,18 @@ C'est la même intelligence que le panneau qui s'affiche **avant** le QSO (à la
 
 Cette pastille est **non-intrusive** : elle ne vole pas le focus, **reste silencieuse quand le QSO n'apporte rien de neuf** (un doublon ne déclenche aucun message), et s'efface d'elle-même après quelques contacts pour ne pas encombrer l'écran pendant une série. Elle ne modifie jamais votre log — elle ne fait que montrer votre progression.
 
+### 6.12 Le fil « Ce que l'IA remarque » — tout au même endroit
+
+Plusieurs aides intelligentes tournent en même temps dans le LOGBOOK : les opportunités à travailler, les QSO à vérifier, les gains du dernier contact, une éventuelle erreur d'indicatif. Le **fil IA** les rassemble dans **un seul panneau** (en haut à droite), pour ne pas avoir à surveiller quatre coins de l'écran.
+
+Chaque ligne porte une **pastille de couleur** selon sa nature :
+
+- 🟡 **attention** — quelque chose à vérifier (ex. « 2 QSO à vérifier ») ;
+- 🟠 **proposition** — une action possible (ex. une opportunité à appeler, ou « F4GLDD → F4GLD ? » à corriger) ;
+- 🟢 **info** — un fait à savoir (ex. « Dernier QSO : nouveau pays »).
+
+Quand une ligne appelle une action, un **clic** la déclenche — et cette action **réutilise exactement** la fonction d'origine (appeler la station, ouvrir VÉRIFIER, corriger l'indicatif) : le fil ne fait que **rassembler**, il n'émet jamais et ne décide jamais à votre place. Le panneau est **caché tant qu'il n'y a rien à signaler** et se replie d'un clic. Les affichages d'origine (badge de validation, panneau Opportunités, pastilles) restent en place — le fil est un **résumé en plus**, pas un remplacement.
+
 ---
 
 

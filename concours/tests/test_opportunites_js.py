@@ -22,6 +22,8 @@ def _ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
       var window = {};
+      window.__filPush = [];
+      window.LogxFilIA = { pousser: function(s, e){ window.__filPush.push({source: s, n: (e||[]).length}); } };
       var __hud = { innerHTML: '', hidden: false };
       var __call = { value: '', _focus: 0, focus: function(){ this._focus++; },
                      dispatchEvent: function(){ __call._dispatched = (__call._dispatched||0)+1; return true; } };
@@ -120,6 +122,17 @@ def test_appeler_sans_cat_prefill_mais_pas_de_qsy():
     ctx.eval("window.LogxOpportunites.appeler('F6ABC', 14074);")
     assert ctx.eval("__call.value") == 'F6ABC'          # indicatif saisi quand même
     assert ctx.eval("__fetches.length") == 0            # mais AUCUN /rig/qsy
+
+
+def test_alimente_le_fil_ia():
+    ctx = _ctx()
+    ctx.eval("""window.LogxOpportunites._rendre([
+      {call:'JA1XYZ', freq:14074, band:'20', mode:'FT8', dx_country:'Japon',
+       credit_classe:'atno', credit_score:1000, credit_raison:'nouveau DXCC'}], true);""")
+    # le module a poussé la source 'opportunites' au fil IA unifié
+    poussees = ctx.eval("window.__filPush.filter(function(p){return p.source==='opportunites';}).length")
+    assert poussees >= 1
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].n") >= 1
 
 
 def test_basculer_replie_puis_reaffiche_le_corps():

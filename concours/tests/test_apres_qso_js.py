@@ -24,6 +24,8 @@ def _ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
       var window = {};
+      window.__filPush = [];
+      window.LogxFilIA = { pousser: function(s, e){ window.__filPush.push({source: s, n: (e||[]).length}); } };
       var __p = { innerHTML: '', style: { display: '' } };
       var document = { getElementById: function(id){ return id === 'apresQsoPastille' ? __p : null; } };
     """)
@@ -80,6 +82,15 @@ def test_rendre_echappe_le_xss():
       gains: [{emoji:'🌟', label:'<img src=x onerror=1>'}], aconf: []});""")
     html = ctx.eval("__p.innerHTML")
     assert '<img' not in html and '&lt;img' in html
+
+
+def test_alimente_le_fil_ia():
+    ctx = _ctx()
+    ctx.eval("window.LogxApresQso._rendre({gains:[{emoji:'🌟', label:'nouveau pays : Japon'}], aconf:[]});")
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].source") == 'apres_qso'
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].n") == 1
+    ctx.eval("window.LogxApresQso._rendre({gains:[], aconf:[]});")
+    assert ctx.eval("window.__filPush[window.__filPush.length-1].n") == 0   # rien -> retiré
 
 
 def test_cablage_logbook():
