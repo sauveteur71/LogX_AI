@@ -248,11 +248,28 @@ def validate_log(qsos, contest_id='', cfg=None):
     counts = {'erreur': 0, 'attention': 0, 'info': 0}
     for x in findings:
         counts[x['level']] = counts.get(x['level'], 0) + 1
+    # « N QSO à vérifier » = nombre de QSO DISTINCTS portant ≥1 constat
+    # erreur/attention — et NON le nombre de constats. Un même QSO peut en
+    # cumuler plusieurs (locator manquant + département invalide + …) : sommer
+    # les constats donnait un total pouvant DÉPASSER le nombre de QSO (vu après
+    # un import massif sans locator : « 15073 à vérifier » pour 10067 QSO). Borné
+    # par qso_count. (Les 'erreur' ne sont jamais plafonnées, cf. _f ; le compte
+    # est donc exact pour elles — la seule perte possible touche des 'attention'
+    # au-delà du plafond d'affichage, cas marginal.)
+    a_verifier = set()
+    for x in findings:
+        if x['level'] in ('erreur', 'attention'):
+            k = x.get('id')
+            if k is None:
+                k = x.get('index')
+            if k is not None:
+                a_verifier.add(k)
     return {
         'contest': contest_id,
         'qso_count': len(qsos),
         'findings': findings,
         'counts': counts,
+        'qso_a_verifier': len(a_verifier),
         'ok': counts['erreur'] == 0,
         'truncated': len(findings) >= MAX_FINDINGS,
     }

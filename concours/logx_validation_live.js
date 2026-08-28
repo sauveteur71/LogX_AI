@@ -29,23 +29,26 @@
     global.LogxFilIA.pousser('validation', entrees);
   }
 
-  function _rendre(counts){
+  function _rendre(counts, qsoAVerifier){
     var e = (counts && counts.erreur) || 0;
     var a = (counts && counts.attention) || 0;
-    _pousserFil(e + a);
+    // « N QSO à vérifier » = QSO DISTINCTS flaggés (fourni par le serveur), et NON
+    // la somme des constats : un même QSO peut en cumuler plusieurs, sinon le
+    // total dépasse le nombre de QSO (bug vu après import massif sans locator).
+    var n = (typeof qsoAVerifier === 'number') ? qsoAVerifier : (e + a);
+    _pousserFil(n);
     var b = document.getElementById('validationBadge');
     if(!b) return;
     if(!e && !a){ b.hidden = true; return; }
     b.hidden = false;
     b.classList.toggle('vl-erreur', e > 0);   // rouge si vraie erreur, sinon jaune (attention)
-    var n = e + a;
     b.textContent = '⚠️ ' + n + ' à vérifier';
-    b.setAttribute('title', e + ' erreur(s) · ' + a + ' à vérifier — cliquer pour ouvrir VÉRIFIER');
+    b.setAttribute('title', e + ' erreur(s) · ' + a + ' attention — ' + n + ' QSO à vérifier · cliquer pour ouvrir VÉRIFIER');
   }
 
   function _maj(){
     fetch('/log/validate').then(function(r){ return r.json(); })
-      .then(function(d){ _rendre(d && d.counts); }).catch(function(){});
+      .then(function(d){ _rendre(d && d.counts, d && d.qso_a_verifier); }).catch(function(){});
   }
 
   // Après une rafale de QSO, une SEULE validation (debounce).
