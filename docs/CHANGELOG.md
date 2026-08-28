@@ -13,6 +13,8 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta2] — 2026-08-28
+
 ### Sécurité
 
 - **Durcissement du consentement d'émission (additif, rétro-compatible).** Le
