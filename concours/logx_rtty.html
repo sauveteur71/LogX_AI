@@ -54,6 +54,11 @@
 
 
 *{box-sizing:border-box;margin:0;padding:0}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+.app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
 header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);
   padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
