@@ -975,6 +975,33 @@ pousser le tag, comme l'exige la consigne ci-dessous.
    **RESTE :** validation navigateur (F4GLD, avec 2 instances + LAN, puis un
    canal distant) -> PR + merge. Ajustements design panneau/assistant avec lui.
 
+9. ✅ **FAIT — HUD « Opportunités » dans le LOGBOOK** (branche
+   `feat/opportunites-hud-logbook`, NON mergée — attend validation navigateur
+   F4GLD). Première brique de la **thèse produit « copilote orienté objectif »**
+   (recoupement de 4 analyses IA le 27/08 : boucle décodage→opportunité→décision).
+
+   **Le contexte qui compte :** la « need list / score d'opportunité » existait
+   DÉJÀ de bout en bout dans CHASSE (`logx_chasse_priorite.evaluer` +
+   `logx_awards.annoter_credit`, exposés par `/data/spots_ranked`). Vérifié AVANT
+   de coder (règle du dépôt) -> **aucun moteur réécrit**. La vraie valeur = (a)
+   REMONTER ce classement dans le LOGBOOK (là où on loge, pas seulement CHASSE),
+   (b) la **séparation explicite FAIT / CALCUL / PROPOSITION** (nouveau contrat
+   d'explicabilité, inexistant avant).
+
+   **Construit (TDD, 9 tests V8, contre-épreuve par mutation faite — dont un test
+   de filtre initialement VACANT rattrapé) :** `logx_opportunites.js` (pur glue,
+   lit `/data/spots_ranked` + `/rig/state`, top-5 par `credit_score>0`, repli
+   natif `<details>`, XSS-safe). Fiche 3 couches : **FAIT** (dx_country·band·mode,
+   sourcé), **CALCUL** (credit_raison + score), **PROPOSITION** bouton
+   **▶ Appeler**. « Appeler » = **pré-remplit `#inputCall` TOUJOURS** + **QSY
+   (`/rig/qsy`) SEULEMENT si CAT branché** (choix F4GLD : « 2 et 3, préremplir et
+   qsy si le cat est branché ») — **jamais d'émission ni d'armement**. Panneau
+   repliable (masquer ≠ bloquer). CSS `.opp-*` mutualisé dans `logx_theme.css`
+   (bouton accent *outline* — évite le piège fond-plein+texte-sombre du jour).
+
+   **RESTE :** validation navigateur 2 thèmes (jour/nuit) par F4GLD -> PR + merge.
+   Suite possible (validée à part) : remontée sur l'accueil, boucle « après-QSO ».
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats

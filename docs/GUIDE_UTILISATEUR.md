@@ -645,6 +645,20 @@ Les catégories possibles :
 
 **Non-intrusif par principe** : une bande sans rien de vivant à dire ne s'affiche pas (pas de bandeau mort à l'écran), et rien de tout cela ne gêne jamais la saisie du QSO.
 
+### 6.10 Le HUD « Opportunités » — qui contacter maintenant, sans quitter le carnet
+
+La page **CHASSE** (§9.5) sait déjà classer les stations spottées par intérêt pour vous (nouveau pays, nouvelle bande, nouveau mode…). Le **HUD Opportunités** remonte ce même classement **directement dans le LOGBOOK**, pour que les meilleures cibles vous suivent pendant que vous loguez, sans changer de page.
+
+C'est un petit panneau **en bas à droite**, repliable via la flèche de son en-tête (le suivi continue en fond quand il est replié — masquer n'éteint rien). Il liste les **cinq meilleures opportunités du moment**, la plus intéressante en tête.
+
+**Un clic sur une opportunité la déplie en trois niveaux, clairement distingués :**
+
+- **FAIT** — ce que l'on sait de sûr, sourcé : le pays (base cty.dat), la bande, le mode. Rien d'inventé.
+- **CALCUL** — pourquoi c'est intéressant et combien ça « vaut » : la raison (ex. *nouveau DXCC*) et le score, tels que le moteur déterministe les a calculés.
+- **PROPOSITION** — un bouton **▶ Appeler**. Il **recopie toujours l'indicatif** dans le champ de saisie du QSO, et **règle la radio sur sa fréquence (QSY) seulement si le pilotage CAT est activé**. Il n'émet **jamais** et n'arme **jamais** l'émission : c'est vous qui décidez d'appeler.
+
+Cette séparation « fait / calcul / proposition » est là pour la **confiance** : vous voyez d'un coup d'œil ce qui est un fait vérifié, ce qui est un calcul du logiciel, et ce qui n'est qu'une action que vous restez libre de déclencher.
+
 ---
 
 

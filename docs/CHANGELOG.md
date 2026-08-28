@@ -33,6 +33,20 @@ poussé.
   (`ai_prix_usd_par_mtok`) — sinon le suivi n'affiche que des tokens. Le comptage
   est branché de façon défensive (il ne peut jamais casser un appel IA).
 
+- **HUD « Opportunités » dans le LOGBOOK.** Un panneau discret (en bas à droite,
+  repliable) remonte directement dans le carnet la **NEED LIST** jusque-là
+  réservée à la page CHASSE : les meilleures stations à travailler **maintenant**
+  (nouveau pays/ATNO, nouvelle bande, nouveau mode, nouveau carré, confirmation
+  LoTW manquante), classées par intérêt — **exactement le même moteur** que
+  CHASSE (`/data/spots_ranked`, profil d'objectifs compris), aucun recalcul.
+  Nouveauté : chaque opportunité se déplie en **trois couches explicites** —
+  **FAIT** (données sourcées : pays·bande·mode), **CALCUL** (la raison + le score
+  du moteur déterministe), **PROPOSITION** (un bouton **▶ Appeler**). « Appeler »
+  **pré-remplit toujours l'indicatif** dans la saisie du QSO et **règle la radio
+  (QSY) uniquement si le CAT est branché** — jamais d'émission, jamais
+  d'armement (doctrine « l'IA prépare, l'humain déclenche »). Le corps se replie
+  via l'en-tête (masquer ≠ bloquer : le suivi continue en fond).
+
 - **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
   LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
   l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
