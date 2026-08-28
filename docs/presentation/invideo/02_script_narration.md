@@ -73,4 +73,6 @@ Sous le capot, un choix d'architecture porte tout le reste : le déterministe d'
 
 Voilà ce qu'est LogX AI. Pas dix logiciels, un seul. Pas un outil figé, un outil qui grandit avec vous. Et pas une intelligence artificielle qu'on lâche dans la nature, mais un copilote borné, transparent et révocable — utile précisément parce qu'il vous laisse, à vous, le dernier mot.
 
-Essayez-le. Aidez-moi à l'améliorer. Et rappelez-vous la règle : **l'IA prépare, l'opérateur déclenche.**
+Et maintenant, j'ai besoin de vous. LogX AI est en développement actif, et c'est un projet fait pour et par les radioamateurs. Alors testez-le, poussez-le dans ses retranchements, et faites-moi remonter tout : les bugs que vous rencontrez, mais aussi vos idées — ce qui manque, ce qui vous aiderait, ce que vous feriez autrement. Chaque retour rend le programme meilleur pour toute la communauté. C'est vous, les opérateurs, qui allez le façonner.
+
+Essayez-le, écrivez-moi, et rappelez-vous la règle : **l'IA prépare, l'opérateur déclenche.** À bientôt sur les ondes.
