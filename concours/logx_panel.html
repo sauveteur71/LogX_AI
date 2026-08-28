@@ -297,7 +297,16 @@ if(localStorage.getItem('rc_theme') === null){
   function boot(){
     const p = PANELS[id];
     const body = document.getElementById('panelBody');
-    if(!p){ body.innerHTML = '<div class="empty">Panneau inconnu : ' + esc(id) + '</div>'; return; }
+    if(!p){
+      // Ouvert seul (sans ?id=) : page-satellite détachée depuis une autre page
+      // du logiciel — on l'explique plutôt que d'afficher un « inconnu » brut.
+      // Un ?id= non vide mais non reconnu garde le message technique.
+      document.getElementById('panelTitle').textContent = id ? 'LogX AI' : 'Panneau détaché';
+      body.innerHTML = id
+        ? '<div class="empty">Panneau inconnu : ' + esc(id) + '</div>'
+        : '<div class="empty">Ce panneau s\'ouvre depuis une autre page du logiciel, via un bouton « détacher ». Ouvert seul, il n\'a rien à afficher.</div>';
+      return;
+    }
     // document.title n'est PAS un noeud du DOM : translateTitle() ne lit que
     // le titre INITIAL de la page, celui-ci lui echappe.
     document.title = 'LogX AI — ' + (window.rcT ? window.rcT(p.title) : p.title);
