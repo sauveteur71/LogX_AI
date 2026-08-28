@@ -266,8 +266,13 @@ MSG_IA_LOCAL = ('IA en mode local — aucun appel réseau (les calculs détermin
 
 
 def _ia_local(cfg):
-    """True si l'opérateur a coupé le réseau IA (config ia_local_only)."""
-    return bool((cfg or {}).get('ia_local_only'))
+    """True si l'opérateur a coupé le réseau IA (config ia_local_only). Tolère un
+    booléen OU une chaîne ('oui'/'true'/… venant du <select> de CONFIG) — sans
+    ça, bool('non') vaudrait True (toute chaîne non vide est vraie en Python)."""
+    v = (cfg or {}).get('ia_local_only')
+    if isinstance(v, str):
+        return v.strip().lower() in ('1', 'true', 'oui', 'on', 'yes')
+    return bool(v)
 
 
 def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):

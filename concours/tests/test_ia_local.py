@@ -33,6 +33,27 @@ def _mouchard_reseau(monkeypatch):
     monkeypatch.setattr(h.urllib.request, 'urlopen', interdit)
 
 
+def test_ia_local_tolere_la_chaine_du_select():
+    # Le <select> de CONFIG renvoie 'oui'/'non' — bool('non') vaudrait True, d'où
+    # la tolérance explicite. Un booléen réel marche aussi.
+    assert h._ia_local({'ia_local_only': 'oui'}) is True
+    assert h._ia_local({'ia_local_only': 'true'}) is True
+    assert h._ia_local({'ia_local_only': True}) is True
+    assert h._ia_local({'ia_local_only': 'non'}) is False
+    assert h._ia_local({'ia_local_only': ''}) is False
+    assert h._ia_local({}) is False
+
+
+def test_cablage_config_interrupteur():
+    with open(os.path.join(CONCOURS, 'logx_configuration.html'), encoding='utf-8') as f:
+        html = f.read()
+    assert 'id="ia_local_only"' in html          # l'interrupteur existe
+    with open(os.path.join(CONCOURS, 'logx_configuration.js'), encoding='utf-8') as f:
+        js = f.read()
+    assert "ia_local_only: (document.getElementById('ia_local_only')" in js   # lu à la sauvegarde
+    assert "'ia_local_only'" in js               # appliqué au chargement (liste)
+
+
 def test_call_llm_leve_sans_reseau(monkeypatch):
     _mouchard_reseau(monkeypatch)
     with pytest.raises(RuntimeError) as e:

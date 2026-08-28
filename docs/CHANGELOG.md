@@ -27,6 +27,14 @@ poussé.
 
 ### Ajouté
 
+- **Mode local uniquement (économie de crédits).** Un interrupteur dans la
+  configuration (section **Assistant IA**) coupe **tous** les appels réseau de
+  l'IA : chat, analyse, plan de session, audit du log, analyse de règlement…
+  basculent sur un repli propre — **zéro crédit dépensé**. Les moteurs
+  **déterministes** (coach, validation du log, diplômes, distances,
+  enrichissement) continuent normalement. Idéal en expédition ou pour maîtriser
+  sa consommation. Verrouillé par des tests (repli + « aucun appel réseau »).
+
 - **Cockpit d'accueil « Que puis-je faire maintenant ? ».** La page d'accueil
   affiche désormais, en plus des tuiles d'activité, un **cockpit** en un coup
   d'œil : les **opportunités** du moment (meilleures stations à travailler), la

@@ -5121,6 +5121,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     activation_program: document.getElementById('activation_program').value,
     my_activation_ref: document.getElementById('my_activation_ref').value.trim().toUpperCase(),
     cluster_spot_enabled: document.getElementById('cluster_spot_enabled').value,
+    ia_local_only: (document.getElementById('ia_local_only') || {}).value || 'non',
     cluster_spot_host: document.getElementById('cluster_spot_host').value.trim(),
     cluster_spot_port: parseInt(document.getElementById('cluster_spot_port').value, 10) || 7300,
     wall_fields: {
@@ -5997,7 +5998,7 @@ function applyFullConfigToForm(c) {
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval','cloudsync_secret',
      'mysql_mode','mysql_host','mysql_port','mysql_user','mysql_password','mysql_database',
-     'rbn_enabled','clublog_live','expedition_mode',
+     'rbn_enabled','clublog_live','expedition_mode','ia_local_only',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
