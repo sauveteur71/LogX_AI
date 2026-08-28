@@ -37,3 +37,26 @@ def test_findings_portent_l_id_pour_action_interface():
     res = v.validate_log(qsos, contest_id='', cfg={'usage_mode': 'simple'})
     assert res['findings']
     assert res['findings'][0].get('id') == 42
+
+
+def test_qso_a_verifier_compte_les_qso_distincts_pas_les_constats():
+    """« N QSO à vérifier » = QSO DISTINCTS flaggés, pas la somme des constats.
+
+    Un même QSO peut cumuler plusieurs constats ; sommer les constats donnait un
+    total pouvant dépasser le nombre de QSO (bug « 15073 à vérifier » pour 10067
+    QSO après import). Ici deux F4ABC sur 14 MHz à 21.200 (incohérence fréq/bande
+    = attention sur les DEUX) dont le 2e est un doublon (erreur) : le QSO id=2
+    porte 2 constats.
+    """
+    qsos = [
+        {'id': 1, 'call': 'F4ABC', 'band': '14', 'freq': '21.200', 'mode': 'SSB',
+         'rst_rcvd': '59', 'date': '2026-08-01', 'time': '1200'},
+        {'id': 2, 'call': 'F4ABC', 'band': '14', 'freq': '21.200', 'mode': 'SSB',
+         'rst_rcvd': '59', 'date': '2026-08-01', 'time': '1201'},
+    ]
+    res = v.validate_log(qsos, contest_id='CQWW', cfg={'usage_mode': 'contest'})
+    total = res['counts']['erreur'] + res['counts']['attention']
+    assert total == 3                                   # 1 doublon + 2 incohérences
+    assert res['qso_a_verifier'] == 2                   # mais 2 QSO distincts
+    assert res['qso_a_verifier'] < total                # distinct != somme des constats
+    assert res['qso_a_verifier'] <= res['qso_count']    # jamais > le nombre de QSO

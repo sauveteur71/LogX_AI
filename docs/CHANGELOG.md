@@ -64,6 +64,16 @@ poussé.
   affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
   depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
   garde le message technique.
+- **Comptage « N QSO à vérifier » faux (supérieur au total).** Le fil IA sommait
+  les **constats** de validation, or un même QSO peut en cumuler plusieurs (locator
+  manquant + département invalide + incohérence fréquence/bande…) — d'où « 15073 à
+  vérifier » pour 10067 QSO après un import. Le validateur renvoie désormais
+  `qso_a_verifier` = nombre de **QSO distincts** flaggés, borné par le total.
+- **Erreurs IA illisibles.** Un échec d'appel au fournisseur affichait « HTTP Error
+  400 » opaque, masquant la vraie cause (ex. *« anthropic-workspace-id is required… »*
+  pour une clé identity-linked, ou un modèle refusé). Le message réel de l'API est
+  maintenant **extrait et affiché** (Anthropic / OpenAI-compatibles / Gemini).
+
 - **LOGBOOK — fil IA « Ce que l'IA remarque » en volet repliable.** Il flottait sur
   l'en-tête (mal placé). Il devient un **bouton ◈ IA** dans la barre du log, avec un
   **badge compteur** (visible même fermé), et s'ouvre en volet ancré sous la barre —

@@ -246,8 +246,11 @@ def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_p
         base_url, data=json.dumps(payload).encode(),
         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
         method='POST')
-    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-        d = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            d = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(_llm_error_message(provider, e.code, e.read()))
     try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
         import logx_ai_usage as _usage
         _usage.enregistrer_reponse(provider, ai_model or default_model, d)
@@ -284,6 +287,28 @@ def _ia_local(cfg):
     return bool(v)
 
 
+def _llm_error_message(provider, code, body):
+    """Message d'erreur LISIBLE depuis la réponse HTTP d'un fournisseur IA :
+    extrait error.message (Anthropic/OpenAI) ou error.error.message (Gemini),
+    sinon un extrait brut — au lieu du « HTTP Error 400 » opaque qui masquait la
+    vraie cause (ex. « anthropic-workspace-id is required… », clé/modèle refusé).
+    Pur (testable)."""
+    txt = body.decode('utf-8', 'replace') if isinstance(body, (bytes, bytearray)) else str(body or '')
+    msg = ''
+    try:
+        d = json.loads(txt)
+        err = d.get('error', d) if isinstance(d, dict) else {}
+        if isinstance(err, dict):
+            msg = err.get('message') or (err.get('error') or {}).get('message') or ''
+        elif isinstance(err, str):
+            msg = err
+    except Exception:  # noqa: BLE001 — corps non-JSON : on retombe sur l'extrait brut
+        pass
+    if not msg:
+        msg = txt.strip()[:300] or 'réponse vide'
+    return '%s (HTTP %s) : %s' % (provider or 'IA', code, msg)
+
+
 def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     """Appelle le fournisseur IA configuré et retourne le TEXTE de la réponse.
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
@@ -307,8 +332,11 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
             'https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(),
             headers={'Content-Type': 'application/json', 'x-api-key': api_key,
                      'anthropic-version': '2023-06-01'}, method='POST')
-        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-            data = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(_llm_error_message('anthropic', e.code, e.read()))
         try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
             import logx_ai_usage as _usage
             _usage.enregistrer_reponse('anthropic', ai_model, data)
@@ -334,8 +362,11 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers={'Content-Type': 'application/json',
                                               'x-goog-api-key': api_key}, method='POST')
-        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-            d = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+                d = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(_llm_error_message('gemini', e.code, e.read()))
         try:                                # suivi de consommation (FAITS ; ne casse jamais l'appel)
             import logx_ai_usage as _usage
             _usage.enregistrer_reponse('gemini', model_id, d)
