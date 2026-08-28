@@ -65,6 +65,7 @@ def test_alimente_le_fil_ia():
 def test_cablage_logbook():
     with open(os.path.join(CONCOURS, 'logx_logbook.html'), encoding='utf-8') as f:
         h = f.read()
-    assert 'src="logx_validation_live.js"' in h
-    assert 'id="validationBadge"' in h
-    assert 'LogxValidationLive.ouvrir' in h            # clic -> ouvre VÉRIFIER
+    assert 'src="logx_validation_live.js"' in h        # module chargé (alimente le fil IA)
+    # Le badge d'en-tête a été RETIRÉ (le fil IA « Ce que l'IA remarque » le
+    # résume, avec la même action ouvrir VÉRIFIER au clic).
+    assert 'id="validationBadge"' not in h

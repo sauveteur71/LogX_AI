@@ -13,6 +13,15 @@ poussé.
 
 ## [Non publié]
 
+### Modifié
+
+- **Désencombrement du LOGBOOK.** Maintenant que le **fil IA « Ce que l'IA
+  remarque »** rassemble tout, le **badge de validation** (en-tête) et la
+  **pastille « après-QSO »** — qui faisaient doublon — ont été retirés ; le fil
+  les résume, avec les mêmes actions au clic. Le **panneau Opportunités** (fiche
+  FAIT/CALCUL/PROPOSITION + QSY) et la **pastille busted-call** (corriger/non)
+  restent, car ils offrent plus que le résumé.
+
 ## [1.2-beta2] — 2026-08-28
 
 ### Sécurité

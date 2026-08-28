@@ -97,7 +97,9 @@ def test_cablage_logbook():
     with open(os.path.join(CONCOURS, 'logx_logbook.html'), encoding='utf-8') as f:
         h = f.read()
     assert 'src="logx_apres_qso.js"' in h
-    assert 'id="apresQsoPastille"' in h
+    # La pastille dédiée a été RETIRÉE (le fil IA résume les gains du dernier
+    # QSO) ; le module reste branché sur le flux d'enregistrement et alimente le fil.
+    assert 'id="apresQsoPastille"' not in h
     with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
         js = f.read()
     assert 'LogxApresQso.montrer' in js              # branché sur le flux d'enregistrement
