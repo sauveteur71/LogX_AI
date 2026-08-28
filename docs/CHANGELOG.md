@@ -60,6 +60,10 @@ poussé.
   utilisait CARTO `dark_all`, qui exige désormais une clé et servait sinon des
   tuiles filigranées. Remplacé par **Esri Dark Gray**, un fond sombre sans clé
   (attribution mise à jour) : les cartes sont de nouveau propres en mode nuit.
+- **Panneau détaché ouvert seul.** `logx_panel.html` sans paramètre `?id=`
+  affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
+  depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
+  garde le message technique.
 
 ## [1.2-beta2] — 2026-08-28
 
