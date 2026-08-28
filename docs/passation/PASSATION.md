@@ -25,6 +25,19 @@ travail et la méthode — les deux sont archivées ici.
 
 ### Fusionné et en production
 
+**Nuit du 27→28/08/2026 — 11 PR (F4GLD « avance au maximum avant la démo »,
+règle de validation navigateur jour+nuit SUPPRIMÉE ce jour-là) :**
+
+| PR | Ce que ça fait |
+|---|---|
+| #383 | **HUD « Opportunités » (LOGBOOK)** : remonte la need-list de CHASSE (même moteur `/data/spots_ranked`, zéro recalcul) + explicabilité **FAIT / CALCUL / PROPOSITION** ; bouton ▶ Appeler (pré-remplit l'indicatif + QSY si CAT). `logx_opportunites.js`. |
+| #384 | **Suite d'évals invariants sécurité** (`test_invariants_securite.py`) : verrouille *0 émission sans consentement · 0 écriture QSO par le LLM · 0 faux crédit · 0 action aberrante · jeton jamais journalisé*. Tests purs, contre-épreuves de mutation. |
+| #385 | **Récap « après-QSO »** (`logx_apres_qso.js`) : ce que le QSO apporte (nouveau pays/bande, à confirmer LoTW) via `/call/history` ; non-modal, silencieux sur doublon. |
+| #386 | **Durcissement consentement TX** : empreinte SHA-256 du message dans l'audit + plafond de puissance optionnel (`tx_max_power_w`, parse défensif fail-open). Additif, ne change rien à l'émission. |
+| #387 | **Suivi de consommation IA en tokens** (`logx_ai_usage.py`, `GET /ai/usage`) : FAITS seulement, aucun prix inventé (coût si tarifs configurés). Hooks défensifs `call_llm` + `/proxy/ai`. |
+| #388-#391 | **Écran « Santé de la station »** (`logx_diagnostic.html/.js`) : tuiles Radio/Rotor/FT8/Callbook/Cloud/MySQL/DXCC/Émission/IA + horloge UTC, lecture seule. Atteignable depuis le menu Outils de toutes les pages, nav cohérente. + couverture tokens openai/gemini serveur. |
+| #392 | **Planificateur de session** (`logx_session.html/.js/.py`, `POST /session/plan`) : contraintes → plan par créneaux + critères d'arrêt. **Consultatif** (prompt « ne propose jamais d'émettre automatiquement »). Lien nav « PLAN DE SESSION » partout. |
+
 | PR | Ce que ça fait |
 |---|---|
 | #115 | **Sûreté d'émission** : STOP et Échap annulent réellement une émission déjà programmée. Avant, jusqu'à 12,9 s d'émission continuaient APRÈS l'ordre d'arrêt, écran affichant « Émission coupée ». |
