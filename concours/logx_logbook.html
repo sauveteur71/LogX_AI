@@ -248,7 +248,7 @@ body.sans-concours .compass-pts{display:none}
 .panel-title{font-family:var(--font-display);font-size:18px;color:var(--accent2);letter-spacing:.2px;padding:10px 18px 8px;border-bottom:1px solid var(--border);font-weight:900;flex-shrink:0}
 
 /* FORM DE SAISIE — zone prioritaire, jamais rognée */
-.saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.saisie-form{padding:5px 18px;display:flex;flex-direction:column;gap:3px;flex-shrink:0}
 /* Grille départements 00–99 (clic direct, échanges-département). Compacte,
    tokens de charte -> suit jour/nuit. */
 .dept-grid-wrap{display:flex;flex-direction:column;gap:4px}
@@ -267,11 +267,11 @@ body.sans-concours .compass-pts{display:none}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .op-btn.active::before{content:'\2713\00a0'}
 
-.field-group{display:flex;flex-direction:column;gap:3px}
-.field-label{font-size:14px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+.field-group{display:flex;flex-direction:column;gap:2px}
+.field-label{font-size:13px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 /* Visuellement masqué mais lu par les lecteurs d'écran -- audit accessibilité 09/08/2026 */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.field-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:22px;padding:7px 14px;outline:none;transition:border-color .2s;width:100%;text-transform:uppercase;letter-spacing:2px;font-weight:700}
+.field-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:20px;padding:5px 14px;outline:none;transition:border-color .2s;width:100%;text-transform:uppercase;letter-spacing:2px;font-weight:700}
 .field-input:focus{border-color:var(--accent2);box-shadow:0 0 10px rgba(var(--accent-rgb),.15)}
 .field-input.error{border-color:var(--red)}
 .field-input.ok{border-color:var(--green)}
@@ -464,7 +464,7 @@ select.field-input{cursor:pointer}
    Position absolue et z-index élevé : il se déploie PAR-DESSUS le tableau du
    log, sans repousser les lignes ni faire sauter la mise en page. */
 .lb-menu{position:relative;display:inline-block}
-.lb-menu-dd{position:absolute;top:calc(100% + 4px);right:0;z-index:400;
+.lb-menu-dd{position:absolute;top:calc(100% + 4px);left:0;z-index:1200;
   min-width:250px;background:var(--bg2);border:1px solid var(--border);
   border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .lb-menu-dd .grp{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;
@@ -2413,7 +2413,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <table class="log-table">
         <thead>
           <tr>
-            <th>#</th>
             <th title="Heure UTC">HEURE</th>
             <th>INDICATIF</th>
             <th>BANDE</th>
