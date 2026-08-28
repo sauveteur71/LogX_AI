@@ -256,10 +256,26 @@ def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_p
     return d.get('choices', [{}])[0].get('message', {}).get('content', '')
 
 
+# « Mode local uniquement » : quand l'opérateur l'active (config ia_local_only),
+# AUCUN appel réseau IA n'est fait — zéro crédit dépensé. Les moteurs
+# DÉTERMINISTES (coach, validation, diplômes, enrichissement) restent actifs ;
+# seules les fonctions qui appellent un LLM basculent sur ce repli propre.
+MSG_IA_LOCAL = ('IA en mode local — aucun appel réseau (les calculs déterministes '
+                'restent actifs). Décochez « Mode local uniquement » dans la '
+                'configuration pour réactiver l\'IA en ligne.')
+
+
+def _ia_local(cfg):
+    """True si l'opérateur a coupé le réseau IA (config ia_local_only)."""
+    return bool((cfg or {}).get('ia_local_only'))
+
+
 def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     """Appelle le fournisseur IA configuré et retourne le TEXTE de la réponse.
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
     Lève une exception en cas d'échec."""
+    if _ia_local(cfg):
+        raise RuntimeError(MSG_IA_LOCAL)
     provider = (cfg or {}).get('api_provider', 'anthropic')
     # Le modèle vient de la CONFIGURATION ; celui que passe l'appelant n'est
     # retenu que s'il appartient au fournisseur configuré (voir modele_effectif).
@@ -357,6 +373,10 @@ def call_llm_stream(cfg, system_prompt, messages, model=None, max_tokens=4096, o
     call_llm() — un seul on_delta avec le texte entier. Le dispatch (modèle
     effectif, clé) est STRICTEMENT celui de call_llm : c'est la même logique, en
     flux, pour ne pas dupliquer une 4e fois la sélection de fournisseur."""
+    if _ia_local(cfg):
+        if on_delta:
+            on_delta(MSG_IA_LOCAL)      # mode local : un seul fragment, repli propre
+        return MSG_IA_LOCAL
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
@@ -530,6 +550,8 @@ def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
     (ou None). Single-shot. Seul Anthropic gère les outils ; les autres
     fournisseurs retombent sur une réponse TEXTE (action None) — le chat ne casse
     jamais."""
+    if _ia_local(cfg):
+        return {'text': MSG_IA_LOCAL, 'action': None}   # mode local : repli propre, jamais d'action
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, None, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
@@ -5748,6 +5770,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # configurée, valide la proposition contre le schema et le moteur.
         # NE SAUVEGARDE RIEN : la relecture humaine passe par /rules/save_definition.
         if self.path == '/rules/analyze':
+            if _ia_local(self._cfg_snapshot()):        # mode local : pas d'analyse LLM
+                self._json({'ok': False, 'error': MSG_IA_LOCAL}, 400)
+                return
             try:
                 payload = json.loads(body) if body else {}
                 result = analyze_rules(
@@ -8162,6 +8187,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # fusionne les constats sous ceux du VÉRIFIER déterministe.
         if self.path == '/log/audit':
             global _audit_seq
+            if _ia_local(self._cfg_snapshot()):        # mode local : audit IA désactivé
+                self._json({'error': MSG_IA_LOCAL}, 400)
+                return
             try:
                 import logx_validator as validator
                 cfg_snap = self._cfg_snapshot()
@@ -8322,6 +8350,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
+            if _ia_local(cfg_snap):                    # mode local : repli propre, zéro réseau
+                self._json({'error': {'message': MSG_IA_LOCAL}}, 200)
+                return
             provider = cfg_snap.get('api_provider', 'anthropic')
             ai_model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
             api_key  = cfg_snap.get('api_key', '')
