@@ -1247,6 +1247,20 @@ Cette page répond à deux questions : « quel concours ce week-end ? » et « q
 
 Une rangée de filtres commune complète les onglets : « TOUS », « ⭐ REF », « 🌍 IARU », « 📡 CQ », « 📶 VHF », « 🌐 HF », « 🔜 À VENIR (31 j) » et « 🆕 NOUVEAU PAYS » — ce dernier n'agit que dans l'onglet DXpéditions, où il ne garde que les entités que vous n'avez jamais contactées : l'écran idéal à consulter avant chaque saison DX.
 
+### 9.8 🩺 SANTÉ DE LA STATION — tout est-il prêt ?
+
+Accessible depuis le menu **Outils**, cet écran répond d'un coup d'œil à « est-ce que ma station est prête ? ». Il affiche une **tuile par sous-système**, chacune avec une pastille de couleur :
+
+- 🟢 **verte** : tout va bien ; 🟡 **jaune** : attention ; 🔴 **rouge** : à corriger ; ⚪ **grise** : non configuré.
+
+Les tuiles couvrent : **Radio (CAT)** (connectée et répond ?), **Rotor**, **FT8 / WSJT-X** (le pont reçoit-il des décodages ?), **Callbook** (QRZ/HamQTH disponibles ou en pause hors-ligne), **Synchro Cloud** et **Synchro MySQL**, **Base DXCC** (cty.dat chargée), **Émission** (le consentement est-il prêt, ou un « Stop TX » est-il actif ?) et **IA (consommation)** (nombre d'appels et tokens consommés). L'**horloge UTC** est affichée en haut. L'écran est en **lecture seule** : il ne pilote rien, il informe, et se rafraîchit tout seul.
+
+### 9.9 🗺️ PLAN DE SESSION — un objectif, un plan par créneaux
+
+Toujours dans le menu **Outils**, cet écran transforme une envie en plan concret. Vous saisissez vos **contraintes** — durée disponible, objectif (« 3 nouveaux DXCC », « activer un parc POTA »…), mode(s), bande(s), puissance — et l'assistant propose un **plan découpé en créneaux horaires**, avec pour chaque créneau la bande/mode à privilégier, la cible visée, et enfin des **critères d'arrêt** (« aucune activité pendant 4 minutes », « CAT déconnecté »…).
+
+C'est un **conseil, pas un pilote** : le logiciel n'effectue **aucun** changement de fréquence ni **aucune** émission automatique. Vous gardez la main sur chaque geste. Les prévisions sont présentées comme des **probabilités** (« ouverture probable vers l'Amérique du Sud »), jamais comme des certitudes.
+
 ---
 
 ## 10. Sorties en portable POTA, SOTA, WWFF, IOTA, WCA
