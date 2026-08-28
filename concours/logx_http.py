@@ -238,7 +238,7 @@ def build_ft8_strategy_prompt(call, series):
             "récent) :\n%s\n\nOù et quand dois-je appeler %s ?" % (call, '\n'.join(lignes), call))
 
 
-def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
+def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096, provider='openai'):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
     msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
     payload = {'model': ai_model or default_model, 'max_tokens': max_tokens, 'messages': msgs}
@@ -248,6 +248,11 @@ def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_p
         method='POST')
     with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
         d = json.loads(resp.read())
+    try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
+        import logx_ai_usage as _usage
+        _usage.enregistrer_reponse(provider, ai_model or default_model, d)
+    except Exception:
+        pass
     return d.get('choices', [{}])[0].get('message', {}).get('content', '')
 
 
@@ -285,7 +290,7 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     if provider in OPENAI_COMPATIBLE_ENDPOINTS:
         base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
         return _call_openai_compatible(base_url, ai_model, default_model, api_key,
-                                       system_prompt, messages, max_tokens)
+                                       system_prompt, messages, max_tokens, provider=provider)
 
     if provider == 'gemini':
         model_id = ai_model
@@ -301,6 +306,11 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                                               'x-goog-api-key': api_key}, method='POST')
         with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
             d = json.loads(resp.read())
+        try:                                # suivi de consommation (FAITS ; ne casse jamais l'appel)
+            import logx_ai_usage as _usage
+            _usage.enregistrer_reponse('gemini', model_id, d)
+        except Exception:
+            pass
         return (d.get('candidates', [{}])[0].get('content', {})
                 .get('parts', [{}])[0].get('text', ''))
 

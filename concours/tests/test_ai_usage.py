@@ -99,6 +99,38 @@ def serveur():
     srv.shutdown()
 
 
+class _FakeResp:
+    def __init__(self, obj):
+        self._b = json.dumps(obj).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self._b
+
+
+def test_call_llm_enregistre_openai_et_gemini(monkeypatch):
+    # OpenAI-compatible : usage.prompt_tokens / completion_tokens
+    monkeypatch.setattr(h.urllib.request, 'urlopen',
+                        lambda *a, **k: _FakeResp({'choices': [{'message': {'content': 'ok'}}],
+                                                   'usage': {'prompt_tokens': 11, 'completion_tokens': 4}}))
+    h.call_llm({'api_provider': 'openai', 'api_key': 'x', 'ai_model': 'gpt-x'}, 's', [{'role': 'user', 'content': 'q'}])
+    r = usage.resume()
+    assert r['par_fournisseur']['openai']['in'] == 11 and r['par_fournisseur']['openai']['out'] == 4
+
+    # Gemini : usageMetadata.promptTokenCount / candidatesTokenCount
+    monkeypatch.setattr(h.urllib.request, 'urlopen',
+                        lambda *a, **k: _FakeResp({'candidates': [{'content': {'parts': [{'text': 'ok'}]}}],
+                                                   'usageMetadata': {'promptTokenCount': 6, 'candidatesTokenCount': 2}}))
+    h.call_llm({'api_provider': 'gemini', 'api_key': 'x', 'ai_model': 'gem-x'}, 's', [{'role': 'user', 'content': 'q'}])
+    r = usage.resume()
+    assert r['par_fournisseur']['gemini']['in'] == 6 and r['par_fournisseur']['gemini']['out'] == 2
+
+
 def test_endpoint_ai_usage_rend_les_faits(serveur):
     usage.enregistrer('anthropic', 'claude-x', 1234, 567)
     with urllib.request.urlopen(serveur + '/ai/usage', timeout=10) as r:
