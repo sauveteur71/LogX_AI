@@ -15,9 +15,10 @@ Tout ce qu'il faut pour lancer la production d'une vidéo de **10 à 15 min** su
 
 ## Marche à suivre (dans l'ordre)
 
-1. **Prépare les captures** — suis `03_plan_visuel_captures.md`. Active le
-   **MODE DÉMO** (CONFIG → Assistant IA) pour filmer opportunités + fil IA
-   **sans radio branchée**. Range tout dans `captures/`.
+1. **Les captures sont déjà faites** — 19 visuels réels dans `captures/` (station
+   TM6KJS, ~10 000 QSO), mappés au script dans `03_plan_visuel_captures.md`. Deux
+   visuels optionnels restent à décider (bannière de score concours en direct ;
+   plan de session généré) — voir la fin de `03_…`.
 2. **Ouvre InVideo AI**, mode **Script to video**, langue **Français**.
 3. **Colle le prompt** de `01_prompt_invideo.md` (variante A recommandée).
 4. **Colle le script** de `02_script_narration.md` (tout, à partir de `## INTRODUCTION`).
@@ -28,9 +29,9 @@ Tout ce qu'il faut pour lancer la production d'une vidéo de **10 à 15 min** su
 
 ## Checklist avant de cliquer « Generate »
 
-- [ ] Script narration prêt (`02_…`) — copié tel quel, sans les didascalies
+- [x] Script narration prêt (`02_…`) — polyvalence en fil rouge, prêt à coller
 - [ ] Prompt de workflow choisi (`01_…`) — durée, ton, langue, format
-- [ ] Captures d'écran faites et nommées (`03_…` → `captures/`)
+- [x] Captures d'écran faites (19 dans `captures/`, mappées dans `03_…`)
 - [ ] Logo prêt pour intro/outro (`docs/logoXAI.png`)
 - [ ] Décision voix off prise (IA InVideo **ou** ma voix)
 - [ ] Sous-titres = FR · Format = 16:9 · Musique = discrète
