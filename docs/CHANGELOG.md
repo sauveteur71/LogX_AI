@@ -45,6 +45,18 @@ poussé.
   FAIT/CALCUL/PROPOSITION + QSY) et la **pastille busted-call** (corriger/non)
   restent, car ils offrent plus que le résumé.
 
+### Corrigé
+
+- **Barre de navigation non stylée sur 5 pages.** Les pages *Santé (diagnostic)*,
+  *FT8*, *RTTY*, *SSTV* et *Plan de session* affichaient la barre de navigation
+  supérieure en liens bruts (le style `.app-nav` manquait dans leur feuille
+  locale). Les règles ont été ajoutées ; la barre est de nouveau cohérente avec
+  les autres pages, dans les deux thèmes.
+- **Provenance par champ remontée dans la zone de saisie.** Le panneau était placé
+  dans l'onglet *Correspondant* (masqué par défaut) et n'apparaissait donc jamais
+  pendant la frappe ; il est maintenant sous l'indicatif, dans la zone de saisie
+  principale, visible en direct.
+
 ## [1.2-beta2] — 2026-08-28
 
 ### Sécurité

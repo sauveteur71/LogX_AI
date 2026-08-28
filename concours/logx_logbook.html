@@ -1735,6 +1735,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              la saisie. -->
         <!-- Widget Time of Day : jour/nuit chez toi vs chez le correspondant -->
         <div id="todWidget" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;gap:14px" title="Heure/jour-nuit approximés (heure solaire, pas de fuseau politique)"></div>
+        <!-- Provenance par champ : remontée dans la zone de saisie principale
+             (visible pendant la frappe, plus dans l'onglet Correspondant masqué)
+             — d'où vient chaque donnée enrichie : fait sourcé vs calcul. -->
+        <div id="provenancePanel" class="prov-panel" hidden></div>
       </div>
 
       <!-- Prénom du correspondant : auto-rempli au lookup (base interne d'abord,
@@ -1919,7 +1923,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
                  d'ensemble en un coup d'œil, remplie par checkPrevQsos() (même
                  requête /call/history que #prevQsos, aucun appel réseau de plus). -->
             <div id="lotwGrid" style="display:none;font-family:var(--font-mono);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px"></div>
-            <div id="provenancePanel" class="prov-panel" hidden></div>
           </div>
           <div class="callbook-compass-col">
             <!-- Compas inline -->
