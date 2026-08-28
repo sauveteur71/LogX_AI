@@ -56,6 +56,10 @@ poussé.
   dans l'onglet *Correspondant* (masqué par défaut) et n'apparaissait donc jamais
   pendant la frappe ; il est maintenant sous l'indicatif, dans la zone de saisie
   principale, visible en direct.
+- **Fond de carte « API KEY REQUIRED » (Carte IA & écran mural).** Le fond sombre
+  utilisait CARTO `dark_all`, qui exige désormais une clé et servait sinon des
+  tuiles filigranées. Remplacé par **Esri Dark Gray**, un fond sombre sans clé
+  (attribution mise à jour) : les cartes sont de nouveau propres en mode nuit.
 
 ## [1.2-beta2] — 2026-08-28
 
