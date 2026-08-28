@@ -627,10 +627,13 @@ function getTileConfig(){
     sub:'abc',
     attr:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   };
+  // Fond sombre SANS CLÉ (Esri Dark Gray). CARTO dark_all exige désormais une
+  // clé et sert sinon des tuiles filigranées « API KEY REQUIRED ». Esri sert un
+  // fond gris sombre keyless (attribution requise) — note l'ordre {z}/{y}/{x}.
   return {
-    url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    sub:'abcd',
-    attr:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/attributions">CARTO</a>'
+    url:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    sub:'',
+    attr:'© <a href="https://www.esri.com/">Esri</a>, HERE, Garmin © <a href="https://www.openstreetmap.org/copyright">OSM</a>'
   };
 }
 
