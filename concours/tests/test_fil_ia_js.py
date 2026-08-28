@@ -19,11 +19,15 @@ def _ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
       var window = {};
-      var __panel = { hidden: false };
-      var __corps = { innerHTML: '', hidden: false };
+      var __panel = { style: { display: 'none' } };
+      var __corps = { innerHTML: '' };
+      var __btn = { classList: { toggle: function(){} } };
+      var __badge = { textContent: '', hidden: false };
       var document = { getElementById: function(id){
           if(id==='filIaPanel') return __panel;
           if(id==='filIaCorps') return __corps;
+          if(id==='filIaBtn') return __btn;
+          if(id==='filIaCount') return __badge;
           return null; } };
     """)
     with open(JS, encoding='utf-8') as f:
@@ -62,19 +66,29 @@ def test_pousser_remplace_les_entrees_dune_source():
     assert ctx.eval("window.LogxFilIA._construire().length") == 0
 
 
-def test_rendre_vide_cache_le_panneau():
+def test_rendre_vide_volet_ferme_et_badge_cache():
     ctx = _ctx()
     ctx.eval("window.LogxFilIA._rendre([]);")
-    assert ctx.eval("__panel.hidden") is True
+    assert ctx.eval("__panel.style.display") == 'none'
     assert ctx.eval("__corps.innerHTML") == ''
+    assert ctx.eval("__badge.hidden") is True          # badge caché quand rien
 
 
-def test_rendre_affiche_et_montre_le_panneau():
+def test_volet_masque_par_defaut_puis_ouvert_au_clic():
     ctx = _ctx()
+    # Contenu présent MAIS volet fermé par défaut (choix F4GLD 28/08) : le corps
+    # est rempli, le badge compte, le panneau reste masqué tant qu'on n'a pas
+    # cliqué sur le bouton ◈ IA.
     ctx.eval("window.LogxFilIA._rendre([{icone:'⚠', texte:'2 à vérifier', type:'attention'}]);")
-    assert ctx.eval("__panel.hidden") is False
     html = ctx.eval("__corps.innerHTML")
     assert 'fil-item' in html and 'fil-attention' in html and '2 à vérifier' in html
+    assert ctx.eval("__panel.style.display") == 'none'          # masqué par défaut
+    assert ctx.eval("__badge.hidden") is False
+    assert ctx.eval("__badge.textContent") == '1'
+    ctx.eval("window.LogxFilIA.basculer();")                     # clic -> ouvre
+    assert ctx.eval("__panel.style.display") == 'block'
+    ctx.eval("window.LogxFilIA.basculer();")                     # re-clic -> ferme
+    assert ctx.eval("__panel.style.display") == 'none'
 
 
 def test_rendre_echappe_le_texte_xss():

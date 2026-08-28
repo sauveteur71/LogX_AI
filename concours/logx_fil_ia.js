@@ -18,6 +18,20 @@
   var MAX = 6;
   var PRIO = {attention: 0, proposition: 1, info: 2};
   var _sources = {};
+  var _open = false;   // volet masqué par défaut, ouvert via le bouton ◈ IA
+  var _count = 0;
+
+  // Applique l'état : badge compteur sur le bouton (visible même volet fermé,
+  // pour signaler qu'il y a quelque chose), et affichage du volet seulement s'il
+  // est ouvert ET qu'il y a du contenu (zéro bruit).
+  function _appliquer(){
+    var panel = document.getElementById('filIaPanel');
+    var btn = document.getElementById('filIaBtn');
+    var badge = document.getElementById('filIaCount');
+    if(badge){ badge.textContent = String(_count); badge.hidden = _count === 0; }
+    if(btn) btn.classList.toggle('has-items', _count > 0);
+    if(panel) panel.style.display = (_open && _count > 0) ? 'block' : 'none';
+  }
 
   function esc(s){
     return String(s == null ? '' : s)
@@ -42,26 +56,23 @@
   }
 
   function _rendre(entrees){
-    var panel = document.getElementById('filIaPanel');
     var corps = document.getElementById('filIaCorps');
-    if(!corps) return;
-    if(!entrees || !entrees.length){
-      corps.innerHTML = '';
-      if(panel) panel.hidden = true;         // caché si rien à dire (zéro bruit)
-      return;
+    entrees = entrees || [];
+    _count = entrees.length;
+    if(corps){
+      corps.innerHTML = entrees.map(function(e){
+        // onclick vient d'un module SOURCE (de confiance) ; le texte, lui, est
+        // toujours échappé.
+        var oc = e.onclick ? (' onclick="' + e.onclick + '"') : '';
+        var role = e.onclick ? ' role="button" tabindex="0"' : '';
+        return '<div class="fil-item fil-' + esc(e.type || 'info') + '"' + oc + role + '>' +
+          '<span class="fil-dot"></span>' +
+          '<span class="fil-ico">' + (e.icone || '') + '</span>' +
+          '<span class="fil-txt">' + esc(e.texte || '') + '</span>' +
+          '</div>';
+      }).join('');
     }
-    if(panel) panel.hidden = false;
-    corps.innerHTML = entrees.map(function(e){
-      // onclick vient d'un module SOURCE (de confiance) ; le texte, lui, est
-      // toujours échappé.
-      var oc = e.onclick ? (' onclick="' + e.onclick + '"') : '';
-      var role = e.onclick ? ' role="button" tabindex="0"' : '';
-      return '<div class="fil-item fil-' + esc(e.type || 'info') + '"' + oc + role + '>' +
-        '<span class="fil-dot"></span>' +
-        '<span class="fil-ico">' + (e.icone || '') + '</span>' +
-        '<span class="fil-txt">' + esc(e.texte || '') + '</span>' +
-        '</div>';
-    }).join('');
+    _appliquer();
   }
 
   // Une source dépose (ou remplace) ses entrées, puis on re-rend tout le fil.
@@ -71,10 +82,11 @@
     _rendre(_construire());
   }
 
-  // Masquer ≠ bloquer : replie le corps (les sources continuent d'alimenter).
+  // Ouvre/ferme le volet (les sources continuent d'alimenter en arrière-plan ;
+  // le badge reste visible sur le bouton pour signaler le contenu).
   function basculer(){
-    var c = document.getElementById('filIaCorps');
-    if(c) c.hidden = !c.hidden;
+    _open = !_open;
+    _appliquer();
   }
 
   global.LogxFilIA = {

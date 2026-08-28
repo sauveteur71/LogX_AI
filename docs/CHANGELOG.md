@@ -64,6 +64,11 @@ poussé.
   affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
   depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
   garde le message technique.
+- **LOGBOOK — fil IA « Ce que l'IA remarque » en volet repliable.** Il flottait sur
+  l'en-tête (mal placé). Il devient un **bouton ◈ IA** dans la barre du log, avec un
+  **badge compteur** (visible même fermé), et s'ouvre en volet ancré sous la barre —
+  plus de recouvrement de l'en-tête, actions au clic conservées, masqué par défaut.
+
 - **LOGBOOK — trois réglages d'affichage (retours F4GLD).** (1) La colonne **#**
   (numéro de QSO, sans usage visuel) est retirée du tableau ; l'indicateur ⚠️ de
   QSO incomplet est conservé, désormais devant l'indicatif. (2) Le menu
