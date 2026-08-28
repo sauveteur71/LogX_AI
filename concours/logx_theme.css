@@ -156,6 +156,16 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 .opp-appeler{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer}
 .opp-appeler:hover{background:rgba(var(--accent-rgb),.2)}
 
+/* Provenance par champ : d'où vient chaque donnée enrichie (relevé lecture seule
+   sous la zone d'enrichissement de la saisie). */
+.prov-panel{margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px;font-family:var(--font-mono);font-size:12px}
+.prov-panel[hidden]{display:none}
+.prov-h{color:var(--muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.prov-row{display:flex;align-items:baseline;gap:8px;padding:1px 0}
+.prov-c{color:var(--muted);min-width:80px}
+.prov-v{color:var(--text);flex:1}
+.prov-s{color:var(--accent2)}
+
 /* Fil IA unifié « Ce que l'IA remarque » (LOGBOOK) : agrège opportunités /
    validation / après-QSO / busted en un fil priorisé. Panneau flottant en haut
    à droite, caché tant qu'il n'y a rien. Pastille de couleur par type. */

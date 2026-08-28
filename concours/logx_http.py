@@ -3460,6 +3460,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'cibles': awards.prochaines_cibles(log_copy)})
             return
 
+        # Provenance par champ : d'où vient chaque donnée enrichie d'un indicatif
+        # (Pays/zones = cty.dat, Distance/Azimut = calculé). Lecture seule, offline.
+        if path.startswith('/calldb/provenance'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_provenance as prov
+            call = (parse_qs(urlparse(self.path).query).get('call') or [''])[0]
+            self._json({'rows': prov.provenance(call, self._cfg_snapshot())})
+            return
+
         # Résumé À VIE des activations/chasses par programme (POTA/SOTA/IOTA...) :
         # nombre de références UNIQUES activées (my_sig_info) et chassées
         # (sig_info). Agrégation pure du log, aucune confirmation externe.
