@@ -15,6 +15,12 @@ poussé.
 
 ### Ajouté
 
+- **Provenance par champ.** Sous la saisie d'un indicatif, un petit relevé montre
+  **d'où vient chaque donnée enrichie** : Pays / Continent / Zones CQ & ITU depuis
+  la **base DXCC (cty.dat)**, Distance / Azimut **calculés**. Pour la confiance :
+  on voit toujours si une valeur est un **fait sourcé** ou un **calcul**. Hors-ligne,
+  lecture seule, sans toucher aux champs de saisie.
+
 - **« Prochaines cibles recommandées » sur l'accueil.** Le cockpit d'accueil
   affiche, par entité déjà entamée, le prochain slot à aller chercher :
   **« à confirmer LoTW »** pour un pays travaillé mais pas encore confirmé, ou un
