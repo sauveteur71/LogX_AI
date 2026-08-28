@@ -35,7 +35,7 @@
 | DÉMO — propagation | `22_propagation.png` | Bandes, ouvertures, cluster, carrés à reprendre |
 | DÉMO — progression | `15_diplomes.png` | **Carte monde DXCC** : pays faits (vert) vs à faire (sombre) |
 | DÉMO — multi-poste | `20_ecran_mural.png` | Écran mural d'expédition (QSO, ODX, carte, conditions) |
-| DÉMO — planif | `14_plan_session.png` | Planificateur de session (durée/objectif/bandes) |
+| DÉMO — planif | `14_plan_session.png` puis `14b_plan_session_genere.png` | Le formulaire, **puis le vrai plan IA généré** (top fréquences FT8 par propagation, score, plan par créneaux — « aucun contact inventé ») |
 | CONCLUSION — autonomie | `18_config_ia_modelocal.png` | Fournisseurs IA + mode local + mode démo (BYOK, budget) |
 | CONCLUSION — archi | *(présentation technique)* | Déterministe d'abord / invariants verrouillés |
 | CONCLUSION — clôture | `docs/logoXAI.png` | Logo + « L'IA prépare. L'opérateur déclenche. » |
@@ -49,15 +49,15 @@
 | `bonus_chasse_spots.png` | CHASSE : spots en direct classés |
 | `26_bandscope.png` | Bandscope 2 m (cadre OK mais bande calme — visuel faible) |
 
-## Deux visuels qui manquent encore (à toi de décider)
+## Un visuel encore optionnel
 
-1. **Bannière de score/mults en direct** — n'apparaît que si un **concours est activé**
-   (écriture de config). Dis-moi si tu veux que j'active temporairement un concours
-   pour la capturer (puis je remets « aucun concours »), ou fais-le toi-même et je
-   re-capture.
-2. **Plan de session généré** (le vrai résultat, pas le formulaire) — nécessite ta
-   **clé API** dans la config du serveur (le plan appelle le LLM). Configure-la et je
-   génère + capture un plan réel.
+- **Bannière de score/mults en direct** — n'apparaît que si un **concours est dans sa
+  fenêtre horaire**. `ALL_ASIAN_SSB` est sélectionné mais démarre plus tard, donc le
+  score reste à 0. Les visuels **12 (sélection)** et **23 (calendrier)** couvrent déjà
+  le volet concours.
+
+*(Le plan de session généré est désormais capturé — `14b_plan_session_genere.png` —
+la clé API a été corrigée.)*
 
 ## Photos d'ambiance (optionnel)
 
