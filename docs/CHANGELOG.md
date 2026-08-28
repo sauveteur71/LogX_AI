@@ -13,6 +13,15 @@ poussé.
 
 ## [Non publié]
 
+### Ajouté
+
+- **« Prochaines cibles recommandées » sur l'accueil.** Le cockpit d'accueil
+  affiche, par entité déjà entamée, le prochain slot à aller chercher :
+  **« à confirmer LoTW »** pour un pays travaillé mais pas encore confirmé, ou un
+  **mode manquant** sur une bande déjà travaillée (ex. **« Japon · CW · 15 m »**).
+  Priorisé par ce que vous avez le plus travaillé. Déterministe, calculé depuis
+  votre log — un objectif concret plutôt qu'un chiffre abstrait.
+
 ### Modifié
 
 - **Désencombrement du LOGBOOK.** Maintenant que le **fil IA « Ce que l'IA

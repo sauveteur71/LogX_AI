@@ -18,11 +18,12 @@ def _ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
       var window = {};
-      var __o = {innerHTML:''}, __p = {innerHTML:''}, __e = {innerHTML:''};
+      var __o = {innerHTML:''}, __p = {innerHTML:''}, __e = {innerHTML:''}, __cib = {innerHTML:''};
       var document = { getElementById: function(id){
           if(id==='ckOpp') return __o;
           if(id==='ckProg') return __p;
           if(id==='ckEtat') return __e;
+          if(id==='ckCibles') return __cib;
           return null; } };
     """)
     with open(JS, encoding='utf-8') as f:
@@ -91,6 +92,20 @@ def test_opportunites_vide():
     assert ctx.eval("window.LogxCockpit._opportunites({spots:[]}).length") == 0
 
 
+def test_rendre_cibles_affiche_et_echappe():
+    ctx = _ctx()
+    ctx.eval("window.LogxCockpit._rendreCibles([{entity:'Japon', slot:'CW · 15 m'},{entity:'<b>X</b>', slot:'à confirmer LoTW'}]);")
+    html = ctx.eval("__cib.innerHTML")
+    assert 'Japon' in html and 'CW · 15 m' in html
+    assert '<b>X</b>' not in html and '&lt;b&gt;' in html   # échappé
+
+
+def test_rendre_cibles_vide():
+    ctx = _ctx()
+    ctx.eval("window.LogxCockpit._rendreCibles([]);")
+    assert 'recommand' in ctx.eval("__cib.innerHTML").lower()   # message de repli
+
+
 def test_cablage_accueil():
     with open(os.path.join(CONCOURS, 'logx_accueil.html'), encoding='utf-8') as f:
         h = f.read()
@@ -102,7 +117,7 @@ def test_cablage_accueil():
     with open(os.path.join(CONCOURS, 'logx_accueil.js'), encoding='utf-8') as f:
         js = f.read()
     assert 'LogxCockpit.charger' in js
-    assert 'ckOpp' in js and 'ckProg' in js and 'ckEtat' in js
+    assert 'ckOpp' in js and 'ckProg' in js and 'ckEtat' in js and 'ckCibles' in js
     assert '_reprendre' in js
     # plus de redirection AUTOMATIQUE dans init (le bouton Reprendre la remplace)
     assert 'window.location.href = _pageSuivante();\n    return;' not in js

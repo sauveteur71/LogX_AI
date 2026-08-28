@@ -57,6 +57,16 @@
     ];
   }
 
+  // Prochaines cibles (server /awards/prochaines_cibles) : liste {entity, slot}.
+  function _rendreCibles(cibles){
+    var el = document.getElementById('ckCibles');
+    if(!el) return;
+    cibles = cibles || [];
+    el.innerHTML = cibles.length
+      ? cibles.map(function(c){ return '<div class="ck-opp">🎯 <span>' + esc(c.entity) + '</span> · ' + esc(c.slot) + '</div>'; }).join('')
+      : '<div class="ck-vide">Rien à recommander pour l\'instant.</div>';
+  }
+
   function _rendre(opp, prog, etat){
     var eo = document.getElementById('ckOpp');
     if(eo){
@@ -81,15 +91,18 @@
   function charger(){
     function grab(u){ return fetch(u).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; }); }
     Promise.all([grab('/data/spots_ranked'), grab('/awards/summary'),
-                 grab('/hardware/state'), grab('/dxcc/status')])
+                 grab('/hardware/state'), grab('/dxcc/status'),
+                 grab('/awards/prochaines_cibles')])
       .then(function(v){
         _rendre(_opportunites(v[0]), _progression(v[1]), _etat(v[2], v[3]));
+        _rendreCibles(v[4] && v[4].cibles);
       });
   }
 
   global.LogxCockpit = {
     charger: charger,
-    _opportunites: _opportunites, _progression: _progression, _etat: _etat, _rendre: _rendre
+    _opportunites: _opportunites, _progression: _progression, _etat: _etat,
+    _rendre: _rendre, _rendreCibles: _rendreCibles
   };
 
 })(typeof window !== 'undefined' ? window : this);
