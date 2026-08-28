@@ -47,9 +47,18 @@ function choisirActivite(id){
   window.location.href = _pageSuivante();
 }
 
-function _grille(){
+// « Reprendre » : même geste que l'ancienne redirection immédiate, mais en UN
+// clic explicite -- l'accueil montre d'abord le cockpit (décision F4GLD 28/08).
+function _reprendre(){ window.location.href = _pageSuivante(); }
+function _labelActivite(id){ const a = ACTIVITIES.find(x => x.id === id); return a ? a.label : id; }
+
+// `deja` = id de la dernière activité (ou null) : ajoute un bouton « Reprendre »
+// et un cockpit (opportunités / progression / état) AVANT la grille d'activités.
+function _grille(deja){
   const intro = document.getElementById('intro');
   intro.innerHTML =
+    (deja ? '<div class="reprise-wrap"><button type="button" class="reprendre-btn" onclick="_reprendre()">▶ Reprendre : ' + _labelActivite(deja) + '</button><a class="reprise-changer" href="?changer=1">changer</a></div>' : '') +
+    '<div class="cockpit" id="cockpit"><div class="ck-col"><h2>🎯 Opportunités</h2><div id="ckOpp"></div></div><div class="ck-col"><h2>📊 Progression</h2><div id="ckProg"></div></div><div class="ck-col"><h2>🩺 État station</h2><div id="ckEtat"></div></div></div>' +
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
     '<div class="activity-grid" id="activityGrid"></div>';
@@ -61,6 +70,7 @@ function _grille(){
       '<span class="activity-hint">' + a.hint + '</span>' +
     '</button>'
   ).join('');
+  if(window.LogxCockpit) window.LogxCockpit.charger();
   _brancherBandeaux();
 }
 
@@ -95,9 +105,8 @@ function _brancherBandeaux(){
   let deja = null;
   try{ deja = localStorage.getItem('logx_activity'); }catch(e){}
   const forcer = new URLSearchParams(window.location.search).get('changer') === '1';
-  if (deja && !forcer){
-    window.location.href = _pageSuivante();
-    return;
-  }
-  _grille();
+  // Décision F4GLD (28/08) : plus de redirection AUTOMATIQUE. On affiche le
+  // cockpit + un bouton « Reprendre » (retour en UN clic, aucun allongement du
+  // chemin quotidien). `?changer=1` masque le bouton (on vient justement changer).
+  _grille(forcer ? null : deja);
 })();

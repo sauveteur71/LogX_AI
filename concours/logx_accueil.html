@@ -70,6 +70,27 @@ button:focus-visible,.activity-card:focus-visible,a:focus-visible{outline:2px so
 /* ── BANDEAU DÉFILANT (ticker HUD) : composant .rcb-* MUTUALISÉ dans
    logx_theme.css (chargé via <link>), pour être réutilisable par d'autres
    pages (CHASSE…). Ne plus le redéclarer ici. ── */
+
+/* ── COCKPIT « que puis-je faire maintenant » + bouton Reprendre (28/08) ── */
+.reprise-wrap{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:20px}
+.reprendre-btn{font-family:var(--font-mono);font-size:15px;font-weight:700;letter-spacing:1px;padding:11px 22px;border-radius:8px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.14);color:var(--accent);cursor:pointer}
+.reprendre-btn:hover{background:rgba(var(--accent-rgb),.24)}
+.reprise-changer{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none}
+.reprise-changer:hover{color:var(--text)}
+.cockpit{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:28px}
+.ck-col{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.ck-col h2{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;text-align:left}
+.ck-opp{font-size:13px;color:var(--text);padding:3px 0}
+.ck-opp span{color:var(--accent2)}
+.ck-vide{font-size:12px;color:var(--muted)}
+.ck-prog{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:var(--muted)}
+.ck-prog b{color:var(--accent2);font-family:var(--font-mono)}
+.ck-etat{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0;color:var(--text)}
+.ck-dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.ck-dot[data-c="green"]{background:var(--green)}
+.ck-dot[data-c="yellow"]{background:var(--yellow)}
+.ck-dot[data-c="red"]{background:var(--red)}
+.ck-dot[data-c="muted"]{background:var(--muted)}
 </style>
 </head>
 <body>
@@ -100,6 +121,7 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
 <script src="logx_bandeaux.js"></script>
 <script src="logx_bandeaux_defs.js"></script>
 <script src="logx_bandeaux_driver.js"></script>
+<script src="logx_accueil_cockpit.js"></script>
 <script src="logx_accueil.js"></script>
 </body>
 </html>

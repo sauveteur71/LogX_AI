@@ -27,6 +27,15 @@ poussé.
 
 ### Ajouté
 
+- **Cockpit d'accueil « Que puis-je faire maintenant ? ».** La page d'accueil
+  affiche désormais, en plus des tuiles d'activité, un **cockpit** en un coup
+  d'œil : les **opportunités** du moment (meilleures stations à travailler), la
+  **progression** des diplômes (DXCC, départements, QSO) et l'**état de la
+  station** (CAT, FT8, DXCC). Pour l'habitué, un gros bouton **« Reprendre :
+  <dernière activité> »** repart en **un seul clic** — l'accueil ne redirige plus
+  automatiquement, mais ne rallonge pas non plus le chemin quotidien. Lecture
+  seule (agrège des endpoints existants), rien n'est piloté.
+
 - **Fil IA unifié « Ce que l'IA remarque » (LOGBOOK).** Un seul panneau discret
   rassemble ce que l'IA observe, jusque-là éparpillé : les **opportunités** à
   travailler maintenant, les **QSO à vérifier**, les **gains du dernier QSO** et
