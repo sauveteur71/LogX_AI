@@ -274,6 +274,11 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                      'anthropic-version': '2023-06-01'}, method='POST')
         with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
             data = json.loads(resp.read())
+        try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
+            import logx_ai_usage as _usage
+            _usage.enregistrer_reponse('anthropic', ai_model, data)
+        except Exception:
+            pass
         return ''.join(b.get('text', '') for b in data.get('content', [])
                        if b.get('type') == 'text')
 
@@ -4300,6 +4305,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(a)
             return
 
+        # Suivi de consommation IA (tokens réels par fournisseur/modèle). FAITS
+        # seulement ; un coût n'apparaît que si l'opérateur a configuré ses
+        # tarifs (config ai_prix_usd_par_mtok) — aucun prix inventé.
+        if path == '/ai/usage':
+            import logx_ai_usage as _usage
+            self._json(_usage.resume((self._cfg_snapshot() or {}).get('ai_prix_usd_par_mtok')))
+            return
+
         # État d'une stratégie pile-up FT8 (voir POST /wsjtx/strategy).
         if path.startswith('/wsjtx/strategy/state'):
             from urllib.parse import parse_qs, urlparse
@@ -8306,6 +8319,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         result = resp.read()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Anthropic OK ({len(result)} bytes)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('anthropic', ai_model, result)
+                    except Exception:
+                        pass
 
                 # ── OpenAI / Mistral / xAI / DeepSeek (même format d'API) ────
                 elif provider in OPENAI_COMPATIBLE_ENDPOINTS:
@@ -8335,6 +8353,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] {provider} OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse(provider, ai_model, oai_data)
+                    except Exception:
+                        pass
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
@@ -8360,6 +8383,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Gemini OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('gemini', model_id, gem_data)
+                    except Exception:
+                        pass
 
                 else:
                     self._json({'error': {'message': f'Fournisseur inconnu: {provider}'}}, 400)
