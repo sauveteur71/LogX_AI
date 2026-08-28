@@ -3026,6 +3026,9 @@ async function submitQSO(){
       playBeep(880, 80);
       vieillirPastilleBusted();      // la pastille du QSO précédent vieillit
       verifierIndicatifApres(qso);   // filet anti-busted call, APRÈS coup
+      // Récap « après-QSO » : ce que ce QSO apporte (nouveau pays/bande, à
+      // confirmer LoTW) — boucle de gratification, lecture seule, non-modal.
+      try{ if(window.LogxApresQso){ LogxApresQso.vieillir(); LogxApresQso.montrer(qso); } }catch(e){}
     } else if(res.status === 409){
       // Doublon détecté par le serveur : l'opérateur décide (2e période,
       // dupe assumé pour l'arbitre...) — bandeau non bloquant, pas de

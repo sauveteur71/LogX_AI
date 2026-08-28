@@ -659,6 +659,17 @@ C'est un petit panneau **en bas à droite**, repliable via la flèche de son en-
 
 Cette séparation « fait / calcul / proposition » est là pour la **confiance** : vous voyez d'un coup d'œil ce qui est un fait vérifié, ce qui est un calcul du logiciel, et ce qui n'est qu'une action que vous restez libre de déclencher.
 
+### 6.11 Le récap « après-QSO » — voir sa progression à chaque contact
+
+Juste après avoir enregistré un QSO, une **pastille discrète** apparaît sous la saisie et vous dit **ce que ce contact vient de vous apporter** :
+
+- 🌟 un **nouveau pays**, 📻 une **nouvelle bande**, 📍 un **nouveau département** ;
+- et, le cas échéant, **ce qui reste à confirmer** : « LoTW non confirmé » tant que la confirmation électronique n'est pas là (car un pays travaillé mais non confirmé LoTW ne compte pas encore pour le DXCC).
+
+C'est la même intelligence que le panneau qui s'affiche **avant** le QSO (à la frappe de l'indicatif), mais rejouée **après** l'enregistrement — donc la donnée est exacte, calculée par le moteur de diplômes, jamais devinée.
+
+Cette pastille est **non-intrusive** : elle ne vole pas le focus, **reste silencieuse quand le QSO n'apporte rien de neuf** (un doublon ne déclenche aucun message), et s'efface d'elle-même après quelques contacts pour ne pas encombrer l'écran pendant une série. Elle ne modifie jamais votre log — elle ne fait que montrer votre progression.
+
 ---
 
 
