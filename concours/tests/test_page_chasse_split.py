@@ -50,9 +50,9 @@ PAGES_AVEC_NAV = [
 # a remonté juste après CHASSE (cœur regroupé).
 ORDRE_NAV_ATTENDU = [
     'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
-    'logx_propagation.html', 'logx_modes_numeriques.html', 'logx_carte.html',
-    'logx_departements.html', 'javascript:void(0)', 'logx_calendrier.html',
-    'logx_websdr.html', 'logx_cw.html',
+    'logx_propagation.html', 'logx_diagnostic.html', 'logx_modes_numeriques.html',
+    'logx_carte.html', 'logx_departements.html', 'javascript:void(0)',
+    'logx_calendrier.html', 'logx_websdr.html', 'logx_cw.html',
 ]
 
 # Titres exacts des cinq panneaux deplaces (accents compris).
