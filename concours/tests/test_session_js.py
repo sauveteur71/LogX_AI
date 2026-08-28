@@ -70,6 +70,30 @@ def test_rendre_affiche_erreur():
     assert ctx.eval("__plan._cls['sess-err']") is True
 
 
+def test_sauver_puis_restaurer_les_contraintes():
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval("""
+      var window = {};
+      var __store = {};
+      window.localStorage = { getItem:function(k){ return (k in __store)?__store[k]:null; },
+                              setItem:function(k,v){ __store[k]=v; } };
+      var __els = { sessDuree:{value:'45'}, sessObjectif:{value:'WAS'}, sessMode:{value:'CW'},
+                    sessBandes:{value:'40m'}, sessPuissance:{value:'5'}, sessContexte:{checked:false} };
+      var document = { getElementById:function(id){ return __els[id]||null; },
+                       readyState:'complete', addEventListener:function(){} };
+    """)
+    with open(JS, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    ctx.eval("window.LogxSession._sauver();")
+    # l'opérateur change tout, puis on restaure -> les valeurs SAUVÉES reviennent
+    ctx.eval("__els.sessDuree.value='999'; __els.sessObjectif.value='X'; __els.sessContexte.checked=true;")
+    ctx.eval("window.LogxSession._restaurer();")
+    assert ctx.eval("__els.sessDuree.value") == '45'
+    assert ctx.eval("__els.sessObjectif.value") == 'WAS'
+    assert ctx.eval("__els.sessMode.value") == 'CW'
+    assert ctx.eval("__els.sessContexte.checked") is False
+
+
 def test_cablage_page():
     with open(os.path.join(CONCOURS, 'logx_session.html'), encoding='utf-8') as f:
         h = f.read()

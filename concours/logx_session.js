@@ -39,7 +39,32 @@
     if(el.classList) el.classList.add('sess-err');
   }
 
+  var CLE = 'logx_session_prefs';
+  var CHAMPS = ['sessDuree', 'sessObjectif', 'sessMode', 'sessBandes', 'sessPuissance'];
+
+  // Mémorise les dernières contraintes (localStorage) pour ne pas les retaper.
+  function _sauver(){
+    try{
+      if(!global.localStorage) return;
+      var p = {};
+      CHAMPS.forEach(function(id){ var e = document.getElementById(id); if(e) p[id] = e.value; });
+      var cx = document.getElementById('sessContexte'); if(cx) p.sessContexte = !!cx.checked;
+      global.localStorage.setItem(CLE, JSON.stringify(p));
+    }catch(e){}
+  }
+
+  function _restaurer(){
+    try{
+      if(!global.localStorage) return;
+      var raw = global.localStorage.getItem(CLE); if(!raw) return;
+      var p = JSON.parse(raw) || {};
+      CHAMPS.forEach(function(id){ var e = document.getElementById(id); if(e && p[id] != null) e.value = p[id]; });
+      var cx = document.getElementById('sessContexte'); if(cx && p.sessContexte != null) cx.checked = !!p.sessContexte;
+    }catch(e){}
+  }
+
   function generer(){
+    _sauver();
     var el = document.getElementById('sessPlan');
     if(el){ el.textContent = '⏳ Génération du plan…'; if(el.classList) el.classList.remove('sess-err'); }
     fetch('/session/plan', {
@@ -49,6 +74,14 @@
       .catch(function(){ _rendre({error: 'Réseau indisponible.'}); });
   }
 
-  global.LogxSession = { generer: generer, _payload: _payload, _rendre: _rendre };
+  global.LogxSession = { generer: generer, _payload: _payload, _rendre: _rendre,
+                         _sauver: _sauver, _restaurer: _restaurer };
+
+  // Restaure les dernières contraintes au chargement (vrai navigateur avec
+  // localStorage ; le harnais de test V8 ne définit pas localStorage -> no-op).
+  if(typeof document !== 'undefined' && global.localStorage){
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _restaurer);
+    else _restaurer();
+  }
 
 })(typeof window !== 'undefined' ? window : this);
