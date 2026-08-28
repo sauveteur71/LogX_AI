@@ -191,7 +191,7 @@ def call_ai_structured(provider, model, api_key, system, user_text, output_schem
                                        'data': base64.standard_b64encode(pdf_bytes).decode()}})
         content.append({'type': 'text', 'text': user_text})
         payload = {
-            'model': model or 'claude-sonnet-4-6',
+            'model': model or 'claude-sonnet-5',
             'max_tokens': max_tokens,
             'system': system,
             'messages': [{'role': 'user', 'content': content}],

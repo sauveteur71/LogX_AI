@@ -64,6 +64,12 @@ poussé.
   affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
   depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
   garde le message technique.
+- **Modèle IA Anthropic invalide (fonctions IA en échec 400).** Le défaut/recommandé
+  pointait sur `claude-sonnet-4-6`, un identifiant qui **n'existe pas** côté API →
+  toute fonction IA sur ce modèle (chat, analyse de règlement, plan de session)
+  échouait en HTTP 400. Corrigé vers **`claude-sonnet-5`** (défaut + libellé), avec
+  un **alias qui auto-répare** une config déjà enregistrée sur l'ancien ID — pas
+  besoin de re-sélectionner. (Opus 4.8 / Haiku 4.5 étaient déjà corrects.)
 
 ## [1.2-beta2] — 2026-08-28
 

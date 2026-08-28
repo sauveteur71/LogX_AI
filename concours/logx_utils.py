@@ -83,12 +83,20 @@ OPENAI_COMPATIBLE_ENDPOINTS = {
 # n'en porte aucune. Les deux fournisseurs au format propre ne sont pas dans
 # OPENAI_COMPATIBLE_ENDPOINTS, d'où cette table qui les couvre tous.
 MODELE_DEFAUT = {
-    'anthropic': 'claude-sonnet-4-6',
+    'anthropic': 'claude-sonnet-5',
     'gemini':    'gemini-2.0-flash',
     'openai':    OPENAI_COMPATIBLE_ENDPOINTS['openai'][1],
     'mistral':   OPENAI_COMPATIBLE_ENDPOINTS['mistral'][1],
     'xai':       OPENAI_COMPATIBLE_ENDPOINTS['xai'][1],
     'deepseek':  OPENAI_COMPATIBLE_ENDPOINTS['deepseek'][1],
+}
+
+# Modèles renommés/retirés côté fournisseur : on remappe un ID périmé encore
+# présent dans une config ENREGISTRÉE vers l'ID courant, sinon l'API le refuse
+# (400). 'claude-sonnet-4-6' n'a jamais existé chez Anthropic — le Sonnet est
+# 'claude-sonnet-5'. Étendre ici si un autre modèle est retiré.
+MODELE_ALIAS = {
+    'claude-sonnet-4-6': 'claude-sonnet-5',
 }
 
 # À quoi ressemble un nom de modèle chez chaque fournisseur. Ne sert QU'À
@@ -124,13 +132,17 @@ def modele_effectif(provider, demande=None, configure=None):
     p = (provider or 'anthropic').strip().lower()
     conf = (configure or '').strip()
     dem = (demande or '').strip()
+    chosen = None
     if dem:
         prefixes = FAMILLES_MODELE.get(p)
         # Fournisseur inconnu de la table : on ne peut rien affirmer, on laisse
         # passer plutôt que d'imposer un défaut qui serait tout aussi arbitraire.
         if prefixes is None or dem.lower().startswith(prefixes):
-            return dem
-    return conf or MODELE_DEFAUT.get(p, MODELE_DEFAUT['anthropic'])
+            chosen = dem
+    if chosen is None:
+        chosen = conf or MODELE_DEFAUT.get(p, MODELE_DEFAUT['anthropic'])
+    # Auto-répare un ID périmé (défaut, config enregistrée OU demande interne).
+    return MODELE_ALIAS.get(chosen, chosen)
 
 
 
