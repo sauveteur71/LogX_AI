@@ -389,7 +389,7 @@ async function askAssistant(presetQuestion){
   try{
     const helpDump = Object.entries(CONFIG_HELP).map(([id, t]) => `- ${id} : ${t}`).join('\n');
     const provider = (localStorage.getItem('logx_ai_provider') || 'anthropic');
-    const model = document.getElementById('ai_model') && document.getElementById('ai_model').value || 'claude-sonnet-4-6';
+    const model = document.getElementById('ai_model') && document.getElementById('ai_model').value || 'claude-sonnet-5';
     const system = "Tu es l'assistant intégré au formulaire de CONFIGURATION du logiciel radioamateur LogX AI. "
       + "Réponds en français, en 2 à 5 phrases MAXIMUM, avec des mots simples pour un débutant (pas de jargon "
       + "non expliqué). Voici le sens exact des champs du formulaire (ne parle QUE de ce qui existe réellement "
@@ -4008,7 +4008,7 @@ function copyPrompt() {
 // ─── FOURNISSEUR IA ──────────────────────────────────────────────────────────
 const AI_MODELS = {
   anthropic: [
-    {value:'claude-sonnet-4-6',        label:'Claude Sonnet 4.6 (recommandé)'},
+    {value:'claude-sonnet-5',          label:'Claude Sonnet 5 (recommandé)'},
     {value:'claude-opus-4-8',          label:'Claude Opus 4.8 (puissant)'},
     {value:'claude-haiku-4-5-20251001',label:'Claude Haiku 4.5 (rapide)'},
   ],
