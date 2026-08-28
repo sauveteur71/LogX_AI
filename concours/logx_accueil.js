@@ -58,7 +58,7 @@ function _grille(deja){
   const intro = document.getElementById('intro');
   intro.innerHTML =
     (deja ? '<div class="reprise-wrap"><button type="button" class="reprendre-btn" onclick="_reprendre()">▶ Reprendre : ' + _labelActivite(deja) + '</button><a class="reprise-changer" href="?changer=1">changer</a></div>' : '') +
-    '<div class="cockpit" id="cockpit"><div class="ck-col"><h2>🎯 Opportunités</h2><div id="ckOpp"></div></div><div class="ck-col"><h2>📊 Progression</h2><div id="ckProg"></div></div><div class="ck-col"><h2>🩺 État station</h2><div id="ckEtat"></div></div></div>' +
+    '<div class="cockpit" id="cockpit"><div class="ck-col"><h2>🎯 Opportunités</h2><div id="ckOpp"></div></div><div class="ck-col"><h2>📊 Progression</h2><div id="ckProg"></div></div><div class="ck-col"><h2>🩺 État station</h2><div id="ckEtat"></div></div><div class="ck-col"><h2>🎯 Prochaines cibles</h2><div id="ckCibles"></div></div></div>' +
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
     '<div class="activity-grid" id="activityGrid"></div>';

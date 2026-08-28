@@ -3450,6 +3450,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
+        # « Prochaines cibles recommandées » : par entité entamée, le prochain
+        # slot à aller chercher (à confirmer LoTW, ou mode manquant). Déterministe,
+        # lecture seule — alimente le cockpit d'accueil.
+        if path == '/awards/prochaines_cibles':
+            import logx_awards as awards
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json({'cibles': awards.prochaines_cibles(log_copy)})
+            return
+
         # Résumé À VIE des activations/chasses par programme (POTA/SOTA/IOTA...) :
         # nombre de références UNIQUES activées (my_sig_info) et chassées
         # (sig_info). Agrégation pure du log, aucune confirmation externe.
