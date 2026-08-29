@@ -22,6 +22,12 @@ poussé.
   Hors-ligne (base locale de **181 658 sommets** SOTA + parcs POTA), non-intrusif,
   discret si la référence est inconnue.
 
+- **Mode chasseur SOTA / POTA.** Un réglage *(CONFIG → SOTA)* fait apparaître dans
+  la saisie un champ **« réf. correspondant »** (programme + référence) même hors
+  sortie portable : on tape le sommet/parc **chassé**, on voit son **relevé**
+  (nom · altitude · points), et la référence est **enregistrée sur le QSO**
+  (`sig`/`sig_info`) pour comptabiliser ses chasses.
+
 - **Mise à jour hebdomadaire de la base des sommets SOTA.** Le cache local est
   re-téléchargé depuis `storage.sota.org.uk` au premier accès une fois qu'il
   dépasse **7 jours** (auparavant 30) — la liste reste fraîche sans intervention.
