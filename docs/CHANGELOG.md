@@ -22,6 +22,10 @@ poussé.
   Hors-ligne (base locale de **181 658 sommets** SOTA + parcs POTA), non-intrusif,
   discret si la référence est inconnue.
 
+- **Mise à jour hebdomadaire de la base des sommets SOTA.** Le cache local est
+  re-téléchargé depuis `storage.sota.org.uk` au premier accès une fois qu'il
+  dépasse **7 jours** (auparavant 30) — la liste reste fraîche sans intervention.
+
 - **Mode démo / simulation.** Un interrupteur **MODE DÉMO** (CONFIG → Assistant IA)
   alimente l'app avec des **spots synthétiques** déterministes (JA1XYZ, 9M2JKL…),
   pour présenter le programme **sans radio ni antenne connectée**. Tout est

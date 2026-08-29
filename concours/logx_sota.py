@@ -26,7 +26,9 @@ import unicodedata
 SOTA_SPOTS_URL = 'https://api2.sota.org.uk/api/spots/3/all/all'  # 3 dernières heures
 SOTA_SUMMITS_URL = 'https://storage.sota.org.uk/summitslist.csv'
 SUMMITS_FILE = 'sota_summits.csv'
-SUMMITS_MAX_AGE_DAYS = 30
+SUMMITS_MAX_AGE_DAYS = 7   # mise à jour hebdomadaire (demande F4GLD) : au 1er accès
+# après 7 jours, le CSV est re-téléchargé depuis SOTA_SUMMITS_URL (validé + écrit
+# atomiquement). La liste SOTA évolue lentement — un rafraîchissement hebdo suffit.
 
 SPOTS_CACHE_TTL = 60  # secondes
 _spots_cache = {'data': None, 'ts': 0}
