@@ -40,7 +40,7 @@ def test_grille_declenche_le_branchement_des_bandeaux():
     """_brancherBandeaux doit être APPELÉ par _grille (pas seulement défini) —
     sinon le bandeau ne s'affiche jamais bien que tout le reste existe."""
     js = _lire(JS)
-    m = re.search(r'function _grille\(\).*?\n\}', js, re.S)
+    m = re.search(r'function _grille\([^)]*\).*?\n\}', js, re.S)  # _grille(deja) depuis le cockpit d'accueil
     assert m, "fonction _grille introuvable"
     assert '_brancherBandeaux(' in m.group(0)               # appel DANS _grille
 
