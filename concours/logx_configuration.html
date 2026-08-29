@@ -3022,6 +3022,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <button type="button" class="btn btn-secondary" style="padding:9px 16px;font-size:12px" onclick="connectSota()"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="4" y="8" width="10" height="7.5" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg>Se connecter à SOTA</button>
           <span id="sotaAuthStatus" style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">Non connecté</span>
         </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>MODE CHASSEUR SOTA / POTA</label>
+            <select id="chaser_mode">
+              <option value="non">Non</option>
+              <option value="oui">Oui — afficher « réf. correspondant » dans la saisie</option>
+            </select>
+            <div class="input-note">Activé : un champ <b>réf. correspondant</b> (programme + référence) apparaît en permanence dans la saisie — utile au chasseur qui n'est pas lui-même sur un sommet — avec le <b>relevé du sommet/parc</b>, et la référence est enregistrée sur le QSO (pour compter tes chasses).</div>
+          </div>
+        </div>
       </div>
 
       <div class="section">

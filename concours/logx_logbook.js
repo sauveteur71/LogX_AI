@@ -462,6 +462,14 @@ let myActivationRef = '';
 let activationTimer = null;
 let lastActQsoTotal = 0;
 
+// Mode chasseur (réglé dans CONFIG) : quand actif, le champ « réf. correspondant »
+// reste disponible dans la saisie même hors activation, pour logger un sommet/parc
+// chassé (la réf part sur le QSO -> sig/sig_info).
+function chaserModeActif(){
+  try{ return JSON.parse(localStorage.getItem('logx_config')||'{}').chaser_mode === 'oui'; }
+  catch(e){ return false; }
+}
+
 function applyActivationMode(program, ref){
   activationProgram = (program||'').toUpperCase();
   myActivationRef = (ref||'').trim().toUpperCase();
@@ -469,7 +477,11 @@ function applyActivationMode(program, ref){
   const bar = document.getElementById('activationBar');
   const trg = document.getElementById('theirRefGroup');
   if(bar) bar.style.display = on ? '' : 'none';
-  if(trg) trg.style.display = on ? '' : 'none';
+  // En activation : le programme du correspondant suit celui que J'active (S2S).
+  const tp = document.getElementById('theirRefProg');
+  if(tp && on && activationProgram) tp.value = activationProgram;
+  // Reste visible si activation OU mode chasseur (sinon masqué, saisie compacte).
+  if(trg) trg.style.display = (on || chaserModeActif()) ? '' : 'none';
   if(on){
     const p = document.getElementById('actProg'); if(p) p.textContent = activationProgram;
     const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
@@ -2961,8 +2973,14 @@ async function submitQSO(){
   if(activationProgram && myActivationRef){
     qso.my_sig = activationProgram;
     qso.my_sig_info = myActivationRef;
-    const tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
-    if(tr){ qso.sig = activationProgram; qso.sig_info = tr; }
+  }
+  // Réf. du correspondant (chasse SOTA/POTA, ou P2P/S2S en activation) : toujours
+  // enregistrée si présente, INDÉPENDAMMENT du mode activation — un chasseur pur
+  // la logge aussi (sig/sig_info -> comptage de ses chasses).
+  const _tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
+  if(_tr){
+    const _tp = (document.getElementById('theirRefProg')?.value || activationProgram || 'SOTA').toUpperCase();
+    qso.sig = _tp; qso.sig_info = _tr;
   }
 
   // Champs secondaires des onglets (lot 2, sous-chantier A) : puissance, e-mail,
@@ -4569,11 +4587,23 @@ window.addEventListener('DOMContentLoaded', () => {
   if(typeof so2rRafraichir === 'function') so2rRafraichir();
   if(typeof initCallDictation === 'function') initCallDictation();   // dictée vocale #inputCall (logx_voice_dictation.js) : affiche #callMicBtn seulement si SpeechRecognition est dispo
   initBroadcastChannel();
-  // Relevé du sommet/parc sous la réf. du correspondant (S2S/P2P, ou chasse) :
-  // le programme suit celui que J'active ; repli SOTA. Lecture seule.
+  // Relevé du sommet/parc sous la réf. du correspondant (chasse, ou S2S/P2P) :
+  // le programme vient du sélecteur #theirRefProg (repli sur ce que j'active,
+  // puis SOTA). Lecture seule.
   if(window.LogxRefInfo){
     LogxRefInfo.attacher(document.getElementById('inputTheirRef'),
-      function(){ return activationProgram || 'SOTA'; }, document.getElementById('theirRefInfo'));
+      function(){ var s = document.getElementById('theirRefProg'); return (s && s.value) || activationProgram || 'SOTA'; },
+      document.getElementById('theirRefInfo'));
+  }
+  // Changer le programme du correspondant relance le relevé.
+  var _trp = document.getElementById('theirRefProg');
+  if(_trp) _trp.addEventListener('change', function(){
+    var i = document.getElementById('inputTheirRef'); if(i) i.dispatchEvent(new Event('input'));
+  });
+  // Mode chasseur (CONFIG) : le champ réf. correspondant reste visible même hors
+  // activation, pour logger les sommets/parcs qu'on chasse.
+  if(chaserModeActif()){
+    var _trg = document.getElementById('theirRefGroup'); if(_trg) _trg.style.display = '';
   }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible

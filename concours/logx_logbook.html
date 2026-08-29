@@ -1762,12 +1762,21 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           style="margin-top:5px;font-family:var(--font-mono);font-size:11px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:4px 9px;cursor:pointer;width:fit-content">⭳ Importer les prénoms de mon journal</button>
       </div>
 
-      <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
+      <!-- Réf. correspondant : chasse SOTA/POTA (mode chasseur), ou P2P/S2S quand
+           on est soi-même en portable. Programme sélectionnable pour le chasseur. -->
       <div class="field-group" id="theirRefGroup" style="display:none">
-        <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></label>
-        <input type="text" class="field-input" id="inputTheirRef" placeholder="si le correspondant active aussi (ex: DL-0042)"
-          autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+        <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(chasse / P2P / S2S)</span></label>
+        <div class="ref-row">
+          <select class="field-input field-compact refdrop" id="theirRefProg">
+            <option value="SOTA">SOTA</option>
+            <option value="POTA">POTA</option>
+            <option value="WWFF">WWFF</option>
+            <option value="IOTA">IOTA</option>
+          </select>
+          <input type="text" class="field-input field-compact" id="inputTheirRef" placeholder="réf. du correspondant (ex: G/LD-001)"
+            autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+        </div>
         <div id="theirRefInfo" class="ref-info" hidden></div>
       </div>
 
