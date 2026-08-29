@@ -2811,16 +2811,32 @@ function collectRefs(containerId){
 function addRefRow(containerId){
   const box = document.getElementById(containerId);
   if(!box) return;
+  const wrap = document.createElement('div');   // ligne + info sommet dessous
+  wrap.className = 'ref-wrap';
   const row = document.createElement('div');
   row.className = 'ref-row';
   const opts = REF_PROGRAMS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
   row.innerHTML = '<select class="field-input field-compact ref-prog refdrop">'+opts+'</select>'+
     '<input type="text" class="field-input field-compact ref-val" placeholder="réf. (F/AB-123, FR-1234…)" autocomplete="off">'+
     '<button type="button" class="ref-del" title="Retirer cette référence">✕</button>';
+  const info = document.createElement('div');   // « Scafell Pike · 978 m · 10 pts »
+  info.className = 'ref-info';
+  info.hidden = true;
   var _refresh = function(){ if(typeof renderActivityTags === 'function') renderActivityTags(); };
-  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); _refresh(); });
+  row.querySelector('.ref-del').addEventListener('click', function(){ wrap.remove(); _refresh(); });
   row.querySelector('.ref-val').addEventListener('change', _refresh);   // ref saisie -> tag SOTA/POTA en aperçu
-  box.appendChild(row);
+  // Changer de programme relance le relevé (via un input synthétique sur la réf).
+  row.querySelector('.ref-prog').addEventListener('change', function(){
+    var rv = row.querySelector('.ref-val');
+    if(rv) rv.dispatchEvent(new Event('input'));
+  });
+  wrap.appendChild(row); wrap.appendChild(info);
+  box.appendChild(wrap);
+  // Relevé du sommet/parc sous la ligne (SOTA/POTA/WWFF/IOTA) — lecture seule.
+  if(window.LogxRefInfo){
+    LogxRefInfo.attacher(row.querySelector('.ref-val'),
+      function(){ var s = row.querySelector('.ref-prog'); return s ? s.value : ''; }, info);
+  }
 }
 
 // Auto-remplissage éditable (lot 5, sous-chantier A). PERSISTE l'azimut (bearing,
@@ -4553,6 +4569,12 @@ window.addEventListener('DOMContentLoaded', () => {
   if(typeof so2rRafraichir === 'function') so2rRafraichir();
   if(typeof initCallDictation === 'function') initCallDictation();   // dictée vocale #inputCall (logx_voice_dictation.js) : affiche #callMicBtn seulement si SpeechRecognition est dispo
   initBroadcastChannel();
+  // Relevé du sommet/parc sous la réf. du correspondant (S2S/P2P, ou chasse) :
+  // le programme suit celui que J'active ; repli SOTA. Lecture seule.
+  if(window.LogxRefInfo){
+    LogxRefInfo.attacher(document.getElementById('inputTheirRef'),
+      function(){ return activationProgram || 'SOTA'; }, document.getElementById('theirRefInfo'));
+  }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
   // .saisie-secondary (SA zone de scroll propre), pas .saisie-panel — voir
