@@ -15,6 +15,13 @@ poussé.
 
 ### Ajouté
 
+- **Infos du sommet/parc quand on tape une référence (SOTA/POTA/WWFF/IOTA).** Sous
+  un champ de référence — la sienne (*MES RÉFÉRENCES*) ou celle du correspondant
+  (*RÉF. CORRESPONDANT*) — un relevé lecture seule apparaît : **nom · région ·
+  altitude · points** (ex. *Scafell Pike · Lake District · 978 m · 10 pts*).
+  Hors-ligne (base locale de **181 658 sommets** SOTA + parcs POTA), non-intrusif,
+  discret si la référence est inconnue.
+
 - **Mode démo / simulation.** Un interrupteur **MODE DÉMO** (CONFIG → Assistant IA)
   alimente l'app avec des **spots synthétiques** déterministes (JA1XYZ, 9M2JKL…),
   pour présenter le programme **sans radio ni antenne connectée**. Tout est
