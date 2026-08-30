@@ -80,9 +80,13 @@ body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-
   font-family:var(--font-mono);font-size:13px;color:var(--text);text-decoration:none;
   border-right:1px solid var(--border)}
 .rcb-item:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+/* Chaque copie du bloc défilant. display:contents -> le span n'existe pas pour
+   la mise en page (les items restent enfants flex de .rcb-move). */
+.rcb-seq{display:contents}
 @media (prefers-reduced-motion:reduce){
   .rcb-move{animation:none}
   .rcb-track{overflow-x:auto}                          /* défilable à la main si l'OS refuse le mouvement */
+  .rcb-dup{display:none}                                /* défilement coupé -> une seule copie, pas d'info en double */
 }
 /* ⚙ « afficher / masquer » les bandeaux (driver logx_bandeaux_driver.js). Le ⚙
    flotte en haut à droite de la bande ; le panneau de chips s'ouvre en dessous.
