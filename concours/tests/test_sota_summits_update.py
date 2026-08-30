@@ -25,8 +25,8 @@ def test_cache_perime_declenche_le_telechargement(monkeypatch):
     # Cache réputé plus vieux que la cadence -> pas de lecture disque, on télécharge.
     monkeypatch.setattr(logx_utils, 'age_days', lambda f: sota.SUMMITS_MAX_AGE_DAYS + 1)
 
-    def fake_fetch(url, timeout=60):
-        appels.append(url)
+    def fake_fetch(url, timeout=60, user_agent=None):
+        appels.append((url, user_agent))
         return None   # échec réseau simulé -> abandon propre, pas d'écrasement
 
     monkeypatch.setattr(logx_utils, 'fetch_url', fake_fetch)
@@ -36,4 +36,6 @@ def test_cache_perime_declenche_le_telechargement(monkeypatch):
     finally:
         sota._summits.clear()
         sota._summits.update(snap)
-    assert appels == [sota.SOTA_SUMMITS_URL]   # péremption -> re-téléchargement tenté
+    assert len(appels) == 1 and appels[0][0] == sota.SOTA_SUMMITS_URL   # péremption -> re-téléchargement tenté
+    # Le téléchargement s'identifie auprès de SOTA (User-Agent LogX-AI/version).
+    assert (appels[0][1] or '').startswith('LogX-AI/')

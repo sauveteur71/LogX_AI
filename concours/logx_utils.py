@@ -208,7 +208,7 @@ def _dec_fetch_pending(gen):
             _FETCH_PENDING = max(0, _FETCH_PENDING - 1)
 
 
-def fetch_url(url, timeout=10, log_url=True):
+def fetch_url(url, timeout=10, log_url=True, user_agent=None):
     """Requête HTTP(S) réellement bornée dans le temps.
 
     urlopen(timeout=...) ne couvre PAS la résolution DNS : socket.create_connection()
@@ -229,8 +229,10 @@ def fetch_url(url, timeout=10, log_url=True):
     def _do():
         if not url.lower().startswith(('http://', 'https://')):
             raise ValueError('schéma non autorisé')
+        # user_agent explicite (ex. requêtes SOTA identifiées par indicatif) ou
+        # repli générique historique.
         req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
+            'User-Agent': user_agent or 'Mozilla/5.0 (compatible; LogXAI/2.0)',
         })
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'

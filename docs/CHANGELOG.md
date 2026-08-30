@@ -22,7 +22,24 @@ poussé.
   — l'info apparaissait deux fois. Désormais la 2ᵉ copie (décorative, `aria-hidden`)
   est masquée dans ce cas : une seule copie, lisible et défilable à la main.
 
+### Modifié
+
+- **User-Agent identifiable pour les requêtes SOTA.** Les appels vers
+  l'infrastructure SOTA (liste des sommets, spots en direct, self-spot) s'annoncent
+  désormais `LogX-AI/<version> (<indicatif>)` — indicatif lu de la config de
+  l'opérateur, jamais codé en dur — conformément à la recommandation SOTA d'un
+  « descriptive User-Agent including callsign ». Prépare la conformité en vue d'une
+  demande d'accès à l'API (voir `docs/sota_demande_autorisation_api.md`).
+
 ### Ajouté
+
+- **Export SOTA « prêt pour sotadata » (téléversement manuel).** En mode chasseur,
+  deux boutons exportent un ADIF filtré : **« Exporter mes chasses SOTA »** (QSO où
+  le correspondant est sur un sommet) et **« Exporter mon portable SOTA »** (QSO où
+  vous êtes vous-même sur un sommet). Fichiers **séparés par rôle** — l'import ADIF
+  de sotadata peut mal classer un fichier mixte — chacun destiné à sa page d'upload.
+  100 % conforme aux CGU (aucun appel API), le score officiel restant celui de
+  sotadata après téléversement. Nouvel endpoint `GET /sota/export_adif?role=…&year=…`.
 
 - **Points de chasse SOTA « indicatifs » (S2S inclus).** En mode chasseur, sous la
   référence du correspondant, un indice montre les points du sommet contacté

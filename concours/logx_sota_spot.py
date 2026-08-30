@@ -69,7 +69,6 @@ import time
 import urllib.parse
 
 from logx_utils import PORT as _PORT
-from logx_version import APP_VERSION
 
 SSO_AUTHORIZE_URL = 'https://sso.sota.org.uk/auth/realms/SOTA/protocol/openid-connect/auth'
 SSO_TOKEN_URL = 'https://sso.sota.org.uk/auth/realms/SOTA/protocol/openid-connect/token'
@@ -308,9 +307,10 @@ def post_spot(cfg, summit_code, freq_mhz, mode, comment=''):
         'comments': comment or '',
     }
     from logx_utils import post_url_json  # import local : mockable par les tests
+    from logx_sota import sota_user_agent  # UA identifiable (indicatif + version)
     status_code, text = post_url_json(
         SOTA_SPOT_POST_URL, payload, timeout=10,
-        headers={'Authorization': f'Bearer {token}', 'User-Agent': f'LogXAI/{APP_VERSION}'})
+        headers={'Authorization': f'Bearer {token}', 'User-Agent': sota_user_agent(activator)})
     if status_code is None:
         return {'ok': False, 'error': 'api2.sota.org.uk injoignable (réseau)'}
     if status_code >= 400:

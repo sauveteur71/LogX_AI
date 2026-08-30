@@ -293,6 +293,13 @@ select.field-input{cursor:pointer}
 .sota-points[hidden]{display:none}
 .sota-points b{color:var(--accent2);font-weight:600}
 .sota-points .indic{opacity:.7;font-style:italic}
+/* Export « prêt pour sotadata » (téléversement manuel). */
+.sota-export{padding:5px 4px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sota-export[hidden]{display:none}
+.sota-exp-btn{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.4px}
+.sota-exp-btn:hover{border-color:var(--accent);border-style:solid}
+.sota-exp-note{flex-basis:100%;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);line-height:1.45;opacity:.85}
+.sota-exp-note a{color:var(--accent2)}
 .ref-add{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.5px}
 .ref-add:hover{border-color:var(--accent)}
 .ref-del{font-family:var(--font-mono);font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--border);border-radius:6px;padding:0 9px;cursor:pointer}
@@ -1788,6 +1795,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              Calcul purement local, jamais envoyé à SOTA. -->
         <div id="theirRefPoints" class="ref-info" hidden></div>
         <div id="sotaPointsPanel" class="sota-points" hidden></div>
+        <!-- Export ADIF filtré « prêt pour sotadata » (téléversement MANUEL,
+             conforme aux CGU, aucun appel API). Un fichier PAR RÔLE. -->
+        <div id="sotaExportRow" class="sota-export" hidden>
+          <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('chaser')">Exporter mes chasses SOTA</button>
+          <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('activator')">Exporter mon portable SOTA</button>
+          <div class="sota-exp-note">ADIF à téléverser à la main sur <a href="https://www.sotadata.org.uk/en/upload/chaser" target="_blank" rel="noopener">sotadata</a> (fichier chasse → page Chasse, fichier portable → page Portable). L'import ADIF de sotadata peut mal deviner le rôle : vérifie le premier envoi.</div>
+        </div>
       </div>
 
       <!-- RST -->
