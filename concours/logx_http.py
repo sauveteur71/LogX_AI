@@ -4227,10 +4227,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'show': shortcut.should_offer()})
             return
 
-        # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s)
+        # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s).
+        # On passe l'indicatif de l'opérateur pour un User-Agent identifiable
+        # (recommandation SOTA).
         if path == '/data/sota_spots':
             import logx_sota as sota
-            self._json({'spots': sota.fetch_sota_spots()})
+            _call = (self._cfg_snapshot().get('callsign') or '').strip()
+            self._json({'spots': sota.fetch_sota_spots(callsign=_call)})
             return
 
         # Auto-spot SOTA : état de la connexion SOTA SSO (clientId configuré,
