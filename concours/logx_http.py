@@ -3916,6 +3916,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        # Export ADIF filtré « prêt pour sotadata » — téléversement MANUEL
+        # (conforme aux CGU, aucun appel API). Rôle SÉPARÉ (chasse/portable) :
+        # l'import ADIF de sotadata peut mal deviner le rôle d'un fichier mixte,
+        # donc un fichier par rôle, chacun pour SA page d'upload.
+        if path == '/sota/export_adif':
+            import logx_export as export
+            from urllib.parse import parse_qs, urlparse
+            qp = parse_qs(urlparse(self.path).query)
+            role = (qp.get('role') or ['chaser'])[0].strip().lower()
+            if role not in ('chaser', 'activator'):
+                self._json({'error': 'role invalide (chaser|activator)'}, 400)
+                return
+            year = (qp.get('year') or [''])[0].strip() or None
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                qsos = export.sota_qsos_pour_upload(list(shared_log), role, year)
+            if not qsos:
+                quoi = 'chasse' if role == 'chaser' else 'portable'
+                self._json({'error': f'Aucun QSO SOTA en {quoi} à exporter'}, 400)
+                return
+            callsign = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or 'LOG').upper()
+            body = export.build_adif(qsos, cfg_snap).encode('utf-8')
+            libelle = 'chasses' if role == 'chaser' else 'portable'
+            call_fs = re.sub(r'[^A-Za-z0-9]+', '-', callsign) or 'LOG'
+            fname = f'sota_{libelle}_{call_fs}_{year or "tout"}.adi'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         # Mode de chasse géo du concours : 'dept' | 'dept_dxcc' | 'dxcc' | 'other'
         # -> l'onglet bascule entre chasse aux DÉPARTEMENTS et chasse aux PAYS.
         if path == '/contest/geo_mode':

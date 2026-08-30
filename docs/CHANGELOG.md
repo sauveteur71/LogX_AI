@@ -15,6 +15,14 @@ poussé.
 
 ### Ajouté
 
+- **Export SOTA « prêt pour sotadata » (téléversement manuel).** En mode chasseur,
+  deux boutons exportent un ADIF filtré : **« Exporter mes chasses SOTA »** (QSO où
+  le correspondant est sur un sommet) et **« Exporter mon portable SOTA »** (QSO où
+  vous êtes vous-même sur un sommet). Fichiers **séparés par rôle** — l'import ADIF
+  de sotadata peut mal classer un fichier mixte — chacun destiné à sa page d'upload.
+  100 % conforme aux CGU (aucun appel API), le score officiel restant celui de
+  sotadata après téléversement. Nouvel endpoint `GET /sota/export_adif?role=…&year=…`.
+
 - **Points de chasse SOTA « indicatifs » (S2S inclus).** En mode chasseur, sous la
   référence du correspondant, un indice montre les points du sommet contacté
   (*▸ +8 pts chasse*, ou *+8 pts S2S* si vous êtes vous-même en portable), et un

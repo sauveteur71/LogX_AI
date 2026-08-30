@@ -507,6 +507,7 @@ function applyActivationMode(program, ref){
   // Points de chasse indicatifs : même visibilité que la réf. correspondant.
   sotaPointsHint();
   refreshSotaPoints();
+  majExportSotaVisible();
 }
 
 // ─── Points de chasse SOTA « indicatifs » (NON officiels) ────────────────────
@@ -561,6 +562,41 @@ async function refreshSotaPoints(){
     el.innerHTML = htm;
     el.hidden = false;
   }catch(e){ el.hidden = true; }
+}
+
+// Boutons d'export « prêt pour sotadata » : visibles dès que la zone chasse
+// l'est (mode chasseur ou portable). L'export lui-même gère le cas « rien à
+// exporter » côté serveur.
+function majExportSotaVisible(){
+  var el = document.getElementById('sotaExportRow');
+  if(el) el.hidden = !_sotaPointsVisible();
+}
+
+// Export ADIF filtré pour téléversement MANUEL sur sotadata (conforme, aucun
+// appel API). fetch + blob : gère proprement le cas « aucun QSO » (une simple
+// navigation vers l'endpoint afficherait le JSON d'erreur brut). role =
+// 'chaser' (chasses) | 'activator' (portable).
+async function telechargerExportSota(role){
+  try{
+    var r = await fetch('/sota/export_adif?role=' + encodeURIComponent(role));
+    if(!r.ok){
+      var msg = 'Export impossible';
+      try{ var d = await r.json(); if(d && d.error) msg = d.error; }catch(e){}
+      if(typeof notify === 'function') notify('⚠️ ' + msg);
+      return;
+    }
+    var blob = await r.blob();
+    var cd = r.headers.get('Content-Disposition') || '';
+    var m = /filename="([^"]+)"/.exec(cd);
+    var nom = m ? m[1] : ('sota_' + role + '.adi');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nom;
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(a.href);
+  }catch(e){
+    if(typeof notify === 'function') notify('⚠️ Export SOTA impossible (réseau).');
+  }
 }
 
 async function refreshActivation(){
@@ -4668,6 +4704,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if(chaserModeActif()){
     var _trg = document.getElementById('theirRefGroup'); if(_trg) _trg.style.display = '';
     refreshSotaPoints();   // affiche d'emblée les totaux de chasse
+    majExportSotaVisible();   // et les boutons d'export sotadata
   }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
