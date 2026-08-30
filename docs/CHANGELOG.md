@@ -24,6 +24,15 @@ poussé.
 
 ### Modifié
 
+- **Alerte « à vérifier » : les QSO importés ne noient plus les QSO saisis.**
+  Après l'import d'un ancien carnet (parfois des dizaines de milliers de QSO
+  hérités d'un autre logiciel), la validation signalait tout d'un bloc (« 19650 à
+  vérifier »), noyant les rares QSO récents réellement à corriger. Le compte est
+  désormais **ventilé** : le badge affiche « **N à vérifier** » (uniquement les QSO
+  saisis dans LogX) **+ une mention discrète « (+M importés) »** ; si tout est
+  importé, un rappel **neutre** (non alarmant) remplace l'alerte. Rien n'est caché —
+  l'historique importé reste consultable dans VÉRIFIER.
+
 - **User-Agent identifiable pour les requêtes SOTA.** Les appels vers
   l'infrastructure SOTA (liste des sommets, spots en direct, self-spot) s'annoncent
   désormais `LogX-AI/<version> (<indicatif>)` — indicatif lu de la config de

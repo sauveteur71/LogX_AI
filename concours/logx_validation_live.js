@@ -29,26 +29,44 @@
     global.LogxFilIA.pousser('validation', entrees);
   }
 
-  function _rendre(counts, qsoAVerifier){
-    var e = (counts && counts.erreur) || 0;
-    var a = (counts && counts.attention) || 0;
-    // « N QSO à vérifier » = QSO DISTINCTS flaggés (fourni par le serveur), et NON
-    // la somme des constats : un même QSO peut en cumuler plusieurs, sinon le
-    // total dépasse le nombre de QSO (bug vu après import massif sans locator).
-    var n = (typeof qsoAVerifier === 'number') ? qsoAVerifier : (e + a);
-    _pousserFil(n);
+  function _rendre(d){
+    d = d || {};
+    // SAISI = QSO tapés dans LogX (actionnables « ici, maintenant ») ; IMPORTÉ =
+    // hérités d'un autre logiciel (source:'adif_import'), historique à revoir
+    // sans urgence. Le serveur ventile ; repli sur les compteurs globaux pour un
+    // serveur ancien (tout compté comme « saisi », importe = 0).
+    var cs = d.counts_saisi || d.counts || {};
+    var es = cs.erreur || 0, as = cs.attention || 0;
+    var ns = (typeof d.qso_a_verifier_saisi === 'number') ? d.qso_a_verifier_saisi
+           : ((typeof d.qso_a_verifier === 'number') ? d.qso_a_verifier : (es + as));
+    var ni = (typeof d.qso_a_verifier_importe === 'number') ? d.qso_a_verifier_importe : 0;
+    // Le fil IA ne pousse que l'ACTIONNABLE (saisis) — l'historique importé ne
+    // doit pas le remplir.
+    _pousserFil(ns);
     var b = document.getElementById('validationBadge');
     if(!b) return;
-    if(!e && !a){ b.hidden = true; return; }
+    if(!ns && !ni){ b.hidden = true; return; }   // rien nulle part
     b.hidden = false;
-    b.classList.toggle('vl-erreur', e > 0);   // rouge si vraie erreur, sinon jaune (attention)
-    b.textContent = '⚠️ ' + n + ' à vérifier';
-    b.setAttribute('title', e + ' erreur(s) · ' + a + ' attention — ' + n + ' QSO à vérifier · cliquer pour ouvrir VÉRIFIER');
+    if(ns){
+      // Alarme sur les QSO SAISIS : rouge si vraie erreur, sinon jaune.
+      b.classList.remove('vl-importe');
+      b.classList.toggle('vl-erreur', es > 0);
+      b.textContent = '⚠️ ' + ns + ' à vérifier' + (ni ? ' (+' + ni + ' importés)' : '');
+      b.setAttribute('title', es + ' erreur(s) · ' + as + ' attention — ' + ns
+        + ' QSO saisis à vérifier' + (ni ? ' · ' + ni + ' QSO importés à revoir (historique)' : '')
+        + ' · cliquer pour ouvrir VÉRIFIER');
+    } else {
+      // Uniquement des importés : PAS d'alarme, rappel discret et neutre.
+      b.classList.remove('vl-erreur');
+      b.classList.add('vl-importe');
+      b.textContent = ni + ' importés à revoir';
+      b.setAttribute('title', ni + ' QSO importés portent un constat (historique) — cliquer pour ouvrir VÉRIFIER');
+    }
   }
 
   function _maj(){
     fetch('/log/validate').then(function(r){ return r.json(); })
-      .then(function(d){ _rendre(d && d.counts, d && d.qso_a_verifier); }).catch(function(){});
+      .then(function(d){ _rendre(d); }).catch(function(){});
   }
 
   // Après une rafale de QSO, une SEULE validation (debounce).
