@@ -4240,6 +4240,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(sotaspot.status(self._cfg_snapshot()))
             return
 
+        # Multi-poste : le port est-il ouvert dans le pare-feu Windows ? (lecture
+        # sans admin) — pour que CONFIG/Santé sachent si un 2e poste peut se
+        # connecter sans réglage manuel. Voir logx_firewall.
+        if path == '/lan/firewall/status':
+            import logx_firewall as fw
+            self._json({
+                'windows': fw.is_windows(),
+                'rule': fw.rule_exists(PORT),
+                'lan_access': bool(self._cfg_snapshot().get('lan_access')),
+                'port': PORT,
+            })
+            return
+
         # Auto-spot SOTA : lance la connexion SOTA SSO (Authorization Code +
         # PKCE) — ouvert dans un nouvel onglet par le bouton « Se connecter à
         # SOTA » (CONFIG), redirige vers le vrai serveur SSO SOTA.
@@ -7401,6 +7414,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                   str(payload.get('mode') or ''), spotter=call,
                                   comment=str(payload.get('comment') or ''))
             self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Multi-poste : ouvre le port dans le pare-feu Windows AVEC élévation
+        # (fenêtre UAC) — le correctif permanent en UN CLIC depuis CONFIG, pour
+        # qu'un 2e poste se connecte même quand le Wi-Fi est classé « Public ».
+        # add_rule_elevated ne fait que LANCER l'UAC : le client re-vérifie
+        # /lan/firewall/status après confirmation.
+        if self.path == '/lan/firewall/open':
+            import logx_firewall as fw
+            lance, msg = fw.add_rule_elevated(PORT)
+            self._json({'launched': lance, 'message': msg, 'rule': fw.rule_exists(PORT)})
             return
 
         # Auto-spot SOTA (SOTA SSO + api2.sota.org.uk, cf. logx_sota_spot.py)
