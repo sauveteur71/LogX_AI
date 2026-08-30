@@ -504,6 +504,63 @@ function applyActivationMode(program, ref){
   } else if(activationTimer){
     clearInterval(activationTimer); activationTimer = null;
   }
+  // Points de chasse indicatifs : même visibilité que la réf. correspondant.
+  sotaPointsHint();
+  refreshSotaPoints();
+}
+
+// ─── Points de chasse SOTA « indicatifs » (NON officiels) ────────────────────
+// Purement local, JAMAIS envoyé à SOTA (le score officiel ne vient que de
+// sotadata après téléversement). Règles sourcées (3.8 §3 dédup jour UTC, 3.11
+// barème) côté serveur dans logx_sota_points. Deux surfaces : un indice sous le
+// champ réf. (points du sommet du QSO en cours) et un panneau de totaux courants.
+
+function _sotaPointsVisible(){
+  // Même règle que theirRefGroup : mode chasseur OU je suis moi-même en portable.
+  return chaserModeActif() || !!(activationProgram && myActivationRef);
+}
+
+// Indice « ▸ +N pts » sous la réf. du correspondant, SOTA uniquement (les autres
+// programmes n'ont pas de barème de points par altitude). textContent, jamais de
+// balisage ; le « ▸ » est un caractère texte, pas une icône.
+function sotaPointsHint(){
+  var el = document.getElementById('theirRefPoints');
+  if(!el || !window.LogxRefInfo) return;
+  var prog = (document.getElementById('theirRefProg') || {}).value;
+  prog = (prog || '').toUpperCase();
+  var ref = (document.getElementById('inputTheirRef') || {}).value;
+  ref = (ref || '').trim().toUpperCase();
+  if(prog !== 'SOTA' || !ref || !_sotaPointsVisible()){ el.hidden = true; el.textContent = ''; return; }
+  LogxRefInfo.lookup('SOTA', ref).then(function(e){
+    var pts = e && e.points;
+    if(!pts || pts <= 0){ el.hidden = true; el.textContent = ''; return; }
+    var s2s = (activationProgram === 'SOTA' && myActivationRef);
+    el.textContent = '▸ +' + pts + (s2s ? ' pts S2S' : ' pts chasse') + ' (indicatif — non officiel)';
+    el.hidden = false;
+  });
+}
+
+// Totaux courants (année + cumul) depuis /sota/points. Lecture seule. Toutes les
+// valeurs interpolées sont coercées en nombre -> aucune injection possible.
+async function refreshSotaPoints(){
+  var el = document.getElementById('sotaPointsPanel');
+  if(!el) return;
+  if(!_sotaPointsVisible()){ el.hidden = true; return; }
+  try{
+    var r = await fetch('/sota/points'); if(!r.ok){ el.hidden = true; return; }
+    var d = await r.json();
+    var year = Number(d && d.year) || 0;
+    var cy = Number(d && d.chasse_year) || 0;
+    var s2sy = Number(d && d.s2s_year) || 0;
+    var ca = Number(d && d.chasse_all) || 0;
+    if(!ca && !cy){ el.hidden = true; return; }   // rien chassé : on n'encombre pas
+    var htm = 'Chasse ' + year + ' : <b>' + cy + ' pts</b>';
+    if(s2sy) htm += ' · dont S2S <b>' + s2sy + '</b>';
+    if(ca !== cy) htm += ' · cumul <b>' + ca + '</b>';
+    htm += ' <span class="indic">(indicatif — non officiel)</span>';
+    el.innerHTML = htm;
+    el.hidden = false;
+  }catch(e){ el.hidden = true; }
 }
 
 async function refreshActivation(){
@@ -3158,6 +3215,8 @@ function clearForm(){
   // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
   const _cm = document.getElementById('inputComment'); if(_cm) _cm.value = '';
   const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';
+  const _trp2 = document.getElementById('theirRefPoints'); if(_trp2){ _trp2.hidden = true; _trp2.textContent = ''; }
+  if(typeof refreshSotaPoints === 'function') refreshSotaPoints();   // QSO loggué -> maj du total de chasse indicatif
   const _nm = document.getElementById('inputName'); if(_nm) _nm.value = '';   // prénom : propre au contact
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
@@ -4599,11 +4658,16 @@ window.addEventListener('DOMContentLoaded', () => {
   var _trp = document.getElementById('theirRefProg');
   if(_trp) _trp.addEventListener('change', function(){
     var i = document.getElementById('inputTheirRef'); if(i) i.dispatchEvent(new Event('input'));
+    sotaPointsHint();
   });
+  // Indice points de chasse indicatifs : suit la saisie de la réf. correspondant.
+  var _itr = document.getElementById('inputTheirRef');
+  if(_itr){ _itr.addEventListener('input', sotaPointsHint); _itr.addEventListener('change', sotaPointsHint); }
   // Mode chasseur (CONFIG) : le champ réf. correspondant reste visible même hors
   // activation, pour logger les sommets/parcs qu'on chasse.
   if(chaserModeActif()){
     var _trg = document.getElementById('theirRefGroup'); if(_trg) _trg.style.display = '';
+    refreshSotaPoints();   // affiche d'emblée les totaux de chasse
   }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
