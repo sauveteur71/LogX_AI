@@ -13,6 +13,15 @@ poussé.
 
 ## [Non publié]
 
+### Modifié
+
+- **User-Agent identifiable pour les requêtes SOTA.** Les appels vers
+  l'infrastructure SOTA (liste des sommets, spots en direct, self-spot) s'annoncent
+  désormais `LogX-AI/<version> (<indicatif>)` — indicatif lu de la config de
+  l'opérateur, jamais codé en dur — conformément à la recommandation SOTA d'un
+  « descriptive User-Agent including callsign ». Prépare la conformité en vue d'une
+  demande d'accès à l'API (voir `docs/sota_demande_autorisation_api.md`).
+
 ### Ajouté
 
 - **Points de chasse SOTA « indicatifs » (S2S inclus).** En mode chasseur, sous la
