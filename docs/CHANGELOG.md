@@ -15,6 +15,18 @@ poussé.
 
 ### Ajouté
 
+- **Points de chasse SOTA « indicatifs » (S2S inclus).** En mode chasseur, sous la
+  référence du correspondant, un indice montre les points du sommet contacté
+  (*▸ +8 pts chasse*, ou *+8 pts S2S* si vous êtes vous-même en portable), et un
+  panneau affiche vos **totaux courants** (*Chasse 2026 : 342 pts · dont S2S : 88*).
+  Calcul **purement local** à partir de la base des sommets, **jamais envoyé à
+  SOTA** et **explicitement non officiel** — le score officiel ne vient que de
+  sotadata après téléversement. Règles de score **sourcées** sur les *SOTA General
+  Rules v1.20* : barème 1/2/4/6/8/10 pts selon l'altitude (règle 3.11), un sommet
+  compté **une seule fois par jour UTC** (règle 3.8 §3), S2S = mon sommet + le sien
+  (règle 3.8 §7), aucun bonus saisonnier en chasse. Nouvel endpoint lecture seule
+  `GET /sota/points`.
+
 - **Multi-poste « qui marche tout seul » — ouverture du port dans le pare-feu Windows.**
   Sur un Wi-Fi classé *Public*, Windows bloquait les connexions entrantes vers LogX AI
   même l'accès LAN activé : un 2ᵉ poste ne pouvait pas se connecter. Désormais, au

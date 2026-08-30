@@ -4240,6 +4240,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(sotaspot.status(self._cfg_snapshot()))
             return
 
+        # Points de chasse SOTA « indicatifs » (NON officiels) — calcul purement
+        # local, jamais envoyé à SOTA. Règles 3.8/3.11 sourcées dans
+        # logx_sota_points. On copie le carnet sous verrou puis on calcule HORS
+        # verrou (get_summit a son propre verrou interne). Année UTC calculée à
+        # la requête pour rester juste au passage d'année.
+        if path == '/sota/points':
+            import logx_sota as sota
+            import logx_sota_points as sotapts
+            with log_lock:
+                log_copy = list(shared_log)
+            annee = datetime.datetime.now(datetime.timezone.utc).year
+            self._json(sotapts.totaux(log_copy, sota.get_summit, annee))
+            return
+
         # Multi-poste : le port est-il ouvert dans le pare-feu Windows ? (lecture
         # sans admin) — pour que CONFIG/Santé sachent si un 2e poste peut se
         # connecter sans réglage manuel. Voir logx_firewall.
