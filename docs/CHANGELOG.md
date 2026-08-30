@@ -15,6 +15,14 @@ poussé.
 
 ### Ajouté
 
+- **Multi-poste « qui marche tout seul » — ouverture du port dans le pare-feu Windows.**
+  Sur un Wi-Fi classé *Public*, Windows bloquait les connexions entrantes vers LogX AI
+  même l'accès LAN activé : un 2ᵉ poste ne pouvait pas se connecter. Désormais, au
+  démarrage (accès LAN activé) LogX AI **ouvre le port dans le pare-feu** (best-effort),
+  et *(CONFIG → Accès réseau)* un bouton **« Autoriser le multi-poste dans le pare-feu
+  Windows »** le fait en un clic (fenêtre UAC), une fois pour toutes, tous profils
+  réseau. Un statut indique si le port est ouvert.
+
 - **Infos du sommet/parc quand on tape une référence (SOTA/POTA/WWFF/IOTA).** Sous
   un champ de référence — la sienne (*MES RÉFÉRENCES*) ou celle du correspondant
   (*RÉF. CORRESPONDANT*) — un relevé lecture seule apparaît : **nom · région ·

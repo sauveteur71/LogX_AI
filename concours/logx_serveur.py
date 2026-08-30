@@ -93,6 +93,18 @@ if __name__ == '__main__':
     import logx_http as http_mod
     bind_host = '0.0.0.0' if http_mod.current_config.get('lan_access') else '127.0.0.1'
 
+    # Accès LAN activé : ouvre le port dans le pare-feu Windows (best-effort, en
+    # tâche de fond) pour que les AUTRES postes se connectent sans que l'opérateur
+    # bricole les réglages Windows — le blocage classique quand le Wi-Fi est
+    # classé « Public » (cf. logx_firewall). Silencieux si pas d'admin ; la page
+    # CONFIG offre alors un bouton « autoriser » avec élévation.
+    if bind_host == '0.0.0.0':
+        try:
+            import logx_firewall
+            threading.Thread(target=logx_firewall.ensure_at_startup, args=(PORT,), daemon=True).start()
+        except Exception:  # noqa: BLE001
+            pass
+
     # extra_hosts=[IP LAN] : la détection « port partagé sans risque » ne
     # vérifie sinon que 127.0.0.1, jamais l'adresse réellement annoncée aux
     # autres opérateurs sur le WiFi de l'expédition (voir docstring probe()).

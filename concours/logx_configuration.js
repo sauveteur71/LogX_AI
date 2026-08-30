@@ -1101,6 +1101,7 @@ async function init() {
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
   _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
+  checkFirewall();   // pare-feu multi-poste (Windows) : montre le bouton/statut si pertinent
   const sotaHint = document.getElementById('sotaRedirectUriHint');
   if (sotaHint) sotaHint.textContent = `http://localhost:${window.location.port || 8080}/sota/oauth/callback`;
   refreshAccessPasswordStatus(); // Mot de passe d'accès optionnel (section RÉSEAU)
@@ -1189,6 +1190,34 @@ async function connectSota(){
   window.open('/sota/oauth/start', 'sota_oauth',
     'width=520,height=680,menubar=no,toolbar=no,location=yes');
   setTimeout(refreshSotaStatus, 4000);   // laisse le temps de finir la connexion
+}
+
+// ─── PARE-FEU MULTI-POSTE (Windows) ─────────────────────────────────────────
+// Sur un Wi-Fi « Public », le port reste bloqué en entrée même l'accès LAN
+// activé : un 2e poste ne se connecte pas. Le bouton ouvre le port (UAC) une
+// fois pour toutes ; le statut dit si c'est déjà fait. Masqué hors Windows.
+async function checkFirewall(){
+  const row = document.getElementById('firewallRow');
+  const st = document.getElementById('firewallStatus');
+  if (!row) return;
+  try {
+    const d = await (await fetch('/lan/firewall/status')).json();
+    if (!d.windows){ row.style.display = 'none'; return; }
+    row.style.display = '';
+    if (d.rule){ st.textContent = '✓ port ' + d.port + ' ouvert — les autres postes peuvent se connecter'; st.style.color = 'var(--green)'; }
+    else if (!d.lan_access){ st.textContent = 'active d\'abord l\'accès réseau (LAN) ci-dessus'; st.style.color = 'var(--muted)'; }
+    else { st.textContent = 'port ' + d.port + ' encore bloqué par le pare-feu — clique pour autoriser'; st.style.color = 'var(--yellow)'; }
+  } catch (e){ row.style.display = 'none'; }
+}
+
+async function openFirewall(){
+  const st = document.getElementById('firewallStatus');
+  if (st){ st.textContent = 'fenêtre Windows (UAC) — confirme pour autoriser…'; st.style.color = 'var(--muted)'; }
+  try {
+    const d = await (await fetch('/lan/firewall/open', { method: 'POST' })).json();
+    if (st && !d.launched){ st.textContent = 'échec : ' + (d.message || ''); st.style.color = 'var(--red)'; }
+    setTimeout(checkFirewall, 4500);   // l'UAC est asynchrone : on re-vérifie après
+  } catch (e){ if (st){ st.textContent = 'erreur réseau'; st.style.color = 'var(--red)'; } }
 }
 
 // Le bloc "À PROXIMITÉ" reste visible pour tout programme dont la base est
