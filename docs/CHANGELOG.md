@@ -13,6 +13,15 @@ poussé.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Bandeaux défilants (ticker DX/propagation) doublés quand les animations sont
+  désactivées.** Le ruban duplique son contenu pour défiler sans couture ; lorsque
+  l'OS refuse le mouvement (`prefers-reduced-motion`, « effets d'animation » coupés
+  dans Windows), le défilement s'arrêtait mais la **copie dupliquée restait visible**
+  — l'info apparaissait deux fois. Désormais la 2ᵉ copie (décorative, `aria-hidden`)
+  est masquée dans ce cas : une seule copie, lisible et défilable à la main.
+
 ### Modifié
 
 - **User-Agent identifiable pour les requêtes SOTA.** Les appels vers

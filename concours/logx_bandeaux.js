@@ -152,10 +152,16 @@
         return '<a class="rcb-item" href="' + esc(it.href || '#')
              + '" title="' + esc(it.title || '') + '"' + attrs + '>' + contenu + '</a>';
       }).join('');
-      // bloc dupliqué -> boucle CSS translateX(-50%) sans couture
+      // Bloc dupliqué -> boucle CSS translateX(-50%) sans couture. Chaque copie
+      // est enveloppée : la 2e (rcb-dup, aria-hidden car purement décorative)
+      // est MASQUÉE sous prefers-reduced-motion (voir logx_theme.css) pour ne pas
+      // afficher deux fois l'info quand le défilement est coupé. `display:contents`
+      // sur .rcb-seq préserve la mise en page flex des items.
       return '<div class="rcb-row"><span class="rcb-cat ' + esc(def.cls || '') + '">'
            + esc(def.cat) + '</span><div class="rcb-track"><div class="rcb-move">'
-           + cells + cells + '</div></div></div>';
+           + '<span class="rcb-seq">' + cells + '</span>'
+           + '<span class="rcb-seq rcb-dup" aria-hidden="true">' + cells + '</span>'
+           + '</div></div></div>';
     }).filter(Boolean).join('');
   }
 

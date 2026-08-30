@@ -131,6 +131,34 @@ def test_rendu_produit_les_lignes_et_double_le_bloc():
     assert html.count('SFI 143') == 2
 
 
+def test_rendu_enveloppe_chaque_copie_la_2e_decorative():
+    """Chaque copie du bloc est enveloppée : la 1re en .rcb-seq, la 2e en
+    .rcb-seq.rcb-dup + aria-hidden. Le CSS (prefers-reduced-motion) masque
+    .rcb-dup quand le défilement est coupé -> une seule copie visible, pas d'info
+    en double ; aria-hidden évite aussi la double lecture par un lecteur d'écran.
+    La duplication du CONTENU reste (défilement sans couture)."""
+    ctx = _ctx()
+    _registre_test(ctx)
+    html = ctx.eval("LogxBandeaux.rendreTicker(['propag'], {}, {})")
+    assert '<span class="rcb-seq">' in html                              # 1re copie
+    assert '<span class="rcb-seq rcb-dup" aria-hidden="true">' in html   # 2e, décorative
+    assert html.count('SFI 143') == 2                                    # contenu toujours dupliqué
+
+
+def test_css_masque_la_copie_dupliquee_sous_reduced_motion():
+    """Verrou CSS : logx_theme.css doit neutraliser .rcb-dup sous
+    prefers-reduced-motion (et .rcb-seq en display:contents pour ne pas casser
+    la mise en page flex). Sans quoi la copie décorative resterait visible."""
+    with open(os.path.join(CONCOURS, 'logx_theme.css'), encoding='utf-8') as f:
+        css = f.read()
+    assert '.rcb-seq{display:contents}' in css
+    # .rcb-dup{display:none} doit apparaître APRÈS l'ouverture du média
+    # reduced-motion (donc à l'intérieur), jamais en règle globale.
+    i_media = css.find('@media (prefers-reduced-motion:reduce)')
+    i_dup = css.find('.rcb-dup{display:none}')
+    assert i_media != -1 and i_dup != -1 and i_dup > i_media
+
+
 def test_rendu_saute_un_bandeau_sans_donnees():
     ctx = _ctx()
     _registre_test(ctx)
