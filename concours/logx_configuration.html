@@ -645,6 +645,29 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button class="btn btn-launch" onclick="launchApp()" title="Enregistre la configuration et passe au journal de contact"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> COMMENCER À LOGGER</button>
         <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Ouvrir la carte IA</button>
       </div>
+
+      <!-- Zone de réinitialisation : remet la config aux valeurs par défaut,
+           SAUF les identifiants (gérés serveur via SECRET_FIELDS) et le carnet.
+           Message de sécurité toujours visible + confirmation en 2 temps. -->
+      <div class="section" style="margin-top:24px;border:1px solid var(--red);border-radius:10px;background:rgba(210,70,70,.06);padding:14px 16px">
+        <h3 class="section-title" style="margin-top:0"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;margin-right:3px" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5A6 6 0 1 0 15 9"/><polyline points="14.5 2.5 14.5 5.5 11.5 5.5"/></svg> RÉINITIALISATION DE LA CONFIGURATION</h3>
+        <p style="color:var(--muted);font-size:13px;line-height:1.65;margin:6px 0 12px">
+          Remet toute la configuration (station, radios, dossiers, préférences d'affichage…)
+          aux valeurs par défaut, comme à la première installation.<br>
+          <b style="color:var(--text)">Conservés :</b> vos clés d'API / identifiants (QRZ, ClubLog, synchro…) <b>et votre carnet de QSO</b> — rien de tout cela n'est effacé.<br>
+          <b style="color:var(--red)">Irréversible :</b> vous devrez re-saisir vos informations de station.
+        </p>
+        <div id="cfgResetActions">
+          <button type="button" class="btn btn-secondary" onclick="showConfigResetConfirm()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5A6 6 0 1 0 15 9"/><polyline points="14.5 2.5 14.5 5.5 11.5 5.5"/></svg> Réinitialiser la configuration</button>
+        </div>
+        <div id="cfgResetConfirm" style="display:none">
+          <div style="color:var(--red);font-size:13px;font-weight:600;margin-bottom:8px">Confirmer la réinitialisation ? Cette action est irréversible (le carnet et les identifiants restent, eux, intacts).</div>
+          <div class="btn-row" style="justify-content:flex-start">
+            <button type="button" class="btn" style="background:var(--red);border-color:var(--red);color:#fff" onclick="doConfigReset(this)">Oui, réinitialiser</button>
+            <button type="button" class="btn btn-secondary" onclick="hideConfigResetConfirm()">Annuler</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

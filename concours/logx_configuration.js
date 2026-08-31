@@ -6845,4 +6845,45 @@ async function handleContestParam(){
 // ait fini, et concluait à tort à l'absence de clé API. _initReady expose
 // la promesse pour que l'assistant puisse l'attendre sans retarder init()
 // elle-même ni le reste de la page.
+// ─── Réinitialisation de la configuration (zone dédiée du popup RÉSUMÉ) ───────
+// Réinit. DOUCE : le serveur (/config/reset) remet la config aux défauts tout en
+// CONSERVANT les identifiants (SECRET_FIELDS) et sans toucher au carnet ; côté
+// client on efface en plus les préférences d'AFFICHAGE (thème, mode, dispositions)
+// puis on recharge. Confirmation en 2 temps (le bouton révèle Oui/Annuler).
+function showConfigResetConfirm(){
+  var a = document.getElementById('cfgResetActions');
+  var c = document.getElementById('cfgResetConfirm');
+  if(a) a.style.display = 'none';
+  if(c) c.style.display = 'block';
+}
+function hideConfigResetConfirm(){
+  var a = document.getElementById('cfgResetActions');
+  var c = document.getElementById('cfgResetConfirm');
+  if(c) c.style.display = 'none';
+  if(a) a.style.display = 'block';
+}
+async function doConfigReset(btn){
+  if(btn){ btn.disabled = true; btn.textContent = 'Réinitialisation…'; }
+  try {
+    const res = await fetch('/config/reset', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirm: 'RESET'})
+    });
+    let d = {};
+    try { d = await res.json(); } catch(e) {}
+    if(!res.ok || !d.ok){ throw new Error((d && d.error) || ('HTTP ' + res.status)); }
+    // Préférences d'AFFICHAGE remises à zéro (le reste de la config est fait serveur).
+    try {
+      localStorage.removeItem('rc_theme');
+      localStorage.removeItem('rc_ui_mode');
+      localStorage.removeItem('rc_layouts');
+    } catch(e) {}
+    // Recharge : le formulaire repart des défauts, identifiants conservés côté serveur.
+    location.reload();
+  } catch(e) {
+    alert(Tf('Échec de la réinitialisation : ') + (e && e.message ? e.message : e));
+    if(btn){ btn.disabled = false; btn.textContent = 'Oui, réinitialiser'; }
+  }
+}
+
 const _initReady = init();
