@@ -2214,6 +2214,12 @@ def _activation_db_adapter(program):
         import logx_gma as gma
         return {'search': gma.search, 'lookup': gma.get,
                 'nearby': None, 'status': gma.status}
+    if program == 'ARLHS':
+        # Base WLOL protégée (Copyright ARLHS) : lookup PAR RÉFÉRENCE seulement
+        # (fiche du phare tapé), cache mémoire, aucun bulk -> aucune redistribution.
+        import logx_arlhs as arlhs
+        return {'search': arlhs.search, 'lookup': arlhs.get,
+                'nearby': None, 'status': arlhs.status}
     return None
 
 
