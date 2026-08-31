@@ -1099,6 +1099,7 @@ if(localStorage.getItem('rc_theme') === null){
   // qui n'a pas encore répondu donne aussi 0. Confondre les deux ferait dire à
   // la page « radio non pilotée » à un opérateur qui l'a bien branchée.
   let rigFreqKhz = 0, rigMode = '', rigActif = false;
+  let _dernierBandeFt8 = '';   // dernière bande sur laquelle on a auto-calé la fréquence FT8
   const BAND_EDGES = [   // bornes larges (kHz), IARU R1 — juste pour déduire la bande au log
     ['1.8', 1800, 2000], ['3.5', 3500, 3800], ['7', 7000, 7200], ['10.1', 10100, 10150],
     ['14', 14000, 14350], ['18', 18068, 18168], ['21', 21000, 21450], ['24', 24890, 24990],
@@ -1131,6 +1132,18 @@ if(localStorage.getItem('rc_theme') === null){
         rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase();
         const b = bandeDepuisKhz(rigFreqKhz);
         disp.textContent = (b ? b + 'm ' : '') + (rigFreqKhz ? (rigFreqKhz/1000).toFixed(3) + ' MHz' : '—');
+        // AUTO-CALAGE FT8 : en ARRIVANT sur une bande (la bande change), on cale
+        // la radio sur la fréquence d'appel FT8 de cette bande — demandé par
+        // F4GLD (« si je suis sur une bande, il se cale directement sur la
+        // fréquence FT8 »). UNE seule fois par arrivée (jamais en boucle : le
+        // sondage suivant relit la même bande), JAMAIS d'émission. La fréquence
+        // vient du serveur (logx_frequences.dial_freq via /rig/qsy), pas d'une
+        // table dupliquée ici. Sans CAT (branche else), rien à piloter.
+        if(b && b !== _dernierBandeFt8){
+          _dernierBandeFt8 = b;
+          fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+                             body: JSON.stringify({band: b, dial_mode: 'FT8'})}).catch(function(){});
+        }
       } else {
         rigActif = false;
         rigFreqKhz = 0; rigMode = '';

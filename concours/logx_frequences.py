@@ -59,6 +59,24 @@ def digital_table(region='IARU_R1'):
     return {'bands': bands, 'modes': modes, 'table': table}
 
 
+# Correspondance clé de bande INTERNE (MHz, ex. '14' — celle de _mhz_to_band /
+# _band_from_freq / la page FT8) -> label longueur d'onde des données ('20m').
+# Les données frequences_iaru_r1.json sont indexées par label ; le reste du dépôt
+# manipule la clé interne. UN seul point de correspondance, ici, à côté des
+# données — jamais une table dupliquée dans une page.
+_BANDE_INTERNE_VERS_LABEL = {
+    '1.8': '160m', '3.5': '80m', '7': '40m', '10.1': '30m', '14': '20m',
+    '18': '17m', '21': '15m', '24': '12m', '28': '10m', '50': '6m',
+    '70': '4m', '144': '2m', '432': '70cm', '1296': '23cm',
+}
+
+
+def label_bande(band_interne):
+    """Clé interne ('14') -> label longueur d'onde ('20m'). Idempotent : un label
+    déjà correct ('20m') est rendu tel quel."""
+    return _BANDE_INTERNE_VERS_LABEL.get(str(band_interne), str(band_interne))
+
+
 def dial_freq(band, mode, region='IARU_R1', variant=None):
     """Fréquence de cadran (MHz) pour (band, mode), ou None si non définie
     (ex. 'local'/'selon autorisation' non renseignés). `variant` sélectionne une

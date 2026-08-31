@@ -2209,6 +2209,27 @@ def _freq_khz_from_payload(payload):
     return freq_khz
 
 
+def _qsy_freq_hz_depuis_payload(payload):
+    """Fréquence (Hz) d'un QSY. Priorité : freq_hz / freq_khz explicites. À
+    défaut, `band` + `dial_mode` (ex. FT8) -> fréquence d'appel de ce mode sur
+    cette bande, via la SOURCE UNIQUE logx_frequences.dial_freq (jamais une table
+    dupliquée côté client — piège documenté du dépôt). Permet à la page FT8 de
+    demander « cale-moi sur la fréquence FT8 de la bande » sans connaître les
+    fréquences elle-même. Renvoie 0 si rien d'exploitable (bande/mode inconnus)."""
+    freq = payload.get('freq_hz') or 0
+    if not freq and payload.get('freq_khz'):
+        freq = float(payload['freq_khz']) * 1000
+    if not freq and payload.get('band'):
+        import logx_frequences as _fq
+        # label_bande : la page FT8 envoie la clé interne ('14') ; les données
+        # dial_freq sont indexées par label longueur d'onde ('20m').
+        mhz = _fq.dial_freq(_fq.label_bande(payload['band']),
+                            str(payload.get('dial_mode') or 'FT8'))
+        if mhz is not None:
+            freq = float(mhz) * 1e6
+    return freq
+
+
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
 
@@ -6681,9 +6702,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if self.path == '/rig/qsy':
                 try:
-                    freq = payload.get('freq_hz') or 0
-                    if not freq and payload.get('freq_khz'):
-                        freq = float(payload['freq_khz']) * 1000
+                    # freq_hz / freq_khz explicites, ou calage sur la fréquence
+                    # d'appel FT8 de la bande (band + dial_mode) — voir helper.
+                    freq = _qsy_freq_hz_depuis_payload(payload)
                     if not freq:
                         self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
                         return
