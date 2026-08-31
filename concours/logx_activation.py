@@ -91,15 +91,16 @@ PROGRAM_SPECS = {
              'ref_re': r'^DFCF-(?:\d{2}|2[AB])\d{3}$', 'min_qso': 100,
              'p2p': 'Château-to-Château', 'example': 'DFCF-01001'},
     # DMF (Diplôme des Moulins de France) — patrimoine FR, hébergé REF
-    # (dmf.r-e-f.org). Format « DMF<dept 2 ch>.<n° 3 ch> » (ex. DMF01.001, moulins
-    # du dépt 01 n° 001), activation valide = 100 QSO HF (50 réactivation ; 25 VHF).
-    # ⚠️ FORMAT À RECONFIRMER : source dmf.r-e-f.org indisponible (HTTP 503) au
-    # moment du code, format retenu via recherche web citant ce site -> élargir/
-    # corriger le regex quand le site officiel est de nouveau accessible. Pas de
-    # champ ADIF dédié -> SIG générique.
+    # (dmf.r-e-f.org). Format « DMF<dept>.<n°> » (ex. DMF01.001, moulins du dépt
+    # 01 n° 001), activation valide = 100 QSO HF (50 réactivation ; 25 VHF).
+    # ⚠️ FORMAT PROVISOIRE — source dmf.r-e-f.org indisponible (HTTP 503) au
+    # moment du code. Regex TOLÉRANT (décision F4GLD 31/08) : on ne rejette PAS
+    # une référence réelle qui ne suit pas exactement ce format — séparateur . ou
+    # -, espace/tiret optionnel après DMF, Corse 2A/2B. À resserrer quand le
+    # règlement officiel sera reconfirmé. Pas de champ ADIF dédié -> SIG générique.
     'DMF': {'name': 'Diplôme des Moulins de France', 'sig': 'DMF',
-            'ref_re': r'^DMF(?:\d{2}|2[AB])\.\d{3}$', 'min_qso': 100,
-            'p2p': 'Moulin-to-Moulin', 'example': 'DMF01.001'},
+            'ref_re': r'^DMF[- ]?(?:\d{1,4}|2[AB])[-.]\d{1,6}$', 'min_qso': 100,
+            'p2p': 'Moulin-to-Moulin', 'example': 'DMF01.001', 'format_provisoire': True},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le

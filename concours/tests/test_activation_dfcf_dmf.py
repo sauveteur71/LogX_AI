@@ -39,21 +39,25 @@ def test_dfcf_reference_invalide():
     assert not act.validate_ref('DFCF', 'DFCF-01')     # n° manquant
 
 
-def test_dmf_present_et_seuil():
+def test_dmf_present_seuil_et_provisoire():
     assert 'DMF' in act.PROGRAM_SPECS
     spec = act.PROGRAM_SPECS['DMF']
     assert spec['name'] == 'Diplôme des Moulins de France'
     assert spec['min_qso'] == 100
     assert 'adif_tag' not in spec
+    assert spec.get('format_provisoire') is True     # marqué à reconfirmer
 
 
-def test_dmf_reference_valide():
-    assert act.validate_ref('DMF', 'DMF01.001')       # dépt 01, n° 001
-    assert act.validate_ref('DMF', 'DMF89.060')
-    assert act.validate_ref('DMF', 'dmf2b.012')       # Corse 2B, normalisé
+def test_dmf_reference_tolerante():
+    # Regex TOLÉRANT (F4GLD) : on ne rejette pas une référence réelle qui ne
+    # suit pas exactement DMF01.001 -> variantes de séparateur/espace acceptées.
+    for ref in ['DMF01.001', 'DMF89.060', 'dmf2b.012', 'DMF-01-001',
+                'DMF01-001', 'DMF 01.001', 'DMF1.001']:
+        assert act.validate_ref('DMF', ref), ref
 
 
-def test_dmf_reference_invalide():
-    assert not act.validate_ref('DMF', 'DMF01-001')   # tiret au lieu du point
-    assert not act.validate_ref('DMF', 'DMF1.001')    # dépt sur 1 chiffre
-    assert not act.validate_ref('DMF', 'DMF01.01')    # n° trop court
+def test_dmf_reference_clairement_invalide():
+    # Seul le clairement non-DMF est rejeté (pas de faux rejet d'une vraie réf).
+    assert not act.validate_ref('DMF', 'FR-0123')     # format POTA
+    assert not act.validate_ref('DMF', 'DMFABC')      # ni chiffres ni séparateur
+    assert not act.validate_ref('DMF', 'POTA01.001')  # autre programme
