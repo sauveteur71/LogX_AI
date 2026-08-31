@@ -15,6 +15,13 @@ poussé.
 
 ### Corrigé
 
+- **Contraste du badge « fil IA » en mode jour / haut-contraste.** Le compteur
+  `.fil-count` (◈ IA) affichait un texte sombre fixe sur un fond `accent2` ;
+  en mode jour (et haut-contraste jour) `accent2` devient le cuivre-encre sombre
+  → texte sombre sur fond sombre, illisible. Ajout de l'override jour (texte
+  clair), comme ses jumeaux. Verrouillé par un test qui interdit tout texte
+  sombre fixe sur `accent2` sans override jour.
+
 - **Longueur des champs ADIF en octets (accents).** `<NOM:longueur>` annonçait
   un nombre de **caractères** ; pour un champ accentué (COMMENT/NAME/QTH « café »)
   un lecteur ADIF strict (POTA, autres loggers) attend le nombre d'**octets** UTF-8.
