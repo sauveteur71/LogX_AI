@@ -77,6 +77,29 @@ PROGRAM_SPECS = {
     'GMA': {'name': 'Global Mountain Activity', 'sig': 'GMA',
             'ref_re': r'^[A-Z0-9]{1,3}/[A-Z]{2}-\d{3}$', 'min_qso': 4,
             'p2p': 'Summit-to-Summit', 'example': 'DL/BE-055'},
+    # DFCF (Diplôme des Forts et Châteaux de France) — patrimoine FR, hébergé REF.
+    # Vérifié sur dfcf.fr/reglement.html (31/08/2026) : réf. « DFCF-<dept 2 ch>
+    # <n° 3 ch> » (ex. DFCF-01001 = château du département 01, n° 001).
+    # Activation valide = 100 liaisons HF (50 en réactivation ; 25 VHF / 15 UHF)
+    # -> seuil « première activation HF » retenu comme min_qso. Rayon 1000 m
+    # (maj 01/01/2026) et modes CW+SSB seulement : NON modélisés (LogX n'a pas de
+    # champ rayon/modes-autorisés par programme, seulement réf + seuil QSO).
+    # Aucun champ ADIF dédié aux châteaux -> SIG/SIG_INFO générique (comme
+    # ARLHS/WCA). Corse 2A/2B couverte ; DOM (dept 3 ch) à élargir si un cas
+    # réel légitime échoue.
+    'DFCF': {'name': 'Diplôme des Forts et Châteaux de France', 'sig': 'DFCF',
+             'ref_re': r'^DFCF-(?:\d{2}|2[AB])\d{3}$', 'min_qso': 100,
+             'p2p': 'Château-to-Château', 'example': 'DFCF-01001'},
+    # DMF (Diplôme des Moulins de France) — patrimoine FR, hébergé REF
+    # (dmf.r-e-f.org). Format « DMF<dept 2 ch>.<n° 3 ch> » (ex. DMF01.001, moulins
+    # du dépt 01 n° 001), activation valide = 100 QSO HF (50 réactivation ; 25 VHF).
+    # ⚠️ FORMAT À RECONFIRMER : source dmf.r-e-f.org indisponible (HTTP 503) au
+    # moment du code, format retenu via recherche web citant ce site -> élargir/
+    # corriger le regex quand le site officiel est de nouveau accessible. Pas de
+    # champ ADIF dédié -> SIG générique.
+    'DMF': {'name': 'Diplôme des Moulins de France', 'sig': 'DMF',
+            'ref_re': r'^DMF(?:\d{2}|2[AB])\.\d{3}$', 'min_qso': 100,
+            'p2p': 'Moulin-to-Moulin', 'example': 'DMF01.001'},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le

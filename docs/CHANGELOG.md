@@ -49,6 +49,14 @@ poussé.
 
 ### Ajouté
 
+- **Programmes DFCF et DMF (patrimoine FR) ajoutés aux activités XOTA.** Le
+  moteur `PROGRAM_SPECS` reconnaît désormais **DFCF** (Forts et Châteaux de
+  France, réf. `DFCF-01001`, 100 QSO HF, sourcé dfcf.fr) et **DMF** (Moulins de
+  France, réf. `DMF01.001`, 100 QSO HF). Validation du format de référence,
+  activation (X/min QSO), export ADIF et champ « réf. correspondant » (chasse)
+  gérés comme les autres programmes ; références via `SIG/SIG_INFO` (aucun champ
+  ADIF dédié). Options ajoutées aux menus CONFIG (expédition) et LOGBOOK (chasse).
+
 - **Export SOTA « prêt pour sotadata » (téléversement manuel).** En mode chasseur,
   deux boutons exportent un ADIF filtré : **« Exporter mes chasses SOTA »** (QSO où
   le correspondant est sur un sommet) et **« Exporter mon portable SOTA »** (QSO où
