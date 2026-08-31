@@ -300,6 +300,15 @@ select.field-input{cursor:pointer}
 .sota-exp-btn:hover{border-color:var(--accent);border-style:solid}
 .sota-exp-note{flex-basis:100%;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);line-height:1.45;opacity:.85}
 .sota-exp-note a{color:var(--accent2)}
+/* Bascule de mode de session XOTA (chasse / portable / les deux). */
+.xota-role-switch{display:flex;gap:6px;padding:8px 4px 2px;flex-wrap:wrap}
+.xota-role-switch[hidden]{display:none}
+.xrs-btn{flex:1;min-width:92px;font-family:var(--font-mono);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--muted);border-radius:8px;padding:7px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all .15s}
+.xrs-btn:hover{border-color:var(--accent)}
+.xrs-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.12);font-weight:700}
+.xrs-btn .xrs-ico{font-size:16px;line-height:1}
+.xrs-btn .xrs-hint{font-size:9.5px;color:var(--muted);letter-spacing:.2px}
+.xrs-btn.on .xrs-hint{color:var(--accent2)}
 .ref-add{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.5px}
 .ref-add:hover{border-color:var(--accent)}
 .ref-del{font-family:var(--font-mono);font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--border);border-radius:6px;padding:0 9px;cursor:pointer}
@@ -1628,6 +1637,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </span>
     </div>
 
+    <!-- Mode de SESSION XOTA (chasse / portable / les deux), bascule en 1 geste.
+         Adaptabilité terrain : le rôle change d'une session à l'autre. Pilote la
+         visibilité des champs/panneaux et les exports. Rendu par renderXotaRoleSwitch(). -->
+    <div id="xotaRoleSwitch" class="xota-role-switch" hidden></div>
+
     <div class="saisie-form">
 
       <!-- Opérateur actif + Bande, côte à côte : même schéma bouton+popup que
@@ -2632,6 +2646,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      appelle _resolveContestFilters(), défini ici -- partagé avec
      logx_configuration.js, voir logx_contest_rules.js pour le détail. -->
 <script src="logx_contest_rules.js"></script>
+<script src="logx_xota_role.js"></script>
 <script src="logx_logbook.js"></script>
 <script src="logx_occupation.js"></script>
 <script src="logx_opportunites.js"></script>
