@@ -2259,6 +2259,56 @@ def _qsy_freq_hz_depuis_payload(payload):
     return freq
 
 
+# ─── Thème incorporé (contournement Web Shield antivirus) ────────────────────
+# PROBLÈME. logx_theme.css est un fichier SÉPARÉ : le navigateur le récupère par
+# une 2e requête. Un antivirus/proxy qui inspecte le trafic (Avast Web Shield,
+# déjà vu couper des fichiers sur un poste de l'équipe, cf. le commentaire
+# Content-Length plus bas) peut bloquer/tronquer CETTE requête .css sans toucher
+# au HTML — résultat : la page s'affiche mais SANS thème (tokens `var(--x)`
+# indéfinis → police serif, contraste cassé, barres sans couleur). SOLUTION : à
+# la volée, on remplace le <link> vers logx_theme.css par le CSS INLINE dans la
+# réponse HTML elle-même (qui, elle, passe). Plus de requête séparée à bloquer.
+# UNE SEULE SOURCE conservée (le fichier reste l'original ; injection au service,
+# donc test_css_mutualise/les pages sur disque ne changent pas). Le garde-fou
+# logx_theme_guard.js reste en dernier recours si l'injection échouait.
+_THEME_LINK = '<link rel="stylesheet" href="logx_theme.css">'
+_THEME_CSS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logx_theme.css')
+_theme_inline_cache = {'mtime': None, 'style': ''}
+
+
+def _theme_css_inline_style():
+    """`<style>…</style>` contenant logx_theme.css, en cache (relu si le fichier
+    change). Chaîne vide si illisible (repli : on laisse le <link>)."""
+    try:
+        mt = os.path.getmtime(_THEME_CSS_PATH)
+    except OSError:
+        return ''
+    if _theme_inline_cache['mtime'] != mt:
+        try:
+            with open(_THEME_CSS_PATH, encoding='utf-8') as f:
+                css = f.read()
+        except OSError:
+            return ''
+        # Un </style> dans le CSS fermerait le bloc par accident (ne devrait pas
+        # exister, mais on ne suppose pas) : on le neutralise.
+        css = css.replace('</style>', '<\\/style>')
+        _theme_inline_cache['mtime'] = mt
+        _theme_inline_cache['style'] = '<style id="logx-theme-inline">\n' + css + '\n</style>'
+    return _theme_inline_cache['style']
+
+
+def _inline_theme_in_html(body_bytes):
+    """Remplace le <link> logx_theme.css par le CSS inline dans un corps HTML.
+    No-op si le lien est absent ou le CSS illisible."""
+    link = _THEME_LINK.encode('utf-8')
+    if link not in body_bytes:
+        return body_bytes
+    style = _theme_css_inline_style()
+    if not style:
+        return body_bytes
+    return body_bytes.replace(link, style.encode('utf-8'), 1)
+
+
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
 
@@ -5515,6 +5565,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             with open(filepath, 'rb') as f:
                 body = f.read()
+            # Thème incorporé dans le HTML (contournement Web Shield antivirus) :
+            # supprime la requête .css séparée que l'antivirus peut bloquer.
+            if filepath.endswith('.html'):
+                body = _inline_theme_in_html(body)
             self.send_response(200)
             ct = 'text/html; charset=utf-8'
             if filepath.endswith('.js'):   ct = 'application/javascript'
