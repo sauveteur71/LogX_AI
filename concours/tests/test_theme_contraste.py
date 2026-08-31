@@ -142,6 +142,32 @@ def test_repere_absent_si_systeme_ne_demande_pas():
     assert _ctx_repere(None, False).eval("_doitAfficherRepere()") is False
 
 
+def test_pas_de_texte_sombre_fixe_sur_accent2_sans_override_jour():
+    """Motif de bug documenté (CLAUDE.md) : un sélecteur qui remplit son fond en
+    `background:var(--accent2)` ET fixe un `color:#hex` SOMBRE est illisible en
+    JOUR/HC-jour (accent2 y devient le cuivre-encre sombre -> sombre sur sombre).
+    Chaque cas doit avoir un override `body.day-mode <sel>{color:...}` qui
+    éclaire le texte. Verrouille toute la classe, pas seulement .fil-count."""
+    css = open(THEME, encoding='utf-8').read()
+    trouves = 0
+    for m in re.finditer(r'([.#][\w.\-]+)\s*\{([^}]*background:\s*var\(--accent2\)[^}]*)\}', css):
+        sel, corps = m.group(1), m.group(2)
+        cm = re.search(r'color:\s*#([0-9a-fA-F]{3,6})', corps)
+        if not cm:
+            continue
+        h = cm.group(1)
+        if len(h) == 3:
+            h = ''.join(c * 2 for c in h)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        if (r + g + b) > 380:          # texte CLAIR (ex. #fff) : OK sur fond sombre
+            continue
+        trouves += 1                    # texte SOMBRE sur accent2 -> override jour requis
+        pat = re.compile(r'body\.day-mode\s+' + re.escape(sel) + r'\s*\{[^}]*color:')
+        assert pat.search(css), \
+            "%s : texte sombre sur accent2 sans override jour (illisible en jour/HC)" % sel
+    assert trouves >= 1                 # le test lui-même n'est pas vacant (.fil-count & co)
+
+
 def test_repere_absent_si_deja_ecarte():
     # Auto-système mais l'utilisateur a fait « × » -> on n'en reparle plus.
     c = _ctx_repere(None, True, dismissed=True)

@@ -185,6 +185,11 @@ body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuiv
 #filIaPanel{width:320px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;font-family:var(--font-mono);left:auto;right:0}
 #filIaPanel[hidden]{display:none}
 .fil-count{display:inline-block;margin-left:6px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--accent2);color:#17181A;font-size:11px;font-weight:800;text-align:center;line-height:16px;vertical-align:1px}
+/* JOUR/HC-jour : accent2 devient cuivre-encre SOMBRE -> le texte sombre par
+   défaut deviendrait illisible (sombre sur sombre). Texte clair, comme les
+   jumeaux .rcb-chip.on / .lp-btn-primaire. Couvre aussi le haut-contraste jour
+   (body.high-contrast.day-mode matche body.day-mode). */
+body.day-mode .fil-count{color:#F8F6EF}
 .fil-count[hidden]{display:none}
 #filIaBtn.has-items{border-color:var(--accent2);color:var(--accent2)}
 .fil-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
