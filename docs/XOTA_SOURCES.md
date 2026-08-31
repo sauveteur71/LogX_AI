@@ -97,3 +97,28 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
 > (`/activation_db/lookup`) et la validation de référence. Les bases marquées
 > `local_cache_only` / `copyright_per_reference_only` ne sont **jamais**
 > recopiées dans le dépôt — cf. `.gitignore` (caches runtime).
+
+## Soumission des logs aux sites XOTA (workflow — F4GLD, 31/08/2026)
+
+Distinct de la RECHERCHE/validation ci-dessus (relevé de saisie). Précision de
+F4GLD sur la façon dont un log doit remonter vers le site du programme, **selon
+le mode d'usage** (cf. sélecteur d'accueil Chasseur / Portable-expédition / Les
+deux) :
+
+- **Portable / expédition** (celui qui active la référence) : le log est envoyé
+  **en UNE fois, l'activation terminée** (dépôt groupé du log complet, typiquement
+  un ADIF/CSV à la fin).
+- **Chasseur** : **chaque QSO est transmis au site au fil de l'eau** (remontée
+  temps réel, QSO par QSO).
+
+**État du code (31/08/2026) :** pas encore implémenté. Il existe des *self-spots*
+(`/pota/spot`, `/sota/spot`, `/cluster/spot` — s'annoncer en fréquence, ≠ log) et
+un push par-QSO vers **QRZ** (`logx_qrz_push`), mais **aucune remontée de log vers
+les sites XOTA eux-mêmes**. Ce workflow est donc un **chantier à cadrer**.
+
+**À vérifier au moment de le construire (ne pas supposer) :** les API de
+soumission diffèrent par programme et ne suivent pas toutes ce modèle — ex. POTA
+crédite les chasseurs **depuis le log de l'activateur** (pas d'upload chasseur) ;
+SOTA a sa base d'activations + de chasses. Le modèle « chasseur = QSO par QSO »
+est la CIBLE produit voulue par F4GLD ; sa faisabilité est **par-programme** et
+doit être sourcée sur chaque API avant implémentation.
