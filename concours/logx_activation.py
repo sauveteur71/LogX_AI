@@ -78,18 +78,18 @@ PROGRAM_SPECS = {
             'ref_re': r'^[A-Z0-9]{1,3}/[A-Z]{2}-\d{3}$', 'min_qso': 4,
             'p2p': 'Summit-to-Summit', 'example': 'DL/BE-055'},
     # DFCF (Diplôme des Forts et Châteaux de France) — patrimoine FR, hébergé REF.
-    # Vérifié sur dfcf.fr/reglement.html (31/08/2026) : réf. « DFCF-<dept 2 ch>
-    # <n° 3 ch> » (ex. DFCF-01001 = château du département 01, n° 001).
-    # Activation valide = 100 liaisons HF (50 en réactivation ; 25 VHF / 15 UHF)
-    # -> seuil « première activation HF » retenu comme min_qso. Rayon 1000 m
-    # (maj 01/01/2026) et modes CW+SSB seulement : NON modélisés (LogX n'a pas de
-    # champ rayon/modes-autorisés par programme, seulement réf + seuil QSO).
-    # Aucun champ ADIF dédié aux châteaux -> SIG/SIG_INFO générique (comme
-    # ARLHS/WCA). Corse 2A/2B couverte ; DOM (dept 3 ch) à élargir si un cas
-    # réel légitime échoue.
+    # FORMAT RÉEL vérifié sur dfcf.fr/valide.html (F4GLD 31/08/2026) : la forme
+    # officielle courante est la forme COURTE « DD-NNN » (n° de département 2-3 ch,
+    # tiret, n° du château 3-4 ch) — ex. 11-104, 34-002, 49-0010. Le préfixe DFCF
+    # est OPTIONNEL (ex. DFCF49-0010, forme donnée par l'ARML). Regex tolérant en
+    # conséquence (un premier essai « DFCF-01001 » était FAUX : il rejetait
+    # 11-104, la vraie forme). Activation valide = 100 liaisons HF (50 en
+    # réactivation ; 25 VHF / 15 UHF) -> seuil HF retenu comme min_qso. Rayon
+    # 1000 m (maj 01/01/2026) et modes CW+SSB : non modélisés. Pas de champ ADIF
+    # dédié -> SIG/SIG_INFO générique (comme ARLHS/WCA).
     'DFCF': {'name': 'Diplôme des Forts et Châteaux de France', 'sig': 'DFCF',
-             'ref_re': r'^DFCF-(?:\d{2}|2[AB])\d{3}$', 'min_qso': 100,
-             'p2p': 'Château-to-Château', 'example': 'DFCF-01001'},
+             'ref_re': r'^(?:DFCF)?[- ]?\d{2,3}[-.]\d{3,4}$', 'min_qso': 100,
+             'p2p': 'Château-to-Château', 'example': '11-104'},
     # DMF (Diplôme des Moulins de France) — patrimoine FR, hébergé REF
     # (dmf.r-e-f.org). Format « DMF<dept>.<n°> » (ex. DMF01.001, moulins du dépt
     # 01 n° 001), activation valide = 100 QSO HF (50 réactivation ; 25 VHF).

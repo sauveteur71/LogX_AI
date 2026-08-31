@@ -26,17 +26,21 @@ def test_dfcf_present_et_seuil():
 
 
 def test_dfcf_reference_valide():
-    assert act.validate_ref('DFCF', 'DFCF-01001')     # dépt 01, n° 001
-    assert act.validate_ref('DFCF', 'DFCF-75012')
-    assert act.validate_ref('DFCF', 'DFCF-2A001')     # Corse 2A
-    assert act.validate_ref('DFCF', 'dfcf-33005')     # normalisé en majuscules
+    # Forme COURTE officielle (dfcf.fr/valide.html) : DD-NNN.
+    assert act.validate_ref('DFCF', '11-104')          # Gléon Berty (dépt 11)
+    assert act.validate_ref('DFCF', '34-002')
+    assert act.validate_ref('DFCF', '49-0010')         # n° sur 4 chiffres
+    # Préfixe DFCF optionnel (forme ARML).
+    assert act.validate_ref('DFCF', 'DFCF49-0010')
+    assert act.validate_ref('DFCF', 'dfcf-11-104')     # normalisé en majuscules
+    assert act.validate_ref('DFCF', '971-001')         # DOM (dépt 3 chiffres)
 
 
 def test_dfcf_reference_invalide():
-    assert not act.validate_ref('DFCF', 'DFCF-1001')   # dépt sur 1 chiffre
-    assert not act.validate_ref('DFCF', 'DFCF01001')   # tiret manquant
     assert not act.validate_ref('DFCF', 'F-0123')      # format POTA
-    assert not act.validate_ref('DFCF', 'DFCF-01')     # n° manquant
+    assert not act.validate_ref('DFCF', '1-104')       # dépt sur 1 chiffre
+    assert not act.validate_ref('DFCF', '11-10')       # n° trop court
+    assert not act.validate_ref('DFCF', 'DFCF')        # référence absente
 
 
 def test_dmf_present_seuil_et_provisoire():
