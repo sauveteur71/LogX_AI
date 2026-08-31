@@ -178,6 +178,12 @@ table.decodes td{padding:5px 8px;border-bottom:1px solid var(--border)}
 table.decodes tr.cq td{color:var(--yellow)}
 table.decodes tr.tome td{color:var(--green);font-weight:700}
 table.decodes tr.nous td{color:var(--accent2);font-weight:700}
+/* Ligne du QSO EN COURS : CODE COULEUR (fond teinté + barre d'accent à gauche),
+   pas seulement du gras — pour qu'un contact en cours ne passe jamais inaperçu
+   (demande F4GLD). Se superpose à tome/nous : le texte garde sa sémantique, la
+   ligne gagne le repère « c'est LUI que je travaille ». */
+table.decodes tr.qso-actif td{background:rgba(var(--accent-rgb),.16);font-weight:700}
+table.decodes tr.qso-actif td:first-child{box-shadow:inset 3px 0 0 var(--accent2)}
 table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .vide{color:var(--muted);font-size:12.5px;font-style:italic;padding:10px 0}
 
@@ -930,10 +936,24 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   // ─── Colonne droite : appel sélectionné, station, CQ entendus, session ───
+  // Correspondant du QSO EN COURS, tous modes confondus (séquenceur : seq.cible ;
+  // copilote : _copiloteQso.dxCall ; MANUEL : la station qu'on vient de
+  // sélectionner/appeler). En manuel, seq est nul — sans cet état unifié, le
+  // panneau « QSO en cours » et le code couleur ne s'affichaient QUE pour le
+  // séquenceur, d'où « un QSO fait sans voir l'affichage du QSO en cours »
+  // (remonté par F4GLD en mode manuel).
+  let _selCall = '';
+  function _qsoEnCoursCible(){
+    if(typeof seq !== 'undefined' && seq && seq.cible) return String(seq.cible).toUpperCase();
+    if(_copiloteQso && _copiloteQso.dxCall) return String(_copiloteQso.dxCall).toUpperCase();
+    return (_selCall || '').toUpperCase();
+  }
+
   function afficherAppelSelectionne(text){
     const {call, grid} = extraireStation(text);
     const el = document.getElementById('selInfo');
     if(!call){ el.innerHTML = '<div class="sel-empty">Message non standard.</div>'; return; }
+    _selCall = call.toUpperCase();   // devient le correspondant du QSO en cours (mode manuel)
     let html = `<div class="sel-call">${escFt8(call)}</div>`;
     if(grid){
       html += `<div class="stat-row"><span>Grille</span><b>${escFt8(grid)}</b></div>`;
@@ -2306,9 +2326,15 @@ if(localStorage.getItem('rc_theme') === null){
     const {call, grid} = extraireStation(text);
     // Panneau « QSO en cours » (demande F4GLD 22/08/2026) : cloné depuis la
     // ligne déjà construite ci-dessus (mêmes cellules/mise en forme, pas une
-    // 2e règle qui pourrait diverger) -- UNIQUEMENT si ce décodage vient de
-    // la station avec laquelle une séquence est active.
-    if(seq && call === seq.cible){
+    // 2e règle qui pourrait diverger) -- si ce décodage vient de la station du
+    // QSO en cours, TOUS MODES CONFONDUS (séquenceur/copilote/MANUEL). Avant, la
+    // condition était `seq && call === seq.cible` : en manuel (seq nul) le
+    // panneau restait vide -> « un QSO fait sans voir l'affichage du QSO en
+    // cours » (F4GLD). La ligne reçoit EN PLUS un code couleur (classe
+    // qso-actif), pas seulement du gras.
+    const _cibleEnCours = _qsoEnCoursCible();
+    if(_cibleEnCours && (call || '').toUpperCase() === _cibleEnCours){
+      tr.classList.add('qso-actif');
       const vide = document.getElementById('qsoEnCoursVide');
       if(vide) vide.style.display = 'none';
       const qTbody = document.getElementById('qsoEnCoursBody');
