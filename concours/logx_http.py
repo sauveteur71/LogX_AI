@@ -2191,6 +2191,15 @@ def _activation_db_adapter(program):
         import logx_wca as wca
         return {'search': wca.search_castles, 'lookup': wca.get_castle_geocoded,
                 'nearby': None, 'status': wca.status}
+    if program == 'DFCF':
+        # Catalogue COMPLET des châteaux (agrégé des ~100 pages départementales
+        # dfcf.fr/dept/dNN.html, cache disque 15 j, chargé en tâche de fond) :
+        # nom + commune du château. Pas de coordonnées sur ces pages -> pas de
+        # nearby. Une réf absente n'est pas invalide (catalogue en cours de
+        # chargement au 1er démarrage, ou page départementale injoignable).
+        import logx_dfcf as dfcf
+        return {'search': dfcf.search, 'lookup': dfcf.get,
+                'nearby': None, 'status': dfcf.status}
     return None
 
 

@@ -56,6 +56,14 @@ poussé.
 
 ### Ajouté
 
+- **Référentiel DFCF (forts & châteaux) — recherche par référence/nom.** À la
+  saisie d'une réf. DFCF (chasse ou expédition), LogX affiche le **nom du
+  château** et la commune, à partir de la page officielle des validations
+  mensuelles (`dfcf.fr/valide.html`). C'est un référentiel **PARTIEL** (les
+  références récemment **validées**, statut officiel), pas le catalogue complet :
+  une réf. absente n'est pas invalide. Nouveau module `logx_dfcf.py` (cache
+  hebdo, page latin-1, nettoyage HTML), câblé au lookup `/activation_db`.
+
 - **Mode de session SOTA/POTA : chasseur / portable / les deux (bascule 1 geste).**
   L'usage change d'une session à l'autre (un jour au sommet, le lendemain au shack,
   le surlendemain les deux en S2S). On choisit son rôle **à l'accueil** (3 tuiles
