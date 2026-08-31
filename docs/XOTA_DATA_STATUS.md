@@ -10,20 +10,27 @@ coordonnées, statut officiel). LogX AI le distingue explicitement.
 |---|---|---|
 | `format_only` | Vérifier la **syntaxe** de la référence, l'enregistrer, saisie manuelle du nom/lieu | DFCF, DMF |
 | `unverified` | idem, + format **provisoire** à reconfirmer sur la source officielle | DMF |
-| `full` (base de sites) | Recherche par réf. **et par nom**, nom officiel, coordonnées, statut, source | POTA, SOTA |
+| `full` (base de sites) | Recherche par réf. **et par nom**, nom officiel, coordonnées, statut, source | POTA, SOTA, WWFF, IOTA, WCA |
 
 **Une référence syntaxiquement valide n'est pas nécessairement une référence
 officiellement attribuée ou active.**
 
 ## Statut par programme
 
+**Vérifié dans le code (31/08/2026)** : les bases de sites de POTA, SOTA, **WWFF,
+IOTA et WCA existent DÉJÀ** et sont câblées au lookup (`_program_db` dans
+`logx_http.py`). Seuls DFCF/DMF (et les programmes sans base ci-dessous) sont en
+« format seulement ».
+
 | Programme | Fonction actuelle dans LogX | Statut |
 |---|---|---|
-| **POTA** | Base des parcs (~50 000) + recherche + export + upload guidé | ✅ Opérationnel |
-| **SOTA** | Base des sommets (181 658) + recherche + points indicatifs + export | ✅ Opérationnel |
-| **WWFF** | Dans le moteur (`PROGRAM_SPECS`), **base à relier** (répertoire `wwff_directory.csv` existe) | 🟠 À intégrer |
-| **IOTA** | Dans le moteur, base des groupes d'îles à relier | 🟠 À intégrer |
-| **DFCF** | **Validation de format** + saisie manuelle (pas de base de châteaux) | 🟡 Format seulement |
+| **POTA** | Base des parcs (~50 000, `logx_pota.parks_db`) + recherche + export + upload guidé | ✅ Opérationnel |
+| **SOTA** | Base des sommets (181 658, `logx_sota`) + recherche + points indicatifs + export | ✅ Opérationnel |
+| **WWFF** | Base du répertoire (`logx_wwff.directory_db`, `wwff_directory.csv`) + recherche + spots | ✅ Opérationnel |
+| **IOTA** | Base des groupes d'îles (`logx_iota.groups_db`) + recherche | ✅ Opérationnel |
+| **WCA** | Base des châteaux (`logx_wca`, WCALIST) + recherche | ✅ Opérationnel |
+| **ARLHS / WWBOTA / ILLW / GMA** | Dans le moteur : validation de format + activation, **mais pas de base de sites** (pas de recherche par nom/lieu) | 🟡 Format + activation |
+| **DFCF** | **Validation de format** + saisie manuelle (pas de base des châteaux) | 🟡 Format seulement |
 | **DMF** | **Validation de format PROVISOIRE** + saisie manuelle | 🟡 À reconfirmer |
 | **PARC Community** | Références et règles non documentées techniquement | ⚪ Expérimental |
 
