@@ -967,10 +967,66 @@
     if (v === 'normal') return false;
     return !!(window.matchMedia && window.matchMedia('(prefers-contrast: more)').matches);
   }
+  // Le haut-contraste est-il actif PARCE QUE le système le demande (et non par
+  // choix manuel) ? C'est ce cas qui surprend : l'opérateur voit un thème très
+  // contrasté (jour = fond blanc pur) sans savoir d'où ça vient. rc_contrast
+  // absent = aucun choix manuel -> on suit prefers-contrast.
+  function _contrasteAuto(){
+    return localStorage.getItem('rc_contrast') === null
+      && !!(window.matchMedia && window.matchMedia('(prefers-contrast: more)').matches);
+  }
+  // Décision PURE (testable) : afficher le repère ssi le HC est auto-système ET
+  // l'utilisateur ne l'a pas déjà écarté.
+  function _doitAfficherRepere(){
+    return _contrasteAuto() && localStorage.getItem('rc_contrast_hint_off') !== '1';
+  }
+  // Repère discret + « Désactiver » en un clic, uniquement quand le HC est AUTO
+  // (système) ET non déjà écarté. Rend l'origine du thème découvrable — sinon le
+  // bouton est enterré dans CONFIG et l'utilisateur ne fait pas le lien.
+  var _contrastHintEl = null;
+  function majContrastHint(){
+    var montrer = _doitAfficherRepere();
+    if (!montrer){ if (_contrastHintEl) _contrastHintEl.style.display = 'none'; return; }
+    if (!_contrastHintEl){
+      var el = document.createElement('div');
+      el.id = 'rcsbContrastHint';
+      el.innerHTML =
+        '<style>'
+        + '#rcsbContrastHint{position:fixed;left:14px;bottom:14px;z-index:2147483000;'
+        + 'display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:10px;'
+        + 'background:var(--bg2,#1D1F22);border:1px solid var(--border,#464950);'
+        + 'color:var(--text,#E9ECF5);font-family:var(--font-mono,monospace);font-size:12px;'
+        + 'box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:min(360px,92vw)}'
+        + '#rcsbContrastHint b{color:var(--accent,#E8964A);font-weight:600}'
+        + '#rcsbContrastHint button{font-family:inherit;font-size:12px;cursor:pointer;'
+        + 'border-radius:7px;padding:4px 9px;border:1px solid var(--border,#464950);'
+        + 'background:transparent;color:var(--accent2,#E8964A)}'
+        + '#rcsbContrastHint button:hover{border-color:var(--accent,#E8964A)}'
+        + '#rcsbContrastHint .rcsb-ch-x{border:none;color:var(--muted,#A9B0C8);font-size:15px;padding:0 4px}'
+        + '</style>'
+        + '<span><b>Contraste élevé</b> actif (suit ton système)</span>'
+        + '<button type="button" class="rcsb-ch-off">Désactiver</button>'
+        + '<button type="button" class="rcsb-ch-x" aria-label="Masquer">×</button>';
+      document.body.appendChild(el);
+      // « Désactiver » : force le contraste normal (le manuel prime sur l'auto).
+      el.querySelector('.rcsb-ch-off').addEventListener('click', function(){
+        localStorage.setItem('rc_contrast', 'normal');
+        applyContraste();
+      });
+      // « × » : on n'en reparle plus (l'utilisateur assume le contraste système).
+      el.querySelector('.rcsb-ch-x').addEventListener('click', function(){
+        localStorage.setItem('rc_contrast_hint_off', '1');
+        el.style.display = 'none';
+      });
+      _contrastHintEl = el;
+    }
+    _contrastHintEl.style.display = 'flex';
+  }
   function applyContraste(){
     document.body.classList.toggle('high-contrast', contrasteEleve());
     var b = document.getElementById('contrastToggle');
     if (b) b.setAttribute('aria-pressed', contrasteEleve() ? 'true' : 'false');
+    majContrastHint();
   }
   applyContraste();
   window.addEventListener('storage', function(e){
@@ -987,6 +1043,8 @@
   // API publique pour un bouton/réglage (CONFIG) : bascule et persiste.
   window.LogxContraste = {
     actif: contrasteEleve,
+    autoSysteme: _contrasteAuto,          // HC actif à cause du système (pas manuel)
+    doitAfficherRepere: _doitAfficherRepere,   // décision d'afficher le repère découvrable
     basculer: function(){
       var nouveau = contrasteEleve() ? 'normal' : 'high';
       localStorage.setItem('rc_contrast', nouveau);

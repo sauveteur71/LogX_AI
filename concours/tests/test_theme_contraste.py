@@ -41,11 +41,20 @@ def _ctx(rc_contrast, os_more):
       var _cls = { _s:{}, toggle:function(n,on){ this._s[n]=!!on; },
                    contains:function(n){ return !!this._s[n]; } };
       var _btn = { attrs:{}, setAttribute:function(k,v){ this.attrs[k]=v; } };
-      var document = { body:{classList:_cls}, getElementById:function(id){ return id==='contrastToggle'?_btn:null; } };
+      function _stubEl(){ return { style:{}, innerHTML:'', appendChild:function(){},
+        querySelector:function(){ return {addEventListener:function(){}}; },
+        addEventListener:function(){} }; }
+      var document = { body:{classList:_cls, appendChild:function(){}},
+        createElement:function(){ return _stubEl(); },
+        getElementById:function(id){ return id==='contrastToggle'?_btn:null; } };
       var window = { matchMedia:function(q){ return { matches:%s }; } };
+      var _contrastHintEl = null;
     """ % ('{"rc_contrast":%r}' % rc_contrast if rc_contrast is not None else '{}',
            'true' if os_more else 'false'))
     c.eval(_fn(src, 'contrasteEleve'))
+    c.eval(_fn(src, '_contrasteAuto'))
+    c.eval(_fn(src, '_doitAfficherRepere'))
+    c.eval(_fn(src, 'majContrastHint'))
     c.eval(_fn(src, 'applyContraste'))
     return c
 
@@ -89,3 +98,52 @@ def test_config_a_le_bouton_contraste_relie_a_l_api():
     html = open(CONFIG, encoding='utf-8').read()
     assert 'id="contrastToggle"' in html
     assert 'LogxContraste.basculer' in html
+
+
+# ── Repère découvrable : signaler quand le HC est AUTO (système) ──────────────
+
+def _ctx_repere(rc_contrast, os_more, dismissed=False):
+    """Contexte évaluant _contrasteAuto + _doitAfficherRepere (décision d'afficher
+    le repère). Store avec rc_contrast et l'éventuel drapeau d'écart."""
+    racer = pytest.importorskip('py_mini_racer')
+    c = racer.MiniRacer()
+    src = open(SB, encoding='utf-8').read()
+    store = {}
+    if rc_contrast is not None:
+        store['rc_contrast'] = rc_contrast
+    if dismissed:
+        store['rc_contrast_hint_off'] = '1'
+    import json
+    c.eval("""
+      var _store = %s;
+      var localStorage = { getItem:function(k){ return (k in _store)?_store[k]:null; } };
+      var window = { matchMedia:function(q){ return { matches:%s }; } };
+    """ % (json.dumps(store), 'true' if os_more else 'false'))
+    c.eval(_fn(src, '_contrasteAuto'))
+    c.eval(_fn(src, '_doitAfficherRepere'))
+    return c
+
+
+def test_repere_affiche_si_contraste_auto_systeme():
+    # rc_contrast absent + système le demande + pas écarté -> on affiche le repère.
+    c = _ctx_repere(None, True)
+    assert c.eval("_contrasteAuto()") is True
+    assert c.eval("_doitAfficherRepere()") is True
+
+
+def test_repere_absent_si_choix_manuel_high():
+    # Contraste choisi MANUELLEMENT -> pas une surprise système, pas de repère.
+    c = _ctx_repere('high', True)
+    assert c.eval("_contrasteAuto()") is False
+    assert c.eval("_doitAfficherRepere()") is False
+
+
+def test_repere_absent_si_systeme_ne_demande_pas():
+    assert _ctx_repere(None, False).eval("_doitAfficherRepere()") is False
+
+
+def test_repere_absent_si_deja_ecarte():
+    # Auto-système mais l'utilisateur a fait « × » -> on n'en reparle plus.
+    c = _ctx_repere(None, True, dismissed=True)
+    assert c.eval("_contrasteAuto()") is True         # le HC est bien auto...
+    assert c.eval("_doitAfficherRepere()") is False   # ...mais le repère est écarté
