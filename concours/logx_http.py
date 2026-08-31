@@ -2207,6 +2207,13 @@ def _activation_db_adapter(program):
         import logx_wwbota as wwbota
         return {'search': wwbota.search, 'lookup': wwbota.get,
                 'nearby': wwbota.nearby, 'status': wwbota.status}
+    if program == 'GMA':
+        # API officielle PAR RÉFÉRENCE (cqgma.org/api/ref/?REF) : lookup de la réf
+        # tapée, cache mémoire, aucun bulk téléchargé -> aucune redistribution.
+        # Pas de recherche par nom ni nearby (API par-réf).
+        import logx_gma as gma
+        return {'search': gma.search, 'lookup': gma.get,
+                'nearby': None, 'status': gma.status}
     return None
 
 
