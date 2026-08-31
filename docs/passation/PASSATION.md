@@ -25,6 +25,26 @@ travail et la méthode — les deux sont archivées ici.
 
 ### Fusionné et en production
 
+**31/08/2026 — 12 PR, publiées en `v1.2-beta4` (session marathon : références
+XOTA, correctifs terrain FT8/CAT remontés en direct par F4GLD, garde-fou
+antivirus). Toutes avec tests + contre-épreuve par mutation, CI verte, mergées
+dans l'ordre des piles :**
+
+| PR | Ce que ça fait |
+|---|---|
+| #417 | **DFCF — catalogue COMPLET des châteaux** (`logx_dfcf.py`) : agrège les ~100 pages départementales `dfcf.fr/dept/dNN.html`, cache disque 15 j, tâche de fond. Parseur DÉFENSIF par tokens (pages irrégulières : tabs/espaces, dates en plage, indicatif collé à la commune). Recherche par réf/nom. |
+| #418 | **WWBOTA — base des bunkers** (`logx_wwbota.py`) : export CSV maître `api.wwbota.org` (~31 400 bunkers géoloc.), motif `ActivationDatabase`, cache 15 j, `nearby`. |
+| #419 | **GMA — sommets** (`logx_gma.py`) : lookup PAR RÉFÉRENCE via l'API `cqgma.org/api/ref/?REF`, cache mémoire, aucun bulk (aucune redistribution). |
+| #420 | **ARLHS — phares** (`logx_arlhs.py`) : lookup par réf via la base WLOL (protégée → par-réf uniquement), coords DMS→décimal. |
+| #421 | **Registre central des sources XOTA** (`docs/XOTA_SOURCES.md` + JSON) : URL vérifiées, modèle bulk vs par-réf, droits/redistribution. ILLW écarté (décision F4GLD). |
+| #422 | **CAT : la bande de saisie suit la vraie fréquence radio** même hors activité (défaut : 28.601 MHz affiché en « 2m »). Le garde `_currentVisibleBands` reste sur la saisie MANUELLE, pas sur la radio (source de vérité). |
+| #423 | **Bouton « Réinitialiser la configuration »** (réinit. DOUCE : conserve `SECRET_FIELDS`/clés d'API et le carnet ; `POST /config/reset` + préfs d'affichage côté client). |
+| #424 | 🔴 **FT8 sécurité** : consentement puissance obligatoire à la 1ʳᵉ émission + alerte permanente si aucune limite — corrige une émission 100 W SANS ALERTE (F4GLD). |
+| #425 | **FT8 tail-ending** : double-clic sur une station hors-CQ (QSO entre tiers) → appel PROPRE de la station émettrice (`SM6DVJ E70SZ 73` → `E70SZ MONCALL GRILLE`), plus le message d'autrui recopié verbatim. |
+| #426 | **FT8 auto-fréquence** : calage automatique sur la fréquence FT8 en arrivant sur une bande (source unique `logx_frequences.dial_freq` + `label_bande`, `/rig/qsy` accepte `{band, dial_mode}`). |
+| #427 | **FT8 QSO en cours coloré, tous modes** : correspondant unifié `_qsoEnCoursCible()` (séquenceur/copilote/MANUEL) + classe couleur `qso-actif`. Corrige « un QSO fait sans voir l'affichage du QSO en cours » (le panneau ne se remplissait qu'en séquenceur). |
+| #428 | **Garde-fou « feuille de style bloquée »** (`logx_theme_guard.js`, 22 pages) : si `--accent` absent, bandeau rouge nommant la cause (antivirus/Avast Web Shield bloque `logx_theme.css`). Auto-diagnostic de toute une classe de bugs d'affichage « selon les PC » (cause : Avast Web Shield ≠ pare-feu ; exception Agent Web pour `localhost:8080`). |
+
 **Nuit du 27→28/08/2026 — 11 PR (F4GLD « avance au maximum avant la démo »,
 règle de validation navigateur jour+nuit SUPPRIMÉE ce jour-là) :**
 
@@ -461,7 +481,7 @@ maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
 toujours pas** au premier lancement. Une invite au démarrage tant que le
 dossier est vide serait le vrai correctif, et elle n'existe pas.
 
-### ✅ RÉSOLU — publication à jour (`v1.1-beta8`, 24/08/2026)
+### ✅ RÉSOLU — publication à jour (`v1.2-beta4`, 31/08/2026)
 
 Le paragraphe original (19/08) alertait sur un décalage de 32 commits entre
 `main` et le dernier tag (`v1.1-beta4`), dont les garde-fous anti-perte de
@@ -486,6 +506,15 @@ pousser le tag, comme l'exige la consigne ci-dessous.
 > resté cassé deux jours sans que personne le sache (`Tree()` vs `Analysis()`),
 > et seul un vrai build local l'avait révélé. Le spec `concours/logx.spec`
 > gère le cas Tree()/Analysis() (TOC combiné à `a.datas` APRÈS Analysis).
+
+✅ **Publication `v1.2-beta4` — le 31/08/2026.** `APP_VERSION` bumpé à
+`1.2-beta4`, tag `v1.2-beta4` poussé, build multi-OS `build-release.yml` réussi
+(binaires Windows/macOS/Linux attachés). Inclut les 12 PR du 31/08 (références
+XOTA DFCF/WWBOTA/GMA/ARLHS, correctifs FT8 sécurité/tail-ending/auto-fréquence/
+QSO coloré, CAT bande, reset config, garde-fou de thème). **Piège du jour** :
+tag posé AVANT le bump `APP_VERSION` → run annulé, `git tag -f` sur le commit de
+bump, force-push (la consigne ci-dessus reste d'actualité). Un premier build a
+donc été jeté avant de repartir sur le bon commit.
 
 ### Ce qui reste ouvert
 
