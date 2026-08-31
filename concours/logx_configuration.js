@@ -6881,7 +6881,7 @@ async function doConfigReset(btn){
     // Recharge : le formulaire repart des défauts, identifiants conservés côté serveur.
     location.reload();
   } catch(e) {
-    alert('Échec de la réinitialisation : ' + (e && e.message ? e.message : e));
+    alert(Tf('Échec de la réinitialisation : ') + (e && e.message ? e.message : e));
     if(btn){ btn.disabled = false; btn.textContent = 'Oui, réinitialiser'; }
   }
 }
