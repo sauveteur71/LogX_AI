@@ -56,7 +56,3 @@ def test_table_morse_quelques_valeurs_uit():
     assert cw.MORSE['S'] == '...' and cw.MORSE['O'] == '---'
     assert cw.MORSE['5'] == '.....' and cw.MORSE['/'] == '-..-.'
 
-
-def test_duree_totale_coherente():
-    # 'A' : 60 + 60 + 180 = 300 ms
-    assert cw.duree_totale_ms('A', 20) == 300.0

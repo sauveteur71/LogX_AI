@@ -186,15 +186,6 @@ def kpa_parse_ws(data):
     return {'power_w': int(parts[0]), 'swr': swr}
 
 
-def kpa_parse_vi(data):
-    """'^VIvvv iii;' -> volts/ampères, virgule implicite après le 2e chiffre
-    pour les deux valeurs."""
-    parts = (data or '').strip().split()
-    if len(parts) != 2:
-        return None
-    return {'volts': _implied_decimal(parts[0], 2), 'amps': _implied_decimal(parts[1], 2)}
-
-
 class KpaAmp:
     """Elecraft KPA500/KPA1500 — voir KPA500 Programmer's Reference (Rev. A2).
     Le KPA1500 partage le même jeu de commandes ASCII, que le transport soit

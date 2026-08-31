@@ -79,13 +79,6 @@ def dial_freq(band, mode, region='IARU_R1', variant=None):
     return (principal[0] if principal else matches[0])['dial_mhz']
 
 
-def modes_de_bande(band, region='IARU_R1'):
-    """Modes numériques ayant une fréquence conventionnelle sur cette bande."""
-    b = str(band).lower()
-    return sorted({e['mode'] for e in _load()
-                   if e['band'].lower() == b and e.get('region') == region})
-
-
 # ─── Bandplan IARU R1 (plages + segments) ───────────────────────────────────
 _BANDPLAN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               'logx_rigs', 'bandplan_iaru_r1.json')
@@ -106,22 +99,6 @@ def band_range(band):
     for e in _bp()['inventaire']:
         if e['band'].lower() == b:
             return (e['start_mhz'], e['end_mhz'])
-    return None
-
-
-def segment_for(freq_khz, band=None):
-    """Segment HF (dict {band,start_khz,end_khz,max_width_hz,usage}) contenant
-    freq_khz, ou None. Si `band` est fourni, restreint à cette bande."""
-    try:
-        f = float(freq_khz)
-    except (TypeError, ValueError):
-        return None
-    b = str(band).lower() if band else None
-    for s in _bp()['hf_segments']:
-        if b and s['band'].lower() != b:
-            continue
-        if s['start_khz'] <= f < s['end_khz']:
-            return s
     return None
 
 
