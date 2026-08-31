@@ -6046,6 +6046,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 400)
             return
 
+        if self.path == '/config/reset':
+            # Réinitialisation DOUCE de la configuration : tout revient à l'état
+            # « première installation » SAUF les identifiants (SECRET_FIELDS :
+            # mots de passe/clés d'API), conservés pour ne pas obliger l'opérateur
+            # à tout re-saisir. Ne touche NI au carnet, NI au token
+            # d'authentification, NI à l'ID d'instance cloud (fichiers séparés) —
+            # les préférences d'affichage (thème, mode) sont remises à zéro côté
+            # client. Confirmation obligatoire, comme /log/reset.
+            try:
+                payload = json.loads(body or '{}')
+                if payload.get('confirm') != 'RESET':
+                    self._json({'ok': False, 'error': 'Confirmation requise'}, 400)
+                    return
+                with config_lock:
+                    secrets_gardes = {
+                        f: current_config[f] for f in logx_crypto.SECRET_FIELDS
+                        if current_config.get(f) not in (None, '')}
+                    current_config = dict(secrets_gardes)
+                    _save_config_to_disk(current_config)
+                # Comme /config/save : la portée visible (concours+année) peut
+                # avoir changé sans qu'aucun QSO n'ait bougé -> forcer les clients
+                # à recharger la liste sous la nouvelle portée.
+                with log_lock:
+                    bump_log_version()
+                    mark_hard_reset()
+                print('[CFG] Configuration reinitialisee (identifiants conserves)')
+                self._json({'ok': True, 'secrets_conserves': sorted(secrets_gardes)})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
         # Définit/modifie (password non vide) ou désactive (password vide) le
         # mot de passe d'accès — voir _access_password_enabled. Volontairement
         # PAS dans current_config/config/save : ce dernier REMPLACE tout à
