@@ -2191,6 +2191,13 @@ def _activation_db_adapter(program):
         import logx_wca as wca
         return {'search': wca.search_castles, 'lookup': wca.get_castle_geocoded,
                 'nearby': None, 'status': wca.status}
+    if program == 'DFCF':
+        # Référentiel PARTIEL (validés dfcf.fr/valide.html) : nom du château si la
+        # réf figure dans les validées publiées, sinon rien (pas de coord -> pas de
+        # nearby). Une réf absente n'est pas invalide (hors période publiée).
+        import logx_dfcf as dfcf
+        return {'search': dfcf.search, 'lookup': dfcf.get,
+                'nearby': None, 'status': dfcf.status}
     return None
 
 
