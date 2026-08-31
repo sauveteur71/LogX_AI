@@ -2472,7 +2472,18 @@ if(localStorage.getItem('rc_theme') === null){
       }
       return;
     }
-    document.getElementById('txText').value = text;
+    // TIERS : message d'un QSO entre deux AUTRES stations (ni CQ, ni adressé à
+    // nous). On NE recopie PLUS le message d'autrui verbatim (on signerait de
+    // l'indicatif d'un autre — défaut latent de ce repli). On construit un APPEL
+    // propre vers la station qui ÉMET (2e jeton, convention FT8 « DEST SOURCE ») :
+    // c'est le TAIL-ENDING, appeler une station qui n'appelle pas de CQ, demandé
+    // par F4GLD. Rien d'appelable (report, RR73, texte libre) -> on montre le brut.
+    const src = extraireStation(text).call;
+    if(src && estIndicatif(src) && src.toUpperCase() !== String(myCall).toUpperCase()){
+      document.getElementById('txText').value = `${src} ${myCall} ${grille4()}`.trim().toUpperCase();
+    } else {
+      document.getElementById('txText').value = text;
+    }
   }
 
   async function demarrerRx(){
@@ -4202,10 +4213,13 @@ if(localStorage.getItem('rc_theme') === null){
       }
       return '';
     }
-    // « DESTINATAIRE SOURCE extra » : on ne répond qu'à ce qui NOUS est
-    // adressé. Démarrer sur « DL1XYZ SP9QQQ -05 » reviendrait à s'inviter dans
-    // le QSO de deux autres stations.
-    if(parts.length >= 2 && myCall && parts[0] === myCall && estIndicatif(parts[1])){
+    // « DESTINATAIRE SOURCE extra » : la station qui ÉMET est le 2e jeton. On
+    // l'appelle — qu'elle NOUS réponde (parts[0] === myCall) OU qu'elle soit en
+    // QSO avec un tiers. Ce 2e cas est le TAIL-ENDING : appeler une station qui
+    // n'appelle pas de CQ (demandé par F4GLD). L'appel construit par l'appelant
+    // est propre (« SOURCE MONCALL GRILLE »), JAMAIS le message d'autrui recopié
+    // verbatim. Jamais s'appeler soi-même (décodage de sa propre émission).
+    if(parts.length >= 2 && estIndicatif(parts[1]) && parts[1] !== myCall){
       return parts[1];
     }
     return '';
