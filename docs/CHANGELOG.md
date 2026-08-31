@@ -15,6 +15,13 @@ poussé.
 
 ### Corrigé
 
+- **Longueur des champs ADIF en octets (accents).** `<NOM:longueur>` annonçait
+  un nombre de **caractères** ; pour un champ accentué (COMMENT/NAME/QTH « café »)
+  un lecteur ADIF strict (POTA, autres loggers) attend le nombre d'**octets** UTF-8.
+  Un accent décalait donc la fin du record à la relecture. Corrigé sur les trois
+  jumeaux : export serveur (`_adif_field`), export client (`adifField`) et parseur
+  d'import (`_parse_adif_records`). Aucun effet sur l'ASCII (octets = caractères).
+
 - **Bandeaux défilants (ticker DX/propagation) doublés quand les animations sont
   désactivées.** Le ruban duplique son contenu pour défiler sans couture ; lorsque
   l'OS refuse le mouvement (`prefers-reduced-motion`, « effets d'animation » coupés

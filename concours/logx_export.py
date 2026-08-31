@@ -294,7 +294,14 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None, claimed_override=
 
 def _adif_field(name, value):
     value = str(value)
-    return f"<{name}:{len(value)}>{value}" if value else ''
+    # Longueur ADIF = nombre d'OCTETS de la valeur encodée UTF-8, pas de
+    # caractères : un champ accentué (COMMENT/NAME/QTH « café ») compte plus
+    # d'octets que de caractères, et un lecteur ADIF strict (POTA, autres
+    # loggers) lit ce nombre d'OCTETS. `len()` sur un str donne des caractères
+    # -> longueur fausse dès qu'il y a un non-ASCII. Jumeau : adifField()
+    # (logx_export_adif.js) + parseur d'import _parse_adif_records (logx_qsl.py),
+    # tous alignés sur les octets.
+    return f"<{name}:{len(value.encode('utf-8'))}>{value}" if value else ''
 
 
 # Tags ADIF déjà émis explicitement par build_adif() ci-dessous — sert à ne
