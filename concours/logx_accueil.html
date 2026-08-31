@@ -65,6 +65,18 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 
 .chargement{text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:13px;padding:60px 0}
 
+/* Section « Mode SOTA/POTA cette session » (chasse/portable/les deux). */
+#xotaRoleAccueil{margin-top:26px}
+.xota-acc-h{font-family:var(--font-mono);font-size:13px;letter-spacing:1px;color:var(--muted);text-align:center;margin-bottom:12px}
+.xota-acc-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;max-width:560px;margin:0 auto}
+.xota-acc-tile{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-family:inherit;color:inherit;transition:all .18s}
+.xota-acc-tile:hover{border-color:var(--accent);transform:translateY(-2px)}
+.xota-acc-tile.on{border-color:var(--accent2);box-shadow:0 0 0 1px rgba(var(--accent-rgb),.35)}
+.xota-acc-ico{font-size:26px;line-height:1}
+.xota-acc-name{font-size:14px;font-weight:700;color:var(--text)}
+.xota-acc-tile.on .xota-acc-name{color:var(--accent2)}
+.xota-acc-hint{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);letter-spacing:.3px;text-align:center}
+
 button:focus-visible,.activity-card:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 
 /* ── BANDEAU DÉFILANT (ticker HUD) : composant .rcb-* MUTUALISÉ dans
@@ -122,6 +134,7 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
 <script src="logx_bandeaux_defs.js"></script>
 <script src="logx_bandeaux_driver.js"></script>
 <script src="logx_accueil_cockpit.js"></script>
+<script src="logx_xota_role.js"></script>
 <script src="logx_accueil.js"></script>
 </body>
 </html>

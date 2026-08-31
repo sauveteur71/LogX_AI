@@ -56,6 +56,15 @@ poussé.
 
 ### Ajouté
 
+- **Mode de session SOTA/POTA : chasseur / portable / les deux (bascule 1 geste).**
+  L'usage change d'une session à l'autre (un jour au sommet, le lendemain au shack,
+  le surlendemain les deux en S2S). On choisit son rôle **à l'accueil** (3 tuiles
+  🎯 Chasseur / 🏕️ Portable / ⚡ Les deux) et on le **rebascule en un geste** en tête
+  du logbook. Le dernier rôle est **mémorisé** (défaut). Le rôle pilote ce qui
+  s'allume : champ réf. correspondant + points/exports de chasse (chasseur), setup
+  expédition + export prêt-à-téléverser (portable), les deux + S2S/P2P (les deux).
+  Module partagé `logx_xota_role.js`.
+
 - **Export SOTA « prêt pour sotadata » (téléversement manuel).** En mode chasseur,
   deux boutons exportent un ADIF filtré : **« Exporter mes chasses SOTA »** (QSO où
   le correspondant est sur un sommet) et **« Exporter mon portable SOTA »** (QSO où

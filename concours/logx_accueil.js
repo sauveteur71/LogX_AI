@@ -61,7 +61,9 @@ function _grille(deja){
     '<div class="cockpit" id="cockpit"><div class="ck-col"><h2>🎯 Opportunités</h2><div id="ckOpp"></div></div><div class="ck-col"><h2>📊 Progression</h2><div id="ckProg"></div></div><div class="ck-col"><h2>🩺 État station</h2><div id="ckEtat"></div></div><div class="ck-col"><h2>🎯 Prochaines cibles</h2><div id="ckCibles"></div></div></div>' +
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
-    '<div class="activity-grid" id="activityGrid"></div>';
+    '<div class="activity-grid" id="activityGrid"></div>' +
+    '<div id="xotaRoleAccueil"></div>';
+  _renderXotaRoleAccueil();
   const grid = document.getElementById('activityGrid');
   grid.innerHTML = ACTIVITIES.map(a =>
     '<button type="button" class="activity-card' + (a.pilote ? ' pilote' : '') + '" onclick="choisirActivite(\'' + a.id + '\')">' +
@@ -72,6 +74,29 @@ function _grille(deja){
   ).join('');
   if(window.LogxCockpit) window.LogxCockpit.charger();
   _brancherBandeaux();
+}
+
+// Section « Mode SOTA/POTA cette session » : 3 tuiles de rôle (chasse/portable/
+// les deux), rôle mémorisé surligné. Clic -> mémorise + ouvre le logbook réglé
+// pour ce rôle. Absente si le module n'est pas chargé. Contenu 100% contrôlé.
+function _renderXotaRoleAccueil(){
+  const el = document.getElementById('xotaRoleAccueil');
+  if(!el || !window.LogxXotaRole) return;
+  const actuel = LogxXotaRole.getRole();
+  el.innerHTML =
+    '<h2 class="xota-acc-h">Mode SOTA / POTA cette session</h2>' +
+    '<div class="xota-acc-tiles">' +
+    LogxXotaRole.ROLES.map(r =>
+      '<button type="button" class="xota-acc-tile' + (r.id === actuel ? ' on' : '') +
+      '" onclick="_choisirRoleXota(\'' + r.id + '\')" title="' + r.hint + '">' +
+      '<span class="xota-acc-ico">' + r.icone + '</span>' +
+      '<span class="xota-acc-name">' + r.label + '</span>' +
+      '<span class="xota-acc-hint">' + r.hint + '</span></button>'
+    ).join('') + '</div>';
+}
+function _choisirRoleXota(role){
+  if(window.LogxXotaRole) LogxXotaRole.setRole(role);
+  window.location.href = 'logx_logbook.html';
 }
 
 // Bandeau défilant d'info ambiante (DXpéditions ≤7j + propagation), affiché
