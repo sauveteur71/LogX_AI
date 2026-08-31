@@ -57,7 +57,9 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
   inscrits `https://illw.net/index.php/entrants-list-YYYY`.
 - Modèle à retenir (F4GLD) : **une table par année** (`illw_entries` avec
   `event_year`), pas une base de sites permanente. Distinct d'ARLHS.
-- Statut : **à faire** — architecture propre (entrées annuelles), à cadrer.
+- Statut : **non retenu pour l'instant** (décision F4GLD, 31/08/2026) — les 4
+  bases permanentes ci-dessus couvrent l'essentiel ; ILLW (entrées annuelles)
+  reste un chantier distinct à rouvrir plus tard si besoin.
 
 ## Registre machine
 
