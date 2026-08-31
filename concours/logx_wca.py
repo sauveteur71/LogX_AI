@@ -371,6 +371,9 @@ def get_castle_geocoded(code):
     merged = dict(castle)
     merged['lat'] = coords['lat'] if coords else None
     merged['lon'] = coords['lon'] if coords else None
+    # Alias 'region' pour le relevé de saisie (logx_ref_info._fmt affiche
+    # « name · region ») : le château porte son secteur dans 'location'.
+    merged['region'] = castle.get('location', '')
     return merged
 
 

@@ -9,8 +9,9 @@ serveur ne sait pas servir -> enrichissement muet à la saisie, SANS erreur. Ce
 sens-là est le dangereux, et rien ne le verrouillait.
 
 On tient donc l'invariant : PROGRAMMES(JS) ⊆ dispatcher(Python). L'inverse est
-permis (le serveur peut savoir valider un programme pas encore enrichi côté
-saisie — ex. WCA, server-only à ce jour)."""
+permis (le serveur PEUT savoir valider un programme pas encore enrichi côté
+saisie). WCA a été activé au relevé le 31/08 (à la demande de F4GLD) : il est
+désormais des deux côtés."""
 import os
 import re
 
@@ -50,3 +51,16 @@ def test_les_quatre_referentiels_de_la_session_sont_des_deux_cotes():
     for prog in ('DFCF', 'WWBOTA', 'GMA', 'ARLHS'):
         assert prog in js, '%s absent de PROGRAMMES (relevé de saisie)' % prog
         assert prog in py, '%s absent du dispatcher _activation_db_adapter' % prog
+
+
+def test_wca_est_active_au_releve_de_saisie():
+    """Activé le 31/08 (F4GLD « active wca ») : WCA doit être des deux côtés, et
+    le lookup exposer un 'region' (alias de 'location') pour l'affichage
+    « nom · lieu » du relevé."""
+    assert 'WCA' in _programmes_js() and 'WCA' in _programmes_python()
+    src = open(os.path.join(CONCOURS, 'logx_wca.py'), encoding='utf-8').read()
+    corps = src[src.index('def get_castle_geocoded'):]
+    corps = corps[:corps.index('\n\n\n')] if '\n\n\n' in corps else corps[:2000]
+    assert "merged['region']" in corps, (
+        "get_castle_geocoded doit exposer 'region' (alias de 'location') pour "
+        "le relevé de saisie :\n" + corps)
