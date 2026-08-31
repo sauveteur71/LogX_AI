@@ -2200,6 +2200,13 @@ def _activation_db_adapter(program):
         import logx_dfcf as dfcf
         return {'search': dfcf.search, 'lookup': dfcf.get,
                 'nearby': None, 'status': dfcf.status}
+    if program == 'WWBOTA':
+        # Base COMPLÈTE des bunkers (export CSV maître api.wwbota.org, cache
+        # LOCAL 15 j chargé en tâche de fond — données protégées, jamais dans le
+        # dépôt). Nom + schéma + coordonnées -> nearby disponible.
+        import logx_wwbota as wwbota
+        return {'search': wwbota.search, 'lookup': wwbota.get,
+                'nearby': wwbota.nearby, 'status': wwbota.status}
     return None
 
 

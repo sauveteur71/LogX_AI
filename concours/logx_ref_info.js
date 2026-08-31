@@ -11,7 +11,7 @@
   'use strict';
 
   // Programmes disposant d'une base interrogeable par référence exacte.
-  var PROGRAMMES = {SOTA: 1, POTA: 1, WWFF: 1, IOTA: 1, DFCF: 1};
+  var PROGRAMMES = {SOTA: 1, POTA: 1, WWFF: 1, IOTA: 1, DFCF: 1, WWBOTA: 1};
   var _cache = {};   // program|ref -> entry (ou null), évite de re-interroger
 
   // Formate l'entrée en une ligne lisible. Pur (testable). Champs absents omis.
