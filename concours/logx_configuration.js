@@ -150,6 +150,9 @@ const CONFIG_HELP = {
 
   wsjtx_enabled: "Active la réception automatique des QSO validés dans WSJT-X (FT8/FT4) : ils apparaissent dans ton log SANS ressaisie.",
   wsjtx_port: "Le port UDP sur lequel WSJT-X diffuse ses informations — doit correspondre au réglage « UDP Server » dans WSJT-X (Réglages → Rapports), généralement 2237.",
+  eme_source: "D'où viennent les décodages Q65 affichés sur le cockpit EME : le pont UDP WSJT-X (historique, nécessite que WSJT-X tourne) ou le décodeur natif LogX (capture directement une carte son, sans WSJT-X).",
+  eme_audio_device: "Le périphérique audio d'ENTRÉE relié à la sortie audio de la radio (ou à un câble virtuel) — utilisé uniquement quand la source EME est réglée sur « LogX natif ».",
+  eme_submode: "Le sous-mode Q65 à décoder (doit correspondre au réglage côté correspondant) — utilisé uniquement en source « LogX natif », WSJT-X gérant lui-même ses sous-modes.",
   adifnet_mode: "Comment ce PC échange des QSO en réseau avec un autre logiciel (N1MM/DXLog) : recevoir seulement, envoyer seulement, ou les deux.",
   adifnet_port: "Le port UDP utilisé pour cet échange réseau ADIF.",
   adifnet_target: "L'adresse IP du PC voisin avec lequel échanger les QSO en réseau (laisser vide pour diffuser en broadcast sur tout le réseau local).",
@@ -1087,6 +1090,7 @@ async function init() {
   majPttMethode(); // affiche le port de la ligne PTT si une ligne série est choisie
   updateCat2ModeVisibility(); // Radio 2 (SO2R)
   loadVoiceKeyerDevices();
+  loadEmeAudioDevices();
   loadDxRecord();
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
   // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
@@ -1455,6 +1459,64 @@ async function loadVoiceKeyerDevices(){
     if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
     if(devSel2 && cfg.voicekeyer_device2 !== undefined) devSel2.value = cfg.voicekeyer_device2;
   }catch(e){}
+}
+
+// ─── EME — décodage Q65 natif (Tâche 7, plomberie station, expert-only) ────
+// Même motif que loadVoiceKeyerDevices() ci-dessus : liste ENTRÉES audio
+// (logx_q65_natif.lister_peripheriques_entree(), pas les sorties du keyer
+// vocal) peuplée au chargement de page, valeur sauvegardée ré-appliquée une
+// fois les <option> en place.
+async function loadEmeAudioDevices(){
+  const sel = document.getElementById('eme_audio_device');
+  if(!sel) return;
+  try{
+    const r = await fetch('/eme/audio-devices');
+    if(!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    const devices = d.devices || [];
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + devices.map(x => `<option value="${x.index}">${_vkEsc(x.nom)} (${x.canaux} ch., ${x.freq_defaut} Hz)</option>`).join('');
+  }catch(e){
+    sel.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
+  }
+  try{
+    const cfg = _lireConfig();
+    if(cfg.eme && cfg.eme.audio_device !== undefined) sel.value = cfg.eme.audio_device;
+  }catch(e){}
+}
+
+// Démarre/arrête le moteur de décodage EME natif (POST /eme/moteur). L'état
+// affiché (bouton + note) reflète TOUJOURS la dernière réponse du serveur —
+// jamais un optimisme local — pour qu'un échec matériel (carte son absente)
+// reste visible plutôt que de laisser croire que le moteur tourne.
+let _emeMoteurActif = false;
+function _majBoutonEmeMoteur(){
+  const label = document.getElementById('eme_moteur_btn_label');
+  const statut = document.getElementById('eme_moteur_status');
+  if(label) label.textContent = _emeMoteurActif ? T('Arrêter') : T('Démarrer');
+  if(statut) statut.textContent = _emeMoteurActif
+    ? T('Moteur natif en cours — décodages sur la page EME')
+    : '';
+}
+async function toggleEmeMoteur(){
+  const statut = document.getElementById('eme_moteur_status');
+  const action = _emeMoteurActif ? 'stop' : 'start';
+  try{
+    const r = await fetch('/eme/moteur', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action})
+    });
+    const d = await r.json();
+    if(d.ok){
+      _emeMoteurActif = (action === 'start');
+      _majBoutonEmeMoteur();
+    }else if(statut){
+      statut.textContent = T('Erreur : ') + (d.error || T('échec inconnu'));
+    }
+  }catch(e){
+    if(statut) statut.textContent = T('Erreur réseau : impossible de joindre le serveur');
+  }
 }
 
 async function testVoiceKeyer(){
@@ -5239,6 +5301,16 @@ function saveConfig(silent = false, feedbackBtn = null) {
     telemetry_endpoint: document.getElementById('telemetry_endpoint')?.value.trim() || '',
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
+    // EME natif (Q65, réception seule) : /config/save REMPLACE toute la
+    // config (voir commentaire cat_ptt_method ci-dessus) — cet objet doit
+    // donc être envoyé à CHAQUE sauvegarde, pas seulement quand ces champs
+    // changent, sinon un save ultérieur effacerait silencieusement la
+    // source/le périphérique choisis ici.
+    eme: {
+      source: document.getElementById('eme_source')?.value || 'wsjtx',
+      audio_device: (document.getElementById('eme_audio_device')?.value || ''),
+      submode: document.getElementById('eme_submode')?.value || 'A',
+    },
     adifnet_mode: document.getElementById('adifnet_mode').value,
     adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
     adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
@@ -6162,6 +6234,19 @@ function applyFullConfigToForm(c) {
     if (c.amp_brand) updateAmpFieldsVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
+    // EME natif (Q65) : la carte son n'est ré-appliquée ici que si le
+    // <select> est déjà peuplé (loadEmeAudioDevices() peut ne pas avoir fini
+    // — même piège documenté pour rotor_brand/rotor_model ci-dessous) ;
+    // loadEmeAudioDevices() ré-applique lui-même la valeur une fois la
+    // liste chargée, donc aucune perte même si l'ordre s'inverse.
+    if(c.eme && typeof c.eme === 'object'){
+      const emeSrc = document.getElementById('eme_source');
+      if(emeSrc && c.eme.source) emeSrc.value = c.eme.source;
+      const emeDev = document.getElementById('eme_audio_device');
+      if(emeDev && c.eme.audio_device !== undefined) emeDev.value = c.eme.audio_device;
+      const emeSub = document.getElementById('eme_submode');
+      if(emeSub && c.eme.submode) emeSub.value = c.eme.submode;
+    }
     if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
     if(c.adifnet_port) document.getElementById('adifnet_port').value = c.adifnet_port;
     if(c.adifnet_target) document.getElementById('adifnet_target').value = c.adifnet_target;

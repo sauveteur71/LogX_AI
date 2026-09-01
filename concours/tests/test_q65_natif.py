@@ -5,6 +5,7 @@ if CONCOURS not in sys.path:
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 import pytest  # noqa: E402
+import threading  # noqa: E402
 import time  # noqa: E402
 import wave  # noqa: E402
 import logx_q65_natif as q65n  # noqa: E402
@@ -178,3 +179,92 @@ def test_ecrire_wav_12k(tmp_path):
         assert w.getnchannels() == 1, f"Channels={w.getnchannels()}, attendu 1"
         assert w.getsampwidth() == 2, f"Sampwidth={w.getsampwidth()}, attendu 2"
         assert w.getnframes() == 12000, f"Frames={w.getnframes()}, attendu 12000"
+
+
+# ─── RULING contrôleur (Tâche 7) : demarrer_moteur durci contre un échec ────
+# de FluxCapture.demarrer() (carte son absente/échec sounddevice). Avant
+# durcissement : _flux était assigné AVANT l'appel à .demarrer(), donc un
+# échec laissait _flux non-None (worker zombie compris) et un appel suivant
+# répondait à tort {'ok': True, 'deja': True}, alors qu'aucune capture ne
+# tournait réellement.
+
+def test_demarrer_moteur_echec_ne_laisse_pas_d_etat_zombie(monkeypatch):
+    q65n.arreter_moteur()  # état propre avant le témoin
+
+    def _boom(self):
+        raise RuntimeError('materiel absent')
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', _boom)
+
+    r = q65n.demarrer_moteur({'eme': {}})
+    assert r['ok'] is False
+    assert 'materiel absent' in r.get('error', '')
+    assert q65n._flux is None, (
+        "un flux qui a echoue a demarrer ne doit pas rester assigne")
+    assert q65n._worker is None, (
+        "le worker doit etre arrete/nettoye apres un echec de demarrage")
+    vivants = [t for t in threading.enumerate() if t.name == 'q65-natif-worker']
+    assert not vivants, "aucun thread worker zombie apres un echec de demarrage"
+
+
+def test_demarrer_moteur_reussit_vraiment_apres_un_echec_precedent(monkeypatch):
+    """Contre-épreuve du témoin ci-dessus : après l'échec, un second appel qui
+    réussit doit RÉELLEMENT démarrer — pas répondre {'deja': True} sur un état
+    fantôme laissé par l'échec précédent."""
+    q65n.arreter_moteur()
+
+    def _boom(self):
+        raise RuntimeError('materiel absent')
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', _boom)
+    r1 = q65n.demarrer_moteur({'eme': {}})
+    assert r1['ok'] is False
+
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', lambda self: None)
+    r2 = q65n.demarrer_moteur({'eme': {}})
+    assert r2['ok'] is True
+    assert not r2.get('deja'), (
+        "le second appel doit demarrer pour de vrai, pas repondre "
+        "deja=True sur l'etat fantome laisse par l'echec precedent")
+    assert q65n._flux is not None
+    q65n.arreter_moteur()  # nettoie pour les tests suivants
+
+
+def test_demarrer_moteur_normalise_audio_device_vide_en_none(monkeypatch):
+    """cfg.eme.audio_device vient d'un <select> HTML : une chaîne vide quand
+    rien n'est sélectionné. FluxCapture/sounddevice attendent un entier ou
+    None (périphérique par défaut) — même convention que
+    logx_voicekeyer.play_wav (device_idx = int(x) if x not in (None, '')
+    else None), à respecter ici aussi pour ne pas planter sounddevice avec
+    une chaîne vide."""
+    q65n.arreter_moteur()
+    vu = {}
+
+    def _capture(self):
+        vu['device_index'] = self.device_index
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', _capture)
+    q65n.demarrer_moteur({'eme': {'audio_device': ''}})
+    assert vu['device_index'] is None
+    q65n.arreter_moteur()
+
+
+def test_demarrer_moteur_normalise_audio_device_chaine_en_entier(monkeypatch):
+    q65n.arreter_moteur()
+    vu = {}
+
+    def _capture(self):
+        vu['device_index'] = self.device_index
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', _capture)
+    q65n.demarrer_moteur({'eme': {'audio_device': '2'}})
+    assert vu['device_index'] == 2
+    q65n.arreter_moteur()
+
+
+def test_demarrer_moteur_reentrant_sur_un_vrai_demarrage(monkeypatch):
+    """Non-régression du comportement réentrant existant : un second appel
+    alors que le moteur tourne VRAIMENT ne relance rien."""
+    q65n.arreter_moteur()
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', lambda self: None)
+    r1 = q65n.demarrer_moteur({'eme': {}})
+    assert r1['ok'] is True and not r1.get('deja')
+    r2 = q65n.demarrer_moteur({'eme': {}})
+    assert r2 == {'ok': True, 'deja': True}
+    q65n.arreter_moteur()

@@ -1595,6 +1595,54 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         </div>
       </div>
 
+      <div class="section expert-only">
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8" fill="currentColor" stroke="none"/><path d="M3 15L13 4M13 4L8 15"/></svg> EME — DÉCODAGE Q65 NATIF (optionnel, plomberie station)</h3>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Par défaut, le cockpit EME (page EME) lit les décodages Q65 via le
+          pont UDP <b style="color:var(--accent2)">WSJT-X</b> ci-dessus — le
+          chemin historique, à garder si WSJT-X tourne déjà sur ce poste.
+          <b style="color:var(--accent2)">LogX natif</b> capture directement
+          une carte son et décode avec un jt9 embarqué, SANS lancer WSJT-X —
+          utile sur une station EME dédiée. Réception seule : cette section ne
+          déclenche jamais d'émission.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>SOURCE DES DÉCODAGES EME</label>
+            <select id="eme_source">
+              <option value="wsjtx">WSJT-X (pont UDP, historique)</option>
+              <option value="natif">LogX natif (carte son directe)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>CARTE SON EME (entrée)</label>
+            <select id="eme_audio_device"><option value="">— chargement… —</option></select>
+            <div class="input-note">Périphérique d'ENTRÉE relié à la sortie audio de la radio — utilisé seulement en source « LogX natif »</div>
+          </div>
+          <div class="form-group">
+            <label>SOUS-MODE Q65</label>
+            <select id="eme_submode">
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="E">E</option>
+            </select>
+            <div class="input-note">Doit correspondre au sous-mode réglé côté correspondant (Q65-60A est le plus courant en EME)</div>
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:4px">
+          <div class="form-group">
+            <label>MOTEUR DE DÉCODAGE NATIF</label>
+            <button type="button" id="eme_moteur_btn" class="btn btn-secondary" onclick="toggleEmeMoteur()">
+              <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M9 5v4l3 2"/></svg>
+              <span id="eme_moteur_btn_label">Démarrer</span>
+            </button>
+            <div class="input-note" id="eme_moteur_status"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="section">
         <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL (phonie — indicatif dit automatiquement)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">

@@ -273,21 +273,40 @@ def _boucle_worker(cfg):
 def demarrer_moteur(cfg):
     """Démarre la capture (FluxCapture) et le worker de décodage. Réentrant :
     un second appel alors que le moteur tourne déjà ne relance rien et
-    répond `{'ok': True, 'deja': True}`."""
+    répond `{'ok': True, 'deja': True}`.
+
+    RULING (revue Tâche 5, durci Tâche 7) : les globals `_flux`/`_worker` ne
+    sont assignés qu'APRÈS un `FluxCapture.demarrer()` réussi. Si la carte
+    son est absente ou que sounddevice échoue, le worker déjà démarré est
+    arrêté proprement (sentinelle + join) et RIEN n'est laissé assigné —
+    l'état est comme si `demarrer_moteur` n'avait jamais été appelé, pour
+    qu'un appel suivant retente pour de vrai au lieu de répondre `deja: True`
+    sur un fantôme."""
     global _flux, _worker
     if _flux is not None:
         return {'ok': True, 'deja': True}
     eme = (cfg or {}).get('eme', {}) or {}
-    _worker = threading.Thread(target=_boucle_worker, args=(cfg,),
-                                daemon=True, name='q65-natif-worker')
-    _worker.start()
-    idx = eme.get('audio_device')
+    worker = threading.Thread(target=_boucle_worker, args=(cfg,),
+                              daemon=True, name='q65-natif-worker')
+    worker.start()
+    # cfg.eme.audio_device vient d'un <select> HTML (chaîne, potentiellement
+    # vide) — même convention que logx_voicekeyer.play_wav : une chaîne vide
+    # devient None (périphérique par défaut), une chaîne numérique devient un
+    # entier. Sans cette normalisation, sounddevice recevrait device=''.
+    idx_brut = eme.get('audio_device')
+    idx = int(idx_brut) if idx_brut not in (None, '') else None
     tr_period = int(eme.get('tr_period', 60))
     # on_fenetre s'exécute dans le callback PortAudio : UNIQUEMENT un put
     # non bloquant, aucun traitement lourd ici (voir note en tête de section).
-    _flux = FluxCapture(idx, lambda ech, t: _queue.put((ech, t)),
-                        tr_period=tr_period)
-    _flux.demarrer()
+    flux = FluxCapture(idx, lambda ech, t: _queue.put((ech, t)),
+                       tr_period=tr_period)
+    try:
+        flux.demarrer()
+    except Exception as e:
+        _queue.put(_SENTINELLE)
+        worker.join(timeout=2.0)
+        return {'ok': False, 'error': str(e)}
+    _flux, _worker = flux, worker
     return {'ok': True}
 
 

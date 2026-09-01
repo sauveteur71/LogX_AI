@@ -2220,6 +2220,38 @@ def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
     }
 
 
+def _eme_audio_devices_dict():
+    """Périphériques d'ENTRÉE audio disponibles pour la capture EME native
+    (logx_q65_natif). Séparé du routage pour rester testable sans handler
+    HTTP (même motif que _eme_cockpit_dict). sounddevice est un import
+    paresseux et opt-in côté logx_q65_natif : un échec (wheel PortAudio
+    absent/cassé) ne doit jamais faire tomber cet endpoint, seulement
+    renvoyer une liste vide accompagnée d'une erreur lisible."""
+    import logx_q65_natif as q65n
+    try:
+        return {'devices': q65n.lister_peripheriques_entree()}
+    except Exception as e:
+        return {'devices': [], 'error': str(e)}
+
+
+def _eme_moteur_action(action, cfg):
+    """Démarre/arrête le moteur EME natif (logx_q65_natif.demarrer_moteur /
+    arreter_moteur). Séparé du routage pour rester testable sans handler HTTP.
+    Une action inconnue ou une exception (carte son absente, sounddevice
+    cassé...) renvoient toutes deux `{'ok': False, 'error': ...}` — jamais
+    de plantage du handler."""
+    import logx_q65_natif as q65n
+    try:
+        if action == 'start':
+            return q65n.demarrer_moteur(cfg)
+        if action == 'stop':
+            return q65n.arreter_moteur()
+        return {'ok': False,
+                'error': "action inconnue (attendu 'start' ou 'stop')"}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
 def _rotor_state_dict(cfg_snap):
     import logx_rotor as rotor
     import logx_station as station
@@ -3879,6 +3911,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             band = (q.get('band', ['144'])[0])
             dxloc = (q.get('dx_locator', [''])[0])
             self._json(_eme_cockpit_dict(self._cfg_snapshot(), band, dxloc))
+            return
+
+        # Périphériques d'entrée audio pour la capture EME native
+        # (décodage Q65 hors WSJT-X, sélectionné via config eme.source).
+        if path == '/eme/audio-devices':
+            self._json(_eme_audio_devices_dict())
             return
         if path == '/moon/track/state':
             import logx_moon_track as moon_track
@@ -7593,6 +7631,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 ok, msg = moon_track.arreter_suivi_lune()
             self._json({'ok': ok, 'error': ('' if ok else msg), 'message': msg},
                        200 if ok else 400)
+            return
+
+        # Moteur de décodage EME natif (logx_q65_natif) : démarre/arrête la
+        # capture carte son + décodage jt9 embarqué, en complément (ou à la
+        # place) du pont UDP WSJT-X. Réception seule.
+        if self.path == '/eme/moteur':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            action = str(payload.get('action') or '')
+            res = _eme_moteur_action(action, self._cfg_snapshot())
+            self._json(res, 200 if res.get('ok') else 400)
             return
 
         if self.path in ('/rotor/point', '/rotor/stop'):
