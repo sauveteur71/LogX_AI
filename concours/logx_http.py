@@ -2194,6 +2194,17 @@ def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
             cw = eme.common_window(lat, lon, dxlat, dxlon)
             window = cw.get('windows', []) if cw.get('available') else []
 
+    # Sélection de la source des décodages : le pont UDP WSJT-X (historique,
+    # défaut) ou le décodeur Q65 natif (logx_q65_natif) si l'opérateur l'a
+    # explicitement configuré. Import LOCAL du module natif : il ne doit pas
+    # alourdir le chemin par défaut ni tirer sounddevice si non utilisé.
+    src = ((cfg_snap or {}).get('eme', {}) or {}).get('source', 'wsjtx')
+    if src == 'natif':
+        import logx_q65_natif as q65n
+        decodes = q65n.decodes_natifs()
+    else:
+        decodes = wsjtx.eme_decodes()
+
     return {
         'band': band,
         'rf_mhz': rf_mhz,
@@ -2203,7 +2214,7 @@ def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
         'rise_utc': rise,
         'set_utc': setg,
         'window': window,
-        'decodes': wsjtx.eme_decodes(),
+        'decodes': decodes,
         'track': moon_track.etat_suivi_lune(),
         'rig': _wsjtx_state_dict(cfg_snap),
     }
