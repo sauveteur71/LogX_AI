@@ -5,6 +5,7 @@ if CONCOURS not in sys.path:
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 import pytest  # noqa: E402
+import time  # noqa: E402
 import wave  # noqa: E402
 import logx_q65_natif as q65n  # noqa: E402
 
@@ -103,6 +104,68 @@ def test_module_importe_sans_sounddevice(monkeypatch):
     importlib.reload(q65n)              # ne doit PAS lever
     assert hasattr(q65n, 'parse_jt9_stdout')
     importlib.reload(q65n)              # rétablir l'état normal (sans monkeypatch)
+
+
+def test_traiter_fenetre_alimente_le_cache(monkeypatch, tmp_path):
+    q65n.arreter_moteur()  # état propre
+    # NOTE (défaut du brief corrigé) : le brief original utilisait un
+    # last_seen littéral 5000.0 (epoch ~1970), incompatible avec
+    # decodes_natifs() qui compare à time.time() RÉEL (~1.79 milliard en
+    # 2026) — l'entrée aurait été jugée "trop vieille" pour n'importe quel
+    # max_age raisonnable, y compris avec l'implémentation de référence du
+    # brief lui-même (témoin rouge/vert l'a confirmé). Ancré sur time.time()
+    # courant pour rester un test de RECENCE valide, déterministe et non
+    # flaky (la marge de 10 000 s absorbe toute lenteur d'exécution).
+    maintenant = time.time()
+    faux = [{'call': 'DL7APV', 'grid': 'JO62', 'mode': 'Q65',
+             'message': 'CQ DL7APV JO62', 'snr': -21, 'dt': 2.7,
+             'delta_hz': 800, 'freq_mhz': 144.124, 'band': '2m',
+             'last_seen': maintenant}]
+    monkeypatch.setattr(q65n, 'decoder_wav', lambda *a, **k: faux)
+    monkeypatch.setattr(q65n, 'ecrire_wav_12k', lambda *a, **k: None)
+    cfg = {'eme': {'submode': 'A', 'band': '2m', 'rf_mhz': 144.124}}
+    q65n._traiter_fenetre(b'\x00\x00' * 10, maintenant, cfg)
+    d = q65n.decodes_natifs(max_age=10_000)
+    assert [x['call'] for x in d] == ['DL7APV']
+    assert d[0]['mode'] == 'Q65'
+    q65n.arreter_moteur()  # nettoie le cache pour les tests suivants
+
+
+def test_decodes_natifs_purge_les_vieux(monkeypatch):
+    q65n.arreter_moteur()
+    vieux = [{'call': 'OLD', 'mode': 'Q65', 'message': '', 'snr': -20,
+              'dt': 0.0, 'delta_hz': 0, 'grid': '', 'freq_mhz': 0.0,
+              'band': '', 'last_seen': 1.0}]
+    monkeypatch.setattr(q65n, 'decoder_wav', lambda *a, **k: vieux)
+    monkeypatch.setattr(q65n, 'ecrire_wav_12k', lambda *a, **k: None)
+    q65n._traiter_fenetre(b'', 1.0, {'eme': {}})
+    assert q65n.decodes_natifs(max_age=1) == []   # trop vieux → purgé
+    q65n.arreter_moteur()
+
+
+def test_traiter_fenetre_nettoie_son_tmpdir(monkeypatch):
+    """Ruling 2 : _traiter_fenetre crée son propre tmpdir (data_path fourni à
+    decoder_wav) et DOIT le supprimer lui-même — decoder_wav ne le fait pas
+    puisqu'un data_path explicite lui est passé (comportement Tâche 2)."""
+    import glob
+    import tempfile
+    q65n.arreter_moteur()
+    vus = []
+
+    def faux_decoder(wav_path, **k):
+        vus.append(k['data_path'])
+        assert os.path.isdir(k['data_path'])  # existe PENDANT le décodage
+        return []
+
+    monkeypatch.setattr(q65n, 'decoder_wav', faux_decoder)
+    monkeypatch.setattr(q65n, 'ecrire_wav_12k', lambda *a, **k: None)
+    motif = os.path.join(tempfile.gettempdir(), 'logx_q65_*')
+    avant = set(glob.glob(motif))
+    q65n._traiter_fenetre(b'', 1.0, {'eme': {}})
+    apres = set(glob.glob(motif))
+    assert apres == avant, sorted(apres - avant)   # aucun dossier laissé
+    assert len(vus) == 1 and not os.path.isdir(vus[0])  # supprimé après coup
+    q65n.arreter_moteur()
 
 
 def test_ecrire_wav_12k(tmp_path):

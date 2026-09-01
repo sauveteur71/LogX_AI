@@ -3,10 +3,12 @@
 alignés UTC → jt9 embarqué → décodages au format cockpit. N'émet JAMAIS ;
 réception seule (l'émission relèverait du skill tx-human-consent)."""
 import os
+import queue
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import wave
 
@@ -190,3 +192,117 @@ class FluxCapture:
             self._stream.stop()
             self._stream.close()
             self._stream = None
+
+
+# --- Orchestrateur : boucle capture -> décodage -> cache TTL ---------------
+#
+# `FluxCapture.on_fenetre` (voir `_cb` ci-dessus) s'exécute DANS le callback
+# temps réel de PortAudio : y appeler `_traiter_fenetre` (écriture WAV +
+# sous-processus jt9, potentiellement plusieurs secondes) provoquerait des
+# pertes d'échantillons/xruns côté carte son. On découple donc capture et
+# décodage par une file : `on_fenetre` ne fait qu'un `put` non bloquant, un
+# thread worker dédié dépile et traite chaque fenêtre l'une après l'autre.
+_queue = queue.Queue()
+_SENTINELLE = object()          # marqueur d'arrêt du worker (identité, pas valeur)
+
+_cache = []                     # décodages récents (liste de dicts)
+_cache_lock = threading.Lock()
+
+_flux = None                    # FluxCapture actif, ou None si moteur arrêté
+_worker = None                  # thread worker actif, ou None si moteur arrêté
+
+
+def _traiter_fenetre(echantillons, t_debut, cfg):
+    """Traite UNE fenêtre déjà captée : écrit un WAV 12 kHz temporaire, lance
+    jt9 dessus, et ajoute les décodages obtenus au cache. Appelée soit
+    directement (tests, sans matériel), soit par le worker ci-dessous —
+    jamais depuis le callback audio temps réel (voir note plus haut).
+
+    Le dossier temporaire est créé ET nettoyé ICI (bloc `finally`) : comme
+    `data_path` est fourni explicitement à `decoder_wav`, celui-ci considère
+    qu'il appartient à l'appelant et ne le supprime PAS (comportement fixé
+    Tâche 2 : nettoyage seulement si le dossier est créé en interne). Sans ce
+    nettoyage, chaque fenêtre (une toutes les tr_period secondes) laisserait
+    un dossier orphelin — fuite disque garantie sur une session EME longue."""
+    eme = (cfg or {}).get('eme', {}) or {}
+    submode = eme.get('submode', 'A')
+    band = eme.get('band', '')
+    rf = float(eme.get('rf_mhz', 0.0) or 0.0)
+    tmpdir = tempfile.mkdtemp(prefix='logx_q65_')
+    try:
+        wav = os.path.join(tmpdir, 'seg.wav')
+        ecrire_wav_12k(wav, echantillons)
+        decs = decoder_wav(wav, submode=submode,
+                            tr_period=int(eme.get('tr_period', 60)),
+                            jt9_path=eme.get('jt9_path'), data_path=tmpdir,
+                            freq_mhz=rf, band=band)
+        with _cache_lock:
+            _cache.extend(decs)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def decodes_natifs(max_age=wsjtx._DECODE_TTL):
+    """Décodages Q65 natifs récents (mêmes clés que wsjtx.eme_decodes()).
+    Purge les entrées plus vieilles que `max_age` AVANT de retourner la vue
+    (même logique que recent_decodes() côté pont WSJT-X : lecture et purge
+    dans le même verrou, jamais relâché entre les deux)."""
+    limite = time.time() - max_age
+    with _cache_lock:
+        _cache[:] = [d for d in _cache if d.get('last_seen', 0) >= limite]
+        return list(_cache)
+
+
+def _boucle_worker(cfg):
+    """Corps du thread worker : dépile les fenêtres une par une et les
+    traite séquentiellement. Une fenêtre qui plante (jt9 absent, wav
+    corrompu, timeout...) NE DOIT PAS tuer le worker : une session EME dure
+    des heures, une erreur isolée sur une fenêtre ne doit pas priver toutes
+    les suivantes de décodage."""
+    while True:
+        item = _queue.get()
+        if item is _SENTINELLE:
+            break
+        echantillons, t_debut = item
+        try:
+            _traiter_fenetre(echantillons, t_debut, cfg)
+        except Exception as e:
+            print("[Q65-NATIF] fenêtre ignorée après erreur : %s" % e)
+
+
+def demarrer_moteur(cfg):
+    """Démarre la capture (FluxCapture) et le worker de décodage. Réentrant :
+    un second appel alors que le moteur tourne déjà ne relance rien et
+    répond `{'ok': True, 'deja': True}`."""
+    global _flux, _worker
+    if _flux is not None:
+        return {'ok': True, 'deja': True}
+    eme = (cfg or {}).get('eme', {}) or {}
+    _worker = threading.Thread(target=_boucle_worker, args=(cfg,),
+                                daemon=True, name='q65-natif-worker')
+    _worker.start()
+    idx = eme.get('audio_device')
+    tr_period = int(eme.get('tr_period', 60))
+    # on_fenetre s'exécute dans le callback PortAudio : UNIQUEMENT un put
+    # non bloquant, aucun traitement lourd ici (voir note en tête de section).
+    _flux = FluxCapture(idx, lambda ech, t: _queue.put((ech, t)),
+                        tr_period=tr_period)
+    _flux.demarrer()
+    return {'ok': True}
+
+
+def arreter_moteur():
+    """Arrête le flux de capture puis le worker (sentinelle + join borné), et
+    vide le cache. Réentrant : un appel sans moteur démarré ne plante pas —
+    utilisé en début de test pour repartir d'un état propre."""
+    global _flux, _worker
+    if _flux is not None:
+        _flux.arreter()
+        _flux = None
+    if _worker is not None:
+        _queue.put(_SENTINELLE)
+        _worker.join(timeout=2.0)
+        _worker = None
+    with _cache_lock:
+        _cache.clear()
+    return {'ok': True}
