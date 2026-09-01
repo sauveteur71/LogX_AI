@@ -74,6 +74,59 @@ def test_position_null_si_ni_locator_ni_dxcc():
     assert ctx.eval("r") is None
 
 
+def test_lister_sorties_regroupe_par_programme_et_ref_et_trie_par_date_desc():
+    ctx = _ctx()
+    ctx.eval("""
+      var log = [
+        {my_sig:'SOTA', my_sig_info:'F/AB-001', date:'20260810'},
+        {my_sig:'sota', my_sig_info:'f/ab-001', date:'20260812'},   // même sortie, casse différente
+        {my_sig:'POTA', my_sig_info:'F-1234', date:'20260701'},
+        {my_sig:'POTA', my_sig_info:'F-1234', date:'20260705'},
+        {sig:'SOTA', sig_info:'F/CD-002', date:'20260901'},         // CHASSÉ (sig, pas my_sig) -> ignoré
+        {my_sig:'SOTA', my_sig_info:'', date:'20260101'},           // réf vide -> ignoré
+        {my_sig:'', my_sig_info:'F/EF-003', date:'20260101'},       // programme vide -> ignoré
+      ];
+      var out = window.LogxCarteSortie.listerSorties(log);
+    """)
+    assert ctx.eval("out.length") == 2
+    # La sortie SOTA F/AB-001 a son dernier QSO le 12/08 -> plus récente que
+    # POTA F-1234 (05/07) -> arrive en premier.
+    assert ctx.eval("out[0].program") == 'SOTA'
+    assert ctx.eval("out[0].ref") == 'F/AB-001'
+    assert ctx.eval("out[0].count") == 2
+    assert ctx.eval("out[0].dateMin") == '20260810'
+    assert ctx.eval("out[0].dateMax") == '20260812'
+    assert ctx.eval("out[1].program") == 'POTA'
+    assert ctx.eval("out[1].ref") == 'F-1234'
+    assert ctx.eval("out[1].count") == 2
+    assert ctx.eval("out[1].dateMin") == '20260701'
+    assert ctx.eval("out[1].dateMax") == '20260705'
+
+
+def test_lister_sorties_vide_si_aucun_qso_my_sig():
+    ctx = _ctx()
+    ctx.eval("""
+      var log = [{call:'F5XYZ', sig:'SOTA', sig_info:'F/AB-001'}, {call:'F6ABC'}];
+      var out = window.LogxCarteSortie.listerSorties(log);
+    """)
+    assert ctx.eval("out.length") == 0
+
+
+def test_lister_sorties_sans_date_connue_relegue_en_fin_de_liste():
+    ctx = _ctx()
+    ctx.eval("""
+      var log = [
+        {my_sig:'SOTA', my_sig_info:'F/AB-001'},              // pas de date
+        {my_sig:'POTA', my_sig_info:'F-9999', date:'20260501'},
+      ];
+      var out = window.LogxCarteSortie.listerSorties(log);
+    """)
+    assert ctx.eval("out[0].program") == 'POTA'
+    assert ctx.eval("out[1].program") == 'SOTA'
+    assert ctx.eval("out[1].dateMin") == ''
+    assert ctx.eval("out[1].dateMax") == ''
+
+
 def test_stats_pays_distincts_et_bandes_triees_numeriquement():
     ctx = _ctx()
     ctx.eval("""
