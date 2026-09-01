@@ -1289,6 +1289,63 @@ CONTEST_DEFINITIONS = {
                  "('1,8 / 3,5 à 10 / 14 à 28 / 50 / 144 / 432 et plus MHz'). Logiciel dédié fourni par "
                  "l'UFT (génère aussi un export ADIF) en plus du format Cabrillo standard.",
     },
+
+    # ════════════════════════════════════════════════════════════
+    # EUROPEAN EME CONTEST (DUBUS / REF) — règlement officiel LU
+    # (marsport.org.uk/dubus/EMEContest2026.pdf, 01/09/2026)
+    # ════════════════════════════════════════════════════════════
+    # CW/SSB uniquement. 7 PARTIES, chacune sur UNE bande et UNE date -> le modèle
+    # « un date_rule par concours » impose 7 définitions séparées. Multiplicateur =
+    # préfixe d'indicatif distinct (scoring 'prefix_multiplier', kind 'prefix').
+    # POINTS : 100 pts/QSO random (432 MHz→24 GHz) — on modélise le cas RANDOM
+    # (courant) via des points fixes à 100 ; le règlement prévoit aussi 10 pts pour
+    # un QSO « sur sked » (non distingué au log -> non modélisé) et une formule
+    # MULTIBANDE pondérée [(pts 432-1296) + 2×(pts ≥2,3 GHz)] × multis (classement
+    # à part, non modélisée ici : score PAR BANDE). Échange = report (TMO ou RST)
+    # + R. Log « logbook » libre par bande (log_format '' — ni EDI ni Cabrillo).
+    # ⚠️ DATES fixées ANNUELLEMENT par DUBUS : les date_rule ci-dessous collent à
+    # l'édition 2026 (vérifié : jan 31 = dernier sam. ; etc.) mais sont À REVÉRIFIER
+    # chaque année sur le PDF. La 4e partie (1296) est le « VK3UM Memorial ».
+    **{
+        cid: {
+            'name': nom, 'organizer': 'DUBUS/REF',
+            'check_url': 'https://www.dubus.org',
+            'rules_url': 'http://www.marsport.org.uk/dubus/EMEContest2026.pdf',
+            'date_rule': dr, 'duration_h': dur, 'start_utc': '00:00',
+            'bands': [band], 'modes': ['CW', 'SSB'],
+            'exchange': 'Report (TMO ou RST) + R',
+            'scoring': {'type': 'prefix_multiplier', 'points_dx': 100,
+                        'points_same_country': 100, 'points_same_continent': 100},
+            'log_format': '', 'serial_per_band': True,
+            'notes': notes,
+        }
+        for cid, nom, band, dr, dur, notes in [
+            ('EME_432', 'European EME — 70 cm (432 MHz)', '432',
+             'last_saturday_january', 24,
+             'DUBUS/REF EME. 100 pts/QSO random × préfixes. Sked (10 pts) et formule '
+             'multibande non modélisés. Date 2026 : 31/01 (à revérifier annuellement).'),
+            ('EME_2320', 'European EME — 13 cm (2,3 GHz)', '2320',
+             'last_saturday_february', 24,
+             'DUBUS/REF EME. 100 pts/QSO random × préfixes. Date 2026 : 28/02 (annuelle).'),
+            ('EME_5760', 'European EME — 6 cm (5,7 GHz)', '5760',
+             'third_saturday_march', 24,
+             'DUBUS/REF EME. 100 pts/QSO random × préfixes. Date 2026 : 21/03 (annuelle).'),
+            ('EME_1296', 'European EME — 23 cm (1,3 GHz) « VK3UM Memorial »', '1296',
+             'third_full_weekend_april', 48,
+             'DUBUS/REF EME, partie 23 cm = VK3UM Memorial (48 h). 100 pts/QSO random × '
+             'préfixes. Date 2026 : 18-19/04 (annuelle).'),
+            ('EME_10368', 'European EME — 3 cm (10 GHz)', '10368',
+             'third_saturday_may', 24,
+             'DUBUS/REF EME. 100 pts/QSO random × préfixes. Date 2026 : 16/05 (annuelle).'),
+            ('EME_24048', 'European EME — 1,2 cm (24 GHz)', '24048',
+             'second_saturday_june', 24,
+             'DUBUS/REF EME. 100 pts/QSO sur 24 GHz × préfixes ; skeds autorisés à tout '
+             'moment sur 24 GHz+. Date 2026 : 13/06 (annuelle).'),
+            ('EME_3400', 'European EME — 9 cm (3,4 GHz)', '3400',
+             'second_saturday_july', 24,
+             'DUBUS/REF EME. 100 pts/QSO random × préfixes. Date 2026 : 11/07 (annuelle).'),
+        ]
+    },
 }
 
 # ─── CONCOURS PERSONNALISÉS (extraction IA + relecture humaine, Phase 3) ─────
