@@ -48,11 +48,14 @@ PAGES_AVEC_NAV = [
 # au 1er niveau ; les 7 autres sont rangés dans le menu « Outils ▾ » (toujours
 # des <a href> DANS le <nav>, donc toujours comptés ici, dans cet ordre). PROPAG
 # a remonté juste après CHASSE (cœur regroupé).
+# Ajout EME (01/09/2026) : entrée « EME » insérée dans le menu Outils juste
+# après WEBSDR (cf. logx_eme.html, page cockpit EME).
 ORDRE_NAV_ATTENDU = [
     'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
     'logx_propagation.html', 'logx_diagnostic.html', 'logx_session.html',
     'logx_modes_numeriques.html', 'logx_carte.html', 'logx_departements.html',
-    'javascript:void(0)', 'logx_calendrier.html', 'logx_websdr.html', 'logx_cw.html',
+    'javascript:void(0)', 'logx_calendrier.html', 'logx_websdr.html',
+    'logx_eme.html', 'logx_cw.html',
 ]
 
 # Titres exacts des cinq panneaux deplaces (accents compris).
