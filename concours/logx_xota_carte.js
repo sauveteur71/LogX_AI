@@ -489,11 +489,14 @@
 
     const filtres = _monLog().filter(function(q){ return C.matchSortie(q, sortie.program, sortie.ref); });
 
-    // Indicatifs SANS locator précis (≥6) -> résolution serveur (cty.dat).
+    // Résolution serveur (cty.dat) pour TOUS les indicatifs distincts — pas
+    // seulement ceux sans locator. La POSITION garde la préférence locator
+    // (positionStation), mais le PAYS (bandeau « N pays ») doit être connu de
+    // toutes les stations, sinon une sortie VHF où les correspondants donnent
+    // leur locator afficherait « 0 pays » alors qu'il y en a plein.
     const vus = {};
     const calls = [];
     filtres.forEach(function(q){
-      if(String(q.locator || '').length >= 6) return;
       const c = String(q.call || '').trim().toUpperCase();
       if(!c || vus[c]) return;
       vus[c] = 1;
