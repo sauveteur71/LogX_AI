@@ -2059,6 +2059,33 @@ def _pounce_sur_qso(msg):
         pounce.session.noter_qso(msg.get('call', ''))
 
 
+def _dxcc_positions_dict(calls):
+    """Résout une liste d'indicatifs en positions (lat/lon, pays) via cty.dat.
+
+    Sert la carte de sortie XOTA : un QSO sans locator Maidenhead est placé
+    au centroïde de son entité DXCC (position APPROXIMATIVE, pas exacte). Le
+    lookup client (logx_dxcc_lookup.js) ne porte pas de coordonnées — seul
+    logx_dxcc.lookup (cty.dat AD1C) le fait. Dédoublonne, ignore les vides, et
+    classe en 'unresolved' les indicatifs sans entité OU sans coordonnées."""
+    import logx_dxcc
+    positions = {}
+    unresolved = []
+    vus = set()
+    for call in (calls or []):
+        c = (call or '').strip().upper()
+        if not c or c in vus:
+            continue
+        vus.add(c)
+        info = logx_dxcc.lookup(c)
+        lat = (info or {}).get('lat')
+        lon = (info or {}).get('lon')
+        if info and lat is not None and lon is not None:
+            positions[c] = {'lat': lat, 'lon': lon, 'country': info.get('country', '')}
+        else:
+            unresolved.append(c)
+    return {'positions': positions, 'unresolved': unresolved}
+
+
 def _wsjtx_state_dict(cfg_snap):
     import logx_wsjtx as wsjtx
     settings = wsjtx.wsjtx_settings(cfg_snap)
@@ -5705,6 +5732,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # attendant des octets qui n'arriveront jamais.
         self._corps_lu = True
         body = self.rfile.read(length)
+
+        # Résolution batch indicatif -> position (carte de sortie XOTA). POST
+        # (pas GET) car une grosse expédition peut envoyer des centaines
+        # d'indicatifs, au-delà de la longueur d'URL raisonnable. Lecture pure
+        # (cty.dat), aucune écriture.
+        if self.path == '/dxcc/positions':
+            try:
+                payload = json.loads(body) if body else {}
+                calls = payload.get('calls', [])
+                if not isinstance(calls, list):
+                    self._json({'error': "'calls' doit être une liste"}, 400)
+                    return
+                self._json(_dxcc_positions_dict(calls))
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
 
         # Occupation des bandes multi-postes : CE poste déclare sa bande/mode
         # COURANTES (le client LOGBOOK envoie currentBand/currentMode par
