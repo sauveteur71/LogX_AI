@@ -45,10 +45,11 @@ AMBIGUS_CONNUS = {
     'REF_IARU_TVA',        # « 438MHz+ TVA »
     'REF_NAT_TVA',         # « 438MHz+ TVA »
     'REF_NAT_TVA_DEC',     # « 438MHz+ TVA »
-    'REF_CHALLENGE_THF',   # « 144MHz-47GHz »
-    'REF_F8TD',            # « 1296MHz-47GHz » — règlement officiel introuvable
-    # REF_IARU_UHF : RÉSOLU le 01/09/2026 (règlement REF lu par F4GLD, scoring km,
-    # « 432 MHz et au-delà ») — définition dans logx_definitions.CONTEST_DEFINITIONS.
+    'REF_CHALLENGE_THF',   # « 144MHz-47GHz » — moteur de score dédié à brancher
+    # RÉSOLUS le 01/09/2026 (règlements REF officiels lus, scoring km — définitions
+    # dans logx_definitions.CONTEST_DEFINITIONS) :
+    #   REF_IARU_UHF  : « 432 MHz et au-delà », 1 pt/km.
+    #   REF_F8TD      : « 1296 MHz et au-delà », 1 pt/km (reg_f8td_fr_20250312.pdf).
 }
 
 
