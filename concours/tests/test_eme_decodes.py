@@ -20,9 +20,14 @@ def _peupler(monkeypatch, modes):
 
 
 def test_garde_Q65_et_JT65_exclut_FT8_FT4(monkeypatch):
+    # STA0=Q65, STA1=FT8, STA2=JT65, STA3=FT4, STA4=q65 (minuscule). On
+    # assert sur les CALL retournés, pas sur l'ensemble des modes uppercasés :
+    # STA4 en 'q65' minuscule est ainsi DISCRIMINANT — retirer le .upper() de
+    # eme_decodes exclurait STA4 et ferait rougir ce test (l'insensibilité à
+    # la casse est réellement contrainte, pas seulement l'exclusion FT8/FT4).
     _peupler(monkeypatch, ['Q65', 'FT8', 'JT65', 'FT4', 'q65'])
-    modes = {d['mode'].upper() for d in w.eme_decodes()}
-    assert modes == {'Q65', 'JT65'}, modes
+    calls = {d['call'] for d in w.eme_decodes()}
+    assert calls == {'STA0', 'STA2', 'STA4'}, calls
 
 
 def test_liste_vide_si_aucun_mode_EME(monkeypatch):
