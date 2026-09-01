@@ -4,6 +4,7 @@ if CONCOURS not in sys.path:
     sys.path.insert(0, CONCOURS)
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
+import pytest  # noqa: E402
 import logx_q65_natif as q65n  # noqa: E402
 
 
@@ -32,3 +33,24 @@ def test_parse_stdout_trois_stations():
 
 def test_parse_stdout_vide():
     assert q65n.parse_jt9_stdout('<DecodeFinished>   0   0      0\n') == []
+
+
+def _jt9_dispo():
+    """Détecte si jt9 est trouvable (config/binaire embarqué/PATH), sans
+    planter le collecte de tests si WSJT-X n'est pas installé."""
+    try:
+        return q65n.resoudre_jt9() is not None
+    except FileNotFoundError:
+        return False
+
+
+@pytest.mark.skipif(not _jt9_dispo(), reason="jt9 non installe sur cette machine")
+def test_decoder_wav_echantillon_eme():
+    wav = os.path.join(FIXTURES, 'q65_60A_eme_6m.wav')
+    d = q65n.decoder_wav(wav, submode='A', tr_period=60, freq_mhz=50.313, band='6m')
+    calls = sorted(x['call'] for x in d)
+    # Le decodeur de reference sort ces 3 stations EME (mesure au spike)
+    assert calls == ['N8JX', 'VE1JF', 'W1VD'], calls
+    parN8JX = next(x for x in d if x['call'] == 'N8JX')
+    assert parN8JX['snr'] <= -20         # near-threshold EME
+    assert parN8JX['mode'] == 'Q65'

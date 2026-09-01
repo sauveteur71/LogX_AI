@@ -97,3 +97,15 @@ concours/websdr_etat_cures.json
 # sans chdir ecrirait ici. Filet de securite pour que ca ne salisse jamais le
 # depot — la vraie protection reste le monkeypatch.chdir(tmp_path) cote tests.
 concours/sauvegardes/
+
+# Debris ecrits par jt9 (WSJT-X) dans son repertoire de travail courant,
+# INDEPENDAMMENT du flag -a (data_path) qui ne redirige pas tout — constate
+# en lancant test_decoder_wav_echantillon_eme (Tache 2, decodage Q65 natif)
+# depuis concours/. Fichiers de travail du decodeur, pas des donnees.
+concours/avemsg.txt
+concours/decoded.txt
+concours/red.dat
+concours/jt9_wisdom.dat
+concours/timer.out
+concours/*.wav
+!concours/tests/fixtures/*.wav
