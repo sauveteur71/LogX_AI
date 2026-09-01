@@ -268,3 +268,81 @@ def test_demarrer_moteur_reentrant_sur_un_vrai_demarrage(monkeypatch):
     r2 = q65n.demarrer_moteur({'eme': {}})
     assert r2 == {'ok': True, 'deja': True}
     q65n.arreter_moteur()
+
+
+def test_resoudre_jt9_trouve_binaire_embarque():
+    """Tâche 8 : resoudre_jt9() trouve le binaire embarqué à
+    concours/vendor/jt9/jt9 ou jt9.exe quand placé là. Crée un faux
+    binaire temporaire à l'emplacement attendu (priorité 2 avant shutil.which),
+    asserte que resoudre_jt9({}) le retourne, puis nettoie."""
+    # Identifier le chemin du répertoire vendor/jt9 (même logique que resoudre_jt9)
+    # q65n.__file__ est logx_q65_natif.py, dans le répertoire 'concours'
+    ici = os.path.dirname(os.path.abspath(q65n.__file__))
+    vendor_dir = os.path.join(ici, 'vendor', 'jt9')
+
+    # Déterminer le nom du binaire selon l'OS (priorité du code : .exe avant jt9)
+    nom_binaire = 'jt9.exe' if os.name == 'nt' else 'jt9'
+    chemin_faux = os.path.join(vendor_dir, nom_binaire)
+
+    # Créer un faux binaire : simple fichier texte suffit pour le test
+    # (resoudre_jt9 ne l'exécute pas, il vérifie juste son existence)
+    os.makedirs(vendor_dir, exist_ok=True)
+    with open(chemin_faux, 'w') as f:
+        f.write('fake jt9 binary for testing - task 8')
+
+    try:
+        # Appeler resoudre_jt9({}) sans cfg => cherche config vide
+        # Le faux binaire embarqué est trouvé en priorité 2 (avant shutil.which)
+        resultat = q65n.resoudre_jt9({})
+
+        # Vérifier que le chemin retourné est exactement celui du faux binaire
+        assert resultat == chemin_faux, (
+            f"resoudre_jt9 aurait dû retourner {chemin_faux}, "
+            f"reçu {resultat}")
+        assert os.path.isfile(resultat), (
+            f"Le chemin retourné {resultat} n'existe pas ou n'est pas un fichier"
+        )
+    finally:
+        # Nettoyage : supprimer le faux binaire
+        if os.path.isfile(chemin_faux):
+            os.remove(chemin_faux)
+
+
+def test_resoudre_jt9_leve_si_binaire_embarque_absent(monkeypatch):
+    """Contre-épreuve de test_resoudre_jt9_trouve_binaire_embarque :
+    quand le binaire embarqué n'existe pas ET aucun jt9 sur le PATH,
+    resoudre_jt9() doit lever FileNotFoundError. Monkeypatch shutil.which
+    pour simuler l'absence de jt9 sur le PATH."""
+    # Identifier le répertoire vendor/jt9 (même logique que resoudre_jt9)
+    ici = os.path.dirname(os.path.abspath(q65n.__file__))
+    vendor_dir = os.path.join(ici, 'vendor', 'jt9')
+
+    # S'assurer que le répertoire existe mais qu'aucun binaire n'y est
+    os.makedirs(vendor_dir, exist_ok=True)
+
+    # Sauvegarder et supprimer les binaires potentiels
+    chemins = [os.path.join(vendor_dir, 'jt9.exe'),
+               os.path.join(vendor_dir, 'jt9')]
+    binaires_sauvegardes = {}
+    for p in chemins:
+        if os.path.isfile(p):
+            with open(p, 'rb') as f:
+                binaires_sauvegardes[p] = f.read()
+            os.remove(p)
+
+    try:
+        # Monkeypatch shutil.which dans le module q65n pour renvoyer None
+        # (simule l'absence de jt9 sur le PATH)
+        monkeypatch.setattr(q65n.shutil, 'which', lambda x: None)
+
+        # Appeler resoudre_jt9({}) sans cfg => doit lever FileNotFoundError
+        with pytest.raises(FileNotFoundError) as exc_info:
+            q65n.resoudre_jt9({})
+        # Vérifier le message d'erreur contient une indication utile
+        assert 'jt9' in str(exc_info.value).lower()
+
+    finally:
+        # Restaurer les binaires qui existaient avant
+        for p, contenu in binaires_sauvegardes.items():
+            with open(p, 'wb') as f:
+                f.write(contenu)
