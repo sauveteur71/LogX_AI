@@ -50,6 +50,31 @@ CONTEST_DEFINITIONS = {
         'log_deadline': 'wednesday_after',
         'log_submit': 'https://concours.r-e-f.org',
     },
+    # IARU UHF/SHF — règlement REF lu par F4GLD (01/09/2026) : « 432 MHz et
+    # au-delà », 1 pt/km quelle que soit la bande (scoring 'km', PAS km×loc — le
+    # classement CONTEST_SCORING historique était approximatif), numérotation ET
+    # compte rendu séparés par bande, format IARU reg1test (= EDI). Édition 2026 :
+    # 3 oct 14:00 → 4 oct 14:00 UTC = premier samedi d'octobre. Les bandes listées
+    # sont TOUTES celles ≥ 432 MHz supportées par l'app (la plage réglementaire) ;
+    # l'opérateur sélectionne celles qu'il a réellement utilisées.
+    'REF_IARU_UHF': {
+        'name': 'IARU UHF/SHF',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_iaruuhf_fr_20250312.pdf',
+        'date_rule': 'first_saturday_october_14h',
+        'duration_h': 24,
+        'start_utc': '14:00',
+        'bands': ['432','1296','2320','3400','5760','10368','24048','47088'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km','multiplier':None,'unit':'1 pt/km'},
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org',
+        'serial_per_band': True,
+        'notes': '432 MHz et au-delà (règlement). 1 pt/km toutes bandes, numérotation + compte rendu séparés par bande.',
+    },
     'REF_PRINTEMPS': {
         'name': 'Concours du Printemps',
         'organizer': 'REF',
