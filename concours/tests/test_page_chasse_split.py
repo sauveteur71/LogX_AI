@@ -36,8 +36,9 @@ I18N = os.path.join(CONCOURS_DIR, 'logx_i18n.js')
 PAGES_AVEC_NAV = [
     'logx_calendrier.html', 'logx_carte.html', 'logx_chasse.html',
     'logx_configuration.html', 'logx_cw.html', 'logx_departements.html',
-    'logx_diagnostic.html', 'logx_logbook.html', 'logx_modes_numeriques.html',
-    'logx_propagation.html', 'logx_session.html', 'logx_websdr.html',
+    'logx_diagnostic.html', 'logx_eme.html', 'logx_logbook.html',
+    'logx_modes_numeriques.html', 'logx_propagation.html', 'logx_session.html',
+    'logx_websdr.html',
 ]
 
 # Ordre de nav fige le 11/08/2026 (reorg nav + fusion PROPAG/FOCUS BANDE) :
