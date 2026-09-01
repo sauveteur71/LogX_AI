@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import wave
 
 import logx_wsjtx as wsjtx
 
@@ -101,3 +102,23 @@ def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
     finally:
         if ephemere:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+def bornes_fenetre(now, tr_period=60):
+    """Début/fin (epoch) de la fenêtre T/R alignée contenant `now`.
+    Exemple : tr_period=60 s → fenêtre alignée sur la minute UTC pleine."""
+    tr = int(tr_period)
+    debut = (int(now) // tr) * tr
+    return float(debut), float(debut + tr)
+
+
+def ecrire_wav_12k(path, echantillons):
+    """WAV PCM 16 bit mono 12 kHz — format d'entrée attendu par jt9.
+    Args:
+        path : chemin absolu du fichier WAV à créer.
+        echantillons : octets int16 little-endian (bytes)."""
+    with wave.open(path, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(12000)
+        w.writeframes(echantillons)

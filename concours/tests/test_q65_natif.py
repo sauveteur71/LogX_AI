@@ -5,6 +5,7 @@ if CONCOURS not in sys.path:
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 import pytest  # noqa: E402
+import wave  # noqa: E402
 import logx_q65_natif as q65n  # noqa: E402
 
 
@@ -70,3 +71,28 @@ def test_decoder_wav_ne_laisse_pas_de_dossier_temp():
     q65n.decoder_wav(wav, submode='A', tr_period=60, freq_mhz=50.313, band='6m')
     apres = set(glob.glob(motif))
     assert apres == avant, sorted(apres - avant)
+
+
+def test_bornes_fenetre_alignee_minute():
+    """Fenêtre T/R de 60 s alignée sur la minute UTC pleine : début et fin
+    sont des multiples de 60, et `now` doit se situer strictement à l'intérieur
+    de la fenêtre (deb <= now < fin)."""
+    # 12:34:37.5 UTC → fenêtre [12:34:00, 12:35:00)
+    now = 1_000_000_000 + 37.5  # peu importe l'instant exact, juste un offset
+    deb, fin = q65n.bornes_fenetre(now, tr_period=60)
+    assert deb <= now < fin, f"deb={deb}, now={now}, fin={fin}"
+    assert fin - deb == 60
+    assert int(deb) % 60 == 0, f"deb={deb} non aligné sur 60"
+    assert int(fin) % 60 == 0, f"fin={fin} non aligné sur 60"
+
+
+def test_ecrire_wav_12k(tmp_path):
+    """Écrit un fichier WAV PCM 16 bit mono 12 kHz à partir d'octets int16
+    little-endian, puis vérifie les paramètres du fichier produit."""
+    p = str(tmp_path / 'x.wav')
+    q65n.ecrire_wav_12k(p, b'\x00\x00' * 12000)   # 1 s de silence
+    with wave.open(p, 'rb') as w:
+        assert w.getframerate() == 12000, f"Framerate={w.getframerate()}, attendu 12000"
+        assert w.getnchannels() == 1, f"Channels={w.getnchannels()}, attendu 1"
+        assert w.getsampwidth() == 2, f"Sampwidth={w.getsampwidth()}, attendu 2"
+        assert w.getnframes() == 12000, f"Frames={w.getnframes()}, attendu 12000"
