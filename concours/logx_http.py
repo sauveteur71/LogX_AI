@@ -2215,6 +2215,7 @@ def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
         'set_utc': setg,
         'window': window,
         'decodes': decodes,
+        'source': src,
         'track': moon_track.etat_suivi_lune(),
         'rig': _wsjtx_state_dict(cfg_snap),
     }

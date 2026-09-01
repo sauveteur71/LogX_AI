@@ -270,6 +270,72 @@ def test_demarrer_moteur_reentrant_sur_un_vrai_demarrage(monkeypatch):
     q65n.arreter_moteur()
 
 
+# ─── Finding M1 (revue finale) : demarrer_moteur/arreter_moteur protégés ────
+# par un verrou de module (_moteur_lock) contre un check-and-set concurrent.
+# Avant correctif : `if _flux is not None: return deja` puis, plus bas,
+# `_flux, _worker = flux, worker` n'étaient PAS atomiques — sous le serveur
+# HTTP threadé (logx_http.py), deux POST /eme/moteur {action:'start'}
+# concurrents pouvaient tous deux lire `_flux is None` avant qu'aucun n'ait
+# assigné, et donc tous deux créer LEUR PROPRE FluxCapture + worker (l'un des
+# deux devient orphelin, jamais arrêté par arreter_moteur).
+
+def test_demarrer_moteur_verrou_empeche_deux_demarrages_concurrents(monkeypatch):
+    """Test DÉTERMINISTE (pas de dépendance au timing pour la CORRECTION
+    elle-même) : FluxCapture.demarrer est instrumenté pour compter combien de
+    threads y entrent RÉELLEMENT. Avec un verrou qui protège correctement le
+    corps de demarrer_moteur, au plus UN thread peut être « en train de
+    démarrer » à la fois — le second doit attendre le verrou, puis voir
+    `_flux` déjà assigné et répondre `deja: True` SANS jamais appeler
+    FluxCapture.demarrer lui-même. Cette propriété est vraie quel que soit
+    l'ordonnancement réel des threads (contrairement à une assertion sur le
+    résultat final d'une course, qui serait flaky) : elle ne peut donc pas
+    échouer par hasard une fois le verrou en place."""
+    q65n.arreter_moteur()  # état propre
+    entrees = []
+    verrou_compte = threading.Lock()
+
+    def _demarrer_lent(self):
+        with verrou_compte:
+            entrees.append(1)
+            premier = len(entrees) == 1
+        if premier:
+            # Élargit volontairement la fenêtre de course : si demarrer_moteur
+            # n'est PAS protégé par un verrou, un second thread concurrent a
+            # largement le temps de passer aussi le test `_flux is None`
+            # pendant que celui-ci est encore "en vol" (FluxCapture.demarrer
+            # pas encore retourné, _flux pas encore assigné).
+            time.sleep(0.15)
+    monkeypatch.setattr(q65n.FluxCapture, 'demarrer', _demarrer_lent)
+
+    resultats = []
+    resultats_lock = threading.Lock()
+
+    def _appel():
+        r = q65n.demarrer_moteur({'eme': {}})
+        with resultats_lock:
+            resultats.append(r)
+
+    t1 = threading.Thread(target=_appel)
+    t2 = threading.Thread(target=_appel)
+    t1.start()
+    time.sleep(0.02)  # t1 a le temps d'entrer dans FluxCapture.demarrer avant t2
+    t2.start()
+    t1.join(timeout=3)
+    t2.join(timeout=3)
+
+    assert len(entrees) == 1, (
+        "deux threads concurrents ont tous deux appele FluxCapture.demarrer() : "
+        "le verrou de demarrer_moteur ne protege pas le check-and-set")
+    assert len(resultats) == 2
+    assert all(r.get('ok') for r in resultats)
+    dejas = [r for r in resultats if r.get('deja')]
+    assert len(dejas) == 1, (
+        "un seul des deux appels doit etre un VRAI demarrage, "
+        "l'autre doit repondre deja=True")
+    assert q65n._flux is not None
+    q65n.arreter_moteur()
+
+
 def test_resoudre_jt9_trouve_binaire_embarque():
     """Tâche 8 : resoudre_jt9() trouve le binaire embarqué à
     concours/vendor/jt9/jt9 ou jt9.exe quand placé là. Crée un faux

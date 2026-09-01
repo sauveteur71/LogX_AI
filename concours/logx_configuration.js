@@ -5306,7 +5306,18 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // donc être envoyé à CHAQUE sauvegarde, pas seulement quand ces champs
     // changent, sinon un save ultérieur effacerait silencieusement la
     // source/le périphérique choisis ici.
+    // Finding I1 (revue finale) : jt9_path/tr_period (concours/config.example.json)
+    // n'ont AUCUN champ dans l'UI — reconstruire l'objet avec seulement
+    // source/audio_device/submode les effaçait à CHAQUE sauvegarde, alors que
+    // jt9_path est le seul moyen d'activer le moteur natif tant que le
+    // binaire jt9 n'est pas embarqué (Tâche 8). On repart donc de l'objet eme
+    // CONNU du client (window._cfgRestauree, même mécanisme déjà utilisé plus
+    // haut pour cat_model/cat_port/amp_port/relay_port — restauré au
+    // chargement de page ou après un changement de profil, voir
+    // applyFullConfigToForm()) et on n'écrase QUE les 3 champs pilotés par
+    // l'UI, en préservant toute autre clé (jt9_path, tr_period...) telle quelle.
     eme: {
+      ...((window._cfgRestauree && typeof window._cfgRestauree.eme === 'object') ? window._cfgRestauree.eme : {}),
       source: document.getElementById('eme_source')?.value || 'wsjtx',
       audio_device: (document.getElementById('eme_audio_device')?.value || ''),
       submode: document.getElementById('eme_submode')?.value || 'A',
