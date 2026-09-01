@@ -188,3 +188,84 @@ def test_l_etat_est_serialisable_JSON(monkeypatch):
     import json
     _lancer([(180, 30), (185, -1)], monkeypatch)
     json.dumps(mt.etat_suivi_lune(), allow_nan=False)   # ne doit pas lever
+
+
+CFG = {'rotor_enabled': True, 'rotor_host': '127.0.0.1', 'rotor_port': 4533,
+       'locator': 'JN15XC', 'altitude': 0}
+
+
+def _prets(monkeypatch, visible=True):
+    rot = _rotor(monkeypatch)
+    monkeypatch.setattr(mt.eme, 'HAS_EPHEM', True)
+    monkeypatch.setattr(mt.eme, 'moon_position', lambda lat, lon, alt=0, when=None: {
+        'available': True, 'az': 180.0, 'alt': 30.0 if visible else -30.0,
+        'visible': visible, 'distance_km': 384000.0, 'phase_pct': 50.0})
+    monkeypatch.setattr(mt.eme, 'moon_rise_set', lambda lat, lon, alt=0, when=None: {
+        'available': True, 'rise_utc': '2026/9/1 21:14:00', 'set_utc': '2026/9/2 06:02:00'})
+    return rot
+
+
+def test_refus_si_ephem_absent(monkeypatch):
+    _prets(monkeypatch)
+    monkeypatch.setattr(mt.eme, 'HAS_EPHEM', False)
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok is False and 'ephem' in msg.lower()
+
+
+def test_refus_si_rotor_desactive(monkeypatch):
+    _prets(monkeypatch)
+    ok, msg = mt.demarrer_suivi_lune(dict(CFG, rotor_enabled=False))
+    assert ok is False and 'CONFIG' in msg
+
+
+def test_refus_si_locator_absent(monkeypatch):
+    _prets(monkeypatch)
+    ok, msg = mt.demarrer_suivi_lune(dict(CFG, locator=''))
+    assert ok is False and 'ocator' in msg
+
+
+def test_refus_si_lune_sous_l_horizon_avec_heure_de_lever(monkeypatch):
+    _prets(monkeypatch, visible=False)
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok is False
+    assert '21:14' in msg   # l'heure du prochain lever, pour savoir quand revenir
+
+
+def test_refus_si_rotor_ne_repond_pas(monkeypatch):
+    rot = _prets(monkeypatch)
+    rot.panne = True
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok is False and 'injoignable' in msg
+
+
+def test_un_suivi_VIVANT_refuse_le_second(monkeypatch):
+    _prets(monkeypatch)
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok is True, msg
+    ok2, msg2 = mt.demarrer_suivi_lune(CFG)
+    assert ok2 is False and 'déjà en cours' in msg2
+    mt.arreter_suivi_lune()
+
+
+def test_un_suivi_ORPHELIN_est_gueri_et_le_second_part(monkeypatch):
+    _prets(monkeypatch)
+    mt._track['actif'] = True
+    mt._track_thread = None
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok is True, msg
+    mt.arreter_suivi_lune()
+
+
+def test_les_NaN_du_rotor_ne_partent_pas_dans_le_JSON(monkeypatch):
+    import json
+    _prets(monkeypatch)
+    monkeypatch.setattr(mt.rotor, 'get_position',
+                        lambda h, p, proto='rotctld': {'ok': True, 'azimuth': float('nan'),
+                                                       'elevation': float('inf')})
+    monkeypatch.setattr(mt, '_boucle_suivi_lune', lambda *a, **k: None)
+    ok, msg = mt.demarrer_suivi_lune(CFG)
+    assert ok, msg
+    etat = mt.etat_suivi_lune()
+    assert etat['rotor_az'] is None and etat['rotor_el'] is None
+    json.dumps(etat, allow_nan=False)
+    mt.arreter_suivi_lune()

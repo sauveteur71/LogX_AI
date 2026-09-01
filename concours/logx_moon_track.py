@@ -165,3 +165,76 @@ def _boucle_suivi_lune_corps(host, port, lat, lon, alt_m, stop_ev,
 
         if stop_ev.wait(cadence_s):
             continue
+
+
+def demarrer_suivi_lune(cfg):
+    """Démarre le suivi lunaire. (ok, message) — refus SYNCHRONES : tout ce qui
+    peut être vérifié avant de lancer le thread l'est ici, pour que l'opérateur
+    ait la raison sous les yeux immédiatement."""
+    global _track_thread, _stop_courant
+
+    if not eme.HAS_EPHEM:
+        return False, ("Bibliothèque 'ephem' non installée (pip install ephem) — "
+                       'position de la Lune indisponible.')
+
+    rs = station.rotor_defaut(cfg, prefer_bandes=['144', '432', '1296'])
+    if not rs['enabled']:
+        return False, ('Rotor non activé — voir CONFIG, section rotor '
+                       '(mode expert).')
+
+    lat, lon = locator_to_latlon((cfg or {}).get('locator', '') or '')
+    if lat is None:
+        return False, 'Locator manquant ou invalide (page CONFIG).'
+    alt_m = (cfg or {}).get('altitude', 0) or 0
+
+    pos = eme.moon_position(lat, lon, alt_m)
+    if not pos.get('available'):
+        return False, pos.get('error', 'Position de la Lune indisponible.')
+    if not pos.get('visible'):
+        info = eme.moon_rise_set(lat, lon, alt_m)
+        lever = (info.get('rise_utc') if info.get('available') else None) or '?'
+        return False, ("La Lune est sous l'horizon — prochain lever : %s UTC." % lever)
+
+    r = rotor.get_position(rs['host'], rs['port'], proto=rs.get('proto', 'rotctld'))
+    if not r.get('ok'):
+        return False, r.get('error', 'Rotor injoignable.')
+
+    with _lock:
+        if _track['actif']:
+            if _track_thread is not None and _track_thread.is_alive():
+                return False, 'Un suivi lunaire est déjà en cours.'
+            _track.update(actif=False, phase='erreur',
+                          message='Suivi précédent interrompu sans état terminal '
+                                  '— réinitialisé automatiquement.')
+        ev = threading.Event()
+        t = threading.Thread(
+            target=_boucle_suivi_lune,
+            args=(rs['host'], rs['port'], lat, lon, alt_m, ev),
+            kwargs={'duree_max_s': DUREE_MAX_S, 'offset_az': rs['offset_deg'],
+                    'proto': rs.get('proto', 'rotctld')},
+            daemon=True)
+        _track.update(actif=True, phase='suivi', message='', note='',
+                      cible_az=None, cible_el=None,
+                      rotor_az=r['azimuth'] if math.isfinite(r['azimuth']) else None,
+                      rotor_el=r['elevation'] if math.isfinite(r['elevation']) else None,
+                      envois=0, visible=True)
+        try:
+            t.start()
+        except Exception as e:
+            _track.update(actif=False, phase='erreur',
+                          message='Impossible de démarrer le suivi : %s' % e)
+            _track_thread = None
+            return False, 'Impossible de démarrer le suivi : %s' % e
+        _track_thread = t
+        _stop_courant = ev
+    return True, ''
+
+
+def arreter_suivi_lune():
+    """Demande d'arrêt du suivi courant — la boucle s'arrête immédiatement (elle
+    dort sur cet Event) et stoppe le rotor."""
+    with _lock:
+        ev = _stop_courant
+    if ev is not None:
+        ev.set()
+    return True, ''
