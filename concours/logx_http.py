@@ -2135,6 +2135,53 @@ def _wsjtx_state_dict(cfg_snap):
     return st
 
 
+def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
+    """Agrégat du cockpit EME : compose les briques EXISTANTES (position Lune,
+    Doppler sur la RF, décodages Q65/JT65, état du suivi lunaire, état rig). Une
+    seule requête à poller côté page. AUCUNE logique métier neuve ici."""
+    import logx_eme as eme
+    import logx_eme_bandplan as bandplan
+    import logx_wsjtx as wsjtx
+    import logx_moon_track as moon_track
+    from logx_utils import locator_to_latlon
+
+    band = str(band or '144')
+    rf_mhz = bandplan.centre_rf_mhz(band)
+    lat, lon = locator_to_latlon((cfg_snap or {}).get('locator', '') or '')
+    alt_m = (cfg_snap or {}).get('altitude', 0) or 0
+
+    moon = doppler = None
+    rise = setg = None
+    window = []
+    if lat is not None:
+        m = eme.moon_position(lat, lon, alt_m)
+        moon = m if m.get('available') else {'error': m.get('error', '')}
+        if rf_mhz:
+            dp = eme.doppler_shift_hz(lat, lon, rf_mhz, alt_m)
+            doppler = dp.get('doppler_hz') if dp.get('available') else None
+        rs = eme.moon_rise_set(lat, lon, alt_m)
+        if rs.get('available'):
+            rise, setg = rs.get('rise_utc'), rs.get('set_utc')
+        dxlat, dxlon = locator_to_latlon((dx_locator or '').strip())
+        if dxlat is not None:
+            cw = eme.common_window(lat, lon, dxlat, dxlon)
+            window = cw.get('windows', []) if cw.get('available') else []
+
+    return {
+        'band': band,
+        'rf_mhz': rf_mhz,
+        'transverter': bandplan.est_transverter(band),
+        'moon': moon,
+        'doppler_hz': doppler,
+        'rise_utc': rise,
+        'set_utc': setg,
+        'window': window,
+        'decodes': wsjtx.eme_decodes(),
+        'track': moon_track.etat_suivi_lune(),
+        'rig': _wsjtx_state_dict(cfg_snap),
+    }
+
+
 def _rotor_state_dict(cfg_snap):
     import logx_rotor as rotor
     import logx_station as station
@@ -3782,6 +3829,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pos = eme.moon_position(lat, lon, alt_m)
             rs = eme.moon_rise_set(lat, lon, alt_m)
             self._json({**pos, **rs})
+            return
+
+        # Cockpit EME agrégé : une seule requête composant position Lune,
+        # Doppler (sur la RF du plan de bandes, pas le dial), décodages
+        # Q65/JT65, état du suivi lunaire et état rig — plutôt que la page
+        # ne fasse elle-même 5 requêtes séparées à chaque rafraîchissement.
+        if path == '/eme/cockpit':
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            band = (q.get('band', ['144'])[0])
+            dxloc = (q.get('dx_locator', [''])[0])
+            self._json(_eme_cockpit_dict(self._cfg_snapshot(), band, dxloc))
+            return
+        if path == '/moon/track/state':
+            import logx_moon_track as moon_track
+            self._json(moon_track.etat_suivi_lune())
             return
 
         # Écart de l'horloge de ce PC par rapport à l'heure UTC de référence
@@ -7466,6 +7529,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                             self._cfg_snapshot())
             self._json({'ok': ok, 'error': msg} if not ok else {'ok': True},
                        200 if ok else 409)
+            return
+
+        if self.path in ('/moon/track/start', '/moon/track/stop'):
+            import logx_moon_track as moon_track
+            if self.path == '/moon/track/start':
+                ok, msg = moon_track.demarrer_suivi_lune(self._cfg_snapshot())
+            else:
+                ok, msg = moon_track.arreter_suivi_lune()
+            self._json({'ok': ok, 'error': ('' if ok else msg), 'message': msg},
+                       200 if ok else 400)
             return
 
         if self.path in ('/rotor/point', '/rotor/stop'):
