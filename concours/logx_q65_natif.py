@@ -78,7 +78,14 @@ def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
     'qso_prog', traduits en flags -c/-G/-x/-g/-Q. Réception seule : ne
     déclenche jamais d'émission."""
     jt9_path = jt9_path or resoudre_jt9()
+    # `tmp` sert à la fois de dossier de données jt9 (-a) ET de répertoire
+    # courant du sous-processus (cwd=tmp) : jt9 y écrit ses fichiers de
+    # travail (avemsg.txt/decoded.txt/red.dat/…) INDÉPENDAMMENT du flag -a,
+    # donc dans le cwd — sans cwd=tmp ils atterriraient dans le dossier du
+    # serveur appelant (Tâche 5). On ne supprime QUE le dossier créé en
+    # interne : un data_path fourni par l'appelant lui appartient.
     tmp = data_path or tempfile.mkdtemp(prefix='logx_q65_')
+    ephemere = data_path is None
     argv = [jt9_path, '-3', '-p', str(int(tr_period)), '-b', submode,
             '-q', '-a', tmp, wav_path]
     if ap:
@@ -87,6 +94,10 @@ def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
                           ('-Q', 'qso_prog')):
             if ap.get(cle) not in (None, ''):
                 argv += [flag, str(ap[cle])]
-    res = subprocess.run(argv, capture_output=True, text=True,
-                          timeout=timeout)
-    return parse_jt9_stdout(res.stdout, freq_mhz=freq_mhz, band=band)
+    try:
+        res = subprocess.run(argv, capture_output=True, text=True,
+                             timeout=timeout, cwd=tmp)
+        return parse_jt9_stdout(res.stdout, freq_mhz=freq_mhz, band=band)
+    finally:
+        if ephemere:
+            shutil.rmtree(tmp, ignore_errors=True)

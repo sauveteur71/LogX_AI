@@ -54,3 +54,19 @@ def test_decoder_wav_echantillon_eme():
     parN8JX = next(x for x in d if x['call'] == 'N8JX')
     assert parN8JX['snr'] <= -20         # near-threshold EME
     assert parN8JX['mode'] == 'Q65'
+
+
+@pytest.mark.skipif(not _jt9_dispo(), reason="jt9 non installe sur cette machine")
+def test_decoder_wav_ne_laisse_pas_de_dossier_temp():
+    """Sans data_path fourni, decoder_wav cree un dossier temporaire interne
+    et DOIT le supprimer (sinon fuite disque : un appel/60 s en Tache 5).
+    Assertion sur le comportement reel : on compte les dossiers logx_q65_*
+    du tmpdir systeme avant/apres un appel."""
+    import glob
+    import tempfile
+    motif = os.path.join(tempfile.gettempdir(), 'logx_q65_*')
+    avant = set(glob.glob(motif))
+    wav = os.path.join(FIXTURES, 'q65_60A_eme_6m.wav')
+    q65n.decoder_wav(wav, submode='A', tr_period=60, freq_mhz=50.313, band='6m')
+    apres = set(glob.glob(motif))
+    assert apres == avant, sorted(apres - avant)
