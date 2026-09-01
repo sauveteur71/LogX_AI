@@ -274,7 +274,14 @@ def test_resoudre_jt9_trouve_binaire_embarque():
     """Tâche 8 : resoudre_jt9() trouve le binaire embarqué à
     concours/vendor/jt9/jt9 ou jt9.exe quand placé là. Crée un faux
     binaire temporaire à l'emplacement attendu (priorité 2 avant shutil.which),
-    asserte que resoudre_jt9({}) le retourne, puis nettoie."""
+    asserte que resoudre_jt9({}) le retourne, puis nettoie.
+
+    PIÈGE (revue Tâche 8) : ce test écrit puis supprime un fichier à
+    l'emplacement EXACT où un vrai binaire jt9 sera un jour vendorisé.
+    Sans précaution, lancer la suite APRÈS vendorisation écraserait puis
+    supprimerait ce vrai binaire → perte silencieuse. On sauvegarde donc
+    le contenu de TOUT fichier préexistant (les deux variantes) avant, et
+    on le restaure exactement en finally."""
     # Identifier le chemin du répertoire vendor/jt9 (même logique que resoudre_jt9)
     # q65n.__file__ est logx_q65_natif.py, dans le répertoire 'concours'
     ici = os.path.dirname(os.path.abspath(q65n.__file__))
@@ -284,9 +291,20 @@ def test_resoudre_jt9_trouve_binaire_embarque():
     nom_binaire = 'jt9.exe' if os.name == 'nt' else 'jt9'
     chemin_faux = os.path.join(vendor_dir, nom_binaire)
 
+    # Sauvegarder TOUT binaire réel préexistant (les deux variantes) pour
+    # ne jamais perdre un binaire vendorisé si la suite tourne après release.
+    os.makedirs(vendor_dir, exist_ok=True)
+    chemins = [os.path.join(vendor_dir, 'jt9.exe'),
+               os.path.join(vendor_dir, 'jt9')]
+    binaires_sauvegardes = {}
+    for p in chemins:
+        if os.path.isfile(p):
+            with open(p, 'rb') as f:
+                binaires_sauvegardes[p] = f.read()
+            os.remove(p)
+
     # Créer un faux binaire : simple fichier texte suffit pour le test
     # (resoudre_jt9 ne l'exécute pas, il vérifie juste son existence)
-    os.makedirs(vendor_dir, exist_ok=True)
     with open(chemin_faux, 'w') as f:
         f.write('fake jt9 binary for testing - task 8')
 
@@ -303,9 +321,13 @@ def test_resoudre_jt9_trouve_binaire_embarque():
             f"Le chemin retourné {resultat} n'existe pas ou n'est pas un fichier"
         )
     finally:
-        # Nettoyage : supprimer le faux binaire
+        # Nettoyage : supprimer le faux binaire créé par le test...
         if os.path.isfile(chemin_faux):
             os.remove(chemin_faux)
+        # ...puis restaurer à l'identique tout binaire réel préexistant.
+        for p, contenu in binaires_sauvegardes.items():
+            with open(p, 'wb') as f:
+                f.write(contenu)
 
 
 def test_resoudre_jt9_leve_si_binaire_embarque_absent(monkeypatch):
