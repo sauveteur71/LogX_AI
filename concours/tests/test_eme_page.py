@@ -2,7 +2,6 @@
 """Fonctions JS pures du cockpit EME (hors DOM)."""
 import os
 import re
-import sys
 
 import pytest
 

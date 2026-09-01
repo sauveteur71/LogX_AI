@@ -4,7 +4,6 @@
 Le rotor réel n'est pas testable côté agent : le faux enregistre les consignes,
 on vérifie ce qui part réellement vers la mécanique. La Lune est une séquence de
 positions (az, alt) — pas d'attente du vrai ciel ni d'ephem."""
-import math
 import os
 import sys
 
