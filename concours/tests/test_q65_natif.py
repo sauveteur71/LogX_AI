@@ -86,6 +86,25 @@ def test_bornes_fenetre_alignee_minute():
     assert int(fin) % 60 == 0, f"fin={fin} non aligné sur 60"
 
 
+def test_module_importe_sans_sounddevice(monkeypatch):
+    """sounddevice est un import PARESSEUX (opt-in, natif) : le module doit
+    rester importable même si le paquet/wheel PortAudio est absent ou
+    échoue à charger sur la plateforme."""
+    import importlib
+    import builtins
+    reel = builtins.__import__
+
+    def faux(nom, *a, **k):
+        if nom == 'sounddevice':
+            raise ImportError('simulé')
+        return reel(nom, *a, **k)
+
+    monkeypatch.setattr(builtins, '__import__', faux)
+    importlib.reload(q65n)              # ne doit PAS lever
+    assert hasattr(q65n, 'parse_jt9_stdout')
+    importlib.reload(q65n)              # rétablir l'état normal (sans monkeypatch)
+
+
 def test_ecrire_wav_12k(tmp_path):
     """Écrit un fichier WAV PCM 16 bit mono 12 kHz à partir d'octets int16
     little-endian, puis vérifie les paramètres du fichier produit."""

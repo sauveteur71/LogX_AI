@@ -122,3 +122,71 @@ def ecrire_wav_12k(path, echantillons):
         w.setsampwidth(2)
         w.setframerate(12000)
         w.writeframes(echantillons)
+
+
+def _sd():
+    """Import PARESSEUX de sounddevice (PortAudio) : le natif est opt-in,
+    un wheel PortAudio absent ou cassé sur la plateforme ne doit jamais
+    empêcher l'import de ce module (voir test_module_importe_sans_sounddevice)."""
+    import sounddevice as sd
+    return sd
+
+
+def lister_peripheriques_entree():
+    """Périphériques d'ENTRÉE audio disponibles pour la capture EME :
+    [{'index', 'nom', 'canaux', 'freq_defaut'}]. Réception seule — ne liste
+    délibérément pas les périphériques de sortie (aucun usage d'émission ici)."""
+    sd = _sd()
+    out = []
+    for i, d in enumerate(sd.query_devices()):
+        if d.get('max_input_channels', 0) > 0:
+            out.append({'index': i, 'nom': d['name'],
+                        'canaux': d['max_input_channels'],
+                        'freq_defaut': int(d.get('default_samplerate', 0))})
+    return out
+
+
+class FluxCapture:
+    """Capte une entrée audio en 12 kHz mono et livre des fenêtres T/R
+    complètes à `on_fenetre`. Ne fait AUCUN décodage lui-même — seul le
+    découpage temporel (bornes_fenetre) et l'accumulation d'échantillons
+    sont de son ressort. Réception seule : aucun flux de sortie, aucun PTT."""
+
+    def __init__(self, device_index, on_fenetre, tr_period=60):
+        self.device_index = device_index
+        self.on_fenetre = on_fenetre
+        self.tr_period = tr_period
+        self._stream = None
+        self._buf = bytearray()
+        self._fenetre = None
+
+    def demarrer(self):
+        """Ouvre le flux d'entrée 12 kHz mono int16 et démarre la capture.
+        Le callback PortAudio (_cb) tourne dans un thread dédié à sounddevice."""
+        sd = _sd()
+        self._stream = sd.RawInputStream(
+            samplerate=12000, channels=1, dtype='int16',
+            device=self.device_index, callback=self._cb)
+        self._stream.start()
+
+    def _cb(self, indata, frames, time_info, status):
+        """Callback PortAudio : accumule les échantillons dans le tampon
+        courant et, dès que l'horodatage franchit la borne de fenêtre T/R,
+        livre le tampon PRÉCÉDENT (fenêtre complète) à on_fenetre avant de
+        repartir sur un tampon vide."""
+        now = time.time()
+        deb, _ = bornes_fenetre(now, self.tr_period)
+        if self._fenetre is None:
+            self._fenetre = deb
+        if deb != self._fenetre:                 # fenêtre terminée
+            self.on_fenetre(bytes(self._buf), self._fenetre)
+            self._buf = bytearray()
+            self._fenetre = deb
+        self._buf += bytes(indata)
+
+    def arreter(self):
+        """Arrête et referme le flux de capture (idempotent)."""
+        if self._stream:
+            self._stream.stop()
+            self._stream.close()
+            self._stream = None
