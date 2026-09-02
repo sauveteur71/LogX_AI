@@ -62,8 +62,8 @@ sa VERSION de règles** — plusieurs ont des seuils qui ont bougé :
 
 | Programme | Source officielle (vérifiée) | Réf. | Règles (⚠️ à figer par version) |
 |---|---|---|---|
-| **DFCF** (forts & châteaux FR) | [dfcf.fr](https://dfcf.fr/) · [REF](https://ftp.ref-union.org/index.php?Itemid=303&id=141&option=com_content&view=article) | ex. `DFCF01-001` | **⚠️ distance a évolué (500 m → 1000 m selon additif 2026)** ; 100 QSO HF (50 réactivation), 25 VHF / 15 UHF ; CW+SSB. **À confirmer sur le règlement courant.** |
-| **DMF** (moulins FR) | [dmf.r-e-f.org](https://dmf.r-e-f.org/) | `DMF01.001` (dept.numéro) | 100 QSO HF (50 réactivation), 25 VHF ; une seule activité à la fois même si plusieurs moulins < 500 m ; réf. attribuée par le correspondant départemental. |
+| **DFCF** ✅ **intégré** (`PROGRAM_SPECS`, réf. `DFCF-01001`, 100 QSO HF) | [dfcf.fr](https://dfcf.fr/) · [REF](https://ftp.ref-union.org/index.php?Itemid=303&id=141&option=com_content&view=article) | ex. `DFCF01-001` | **⚠️ distance a évolué (500 m → 1000 m selon additif 2026)** ; 100 QSO HF (50 réactivation), 25 VHF / 15 UHF ; CW+SSB. **À confirmer sur le règlement courant.** |
+| **DMF** ✅ **intégré** (réf. `DMF01.001` — format à reconfirmer, site 503) | [dmf.r-e-f.org](https://dmf.r-e-f.org/) | `DMF01.001` (dept.numéro) | 100 QSO HF (50 réactivation), 25 VHF ; une seule activité à la fois même si plusieurs moulins < 500 m ; réf. attribuée par le correspondant départemental. |
 | **ROTA** (chemins de fer) | rota.barac.org.uk *(fourni, à vérifier)* | réf. ROTA | événement ; assurance requise (source secondaire). |
 | **COTA** | ⚠️ **sigle AMBIGU** (COTA-DL, COTA-RU…) — identifier le gestionnaire avant tout code | selon organisme | ne PAS créer une base mondiale COTA unique. |
 | **BOTA** (plages) | beachesontheair.com *(fourni, à vérifier)* | réf. BOTA | à confirmer sur le règlement courant. |
