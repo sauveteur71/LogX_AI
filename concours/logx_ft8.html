@@ -1103,6 +1103,26 @@ if(localStorage.getItem('rc_theme') === null){
   // chemin manuel la donne à retenirPariteCorrespondant. Un seul paramètre
   // sert les deux — en garder deux aurait été le début d'une divergence.
   function repondreEtEnvoyer(text, slotEntendu){
+    // 🚨 PORTE DÉROBÉE FERMÉE (revue T8, tx-human-consent). Aux niveaux
+    // AUTONOMES (copilote_qso/copilote_cq), doitProposer() renvoie false : sans
+    // ce garde, le double-clic sautait la branche copilote ci-dessous PUIS
+    // tombait dans `if(seqNiveau !== 'manuel')` -> seqDemarrer(), c'est-à-dire
+    // l'ANCIEN séquenceur, qui enchaîne le QSO SANS session armée, SANS
+    // empreinte radio verrouillée et SANS POST /tx/session. Un opérateur qui
+    // choisit « QSO auto »/« CQ auto » et double-clique une ligne émettait
+    // ainsi en boucle sans jamais avoir armé. La SEULE porte d'émission
+    // autonome est la session armée (bouton « Autoriser une session autonome »)
+    // + la boucle sessionValide (_sessionTraiterCycle) : le double-clic ne doit
+    // JAMAIS atteindre seqDemarrer ici. On informe via #seqEtat, le même canal
+    // que le reste de cette fonction utilise pour le retour de double-clic.
+    if(typeof LogxFt8Copilote !== 'undefined' && LogxFt8Copilote.estSessionAutonome(seqNiveau)){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = Tf('Session autonome : arme-la avec « Autoriser une session autonome » — le double-clic est ignoré ici.');
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
     // COPILOTE : un double-clic sur un CQ (ou une station) PROPOSE l'appel
     // initial « CIBLE MONCALL MAGRILLE » dans la barre de consentement, il
     // n'émet JAMAIS seul — ÉMETTRE (geste humain) déclenche l'émission au
@@ -3198,6 +3218,16 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   window.stopEmission = async function(){
+    // 🚨 DÉSARMER LA SESSION AUTONOME (revue T8, tx-human-consent). Placé ICI,
+    // dans stopEmission elle-même et non aux sites d'appel, pour que le bouton
+    // « STOP ÉMISSION » existant (#ft8StopBtn) ET tout autre appelant (Échap,
+    // pagehide…) désarment la session — sans ce garde, #ft8StopBtn coupait la
+    // trame en cours mais laissait `sessionCourante` armée, et la boucle
+    // _sessionTraiterCycle réémettait au cycle suivant. Pas de récursion :
+    // _sessionArreter met `sessionCourante = null` AVANT de rappeler
+    // stopEmission(), donc la ré-entrée voit null et saute ce bloc (il POSTe
+    // aussi /tx/session ended + bandeau rouge, une seule fois).
+    if(typeof sessionCourante !== 'undefined' && sessionCourante){ _sessionArreter('stop'); }
     // EN PREMIER : une émission déjà programmée doit renoncer. Sans cela le
     // bouton ne coupait que ce qui était déjà en cours — c'est-à-dire rien,
     // pendant l'attente du créneau.
