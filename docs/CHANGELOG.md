@@ -15,6 +15,13 @@ poussé.
 
 ### Corrigé
 
+- **Contraste du badge « fil IA » en mode jour / haut-contraste.** Le compteur
+  `.fil-count` (◈ IA) affichait un texte sombre fixe sur un fond `accent2` ;
+  en mode jour (et haut-contraste jour) `accent2` devient le cuivre-encre sombre
+  → texte sombre sur fond sombre, illisible. Ajout de l'override jour (texte
+  clair), comme ses jumeaux. Verrouillé par un test qui interdit tout texte
+  sombre fixe sur `accent2` sans override jour.
+
 - **Longueur des champs ADIF en octets (accents).** `<NOM:longueur>` annonçait
   un nombre de **caractères** ; pour un champ accentué (COMMENT/NAME/QTH « café »)
   un lecteur ADIF strict (POTA, autres loggers) attend le nombre d'**octets** UTF-8.
@@ -48,6 +55,23 @@ poussé.
   demande d'accès à l'API (voir `docs/sota_demande_autorisation_api.md`).
 
 ### Ajouté
+
+- **Référentiel DFCF (forts & châteaux) — recherche par référence/nom.** À la
+  saisie d'une réf. DFCF (chasse ou expédition), LogX affiche le **nom du
+  château** et la commune, à partir de la page officielle des validations
+  mensuelles (`dfcf.fr/valide.html`). C'est un référentiel **PARTIEL** (les
+  références récemment **validées**, statut officiel), pas le catalogue complet :
+  une réf. absente n'est pas invalide. Nouveau module `logx_dfcf.py` (cache
+  hebdo, page latin-1, nettoyage HTML), câblé au lookup `/activation_db`.
+
+- **Mode de session SOTA/POTA : chasseur / portable / les deux (bascule 1 geste).**
+  L'usage change d'une session à l'autre (un jour au sommet, le lendemain au shack,
+  le surlendemain les deux en S2S). On choisit son rôle **à l'accueil** (3 tuiles
+  🎯 Chasseur / 🏕️ Portable / ⚡ Les deux) et on le **rebascule en un geste** en tête
+  du logbook. Le dernier rôle est **mémorisé** (défaut). Le rôle pilote ce qui
+  s'allume : champ réf. correspondant + points/exports de chasse (chasseur), setup
+  expédition + export prêt-à-téléverser (portable), les deux + S2S/P2P (les deux).
+  Module partagé `logx_xota_role.js`.
 
 - **Programmes DFCF et DMF (patrimoine FR) ajoutés aux activités XOTA.** Le
   moteur `PROGRAM_SPECS` reconnaît désormais **DFCF** (Forts et Châteaux de

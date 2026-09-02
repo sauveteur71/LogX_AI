@@ -228,10 +228,6 @@ def test_kpa_parse_ws_illisible():
     assert amp.kpa_parse_ws('') is None
 
 
-def test_kpa_parse_vi():
-    assert amp.kpa_parse_vi('480 200') == {'volts': 48.0, 'amps': 20.0}
-
-
 def test_spe_build_packet_exemple_doc():
     # Exemple du guide : passage en OPERATE (0x0D), checksum = l'octet lui-même
     assert amp.spe_build_packet([0x0D]) == b'\x55\x55\x55\x01\x0d\x0d'

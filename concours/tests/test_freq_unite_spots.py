@@ -164,15 +164,18 @@ def test_LE_CLIC_QSY_ENVOIE_UN_CHAMP_QUE_LE_SERVEUR_LIT():
     assert 'JSON.stringify({freq:' not in bloc
 
 
-def test_le_serveur_ne_lit_QUE_freq_hz_ou_freq_khz():
-    """Verrouille la RAISON du test précédent. Si /rig/qsy acceptait un jour un
-    champ 'freq', le test ci-dessus deviendrait inutile — mais tant que ce
-    n'est pas le cas, envoyer autre chose est une panne silencieuse."""
+def test_le_serveur_ne_lit_QUE_freq_hz_freq_khz_ou_band():
+    """Verrouille la RAISON du test précédent. La lecture de la fréquence de QSY
+    vit maintenant dans le helper _qsy_freq_hz_depuis_payload (factorisé pour que
+    la page FT8 puisse demander {band, dial_mode} -> fréquence FT8 de la bande).
+    Le helper ne lit QUE freq_hz / freq_khz / band, JAMAIS un champ 'freq' nu :
+    envoyer autre chose resterait une panne silencieuse."""
     src = _lire('logx_http.py')
-    bloc = src[src.index("if self.path == '/rig/qsy':"):]
-    bloc = bloc[:bloc.index('Fréquence manquante')]
+    bloc = src[src.index('def _qsy_freq_hz_depuis_payload('):]
+    bloc = bloc[:bloc.index('# ─── HTTP HANDLER')]
     assert "payload.get('freq_hz')" in bloc and "payload.get('freq_khz')" in bloc
-    assert "payload.get('freq')" not in bloc
+    assert "payload.get('band')" in bloc          # calage FT8 par bande
+    assert "payload.get('freq')" not in bloc       # jamais un champ 'freq' nu
 
 
 # ─── Repli de mode sur /data/spots_ranked ────────────────────────────────────

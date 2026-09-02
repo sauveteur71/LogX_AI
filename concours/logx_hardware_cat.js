@@ -145,7 +145,15 @@ function syncBandModeFromRig(freqKhz, mode){
                  [21,21.45,'21'],[28,29.7,'28'],[50,54,'50'],[144,148,'144'],[430,440,'432']];
   for(const [lo,hi,b] of BANDS){
     if(mhz>=lo && mhz<=hi){
-      if(typeof currentBand!=='undefined' && currentBand!==b && _currentVisibleBands.includes(b)){
+      // La radio PILOTÉE est source de vérité : sa bande réelle prime, même si
+      // l'activité en cours ne la propose pas dans ses boutons (_currentVisibleBands).
+      // DÉFAUT corrigé (F4GLD, capture) : en activité V/UHF, tourner la radio sur
+      // 10 m mettait la FRÉQUENCE à 28.601 (appliquée sans condition par
+      // applyRigState) mais laissait la BANDE sur 2 m -> couple incohérent, QSO
+      // loggué faux. On ne filtre donc PLUS par _currentVisibleBands ici (ce garde
+      // reste, lui, sur la saisie MANUELLE — onFreqInput — pour ne pas sauter de
+      // bande en tapant une fréquence hors de l'activité).
+      if(typeof currentBand!=='undefined' && currentBand!==b){
         pickBand(b, {fromRig: true});
       }
       break;

@@ -466,6 +466,12 @@ let lastActQsoTotal = 0;
 // reste disponible dans la saisie même hors activation, pour logger un sommet/parc
 // chassé (la réf part sur le QSO -> sig/sig_info).
 function chaserModeActif(){
+  // Piloté d'abord par le MODE DE SESSION XOTA choisi à l'accueil (chasse/mixte
+  // -> champ réf. correspondant visible). Repli sur l'ancien réglage CONFIG
+  // chaser_mode pour rétro-compat si le module n'est pas chargé.
+  try{
+    if(window.LogxXotaRole) return !!LogxXotaRole.roleConfig(LogxXotaRole.getRole()).chasse;
+  }catch(e){}
   try{ return JSON.parse(localStorage.getItem('logx_config')||'{}').chaser_mode === 'oui'; }
   catch(e){ return false; }
 }
@@ -597,6 +603,31 @@ async function telechargerExportSota(role){
   }catch(e){
     if(typeof notify === 'function') notify('⚠️ Export SOTA impossible (réseau).');
   }
+}
+
+// ─── Mode de session XOTA : bascule 1-geste (chasse / portable / les deux) ────
+// Rendu des 3 boutons (rôle courant surligné). Contenu 100% généré ici (icône,
+// libellé, hint contrôlés) -> pas d'injection.
+function renderXotaRoleSwitch(){
+  var el = document.getElementById('xotaRoleSwitch');
+  if(!el || !window.LogxXotaRole) return;
+  var actuel = LogxXotaRole.getRole();
+  el.innerHTML = LogxXotaRole.ROLES.map(function(r){
+    return '<button type="button" class="xrs-btn' + (r.id === actuel ? ' on' : '')
+      + '" onclick="basculerRoleXota(\'' + r.id + '\')" title="' + r.hint + '">'
+      + '<span class="xrs-ico">' + r.icone + '</span>'
+      + '<span>' + r.label + '</span>'
+      + '<span class="xrs-hint">' + r.hint + '</span></button>';
+  }).join('');
+  el.hidden = false;
+}
+// Changer de rôle en 1 geste : mémorise + ré-applique toute la visibilité
+// (champ réf. correspondant, points/exports de chasse) sans recharger la page.
+function basculerRoleXota(role){
+  if(!window.LogxXotaRole) return;
+  LogxXotaRole.setRole(role);
+  renderXotaRoleSwitch();
+  applyActivationMode(activationProgram, myActivationRef);   // relit chaserModeActif()
 }
 
 async function refreshActivation(){
@@ -4705,6 +4736,9 @@ window.addEventListener('DOMContentLoaded', () => {
     var _trg = document.getElementById('theirRefGroup'); if(_trg) _trg.style.display = '';
     refreshSotaPoints();   // affiche d'emblée les totaux de chasse
     majExportSotaVisible();   // et les boutons d'export sotadata
+  }
+  if(window.LogxXotaRole){
+    renderXotaRoleSwitch();   // bascule de mode de session toujours visible en tête de saisie
   }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible

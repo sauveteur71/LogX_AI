@@ -99,5 +99,13 @@
     "google_maps": "",
     "access": "",
     "notes": ""
+  },
+  "eme": {
+    "_comment": "Cockpit EME (Terre-Lune-Terre). source: 'wsjtx' (défaut, pont UDP vers WSJT-X déjà en marche) ou 'natif' (décodeur Q65 intégré, sans WSJT-X — voir logx_q65_natif.py). audio_device/submode/tr_period/jt9_path ne sont utilisés que si source='natif'.",
+    "source": "wsjtx",
+    "audio_device": null,
+    "submode": "A",
+    "tr_period": 60,
+    "jt9_path": null
   }
 }

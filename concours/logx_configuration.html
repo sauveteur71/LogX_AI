@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — Configuration</title>
 <link rel="stylesheet" href="logx_theme.css">
+<script src="logx_theme_guard.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 /* ─── DIRECTION GRAPHITE & CUIVRE (2026-08) ─────────────────────────────────
@@ -465,6 +466,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
       <a href="logx_calendrier.html"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
       <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
+      <a href="logx_eme.html" title="Suivi EME (Earth-Moon-Earth) : Lune, rotor, Doppler"><span class="nav-ico"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8" fill="currentColor" stroke="none"/><path d="M3 15L13 4M13 4L8 15"/></svg></span>EME</a>
       <a href="logx_cw.html" title="Entraînement au morse avec tes propres indicatifs — rien ne part sur l'air"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
     </div>
   </div>
@@ -644,6 +646,29 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="btn-row">
         <button class="btn btn-launch" onclick="launchApp()" title="Enregistre la configuration et passe au journal de contact"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> COMMENCER À LOGGER</button>
         <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Ouvrir la carte IA</button>
+      </div>
+
+      <!-- Zone de réinitialisation : remet la config aux valeurs par défaut,
+           SAUF les identifiants (gérés serveur via SECRET_FIELDS) et le carnet.
+           Message de sécurité toujours visible + confirmation en 2 temps. -->
+      <div class="section" style="margin-top:24px;border:1px solid var(--red);border-radius:10px;background:rgba(210,70,70,.06);padding:14px 16px">
+        <h3 class="section-title" style="margin-top:0"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;margin-right:3px" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5A6 6 0 1 0 15 9"/><polyline points="14.5 2.5 14.5 5.5 11.5 5.5"/></svg> RÉINITIALISATION DE LA CONFIGURATION</h3>
+        <p style="color:var(--muted);font-size:13px;line-height:1.65;margin:6px 0 12px">
+          Remet toute la configuration (station, radios, dossiers, préférences d'affichage…)
+          aux valeurs par défaut, comme à la première installation.<br>
+          <b style="color:var(--text)">Conservés :</b> vos clés d'API / identifiants (QRZ, ClubLog, synchro…) <b>et votre carnet de QSO</b> — rien de tout cela n'est effacé.<br>
+          <b style="color:var(--red)">Irréversible :</b> vous devrez re-saisir vos informations de station.
+        </p>
+        <div id="cfgResetActions">
+          <button type="button" class="btn btn-secondary" onclick="showConfigResetConfirm()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5A6 6 0 1 0 15 9"/><polyline points="14.5 2.5 14.5 5.5 11.5 5.5"/></svg> Réinitialiser la configuration</button>
+        </div>
+        <div id="cfgResetConfirm" style="display:none">
+          <div style="color:var(--red);font-size:13px;font-weight:600;margin-bottom:8px">Confirmer la réinitialisation ? Cette action est irréversible (le carnet et les identifiants restent, eux, intacts).</div>
+          <div class="btn-row" style="justify-content:flex-start">
+            <button type="button" class="btn" style="background:var(--red);border-color:var(--red);color:#fff" onclick="doConfigReset(this)">Oui, réinitialiser</button>
+            <button type="button" class="btn btn-secondary" onclick="hideConfigResetConfirm()">Annuler</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1566,6 +1591,54 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <label>PORT UDP</label>
             <input type="number" id="wsjtx_port" placeholder="2237">
             <div class="input-note">Port « UDP Server » du logiciel (défaut 2237)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section expert-only">
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8" fill="currentColor" stroke="none"/><path d="M3 15L13 4M13 4L8 15"/></svg> EME — DÉCODAGE Q65 NATIF (optionnel, plomberie station)</h3>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Par défaut, le cockpit EME (page EME) lit les décodages Q65 via le
+          pont UDP <b style="color:var(--accent2)">WSJT-X</b> ci-dessus — le
+          chemin historique, à garder si WSJT-X tourne déjà sur ce poste.
+          <b style="color:var(--accent2)">LogX natif</b> capture directement
+          une carte son et décode avec un jt9 embarqué, SANS lancer WSJT-X —
+          utile sur une station EME dédiée. Réception seule : cette section ne
+          déclenche jamais d'émission.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>SOURCE DES DÉCODAGES EME</label>
+            <select id="eme_source">
+              <option value="wsjtx">WSJT-X (pont UDP, historique)</option>
+              <option value="natif">LogX natif (carte son directe)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>CARTE SON EME (entrée)</label>
+            <select id="eme_audio_device"><option value="">— chargement… —</option></select>
+            <div class="input-note">Périphérique d'ENTRÉE relié à la sortie audio de la radio — utilisé seulement en source « LogX natif »</div>
+          </div>
+          <div class="form-group">
+            <label>SOUS-MODE Q65</label>
+            <select id="eme_submode">
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="E">E</option>
+            </select>
+            <div class="input-note">Doit correspondre au sous-mode réglé côté correspondant (Q65-60A est le plus courant en EME)</div>
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:4px">
+          <div class="form-group">
+            <label>MOTEUR DE DÉCODAGE NATIF</label>
+            <button type="button" id="eme_moteur_btn" class="btn btn-secondary" onclick="toggleEmeMoteur()">
+              <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M9 5v4l3 2"/></svg>
+              <span id="eme_moteur_btn_label">Démarrer</span>
+            </button>
+            <div class="input-note" id="eme_moteur_status"></div>
           </div>
         </div>
       </div>

@@ -1,0 +1,4 @@
+0000 -24  2.8  697 :  W7GJ N8JX EN73                        q0
+0000 -20  2.8 1420 :  W7GJ W1VD FN31                        q0
+0000 -19  2.8 1620 :  W7GJ VE1JF RRR                        q0
+<DecodeFinished>   0   3     1000

@@ -316,17 +316,6 @@ def radio_par_id(station, radio_id):
     return _par_id((station or {}).get('radios'), str(radio_id or '').strip())
 
 
-def radio_pour_bande(station, bande, choix=None):
-    """La radio DU PARC associée à l'antenne active sur cette bande —
-    information d'inventaire seulement (voir note d'en-tête du module), ne
-    déclenche aucune connexion CAT. Rend None si l'antenne n'a pas de
-    radio_id ou si aucune antenne ne couvre la bande."""
-    a = antenne_active(station, bande, choix)
-    if not a or not a['radio_id']:
-        return None
-    return radio_par_id(station, a['radio_id'])
-
-
 def _premier_rotor_actif(station):
     for r in (station or {}).get('rotors', []):
         if r.get('enabled') and r.get('host'):

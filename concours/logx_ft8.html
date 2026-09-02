@@ -47,6 +47,7 @@
     plus bas pour la machine à états.
 -->
 <link rel="stylesheet" href="logx_theme.css">
+<script src="logx_theme_guard.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 
@@ -178,6 +179,12 @@ table.decodes td{padding:5px 8px;border-bottom:1px solid var(--border)}
 table.decodes tr.cq td{color:var(--yellow)}
 table.decodes tr.tome td{color:var(--green);font-weight:700}
 table.decodes tr.nous td{color:var(--accent2);font-weight:700}
+/* Ligne du QSO EN COURS : CODE COULEUR (fond teinté + barre d'accent à gauche),
+   pas seulement du gras — pour qu'un contact en cours ne passe jamais inaperçu
+   (demande F4GLD). Se superpose à tome/nous : le texte garde sa sémantique, la
+   ligne gagne le repère « c'est LUI que je travaille ». */
+table.decodes tr.qso-actif td{background:rgba(var(--accent-rgb),.16);font-weight:700}
+table.decodes tr.qso-actif td:first-child{box-shadow:inset 3px 0 0 var(--accent2)}
 table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .vide{color:var(--muted);font-size:12.5px;font-style:italic;padding:10px 0}
 
@@ -930,10 +937,24 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   // ─── Colonne droite : appel sélectionné, station, CQ entendus, session ───
+  // Correspondant du QSO EN COURS, tous modes confondus (séquenceur : seq.cible ;
+  // copilote : _copiloteQso.dxCall ; MANUEL : la station qu'on vient de
+  // sélectionner/appeler). En manuel, seq est nul — sans cet état unifié, le
+  // panneau « QSO en cours » et le code couleur ne s'affichaient QUE pour le
+  // séquenceur, d'où « un QSO fait sans voir l'affichage du QSO en cours »
+  // (remonté par F4GLD en mode manuel).
+  let _selCall = '';
+  function _qsoEnCoursCible(){
+    if(typeof seq !== 'undefined' && seq && seq.cible) return String(seq.cible).toUpperCase();
+    if(_copiloteQso && _copiloteQso.dxCall) return String(_copiloteQso.dxCall).toUpperCase();
+    return (_selCall || '').toUpperCase();
+  }
+
   function afficherAppelSelectionne(text){
     const {call, grid} = extraireStation(text);
     const el = document.getElementById('selInfo');
     if(!call){ el.innerHTML = '<div class="sel-empty">Message non standard.</div>'; return; }
+    _selCall = call.toUpperCase();   // devient le correspondant du QSO en cours (mode manuel)
     let html = `<div class="sel-call">${escFt8(call)}</div>`;
     if(grid){
       html += `<div class="stat-row"><span>Grille</span><b>${escFt8(grid)}</b></div>`;
@@ -1099,6 +1120,7 @@ if(localStorage.getItem('rc_theme') === null){
   // qui n'a pas encore répondu donne aussi 0. Confondre les deux ferait dire à
   // la page « radio non pilotée » à un opérateur qui l'a bien branchée.
   let rigFreqKhz = 0, rigMode = '', rigActif = false;
+  let _dernierBandeFt8 = '';   // dernière bande sur laquelle on a auto-calé la fréquence FT8
   const BAND_EDGES = [   // bornes larges (kHz), IARU R1 — juste pour déduire la bande au log
     ['1.8', 1800, 2000], ['3.5', 3500, 3800], ['7', 7000, 7200], ['10.1', 10100, 10150],
     ['14', 14000, 14350], ['18', 18068, 18168], ['21', 21000, 21450], ['24', 24890, 24990],
@@ -1131,6 +1153,18 @@ if(localStorage.getItem('rc_theme') === null){
         rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase();
         const b = bandeDepuisKhz(rigFreqKhz);
         disp.textContent = (b ? b + 'm ' : '') + (rigFreqKhz ? (rigFreqKhz/1000).toFixed(3) + ' MHz' : '—');
+        // AUTO-CALAGE FT8 : en ARRIVANT sur une bande (la bande change), on cale
+        // la radio sur la fréquence d'appel FT8 de cette bande — demandé par
+        // F4GLD (« si je suis sur une bande, il se cale directement sur la
+        // fréquence FT8 »). UNE seule fois par arrivée (jamais en boucle : le
+        // sondage suivant relit la même bande), JAMAIS d'émission. La fréquence
+        // vient du serveur (logx_frequences.dial_freq via /rig/qsy), pas d'une
+        // table dupliquée ici. Sans CAT (branche else), rien à piloter.
+        if(b && b !== _dernierBandeFt8){
+          _dernierBandeFt8 = b;
+          fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+                             body: JSON.stringify({band: b, dial_mode: 'FT8'})}).catch(function(){});
+        }
       } else {
         rigActif = false;
         rigFreqKhz = 0; rigMode = '';
@@ -2293,9 +2327,15 @@ if(localStorage.getItem('rc_theme') === null){
     const {call, grid} = extraireStation(text);
     // Panneau « QSO en cours » (demande F4GLD 22/08/2026) : cloné depuis la
     // ligne déjà construite ci-dessus (mêmes cellules/mise en forme, pas une
-    // 2e règle qui pourrait diverger) -- UNIQUEMENT si ce décodage vient de
-    // la station avec laquelle une séquence est active.
-    if(seq && call === seq.cible){
+    // 2e règle qui pourrait diverger) -- si ce décodage vient de la station du
+    // QSO en cours, TOUS MODES CONFONDUS (séquenceur/copilote/MANUEL). Avant, la
+    // condition était `seq && call === seq.cible` : en manuel (seq nul) le
+    // panneau restait vide -> « un QSO fait sans voir l'affichage du QSO en
+    // cours » (F4GLD). La ligne reçoit EN PLUS un code couleur (classe
+    // qso-actif), pas seulement du gras.
+    const _cibleEnCours = _qsoEnCoursCible();
+    if(_cibleEnCours && (call || '').toUpperCase() === _cibleEnCours){
+      tr.classList.add('qso-actif');
       const vide = document.getElementById('qsoEnCoursVide');
       if(vide) vide.style.display = 'none';
       const qTbody = document.getElementById('qsoEnCoursBody');
@@ -2472,7 +2512,18 @@ if(localStorage.getItem('rc_theme') === null){
       }
       return;
     }
-    document.getElementById('txText').value = text;
+    // TIERS : message d'un QSO entre deux AUTRES stations (ni CQ, ni adressé à
+    // nous). On NE recopie PLUS le message d'autrui verbatim (on signerait de
+    // l'indicatif d'un autre — défaut latent de ce repli). On construit un APPEL
+    // propre vers la station qui ÉMET (2e jeton, convention FT8 « DEST SOURCE ») :
+    // c'est le TAIL-ENDING, appeler une station qui n'appelle pas de CQ, demandé
+    // par F4GLD. Rien d'appelable (report, RR73, texte libre) -> on montre le brut.
+    const src = extraireStation(text).call;
+    if(src && estIndicatif(src) && src.toUpperCase() !== String(myCall).toUpperCase()){
+      document.getElementById('txText').value = `${src} ${myCall} ${grille4()}`.trim().toUpperCase();
+    } else {
+      document.getElementById('txText').value = text;
+    }
   }
 
   async function demarrerRx(){
@@ -2729,11 +2780,53 @@ if(localStorage.getItem('rc_theme') === null){
     el.style.display = '';
   }
 
+  // ─── Consentement puissance à la TOUTE PREMIÈRE émission FT8 ──────────────
+  // FT8 = 100 % du cycle de service : sans limite configurée, la radio part à
+  // sa puissance actuelle (souvent 100 W) en porteuse continue — risque pour le
+  // final/ampli. Défaut remonté par F4GLD : sa 1ʳᵉ émission FT8 est partie à
+  // 100 W sans la moindre alerte. On BLOQUE donc la 1ʳᵉ émission tant que
+  // l'opérateur n'a pas donné son consentement (une seule fois par installation,
+  // mémorisé). Ensuite, l'alerte rouge d'appliquerProtectionPuissance suffit.
+  const _CLE_CONSENT_PUISSANCE = 'logx_ft8_puissance_consentie';
+  function _ft8PuissanceConsentie(){
+    try{ return localStorage.getItem(_CLE_CONSENT_PUISSANCE) === '1'; }
+    catch(e){ return false; }
+  }
+  function _marquerPuissanceConsentie(){
+    try{ localStorage.setItem(_CLE_CONSENT_PUISSANCE, '1'); }catch(e){}
+  }
+  // Renvoie true si l'opérateur accepte d'émettre. Hors navigateur (bancs de
+  // test sans confirm), on n'a pas de radio à protéger : ne pas bloquer.
+  function _demanderConsentementPuissance(){
+    if(typeof confirm !== 'function') return true;
+    const voulue = (typeof puissanceVoulueW === 'function') ? puissanceVoulueW('FT8') : 0;
+    let msg = 'PREMIÈRE ÉMISSION FT8\n\n'
+      + 'Le FT8 émet à 100 % du temps (porteuse continue ~12 s par créneau).\n\n';
+    msg += voulue
+      ? ('La puissance sera limitée à ' + voulue + ' W (protection configurée).\n\n'
+         + 'Confirmer et émettre ?')
+      : ('Aucune limite de puissance n\'est configurée : ta radio va émettre à sa '
+         + 'PUISSANCE ACTUELLE (souvent 100 W) en continu — cela peut endommager le '
+         + 'final ou l\'ampli s\'ils ne sont pas prévus pour.\n\n'
+         + 'Conseillé : règle « puissance numérique » dans CONFIG → RADIO avant d\'émettre.\n\n'
+         + 'Émettre quand même ?');
+    return confirm(msg);
+  }
+
   function appliquerProtectionPuissance(){
     // FT8 en dur, et c'est juste : cette page n'émet que du FT8. Le mode reste
     // un paramètre du module partagé pour que le LOGBOOK, lui, passe le sien.
     const voulue = (typeof puissanceVoulueW === 'function') ? puissanceVoulueW('FT8') : 0;
-    if(!voulue){ _avisPuissance(''); return; }   // protection non demandée : silence total
+    if(!voulue){
+      // AUCUNE limite configurée : ne plus rester muet (l'émission partait à
+      // 100 W sans le moindre signal — défaut remonté par F4GLD). Le FT8 émet à
+      // 100 % du cycle de service : sans limite, la radio part à sa puissance
+      // actuelle (souvent la pleine puissance) en porteuse continue.
+      _avisPuissance('Aucune limite de puissance FT8 configurée — la radio émettra à sa '
+        + 'puissance actuelle (souvent 100 %) en porteuse continue. Règle « puissance numérique » '
+        + 'dans CONFIG → RADIO, ou baisse-la sur le poste avant d\'émettre.', 'err');
+      return;
+    }
     if(!rigActif){
       _avisPuissance('Protection de puissance réglée sur ' + voulue + ' W, mais la radio '
                      + "n'est pas pilotée : règle-la à la main sur le poste.", 'wait');
@@ -2751,7 +2844,20 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   window.onArmChange = function(){
-    txArmed = document.getElementById('armTx').checked;
+    const box = document.getElementById('armTx');
+    txArmed = box.checked;
+    // Consentement puissance OBLIGATOIRE à la toute première émission FT8 :
+    // bloque l'armement tant qu'il n'est pas donné (refus -> on désarme).
+    if(txArmed && !_ft8PuissanceConsentie()){
+      if(!_demanderConsentementPuissance()){
+        box.checked = false;
+        txArmed = false;
+        document.getElementById('armLabel').classList.remove('armed');
+        majBoutonEnvoyer();
+        return;
+      }
+      _marquerPuissanceConsentie();
+    }
     if(txArmed) appliquerProtectionPuissance(); else _avisPuissance('');
     // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
     // bouton STOP : ce qui est programmé ne doit plus partir, ET la séquence
@@ -4147,10 +4253,13 @@ if(localStorage.getItem('rc_theme') === null){
       }
       return '';
     }
-    // « DESTINATAIRE SOURCE extra » : on ne répond qu'à ce qui NOUS est
-    // adressé. Démarrer sur « DL1XYZ SP9QQQ -05 » reviendrait à s'inviter dans
-    // le QSO de deux autres stations.
-    if(parts.length >= 2 && myCall && parts[0] === myCall && estIndicatif(parts[1])){
+    // « DESTINATAIRE SOURCE extra » : la station qui ÉMET est le 2e jeton. On
+    // l'appelle — qu'elle NOUS réponde (parts[0] === myCall) OU qu'elle soit en
+    // QSO avec un tiers. Ce 2e cas est le TAIL-ENDING : appeler une station qui
+    // n'appelle pas de CQ (demandé par F4GLD). L'appel construit par l'appelant
+    // est propre (« SOURCE MONCALL GRILLE »), JAMAIS le message d'autrui recopié
+    // verbatim. Jamais s'appeler soi-même (décodage de sa propre émission).
+    if(parts.length >= 2 && estIndicatif(parts[1]) && parts[1] !== myCall){
       return parts[1];
     }
     return '';
