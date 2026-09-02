@@ -4273,8 +4273,15 @@ if(localStorage.getItem('rc_theme') === null){
       fetch('/tx/session', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({action:'armed', session_id: sessionId, details: empreinte})}).catch(function(){});
     }catch(e){}
+    // Rappel de la case maîtresse « Activer l'émission » (txArmed) : sans elle,
+    // envoyerMessage() refuse en silence -> la session s'afficherait « armée »
+    // mais n'émettrait rien, sans que l'opérateur comprenne pourquoi. On le dit
+    // explicitement à l'armement (fail-closed, mais plus dérouté).
+    const rappelTx = txArmed ? '' : (' ' + Tf(
+      '⚠ « Activer l\'émission » est décochée : session armée mais AUCUNE émission tant que tu ne la coches pas.'));
     _sessionAfficherEtat(Tf('Session armée — {niveau}.',
-      {niveau: seqNiveau === 'copilote_cq' ? 'CQ auto' : 'QSO auto'}));
+      {niveau: seqNiveau === 'copilote_cq' ? 'CQ auto' : 'QSO auto'}) + rappelTx,
+      txArmed ? '' : 'err');
     _sessionMajBoutons();
   };
 

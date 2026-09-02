@@ -147,3 +147,18 @@ def test_boucle_decodes_route_session_par_estSessionAutonome():
     assert 'sessionValide(' in corps, (
         "_sessionTraiterCycle n'appelle plus sessionValide : la porte de sûreté "
         "de l'émission autonome a sauté")
+
+
+# ── 4. (M4) L'armement rappelle l'état de la case maîtresse « Activer l'émission »
+
+def test_armement_consulte_txArmed():
+    """M4 (revue finale) : sessionAutonomeArmer DOIT consulter `txArmed` (la case
+    maîtresse « Activer l'émission ») et l'afficher — sinon une session « armée »
+    reste silencieuse (envoyerMessage refuse sur `!txArmed`) sans que l'opérateur
+    comprenne pourquoi. On assère la STRUCTURE (référence dans le CODE, pas un
+    commentaire) et on confine au corps de la fonction."""
+    corps = _corps(r'window\.sessionAutonomeArmer = function\(\)\{.*?\n  \};')
+    assert corps, "corps de sessionAutonomeArmer non extractible"
+    sans = _sans_commentaires(corps)
+    assert 'txArmed' in sans, \
+        "sessionAutonomeArmer ne consulte pas txArmed (rappel M4 absent)"
