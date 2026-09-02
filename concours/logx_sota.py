@@ -26,7 +26,9 @@ import unicodedata
 SOTA_SPOTS_URL = 'https://api2.sota.org.uk/api/spots/3/all/all'  # 3 dernières heures
 SOTA_SUMMITS_URL = 'https://storage.sota.org.uk/summitslist.csv'
 SUMMITS_FILE = 'sota_summits.csv'
-SUMMITS_MAX_AGE_DAYS = 30
+SUMMITS_MAX_AGE_DAYS = 7   # mise à jour hebdomadaire (demande F4GLD) : au 1er accès
+# après 7 jours, le CSV est re-téléchargé depuis SOTA_SUMMITS_URL (validé + écrit
+# atomiquement). La liste SOTA évolue lentement — un rafraîchissement hebdo suffit.
 
 SPOTS_CACHE_TTL = 60  # secondes
 _spots_cache = {'data': None, 'ts': 0}
@@ -35,17 +37,34 @@ _summits = {'by_code': {}, 'list': [], 'loading': False, 'loaded': False, 'error
 _summits_lock = threading.Lock()
 
 
+def sota_user_agent(callsign=''):
+    """User-Agent identifiable pour les requêtes vers l'infrastructure SOTA.
+
+    La doc SOTA (API ToS) recommande un « descriptive User-Agent including
+    callsign » : on y met l'indicatif de l'opérateur quand il est connu, sinon
+    la seule version. Ex. ``LogX-AI/1.1-beta8 (F4GLD)`` ou ``LogX-AI/1.1-beta8``.
+    L'indicatif vient TOUJOURS de la config de l'opérateur — jamais codé en dur —
+    pour que chaque station s'identifie avec le sien.
+    """
+    from logx_version import APP_VERSION  # import local : évite tout cycle
+    call = (callsign or '').strip().upper()
+    return f'LogX-AI/{APP_VERSION} ({call})' if call else f'LogX-AI/{APP_VERSION}'
+
+
 # ─── SPOTS EN DIRECT ─────────────────────────────────────────────────────────
 
-def fetch_sota_spots():
+def fetch_sota_spots(callsign=''):
     """Spots d'activateurs SOTA en direct, format générique du logiciel (mêmes
     clés que logx_pota.fetch_pota_spots — call/freq/band/mode/...). Cache
     court ; en cas d'échec réseau, renvoie le dernier résultat connu plutôt
-    qu'une liste vide (dégrade proprement, comme les autres sources)."""
+    qu'une liste vide (dégrade proprement, comme les autres sources).
+
+    `callsign` (indicatif de l'opérateur, depuis la config) sert au User-Agent
+    identifiable exigé par SOTA."""
     if _spots_cache['data'] is not None and time.time() - _spots_cache['ts'] < SPOTS_CACHE_TTL:
         return _spots_cache['data']
     from logx_utils import fetch_url  # import local : mockable par les tests
-    raw = fetch_url(SOTA_SPOTS_URL, timeout=10)
+    raw = fetch_url(SOTA_SPOTS_URL, timeout=10, user_agent=sota_user_agent(callsign))
     if not raw:
         return _spots_cache['data'] or []
     import json
@@ -155,7 +174,9 @@ def _load_from_disk_or_network():
                 content = None
         if not content or not _looks_valid_csv(content):
             from logx_utils import fetch_url
-            downloaded = fetch_url(SOTA_SUMMITS_URL, timeout=60)
+            # Téléchargement de la liste des sommets (fichier statique SOTA) :
+            # identifié par la version (indicatif indisponible dans ce thread).
+            downloaded = fetch_url(SOTA_SUMMITS_URL, timeout=60, user_agent=sota_user_agent())
             if _looks_valid_csv(downloaded or ''):
                 content = downloaded
                 try:

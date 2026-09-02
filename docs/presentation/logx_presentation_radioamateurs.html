@@ -1,0 +1,250 @@
+<title>LogX AI — le copilote de station (radioamateurs)</title>
+<style>
+  :root{
+    --bg:#131417; --bg2:#1B1D21; --bg3:#232529; --border:#34363A; --border-2:#4a4d54;
+    --accent:#E8964A; --accent-2:#F2AE6A; --accent-rgb:232,150,74;
+    --text:#EAEDF5; --muted:#A6ADC2; --green:#35D6A0; --red:#FF6B6B; --yellow:#FFD166;
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --font-display:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --maxw:1080px;
+  }
+  @media (prefers-color-scheme:light){
+    :root{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;
+      --accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#6A6152;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;}
+  }
+  :root[data-theme="dark"]{--bg:#131417;--bg2:#1B1D21;--bg3:#232529;--border:#34363A;--border-2:#4a4d54;
+    --accent:#E8964A;--accent-2:#F2AE6A;--accent-rgb:232,150,74;--text:#EAEDF5;--muted:#A6ADC2;--green:#35D6A0;--red:#FF6B6B;--yellow:#FFD166;}
+  :root[data-theme="light"]{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;
+    --accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#6A6152;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;}
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);line-height:1.6;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .mono{font-family:var(--font-mono)}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h1,h2,h3{font-family:var(--font-display);font-weight:700;letter-spacing:.2px;text-wrap:balance;margin:0}
+  p{text-wrap:pretty}
+  a{color:var(--accent)}
+
+  /* ── HERO ── */
+  .hero{position:relative;min-height:92vh;display:flex;align-items:center;border-bottom:1px solid var(--border);overflow:hidden}
+  #spectrum{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+  .hero::after{content:"";position:absolute;inset:0;background:
+    radial-gradient(120% 90% at 78% 12%,rgba(var(--accent-rgb),.16),transparent 55%),
+    linear-gradient(180deg,transparent 40%,var(--bg) 96%)}
+  .hero .wrap{position:relative;z-index:2;padding-top:70px;padding-bottom:70px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:34px}
+  .logo{width:38px;height:38px;border:1px solid var(--accent);border-radius:9px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.1)}
+  .logo svg{width:22px;height:22px}
+  .brand b{font-family:var(--font-mono);letter-spacing:2px;font-size:15px}
+  .brand span{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:2px}
+  .hero h1{font-size:clamp(38px,6.6vw,74px);line-height:1.03}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .lede{font-size:clamp(17px,2.1vw,21px);color:var(--muted);max-width:60ch;margin:22px 0 30px}
+  .pills{display:flex;flex-wrap:wrap;gap:9px}
+  .pill{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:var(--text);
+    border:1px solid var(--border-2);border-radius:100px;padding:7px 14px;background:rgba(255,255,255,.02)}
+  .pill b{color:var(--accent)}
+
+  /* ── SECTIONS ── */
+  section{padding:76px 0;border-bottom:1px solid var(--border)}
+  .sec-head{max-width:64ch;margin-bottom:44px}
+  .sec-head h2{font-size:clamp(27px,3.7vw,40px);line-height:1.12}
+  .sec-head p{color:var(--muted);font-size:17px;margin:14px 0 0}
+
+  /* doctrine callout */
+  .doctrine{background:
+    linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px solid var(--border)}
+  .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:12px;margin-top:10px}
+  .node{border:1px solid var(--border);background:var(--bg3);border-radius:12px;padding:18px 16px;text-align:center}
+  .node .k{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--accent);text-transform:uppercase}
+  .node .v{font-family:var(--font-display);font-size:20px;margin-top:6px}
+  .node.stop{border-color:var(--red)}.node.stop .k{color:var(--red)}
+  .arrow{color:var(--muted);font-family:var(--font-mono);font-size:20px}
+  .caption{color:var(--muted);font-size:14.5px;margin-top:22px;max-width:64ch}
+  .caption b{color:var(--text)}
+
+  /* feature grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+  .card{border:1px solid var(--border);background:var(--bg2);border-radius:14px;padding:24px;position:relative;transition:border-color .2s,transform .2s}
+  .card:hover{border-color:var(--accent);transform:translateY(-3px)}
+  .card .ic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.12);border:1px solid rgba(var(--accent-rgb),.35);margin-bottom:16px}
+  .card .ic svg{width:22px;height:22px;stroke:var(--accent)}
+  .card h3{font-size:20px}
+  .card p{color:var(--muted);font-size:15px;margin:9px 0 0}
+  .tag{position:absolute;top:18px;right:18px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:100px;padding:3px 9px}
+
+  /* mock HUD panel */
+  .mock{border:1px solid var(--border);background:var(--bg2);border-radius:14px;overflow:hidden;box-shadow:0 20px 50px -30px rgba(0,0,0,.6)}
+  .mock .bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:var(--accent)}
+  .dotrow{margin-left:auto;display:flex;gap:6px}.dotrow i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .mock .row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:13px}
+  .mock .row:last-child{border-bottom:0}
+  .mock .row .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .mock .row .who{color:var(--text);font-weight:600}
+  .mock .row .txt{color:var(--muted);flex:1}
+  .mock .row .act{font-family:var(--font-mono);font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:3px 8px}
+  .split{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}
+  .split ul{list-style:none;padding:0;margin:18px 0 0}
+  .split li{position:relative;padding-left:26px;margin:12px 0;color:var(--muted)}
+  .split li b{color:var(--text)}
+  .split li::before{content:"";position:absolute;left:0;top:9px;width:10px;height:10px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+  .stat{border:1px solid var(--border);border-radius:12px;padding:20px;background:var(--bg2)}
+  .stat .n{font-family:var(--font-mono);font-size:30px;color:var(--accent);font-weight:700}
+  .stat .l{color:var(--muted);font-size:14px;margin-top:4px}
+
+  .close{background:linear-gradient(180deg,var(--bg),var(--bg2));text-align:center;border-bottom:0}
+  .close h2{font-size:clamp(28px,4.4vw,48px)}
+  .close p{color:var(--muted);max-width:56ch;margin:16px auto 0;font-size:17px}
+  .foot{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px;padding:26px 0;text-align:center}
+
+  .theme-btn{position:fixed;top:16px;right:16px;z-index:20;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;
+    background:var(--bg2);color:var(--muted);border:1px solid var(--border);border-radius:100px;padding:8px 13px;cursor:pointer}
+  .theme-btn:hover{color:var(--accent);border-color:var(--accent)}
+
+  @media (max-width:760px){.flow{grid-template-columns:1fr;gap:8px}.arrow{transform:rotate(90deg)}.split{grid-template-columns:1fr;gap:24px}}
+  @media (prefers-reduced-motion:reduce){#spectrum{display:none}.card:hover{transform:none}}
+</style>
+
+<button class="theme-btn" onclick="(function(){var r=document.documentElement;var d=(r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark'?'light':'dark';r.setAttribute('data-theme',d);})()">◑ thème</button>
+
+<header class="hero">
+  <canvas id="spectrum" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round"><path d="M4 15a8 8 0 0 1 16 0"/><path d="M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="15" r="1.6" fill="var(--accent)" stroke="none"/><line x1="12" y1="15" x2="12" y2="4"/></svg></span>
+      <div><b>LogX&nbsp;AI</b><br><span>STATION COPILOT · v1</span></div>
+    </div>
+    <p class="eyebrow">Logiciel de log & concours pour radioamateurs</p>
+    <h1>Le copilote de station qui comprend <em>ton objectif</em> — et te laisse la main.</h1>
+    <p class="lede">Un carnet, des concours, du FT8, du CW, le pilotage de la radio… et une IA discrète qui repère les opportunités, vérifie ton log et prépare tes échanges. <b style="color:var(--text)">Elle prépare. Toi, tu émets.</b></p>
+    <div class="pills">
+      <span class="pill">100&nbsp;% <b>hors-ligne possible</b></span>
+      <span class="pill">Windows · <b>autonome</b></span>
+      <span class="pill">FT8 · CW · SSB</span>
+      <span class="pill"><b>CAT</b> multi-marques</span>
+      <span class="pill">IA <b>propose, n'émet jamais seule</b></span>
+    </div>
+  </div>
+</header>
+
+<section class="doctrine">
+  <div class="wrap">
+    <p class="eyebrow">Le principe</p>
+    <div class="sec-head" style="margin-bottom:24px"><h2>L'IA prépare. L'opérateur déclenche.</h2></div>
+    <div class="flow">
+      <div class="node"><div class="k">Décodage / spot</div><div class="v">L'IA repère</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k">Proposition</div><div class="v">Elle prépare</div></div>
+      <div class="arrow">→</div>
+      <div class="node stop"><div class="k">Ton geste</div><div class="v">Tu émets</div></div>
+    </div>
+    <p class="caption">Aucune émission n'est jamais automatique. Le consentement d'émission est un <b>jeton unique</b>, à expiration rapide, relu contre l'état réel de la radio juste avant le PTT — et un <b>Stop&nbsp;TX</b> coupe tout et verrouille jusqu'à ton réarmement. Tu gardes le contrôle de chaque fréquence et de chaque transmission.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Pendant le trafic</p>
+      <h2>« Ce que l'IA remarque » — au même endroit, sans te déranger.</h2>
+      <p>Un fil discret rassemble ce qui compte à l'instant : les meilleures stations à travailler, les QSO à vérifier, ce que ton dernier contact t'a apporté, un indicatif peut-être mal copié. Un clic déclenche l'action — jamais une émission.</p>
+    </div>
+    <div class="split">
+      <div class="mock" role="img" aria-label="Exemple du fil IA">
+        <div class="bar">🧠 CE QUE L'IA REMARQUE <span class="dotrow"><i style="background:var(--yellow)"></i><i style="background:var(--accent)"></i><i style="background:var(--green)"></i></span></div>
+        <div class="row"><span class="dot" style="background:var(--accent)"></span><span class="who">JA1XYZ</span><span class="txt">nouveau DXCC · 20 m</span><span class="act">▶ Appeler</span></div>
+        <div class="row"><span class="dot" style="background:var(--yellow)"></span><span class="who">Log</span><span class="txt">2 QSO à vérifier</span><span class="act">VÉRIFIER</span></div>
+        <div class="row"><span class="dot" style="background:var(--green)"></span><span class="who">Dernier QSO</span><span class="txt">+1 nouveau carré</span></div>
+        <div class="row"><span class="dot" style="background:var(--accent)"></span><span class="who">F4GLDD → F4GLD ?</span><span class="txt">indicatif à corriger</span><span class="act">corriger</span></div>
+      </div>
+      <div>
+        <h3 style="font-size:22px">Trois couches, toujours claires</h3>
+        <ul>
+          <li><b>FAIT</b> — ce qui est sûr et sourcé (pays, bande, mode).</li>
+          <li><b>CALCUL</b> — pourquoi c'est intéressant, et combien ça vaut.</li>
+          <li><b>PROPOSITION</b> — une action que <b>tu</b> déclenches.</li>
+        </ul>
+        <p style="color:var(--muted);margin-top:18px">Tu vois toujours d'où vient l'information : un fait vérifié, un calcul du logiciel, ou une simple proposition. La confiance, pas la magie.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Ce que ça change pour toi</p>
+      <h2>De la chasse à la validation, l'IA t'accompagne partout.</h2>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><line x1="11" y1="2" x2="11" y2="4"/><line x1="11" y1="18" x2="11" y2="20"/><line x1="2" y1="11" x2="4" y2="11"/><line x1="18" y1="11" x2="20" y2="11"/></svg></div><h3>Opportunités en direct</h3><p>Les meilleures stations à travailler maintenant, classées par intérêt : nouveau pays, nouvelle bande, carré manquant, confirmation LoTW à aller chercher.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h4l2-6 3 12 2-6h4"/></svg></div><h3>Copilote FT8 / CW / SSB</h3><p>L'IA prépare le message suivant (report, RR73, échange de concours) dans une barre de consentement. Tu confirmes, et alors seulement ça part.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h14M4 11h14M4 16h9"/></svg></div><h3>Validation vivante du log</h3><p>Doublons, indicatifs douteux, distances anormales, département manquant… vérifiés en continu, sans jamais corriger à ta place.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M11 11V6M11 11l3 2"/></svg></div><h3>Plan de session</h3><p>Dis ton objectif (« 3 nouveaux DXCC en 30 min ») : l'IA propose un plan par créneaux, tenant compte de la propagation réelle. Un conseil, pas un pilote.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M11 3l7 4v5c0 4-3 6-7 7-4-1-7-3-7-7V7z"/></svg></div><h3>Sécurité d'émission</h3><p>Consentement unique, relu contre la radio réelle, Stop&nbsp;TX qui verrouille, journal d'audit horodaté. L'IA ne peut pas émettre à ta place.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 22 22" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a8 4 0 0 0 16 0M3 12a8 4 0 0 1 16 0"/><line x1="11" y1="8" x2="11" y2="16"/></svg></div><h3>Autonomie « zone blanche »</h3><p>En expédition sans internet, l'essentiel marche : coach, validation, diplômes, distances — tout est calculé localement, sans dépendre du cloud.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="doctrine">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:30px">
+      <p class="eyebrow">Le carnet, ta progression</p>
+      <h2>Chaque QSO devient une progression que tu vois.</h2>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">1 carnet</div><div class="l">unique & chronologique, toutes bandes et modes</div></div>
+      <div class="stat"><div class="n">DXCC · WAZ · WAS</div><div class="l">diplômes suivis, travaillé & confirmé</div></div>
+      <div class="stat"><div class="n">POTA · SOTA · IOTA</div><div class="l">activations comptées en temps réel</div></div>
+      <div class="stat"><div class="n">Multi-poste</div><div class="l">radioclub / expédition, log partagé</div></div>
+    </div>
+    <p class="caption" style="margin-top:26px">Après chaque contact, une pastille discrète te dit ce qu'il t'a apporté — nouveau pays, nouvelle bande, à confirmer LoTW. La bonne raison de revenir sur l'air.</p>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <p class="eyebrow" style="justify-content:center">LogX AI</p>
+    <h2>Un vrai copilote. Ta station reste la tienne.</h2>
+    <p>Les logiciels savent déjà piloter une radio, tenir un log et suivre des diplômes. LogX AI fait le lien : il comprend ce que tu veux faire et t'aide à l'atteindre — sans jamais t'enlever le contrôle.</p>
+  </div>
+</section>
+<div class="foot">LogX AI · le copilote de station · l'IA prépare, l'opérateur déclenche</div>
+
+<script>
+(function(){
+  var c=document.getElementById('spectrum');if(!c)return;
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  var x=c.getContext('2d'),W,H,cols,t=0;
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function size(){W=c.width=c.offsetWidth;H=c.height=c.offsetHeight;cols=Math.max(48,Math.floor(W/16));}
+  size();addEventListener('resize',size);
+  var seed=[];for(var i=0;i<400;i++)seed[i]=Math.random();
+  function draw(){
+    x.clearRect(0,0,W,H);
+    var acc=css('--accent-rgb')||'232,150,74';
+    var base=H*0.72, bw=W/cols;
+    for(var i=0;i<cols;i++){
+      var n=Math.sin(i*0.35+t*0.9)*0.5+Math.sin(i*0.11-t*0.5)*0.5;
+      var peak=(seed[i%seed.length]*0.5+Math.abs(n)*0.5);
+      var spike = seed[(i+Math.floor(t*4))%seed.length] > 0.965 ? 0.6 : 0;
+      var h=(peak*0.42+spike)*H*0.6;
+      var a=0.10+peak*0.22+spike*0.5;
+      x.fillStyle='rgba('+acc+','+a.toFixed(3)+')';
+      x.fillRect(i*bw, base-h, bw*0.62, h);
+    }
+    // waterfall baseline glow
+    var g=x.createLinearGradient(0,base,0,H);
+    g.addColorStop(0,'rgba('+acc+',0.12)');g.addColorStop(1,'rgba('+acc+',0)');
+    x.fillStyle=g;x.fillRect(0,base,W,H-base);
+    t+=0.02;requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>

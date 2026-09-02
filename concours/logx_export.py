@@ -294,7 +294,14 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None, claimed_override=
 
 def _adif_field(name, value):
     value = str(value)
-    return f"<{name}:{len(value)}>{value}" if value else ''
+    # Longueur ADIF = nombre d'OCTETS de la valeur encodée UTF-8, pas de
+    # caractères : un champ accentué (COMMENT/NAME/QTH « café ») compte plus
+    # d'octets que de caractères, et un lecteur ADIF strict (POTA, autres
+    # loggers) lit ce nombre d'OCTETS. `len()` sur un str donne des caractères
+    # -> longueur fausse dès qu'il y a un non-ASCII. Jumeau : adifField()
+    # (logx_export_adif.js) + parseur d'import _parse_adif_records (logx_qsl.py),
+    # tous alignés sur les octets.
+    return f"<{name}:{len(value.encode('utf-8'))}>{value}" if value else ''
 
 
 # Tags ADIF déjà émis explicitement par build_adif() ci-dessous — sert à ne
@@ -409,6 +416,45 @@ def _adif_mode(q):
     if parent:
         return _adif_field('mode', parent) + _adif_field('submode', m)
     return _adif_field('mode', m)
+
+
+def sota_qsos_pour_upload(qsos, role, year=None):
+    """Filtre le carnet pour un téléversement MANUEL vers sotadata.org.uk.
+
+    sotadata a DEUX uploads distincts (chasse / portable) et son import ADIF
+    peut mal deviner le rôle quand un même fichier mélange les deux — on sépare
+    donc explicitement par rôle.
+
+    - ``role='chaser'`` : QSO où le CORRESPONDANT est sur un sommet SOTA
+      (``sig == 'SOTA'`` + ``sig_info``) → page « chasse » de sotadata.
+    - ``role='activator'`` : QSO où MOI je suis sur un sommet SOTA
+      (``my_sig == 'SOTA'`` + ``my_sig_info``) → page portable/expédition.
+
+    ``year`` (optionnel) : ne garde que l'année UTC donnée (date 'YYYYMMDD').
+    Renvoie une NOUVELLE liste, sans altérer l'entrée. Un rôle inconnu → [].
+    """
+    role = (role or '').strip().lower()
+    if role == 'chaser':
+        sig_key, info_key = 'sig', 'sig_info'
+    elif role == 'activator':
+        sig_key, info_key = 'my_sig', 'my_sig_info'
+    else:
+        return []
+    yr = str(year) if year not in (None, '') else None
+    out = []
+    for q in qsos:
+        if not isinstance(q, dict):
+            continue
+        if (q.get(sig_key) or '').strip().upper() != 'SOTA':
+            continue
+        if not (q.get(info_key) or '').strip():
+            continue
+        if yr is not None:
+            d = (q.get('date') or '').strip()
+            if not (len(d) >= 4 and d[:4] == yr):
+                continue
+        out.append(q)
+    return out
 
 
 def build_adif(qsos, cfg=None, confirmations=None, completer=False):

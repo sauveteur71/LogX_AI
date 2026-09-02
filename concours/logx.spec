@@ -43,6 +43,21 @@ for ref in ('contest_schema.json', 'cty.dat', 'france_departements.geojson',
 # (même format 3-champs, déjà traité) APRÈS Analysis(), pas avant.
 _voacap_tree = Tree('voacap', prefix='voacap') if os.path.isdir('voacap') else []
 
+# Binaire jt9 embarqué (Tâche 8 — décodage Q65 EME natif hors-ligne) : jt9 et
+# ses dépendances runtime (fftw3f, libgfortran, DLL MinGW, dylibs…) sont
+# déposés dans vendor/jt9/ par l'étape CI « Récupérer jt9 » (action
+# fetch-jt9), AVANT ce build. On les embarque en `binaries=` (PAS `datas=`)
+# pour préserver le bit exécutable à l'extraction onefile — un fichier en
+# datas ne serait pas exécutable sous Unix, jt9 ne se lancerait pas.
+# resoudre_jt9() (logx_q65_natif.py) les cherche sous _MEIPASS/vendor/jt9/,
+# soit exactement ce chemin relatif. Absent en dev/local : embarquement vide,
+# repli PATH/jt9_path assuré par resoudre_jt9() (aucun impact sur le build).
+_jt9 = []
+if os.path.isdir(os.path.join('vendor', 'jt9')):
+    for _f in glob.glob(os.path.join('vendor', 'jt9', '*')):
+        if os.path.isfile(_f) and not _f.lower().endswith(('.md', '.gitignore')):
+            _jt9.append((_f, 'vendor/jt9'))
+
 # Modules importés paresseusement (dans des fonctions) que l'analyse statique
 # de PyInstaller peut manquer : on les déclare explicitement.
 _hidden = ['logx_' + m for m in (
@@ -61,7 +76,7 @@ _hidden += ['serial', 'serial.tools.list_ports', 'serial.tools.list_ports_common
 a = Analysis(
     ['logx_serveur.py'],
     pathex=[os.path.abspath('.')],
-    binaries=[],
+    binaries=_jt9,
     datas=_datas,
     hiddenimports=_hidden,
     hookspath=[],

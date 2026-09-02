@@ -99,12 +99,6 @@ def keying_sequence(text, wpm):
     return seq
 
 
-def duree_totale_ms(text, wpm):
-    """Durée totale de l'émission (somme des événements) — utile pour un
-    timeout/estimation, sans manipuler quoi que ce soit."""
-    return sum(d for _, d in keying_sequence(text, wpm))
-
-
 # ─── ÉTAPE 3B : couche matérielle (bascule réelle DTR/RTS) ────────────────────
 # Le keying série est PILOTÉ PAR LE PC et BLOQUANT (boucle de sleeps) : il tourne
 # donc dans un THREAD, la requête HTTP revient tout de suite (fire-and-forget,

@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "skills": {
+    "accessibility-general": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ACCESSIBILITY-general/SKILL.md",
+      "computedHash": "72be2e91c6325436431ecf062e701966d776070d087565397798140b02fd1b55"
+    },
+    "anchor-links": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/anchor-links/SKILL.md",
+      "computedHash": "ba39018e107bb5f49c18f7776fbb981f7f0004492bc0305595a6b7e8ad77e6dc"
+    },
+    "aria-live-regions": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/aria-live-regions/SKILL.md",
+      "computedHash": "7e107b535564506b3550009bdb2d56f7c9feefdbc28e61e272a2a8e6e711f784"
+    },
+    "audio-video": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audio-video/SKILL.md",
+      "computedHash": "2d355702298f12b453f1d69457bf6b3a638f24c5a292fe694214af5e7acff7ab"
+    },
+    "axe-rules": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/axe-rules/SKILL.md",
+      "computedHash": "0684b688ed1dec6a52d75b76ed650f8dccf7078a7719d9719a76433fa2deaa8f"
+    },
+    "behavioral-a11y": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/behavioral-a11y/SKILL.md",
+      "computedHash": "3d3be155116463e227bffd8a2ed499b0a9de99a777b68da5392bdb214aa38e20"
+    },
+    "bug-reporting": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bug-reporting/SKILL.md",
+      "computedHash": "06728a9e46cdb01935f40e2d7241b1bc9113b42a7809569931588172901cadb7"
+    },
+    "charts-graphs": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/charts-graphs/SKILL.md",
+      "computedHash": "fd926bc32d1436f36f20da1e2e4e3f553f5b60774b0980fe8e0709a8fd25921c"
+    },
+    "ci-cd": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ci-cd/SKILL.md",
+      "computedHash": "9f77b18ec6e80b057299d28b0d2f647cdd930e3cd2a4f6d0550395fa7028971d"
+    },
+    "cli-audit": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cli-audit/SKILL.md",
+      "computedHash": "0b1a7b0da88c3c5e243a5631e99ddc27bb4ff53dead12bf7c93c9c0eed4bf20a"
+    },
+    "color-contrast": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/color-contrast/SKILL.md",
+      "computedHash": "e2d2aeb87a31d0a6856d24e555c5f3defeb329216ab552d9f5722898b44b7a3b"
+    },
+    "content-design": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/content-design/SKILL.md",
+      "computedHash": "751c913453dc2c1188346b28ffa3ec328c275f3e0f21ecd7fde6606d476cb5a1"
+    },
+    "forms": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/forms/SKILL.md",
+      "computedHash": "06aaeb0e479ec8179087f2d7685ab4c97a204403d24b3d004a249eaf6156db51"
+    },
+    "image-alt-text": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/image-alt-text/SKILL.md",
+      "computedHash": "064cd5b74eec1c3fcb90f06ba1669461f0e5940af6d86ad071f8cbbe1b6425a9"
+    },
+    "keyboard": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/keyboard/SKILL.md",
+      "computedHash": "2a3b23be541d544cb347499bdb1b1c1c9ddb2ba65574b6ee9d8f6ebd55a13c29"
+    },
+    "light-dark-mode": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/light-dark-mode/SKILL.md",
+      "computedHash": "eb0495f94071f5ad0c388540cb165dafcb7521d6e1153a4c50a835d40364138d"
+    },
+    "manual-testing": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/manual-testing/SKILL.md",
+      "computedHash": "6dbe184c8f699d0be15ab96ba4e6418e8b3e5394f31342386254823b953d742f"
+    },
+    "maps": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/maps/SKILL.md",
+      "computedHash": "2ef0cd96b277ec8946ca2b1aacd6896753e52f9b42c182d930db8724f8570f12"
+    },
+    "mermaid": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mermaid/SKILL.md",
+      "computedHash": "acdbc87492159f488badff0ef90f61b1c2aebbd688427ae1ed8657ffd3e2704b"
+    },
+    "navigation": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/navigation/SKILL.md",
+      "computedHash": "31ac045a4fa6fee5f97e44d867696b8bac40a6f3fa4f06fa88b0b965b80d6a3a"
+    },
+    "opquast-digital-quality": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/opquast-digital-quality/SKILL.md",
+      "computedHash": "887e51046d8e28f74e63062471f4e76ac3eab213bc8bf0a90593db1dad34e92d"
+    },
+    "plain-language": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/plain-language/SKILL.md",
+      "computedHash": "035b2875503afea4f8302c4ff8f6edb7539edcd1331ddab8bd1e2850835a1b4c"
+    },
+    "print": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/print/SKILL.md",
+      "computedHash": "ecf35049b623c71b35138e46ed65866fa42d18460b43a4af7c2e7e3b374a7e69"
+    },
+    "progressive-enhancement": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/progressive-enhancement/SKILL.md",
+      "computedHash": "f42c914c3ea38ae1e9fa4a5f09334a0ec9a571a5062dff6d85625935ee32b8d9"
+    },
+    "speech-recognition": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/speech-recognition/SKILL.md",
+      "computedHash": "5a08f408c19a09366529700819fcee80798261202088406de459c839a8b08905"
+    },
+    "svg": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/svg/SKILL.md",
+      "computedHash": "778da82b22310070ebd2a9cc916a0026e9ad2ab1096bc9d2f1486eb299bc6842"
+    },
+    "tables": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tables/SKILL.md",
+      "computedHash": "57ea3b4d03110d4066df1bba3278b25a122054d785976bdd78e0a9b76d708a82"
+    },
+    "tooltips": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tooltips/SKILL.md",
+      "computedHash": "8ea22c2d43f266d4d7ba2973728aff0ffae85be47f9378f1d743fd64b8ef810a"
+    },
+    "touch-pointer": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/touch-pointer/SKILL.md",
+      "computedHash": "4091601b09fb9d58541aed6bf6e24912df12a024ac36e7778e3e1081e90d9142"
+    },
+    "upstream-first": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/upstream-first/SKILL.md",
+      "computedHash": "df84e2bce4e7bb52950c40989fdcb525324e2bd0cfc73d17f1495c6a37d66c55"
+    },
+    "user-personalization": {
+      "source": "mgifford/accessibility-skills",
+      "sourceType": "github",
+      "skillPath": "skills/user-personalization/SKILL.md",
+      "computedHash": "04d61f81651de09aa74d7550cd331f02442fcfca535574ed1fb30b90935671a6"
+    }
+  }
+}

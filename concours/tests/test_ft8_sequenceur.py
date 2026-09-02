@@ -2883,6 +2883,45 @@ def test_le_chemin_manuel_ne_prend_pas_la_directive_pour_un_indicatif(
         '%r -> %r, attendu %r' % (entete, b.etat()['champTx'], attendu))
 
 
+def test_le_manuel_appelle_la_station_emettrice_hors_cq(banc):
+    """TAIL-ENDING en mode MANUEL (celui de la capture F4GLD) : double-cliquer un
+    QSO entre tiers « DL1XYZ SP9QQQ -05 » prépare un APPEL propre vers la station
+    qui ÉMET (SP9QQQ), « SP9QQQ MOI GRILLE » — plus le message d'autrui recopié
+    verbatim (défaut latent du repli). C'est « envoyer un message à une station
+    qui ne lance pas de CQ », demandé par F4GLD."""
+    b = banc(niveau='manuel')
+    recu = '%s %s -05' % (TIERS, QUATRIEME)
+    b.js('proposerReponse(%s);' % json.dumps(recu))
+    attendu = '%s %s %s' % (QUATRIEME, MOI, MA_GRILLE)
+    assert b.etat()['champTx'] == attendu, (
+        'attendu un appel vers la station émettrice %r, obtenu %r'
+        % (QUATRIEME, b.etat()['champTx']))
+    assert b.etat()['champTx'] != recu.upper(), (
+        'le message d\'autrui a été recopié VERBATIM : %r' % b.etat()['champTx'])
+
+
+def test_exemple_exact_f4gld_sm6dvj_e70sz_73(banc):
+    """Cas EXACT remonté par F4GLD (capture d'écran) : sur le décodage
+    « SM6DVJ E70SZ 73 » — E70SZ vient de finir un QSO avec SM6DVJ — le
+    double-clic mettait le message VERBATIM dans le champ d'émission (comme si
+    E70SZ répondait à SM6DVJ). Il doit préparer un APPEL vers E70SZ signé de
+    NOTRE indicatif : « E70SZ MONCALL MAGRILLE »."""
+    b = banc(niveau='manuel')
+    b.js('proposerReponse(%s);' % json.dumps('SM6DVJ E70SZ 73'))
+    attendu = 'E70SZ %s %s' % (MOI, MA_GRILLE)
+    assert b.etat()['champTx'] == attendu, (
+        'attendu un appel vers E70SZ, obtenu %r' % b.etat()['champTx'])
+
+
+def test_le_manuel_ne_construit_pas_d_appel_vers_soi_meme(banc):
+    """Décoder sa PROPRE émission (SOURCE = mon indicatif) ne doit pas fabriquer
+    un appel « MOI MOI … »."""
+    b = banc(niveau='manuel')
+    b.js('proposerReponse(%s);' % json.dumps('%s %s -05' % (TIERS, MOI)))
+    assert not b.etat()['champTx'].startswith('%s %s' % (MOI, MOI)), (
+        'un appel vers soi-même a été fabriqué : %r' % b.etat()['champTx'])
+
+
 def test_un_73_double_clique_logue_au_lieu_de_relancer_un_appel(banc):
     """Double-cliquer un « 73 » qui nous est adressé n'est pas une demande
     d'appel, c'est une demande de LOGGUER. seqSuite rendait bien 'FIN', et les
@@ -3275,15 +3314,28 @@ def test_cq_dx_la_cible_est_l_indicatif_jamais_le_mot_dx(banc):
             '%r → cible extraite %r au lieu de %r' % (texte, cible, CIBLE)
 
 
-def test_message_entre_tiers_ne_demarre_aucune_sequence(banc):
-    """Un message qui ne nous est pas adressé et qui n'est pas un CQ ne doit
-    donner AUCUNE cible : répondre à « DL1XYZ SP9QQQ -05 » revient à s'inviter
-    dans le QSO de deux autres stations."""
+def test_message_entre_tiers_permet_d_appeler_la_station_emettrice(banc):
+    """TAIL-ENDING (demandé par F4GLD) : un double-clic sur un QSO entre deux
+    AUTRES stations doit permettre d'appeler la STATION QUI ÉMET — le 2e jeton,
+    convention FT8 « DESTINATAIRE SOURCE » (ici SP9QQQ). L'appel construit par
+    l'appelant est propre (« SOURCE MONCALL GRILLE »), jamais le message d'autrui
+    recopié verbatim. Remplace l'ancien refus (qui empêchait d'appeler une
+    station ne lançant pas de CQ)."""
     b = banc()
     for texte in (f'{TIERS} {QUATRIEME} -05', f'{TIERS} {QUATRIEME} RR73',
                   f'{TIERS} {QUATRIEME} 73', f'{TIERS} {QUATRIEME} JN18'):
+        assert b.js('seqCibleDepuisDecodage(%s)' % json.dumps(texte)) == QUATRIEME, \
+            'la station émettrice %r doit être appelable (tail-ending) : %r' \
+            % (QUATRIEME, texte)
+
+
+def test_ne_s_appelle_jamais_soi_meme(banc):
+    """Le tail-ending ne doit pas se retourner contre nous : décoder sa PROPRE
+    émission (SOURCE = mon indicatif) ne fournit aucune cible."""
+    b = banc()
+    for texte in (f'{TIERS} {MOI} -05', f'{TIERS} {MOI} 73', f'{CIBLE} {MOI} RR73'):
         assert b.js('seqCibleDepuisDecodage(%s)' % json.dumps(texte)) == '', \
-            'un message entre tiers a fourni une cible : %r' % (texte,)
+            'un décodage de notre propre émission a fourni une cible : %r' % (texte,)
 
 
 def test_message_qui_nous_est_adresse_donne_bien_la_cible(banc):

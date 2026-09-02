@@ -16,12 +16,6 @@ def test_plafond_refuse_un_texte_trop_long():
     assert res['ok'] is False and 'runaway' in res['error']
 
 
-def test_un_qso_normal_reste_tres_sous_le_plafond():
-    # un échange de contest typique est très en dessous des 120 s -> jamais refusé
-    d = cw.duree_totale_ms('CQ TEST F4GLD F4GLD K', 25)
-    assert 0 < d < cw._MAX_EMISSION_MS
-
-
 def test_http_journalise_le_backend_serie():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             'logx_http.py'), encoding='utf-8').read()

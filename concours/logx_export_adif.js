@@ -64,10 +64,27 @@ function adifBandLabel(band){
   const bas = raw.toLowerCase();
   return ADIF_BAND_OFFICIELLES.has(bas) ? bas : '';
 }
+// Longueur ADIF = nombre d'OCTETS UTF-8 (pas de caractères) : un champ accentué
+// (« café » = 4 caractères, 5 octets) doit annoncer 5, sinon un lecteur strict
+// (POTA, autres loggers) décale tout le record. Jumeau de _adif_field/parseur
+// d'import Python. TextEncoder en navigateur ; repli unescape(encodeURIComponent)
+// pour les moteurs sans TextEncoder (bancs V8).
+function _adifByteLen(s){
+  if(typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s).length;
+  var n = 0;                                  // repli sans TextEncoder (bancs V8)
+  for(var i = 0; i < s.length; i++){
+    var c = s.charCodeAt(i);
+    if(c < 0x80) n += 1;
+    else if(c < 0x800) n += 2;
+    else if(c >= 0xD800 && c <= 0xDBFF){ n += 4; i++; }   // paire de substitution -> 4 octets
+    else n += 3;
+  }
+  return n;
+}
 // Un champ ADIF : <NOM:longueur>valeur. Valeur vide = champ absent.
 function adifField(name, value){
   const v = String(value == null ? '' : value).trim();
-  return v ? `<${name}:${v.length}>${v} ` : '';
+  return v ? `<${name}:${_adifByteLen(v)}>${v} ` : '';
 }
 
 // Construit le texte ADIF pour une liste de QSO donnée — factorisé pour être

@@ -620,6 +620,68 @@ Une barre commune accompagne toutes les pages du logiciel (logbook, config, cart
 - **🗔 DISPOSITION** : ce menu ouvre ou ferme d'un clic les quatre panneaux flottants (Coach, Cluster/need list, Soleil & ionosphère, Band Map) depuis n'importe quelle page, et permet d'**enregistrer des dispositions nommées** (« 💾 enregistrer l'actuelle », charger, supprimer, tout fermer) — pratique pour basculer entre un agencement « concours » et un agencement « trafic calme ».
 - **🌦️ Météo du point haut** (logbook) : température, vent et rafales, pluie à votre QTH, avec avertissement rouge en cas de conditions dangereuses — pensé pour la sécurité du matériel en portable /P. Données open-meteo, sans clé ni compte.
 
+### 6.9 Les bandeaux défilants — l'info live sous la nav
+
+Juste sous la barre de navigation, de fines bandes défilent avec l'information **en direct** qui compte à l'instant. On les retrouve sur l'**accueil**, le **LOGBOOK** et la page **CHASSE**. Chaque bande porte une catégorie colorée à gauche, puis les items qui défilent en boucle. Passez la souris dessus : **le défilement s'arrête** le temps de lire, et vous pouvez cliquer.
+
+Les catégories possibles :
+
+| Bande | Contenu | Couleur |
+|---|---|---|
+| **DX ≤7J** | Les DXpéditions actives (●) ou annoncées dans les 7 prochains jours (△), avec la fréquence du cluster quand elle est connue, et « nouveau pays » si ce serait un ATNO. | cuivre |
+| **PROPAG** | Les bandes exploitables maintenant (ouverte / possible). **Votre bande en cours de saisie passe en tête, marquée « ▸ … · ta bande ».** | vert |
+| **SPOTS DX** | Les meilleurs spots du cluster classés par intérêt, avec un badge quand c'est un nouveau pays/bande. *Optionnel* (à activer via le ⚙, voir plus bas). | jaune |
+| **MULTS** | Les **nouveaux multiplicateurs** à chercher sur le cluster. **N'apparaît qu'en concours.** | violet |
+
+**Cliquez un item actif** (une DXpédition ●, un spot) et une **fiche** s'ouvre : l'entité/pays, la fréquence·bande·mode du cluster, le nom de l'opérateur (recherché automatiquement), un bouton **▶ QSY** si votre radio est pilotée, et un lien **« Ouvrir sur QRZ.com ↗ »** pour toutes les infos. Fermez par ✕, la touche **Échap**, ou un clic en dehors.
+
+**Choisir ce qui s'affiche — le ⚙.** À droite de la bande, une roue crantée ouvre des pastilles pour **afficher ou masquer** chaque bandeau. Votre choix est **retenu par activité** : votre réglage en concours n'est pas celui de votre trafic VHF tranquille. (Menu accessible au clavier : Échap le referme.)
+
+**L'adaptation à ce que vous faites** — le principe « l'axe, c'est l'activité » :
+
+- En **VHF / UHF / SHF / satellites**, les bandeaux HF (DX ≤7J, PROPAG déca) **disparaissent** : ils n'ont rien à faire là. La bande reste vide (donc invisible) tant qu'il n'y a rien de pertinent.
+- Le bandeau **MULTS** n'apparaît **que lorsqu'un concours est actif** — quelle que soit la bande, y compris un concours VHF. Fini le « jaune » de score qui traîne hors concours.
+- **PROPAG** met **votre bande en cours** en avant.
+
+**Non-intrusif par principe** : une bande sans rien de vivant à dire ne s'affiche pas (pas de bandeau mort à l'écran), et rien de tout cela ne gêne jamais la saisie du QSO.
+
+### 6.10 Le HUD « Opportunités » — qui contacter maintenant, sans quitter le carnet
+
+La page **CHASSE** (§9.5) sait déjà classer les stations spottées par intérêt pour vous (nouveau pays, nouvelle bande, nouveau mode…). Le **HUD Opportunités** remonte ce même classement **directement dans le LOGBOOK**, pour que les meilleures cibles vous suivent pendant que vous loguez, sans changer de page.
+
+C'est un petit panneau **en bas à droite**, repliable via la flèche de son en-tête (le suivi continue en fond quand il est replié — masquer n'éteint rien). Il liste les **cinq meilleures opportunités du moment**, la plus intéressante en tête.
+
+**Un clic sur une opportunité la déplie en trois niveaux, clairement distingués :**
+
+- **FAIT** — ce que l'on sait de sûr, sourcé : le pays (base cty.dat), la bande, le mode. Rien d'inventé.
+- **CALCUL** — pourquoi c'est intéressant et combien ça « vaut » : la raison (ex. *nouveau DXCC*) et le score, tels que le moteur déterministe les a calculés.
+- **PROPOSITION** — un bouton **▶ Appeler**. Il **recopie toujours l'indicatif** dans le champ de saisie du QSO, et **règle la radio sur sa fréquence (QSY) seulement si le pilotage CAT est activé**. Il n'émet **jamais** et n'arme **jamais** l'émission : c'est vous qui décidez d'appeler.
+
+Cette séparation « fait / calcul / proposition » est là pour la **confiance** : vous voyez d'un coup d'œil ce qui est un fait vérifié, ce qui est un calcul du logiciel, et ce qui n'est qu'une action que vous restez libre de déclencher.
+
+### 6.11 Le récap « après-QSO » — voir sa progression à chaque contact
+
+Juste après avoir enregistré un QSO, une **pastille discrète** apparaît sous la saisie et vous dit **ce que ce contact vient de vous apporter** :
+
+- 🌟 un **nouveau pays**, 📻 une **nouvelle bande**, 📍 un **nouveau département** ;
+- et, le cas échéant, **ce qui reste à confirmer** : « LoTW non confirmé » tant que la confirmation électronique n'est pas là (car un pays travaillé mais non confirmé LoTW ne compte pas encore pour le DXCC).
+
+C'est la même intelligence que le panneau qui s'affiche **avant** le QSO (à la frappe de l'indicatif), mais rejouée **après** l'enregistrement — donc la donnée est exacte, calculée par le moteur de diplômes, jamais devinée.
+
+Cette pastille est **non-intrusive** : elle ne vole pas le focus, **reste silencieuse quand le QSO n'apporte rien de neuf** (un doublon ne déclenche aucun message), et s'efface d'elle-même après quelques contacts pour ne pas encombrer l'écran pendant une série. Elle ne modifie jamais votre log — elle ne fait que montrer votre progression.
+
+### 6.12 Le fil « Ce que l'IA remarque » — tout au même endroit
+
+Plusieurs aides intelligentes tournent en même temps dans le LOGBOOK : les opportunités à travailler, les QSO à vérifier, les gains du dernier contact, une éventuelle erreur d'indicatif. Le **fil IA** les rassemble dans **un seul panneau** (en haut à droite), pour ne pas avoir à surveiller quatre coins de l'écran.
+
+Chaque ligne porte une **pastille de couleur** selon sa nature :
+
+- 🟡 **attention** — quelque chose à vérifier (ex. « 2 QSO à vérifier ») ;
+- 🟠 **proposition** — une action possible (ex. une opportunité à appeler, ou « F4GLDD → F4GLD ? » à corriger) ;
+- 🟢 **info** — un fait à savoir (ex. « Dernier QSO : nouveau pays »).
+
+Quand une ligne appelle une action, un **clic** la déclenche — et cette action **réutilise exactement** la fonction d'origine (appeler la station, ouvrir VÉRIFIER, corriger l'indicatif) : le fil ne fait que **rassembler**, il n'émet jamais et ne décide jamais à votre place. Le panneau est **caché tant qu'il n'y a rien à signaler** et se replie d'un clic. Les affichages d'origine (badge de validation, panneau Opportunités, pastilles) restent en place — le fil est un **résumé en plus**, pas un remplacement.
+
 ---
 
 
@@ -1197,6 +1259,20 @@ Cette page répond à deux questions : « quel concours ce week-end ? » et « q
 
 Une rangée de filtres commune complète les onglets : « TOUS », « ⭐ REF », « 🌍 IARU », « 📡 CQ », « 📶 VHF », « 🌐 HF », « 🔜 À VENIR (31 j) » et « 🆕 NOUVEAU PAYS » — ce dernier n'agit que dans l'onglet DXpéditions, où il ne garde que les entités que vous n'avez jamais contactées : l'écran idéal à consulter avant chaque saison DX.
 
+### 9.8 🩺 SANTÉ DE LA STATION — tout est-il prêt ?
+
+Accessible depuis le menu **Outils**, cet écran répond d'un coup d'œil à « est-ce que ma station est prête ? ». Il affiche une **tuile par sous-système**, chacune avec une pastille de couleur :
+
+- 🟢 **verte** : tout va bien ; 🟡 **jaune** : attention ; 🔴 **rouge** : à corriger ; ⚪ **grise** : non configuré.
+
+Les tuiles couvrent : **Radio (CAT)** (connectée et répond ?), **Rotor**, **FT8 / WSJT-X** (le pont reçoit-il des décodages ?), **Callbook** (QRZ/HamQTH disponibles ou en pause hors-ligne), **Synchro Cloud** et **Synchro MySQL**, **Base DXCC** (cty.dat chargée), **Émission** (le consentement est-il prêt, ou un « Stop TX » est-il actif ?) et **IA (consommation)** (nombre d'appels et tokens consommés). L'**horloge UTC** est affichée en haut. L'écran est en **lecture seule** : il ne pilote rien, il informe, et se rafraîchit tout seul.
+
+### 9.9 🗺️ PLAN DE SESSION — un objectif, un plan par créneaux
+
+Toujours dans le menu **Outils**, cet écran transforme une envie en plan concret. Vous saisissez vos **contraintes** — durée disponible, objectif (« 3 nouveaux DXCC », « activer un parc POTA »…), mode(s), bande(s), puissance — et l'assistant propose un **plan découpé en créneaux horaires**, avec pour chaque créneau la bande/mode à privilégier, la cible visée, et enfin des **critères d'arrêt** (« aucune activité pendant 4 minutes », « CAT déconnecté »…).
+
+C'est un **conseil, pas un pilote** : le logiciel n'effectue **aucun** changement de fréquence ni **aucune** émission automatique. Vous gardez la main sur chaque geste. Les prévisions sont présentées comme des **probabilités** (« ouverture probable vers l'Amérique du Sud »), jamais comme des certitudes.
+
 ---
 
 ## 10. Sorties en portable POTA, SOTA, WWFF, IOTA, WCA
@@ -1310,6 +1386,14 @@ Chaque opérateur a sa couleur dans le logbook et l'écran mural. Le mode RADIOC
 Le WiFi partagé couvre un même lieu ; pour combiner les QSO avec un **autre** poste distant, CONFIG carte **☁️ 8. MULTI-POSTE & CLOUD SYNC**, section **☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)**. Le principe : chaque poste pointe vers le **même** dossier déjà synchronisé par votre outil habituel (Synology Drive, Dropbox, OneDrive…) et voit les QSO des autres — aucun compte à créer, aucun service LogX en ligne. À ne pas confondre avec la SAUVEGARDE, qui fait des instantanés à sens unique.
 
 Réglages : **MODE** (« Désactivé », « Synchronisation complète (lit + écrit) », ou « Envoi seul (écrit, ne récupère rien) » pour un poste isolé qui alimente sans rien récupérer), **DOSSIER PARTAGÉ** (vide = même dossier que la sauvegarde ; il doit être identique sur tous les postes ; conseil de l'interface : réglez ce dossier en « toujours conserver sur cet appareil » dans votre outil de synchronisation, pour éviter les fichiers-placeholder téléchargés à la demande), **INTERVALLE (min)** (1 à 60, 3 par défaut), et un bouton **☁️ SYNCHRONISER MAINTENANT** pour forcer un passage.
+
+### La carte d'occupation des bandes — qui est sur quoi
+
+Quand plusieurs postes partagent le même log — radioclub, expédition, ou un **indicatif spécial** (ex. TM6KJS) opéré depuis plusieurs stations —, une règle d'or : ne jamais émettre à deux sur la **même bande ET le même mode**. La **carte d'occupation** la rend visible.
+
+Sur le LOGBOOK, le bouton **📻 Occupation** (en bas à gauche) ouvre un assistant **« Activer un log partagé »** : choisissez le type d'opération (**🏛 radioclub**, **🏝 expédition**, **📻 indicatif spécial**) et il vous indique le sync conseillé, puis affiche la carte. Celle-ci liste **qui est sur quelle bande/mode**, en direct, et **surligne en rouge** tout recouvrement (deux postes sur le même couple bande + mode — même bande mais mode différent reste permis).
+
+La carte s'adapte au canal de synchronisation actif, avec **priorité au local** : entre postes du même réseau, l'échange est **instantané** (par le WiFi partagé) ; dès qu'un poste est distant sur un autre réseau internet, l'information passe automatiquement par le **dossier partagé** (Cloud Sync) ou la **base MySQL** (radioclub temps réel) — sans réglage supplémentaire. Chaque poste utilise simplement le même indicatif et le même sync ; la carte fait le reste. Rien de tout cela ne touche votre carnet : c'est un canal séparé, réservé à l'occupation.
 
 ### Cohabiter avec N1MM ou DXLog
 

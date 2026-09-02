@@ -25,6 +25,39 @@ travail et la méthode — les deux sont archivées ici.
 
 ### Fusionné et en production
 
+**31/08/2026 — 12 PR, publiées en `v1.2-beta4` (session marathon : références
+XOTA, correctifs terrain FT8/CAT remontés en direct par F4GLD, garde-fou
+antivirus). Toutes avec tests + contre-épreuve par mutation, CI verte, mergées
+dans l'ordre des piles :**
+
+| PR | Ce que ça fait |
+|---|---|
+| #417 | **DFCF — catalogue COMPLET des châteaux** (`logx_dfcf.py`) : agrège les ~100 pages départementales `dfcf.fr/dept/dNN.html`, cache disque 15 j, tâche de fond. Parseur DÉFENSIF par tokens (pages irrégulières : tabs/espaces, dates en plage, indicatif collé à la commune). Recherche par réf/nom. |
+| #418 | **WWBOTA — base des bunkers** (`logx_wwbota.py`) : export CSV maître `api.wwbota.org` (~31 400 bunkers géoloc.), motif `ActivationDatabase`, cache 15 j, `nearby`. |
+| #419 | **GMA — sommets** (`logx_gma.py`) : lookup PAR RÉFÉRENCE via l'API `cqgma.org/api/ref/?REF`, cache mémoire, aucun bulk (aucune redistribution). |
+| #420 | **ARLHS — phares** (`logx_arlhs.py`) : lookup par réf via la base WLOL (protégée → par-réf uniquement), coords DMS→décimal. |
+| #421 | **Registre central des sources XOTA** (`docs/XOTA_SOURCES.md` + JSON) : URL vérifiées, modèle bulk vs par-réf, droits/redistribution. ILLW écarté (décision F4GLD). |
+| #422 | **CAT : la bande de saisie suit la vraie fréquence radio** même hors activité (défaut : 28.601 MHz affiché en « 2m »). Le garde `_currentVisibleBands` reste sur la saisie MANUELLE, pas sur la radio (source de vérité). |
+| #423 | **Bouton « Réinitialiser la configuration »** (réinit. DOUCE : conserve `SECRET_FIELDS`/clés d'API et le carnet ; `POST /config/reset` + préfs d'affichage côté client). |
+| #424 | 🔴 **FT8 sécurité** : consentement puissance obligatoire à la 1ʳᵉ émission + alerte permanente si aucune limite — corrige une émission 100 W SANS ALERTE (F4GLD). |
+| #425 | **FT8 tail-ending** : double-clic sur une station hors-CQ (QSO entre tiers) → appel PROPRE de la station émettrice (`SM6DVJ E70SZ 73` → `E70SZ MONCALL GRILLE`), plus le message d'autrui recopié verbatim. |
+| #426 | **FT8 auto-fréquence** : calage automatique sur la fréquence FT8 en arrivant sur une bande (source unique `logx_frequences.dial_freq` + `label_bande`, `/rig/qsy` accepte `{band, dial_mode}`). |
+| #427 | **FT8 QSO en cours coloré, tous modes** : correspondant unifié `_qsoEnCoursCible()` (séquenceur/copilote/MANUEL) + classe couleur `qso-actif`. Corrige « un QSO fait sans voir l'affichage du QSO en cours » (le panneau ne se remplissait qu'en séquenceur). |
+| #428 | **Garde-fou « feuille de style bloquée »** (`logx_theme_guard.js`, 22 pages) : si `--accent` absent, bandeau rouge nommant la cause (antivirus/Avast Web Shield bloque `logx_theme.css`). Auto-diagnostic de toute une classe de bugs d'affichage « selon les PC » (cause : Avast Web Shield ≠ pare-feu ; exception Agent Web pour `localhost:8080`). |
+
+**Nuit du 27→28/08/2026 — 11 PR (F4GLD « avance au maximum avant la démo »,
+règle de validation navigateur jour+nuit SUPPRIMÉE ce jour-là) :**
+
+| PR | Ce que ça fait |
+|---|---|
+| #383 | **HUD « Opportunités » (LOGBOOK)** : remonte la need-list de CHASSE (même moteur `/data/spots_ranked`, zéro recalcul) + explicabilité **FAIT / CALCUL / PROPOSITION** ; bouton ▶ Appeler (pré-remplit l'indicatif + QSY si CAT). `logx_opportunites.js`. |
+| #384 | **Suite d'évals invariants sécurité** (`test_invariants_securite.py`) : verrouille *0 émission sans consentement · 0 écriture QSO par le LLM · 0 faux crédit · 0 action aberrante · jeton jamais journalisé*. Tests purs, contre-épreuves de mutation. |
+| #385 | **Récap « après-QSO »** (`logx_apres_qso.js`) : ce que le QSO apporte (nouveau pays/bande, à confirmer LoTW) via `/call/history` ; non-modal, silencieux sur doublon. |
+| #386 | **Durcissement consentement TX** : empreinte SHA-256 du message dans l'audit + plafond de puissance optionnel (`tx_max_power_w`, parse défensif fail-open). Additif, ne change rien à l'émission. |
+| #387 | **Suivi de consommation IA en tokens** (`logx_ai_usage.py`, `GET /ai/usage`) : FAITS seulement, aucun prix inventé (coût si tarifs configurés). Hooks défensifs `call_llm` + `/proxy/ai`. |
+| #388-#391 | **Écran « Santé de la station »** (`logx_diagnostic.html/.js`) : tuiles Radio/Rotor/FT8/Callbook/Cloud/MySQL/DXCC/Émission/IA + horloge UTC, lecture seule. Atteignable depuis le menu Outils de toutes les pages, nav cohérente. + couverture tokens openai/gemini serveur. |
+| #392 | **Planificateur de session** (`logx_session.html/.js/.py`, `POST /session/plan`) : contraintes → plan par créneaux + critères d'arrêt. **Consultatif** (prompt « ne propose jamais d'émettre automatiquement »). Lien nav « PLAN DE SESSION » partout. |
+
 | PR | Ce que ça fait |
 |---|---|
 | #115 | **Sûreté d'émission** : STOP et Échap annulent réellement une émission déjà programmée. Avant, jusqu'à 12,9 s d'émission continuaient APRÈS l'ordre d'arrêt, écran affichant « Émission coupée ». |
@@ -448,7 +481,7 @@ maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
 toujours pas** au premier lancement. Une invite au démarrage tant que le
 dossier est vide serait le vrai correctif, et elle n'existe pas.
 
-### ✅ RÉSOLU — publication à jour (`v1.1-beta8`, 24/08/2026)
+### ✅ RÉSOLU — publication à jour (`v1.2-beta4`, 31/08/2026)
 
 Le paragraphe original (19/08) alertait sur un décalage de 32 commits entre
 `main` et le dernier tag (`v1.1-beta4`), dont les garde-fous anti-perte de
@@ -473,6 +506,15 @@ pousser le tag, comme l'exige la consigne ci-dessous.
 > resté cassé deux jours sans que personne le sache (`Tree()` vs `Analysis()`),
 > et seul un vrai build local l'avait révélé. Le spec `concours/logx.spec`
 > gère le cas Tree()/Analysis() (TOC combiné à `a.datas` APRÈS Analysis).
+
+✅ **Publication `v1.2-beta4` — le 31/08/2026.** `APP_VERSION` bumpé à
+`1.2-beta4`, tag `v1.2-beta4` poussé, build multi-OS `build-release.yml` réussi
+(binaires Windows/macOS/Linux attachés). Inclut les 12 PR du 31/08 (références
+XOTA DFCF/WWBOTA/GMA/ARLHS, correctifs FT8 sécurité/tail-ending/auto-fréquence/
+QSO coloré, CAT bande, reset config, garde-fou de thème). **Piège du jour** :
+tag posé AVANT le bump `APP_VERSION` → run annulé, `git tag -f` sur le commit de
+bump, force-push (la consigne ci-dessus reste d'actualité). Un premier build a
+donc été jeté avant de repartir sur le bon commit.
 
 ### Ce qui reste ouvert
 
@@ -919,6 +961,88 @@ pousser le tag, comme l'exige la consigne ci-dessous.
    chaque bloc doit être traité SEUL, avec la même discipline contre-épreuve
    par mutation que le reste du dépôt, jamais « en passant » à côté d'un
    autre correctif.
+
+7. ✅ **FAIT — bandeaux défilants (tickers) + adaptation par activité**
+   (branche `feat/tickers-live`, ~20 commits, **NON mergée** — attend la
+   validation navigateur de F4GLD puis le merge). Bandes défilantes sous la nav
+   (accueil / LOGBOOK / CHASSE) : **DX ≤7J**, **PROPAG** (bande courante en
+   tête), **SPOTS DX** (opt-in), **MULTS** (concours seulement). Fiche popup au
+   clic sur un item actif (entité, fréquence cluster, nom via `/calldb/lookup`,
+   ▶ QSY, lien QRZ). **⚙ afficher/masquer par activité.** Adaptation à **DEUX
+   AXES INDÉPENDANTS** : classe de bande (HF masqué en VHF/SHF/sat) ET concours
+   actif (MULTS via `contestActif()`, PAS le bucket d'activité — un concours VHF
+   EST un concours).
+
+   Architecture : moteur pur `logx_bandeaux.js` (registre, rendu XSS-safe,
+   config, `bandeauxAffichables` par tags, `aReglageActivite`) ; définitions
+   `logx_bandeaux_defs.js` (dxped/propag/spots/mults, purs, V8-testés) ; driver
+   `logx_bandeaux_driver.js` (fetch-aware, ⚙, contexte évolutif) ; composant CSS
+   `.rcb-*` mutualisé dans `logx_theme.css`.
+
+   ⚠️ **8 bugs tranchés en revue adversariale** (garde-fous du dépôt) : sens
+   d'ouverture du ⚙ (barre en bas d'écran → panneau vers le haut) ; `freq=0`
+   traitée comme absente (sinon « QSY 0 kHz ») ; garde anti-course sur le lookup
+   nom de la fiche ; a11y Échap + retour focus ; ⚙ atteignable même sur un état
+   sans data ; « home call » pour les indicatifs portables (QRZ) ; pas de strip
+   « Bandeaux masqués » quand c'est vide par contexte (VHF). Vérifié end-to-end
+   en node (rendus HTML inspectés) + suites complètes 100 %.
+
+   Reste : **validation navigateur (2 thèmes) par F4GLD, puis merge.**
+   Documenté : GUIDE_UTILISATEUR §6.9 + CHANGELOG [Non publié].
+
+8. ✅ **FAIT — occupation des bandes multi-postes** (branche `feat/occupation`,
+   NON mergée — attend la validation navigateur de F4GLD puis le merge). Log
+   partagé à distance :
+   activation spéciale type TM6KJS / radioclub / expédition). Question F4GLD
+   « partage à distance sur des réseaux internet DIFFÉRENTS » : **OUI, déjà
+   possible** via Cloud Sync (dossier partagé) ou MySQL Sync (quasi temps réel,
+   construit le 06/08 pour le radioclub) — le **LAN sync est même-réseau
+   seulement**.
+
+   **FAIT (fondation, testée) :** `logx_occupancy.py` — cœur pur
+   `vue_occupation(statuts, maintenant, ttl)` (vue « qui est sur quelle
+   bande/mode » + conflits **bande+mode** ; même bande + mode différent =
+   permis) + registre serveur thread-safe (mon statut via heartbeat + pairs des
+   canaux ; **priorité locale = latest-ts-wins** ; purge TTL). 10 tests, ruff OK.
+
+   **CONSTRUIT (tout testé) :** endpoints HTTP (`POST /occupancy/heartbeat`,
+   `GET /data/occupancy`) ; les **3 canaux** (band/mode dans le beacon LAN ;
+   fichier occupancy cloud ; table MySQL dédiée) — **transport SÉPARÉ du log**
+   partout, best-effort, 0 régression sur lan/cloud/mysql ; UI (heartbeat + carte
+   + recouvrement rouge) + assistant de session (radioclub / expé / indicatif
+   spécial). Fusion multi-canaux à **priorité locale** (même iid entre canaux).
+   ~60 tests. **Vocabulaire** : « activation » banni de l'UI (langage cibiste)
+   -> « indicatif spécial ». Plan : `docs/idees/2026-08-27-tm6kjs-multi-postes.md`.
+
+   **RESTE :** validation navigateur (F4GLD, avec 2 instances + LAN, puis un
+   canal distant) -> PR + merge. Ajustements design panneau/assistant avec lui.
+
+9. ✅ **FAIT — HUD « Opportunités » dans le LOGBOOK** (branche
+   `feat/opportunites-hud-logbook`, NON mergée — attend validation navigateur
+   F4GLD). Première brique de la **thèse produit « copilote orienté objectif »**
+   (recoupement de 4 analyses IA le 27/08 : boucle décodage→opportunité→décision).
+
+   **Le contexte qui compte :** la « need list / score d'opportunité » existait
+   DÉJÀ de bout en bout dans CHASSE (`logx_chasse_priorite.evaluer` +
+   `logx_awards.annoter_credit`, exposés par `/data/spots_ranked`). Vérifié AVANT
+   de coder (règle du dépôt) -> **aucun moteur réécrit**. La vraie valeur = (a)
+   REMONTER ce classement dans le LOGBOOK (là où on loge, pas seulement CHASSE),
+   (b) la **séparation explicite FAIT / CALCUL / PROPOSITION** (nouveau contrat
+   d'explicabilité, inexistant avant).
+
+   **Construit (TDD, 9 tests V8, contre-épreuve par mutation faite — dont un test
+   de filtre initialement VACANT rattrapé) :** `logx_opportunites.js` (pur glue,
+   lit `/data/spots_ranked` + `/rig/state`, top-5 par `credit_score>0`, repli
+   natif `<details>`, XSS-safe). Fiche 3 couches : **FAIT** (dx_country·band·mode,
+   sourcé), **CALCUL** (credit_raison + score), **PROPOSITION** bouton
+   **▶ Appeler**. « Appeler » = **pré-remplit `#inputCall` TOUJOURS** + **QSY
+   (`/rig/qsy`) SEULEMENT si CAT branché** (choix F4GLD : « 2 et 3, préremplir et
+   qsy si le cat est branché ») — **jamais d'émission ni d'armement**. Panneau
+   repliable (masquer ≠ bloquer). CSS `.opp-*` mutualisé dans `logx_theme.css`
+   (bouton accent *outline* — évite le piège fond-plein+texte-sombre du jour).
+
+   **RESTE :** validation navigateur 2 thèmes (jour/nuit) par F4GLD -> PR + merge.
+   Suite possible (validée à part) : remontée sur l'accueil, boucle « après-QSO ».
 
 ---
 

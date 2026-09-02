@@ -391,5 +391,10 @@ information utile reste hors champ ou tassée. L'objectif est la
    AVANT de les toucher, et vérifier le contexte de chaque groupe de
    résultats — distinguer thème UI vs donnée de catégorisation (voir piège
    ci-dessus).
-3. Vérifier en navigateur les DEUX thèmes (jour ET nuit) sur une instance
-   isolée, pas seulement celui par défaut.
+
+> **Retiré (F4GLD, 28/08/2026)** : l'ancienne règle « vérifier en navigateur
+> les DEUX thèmes (jour ET nuit) » est SUPPRIMÉE, jugée inutile. Depuis la
+> mutualisation des tokens dans `logx_theme.css`, un composant qui utilise les
+> variables de thème fonctionne dans les deux thèmes par construction ; re-
+> vérifier les deux est redondant. Ne pas réintroduire cette exigence, et ne
+> pas conditionner un merge à une validation navigateur jour+nuit.

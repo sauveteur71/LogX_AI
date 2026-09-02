@@ -1013,6 +1013,58 @@ def award_summary(shared_log=None):
     }
 
 
+def prochaines_cibles(shared_log=None, n=6):
+    """« Prochaines cibles recommandées » : par entité DÉJÀ entamée, le prochain
+    slot à aller chercher. Déterministe, sourcé (log + confirmations LoTW) :
+
+      - entité travaillée mais JAMAIS confirmée LoTW -> « à confirmer LoTW »
+        (le plus payant : le pays ne compte pour le DXCC qu'une fois confirmé) ;
+      - sinon, un MODE manquant sur une bande DÉJÀ travaillée (CW en priorité,
+        « le prochain défi ») -> ex. « CW · 15 m ».
+
+    Priorise les entités où l'opérateur est le plus investi (nb de QSO), une
+    cible par entité, plafonné à `n`. Retourne [{entity, slot, kind}]
+    (kind: 'lotw' | 'mode')."""
+    qsos = collect_all_qsos(shared_log)
+    conf = _load_confirmations()
+    ent = {}   # pays -> {'slots': set((band, mode_cat)), 'lotw': bool, 'n': int}
+    for q in qsos:
+        c = q.get('dxcc_country')
+        if not c:
+            continue
+        e = ent.setdefault(c, {'slots': set(), 'lotw': False, 'n': 0})
+        e['n'] += 1
+        b = str(q.get('band', '') or '').strip()
+        if b:
+            e['slots'].add((b, _mode_category(q.get('mode'), q.get('freq'))))
+        if _credite_pour(conf.get(_confirm_key(q)) or {}, 'ARRL_DXCC'):
+            e['lotw'] = True
+
+    cibles = []
+    for c, e in ent.items():
+        if not e['lotw']:
+            cibles.append({'entity': c, 'slot': 'à confirmer LoTW', 'kind': 'lotw', '_n': e['n']})
+            continue
+        bandes = sorted({b for (b, _m) in e['slots']})
+        trouve = None
+        for mode in ('CW', 'PHONE', 'DIGITAL'):
+            for b in bandes:
+                if (b, mode) not in e['slots']:
+                    trouve = (mode, b)
+                    break
+            if trouve:
+                break
+        if trouve:
+            mode, b = trouve
+            cibles.append({'entity': c, 'slot': '%s · %s m' % (mode, b.rstrip('mM')),
+                           'kind': 'mode', '_n': e['n']})
+
+    cibles.sort(key=lambda x: -x['_n'])
+    for x in cibles:
+        x.pop('_n', None)
+    return cibles[:max(0, int(n))]
+
+
 # ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────
 
 # Créneaux bande/mode par FRÉQUENCE, repris de la table publiée dans le manuel

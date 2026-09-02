@@ -47,12 +47,23 @@ function choisirActivite(id){
   window.location.href = _pageSuivante();
 }
 
-function _grille(){
+// « Reprendre » : même geste que l'ancienne redirection immédiate, mais en UN
+// clic explicite -- l'accueil montre d'abord le cockpit (décision F4GLD 28/08).
+function _reprendre(){ window.location.href = _pageSuivante(); }
+function _labelActivite(id){ const a = ACTIVITIES.find(x => x.id === id); return a ? a.label : id; }
+
+// `deja` = id de la dernière activité (ou null) : ajoute un bouton « Reprendre »
+// et un cockpit (opportunités / progression / état) AVANT la grille d'activités.
+function _grille(deja){
   const intro = document.getElementById('intro');
   intro.innerHTML =
+    (deja ? '<div class="reprise-wrap"><button type="button" class="reprendre-btn" onclick="_reprendre()">▶ Reprendre : ' + _labelActivite(deja) + '</button><a class="reprise-changer" href="?changer=1">changer</a></div>' : '') +
+    '<div class="cockpit" id="cockpit"><div class="ck-col"><h2>🎯 Opportunités</h2><div id="ckOpp"></div></div><div class="ck-col"><h2>📊 Progression</h2><div id="ckProg"></div></div><div class="ck-col"><h2>🩺 État station</h2><div id="ckEtat"></div></div><div class="ck-col"><h2>🎯 Prochaines cibles</h2><div id="ckCibles"></div></div></div>' +
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
-    '<div class="activity-grid" id="activityGrid"></div>';
+    '<div class="activity-grid" id="activityGrid"></div>' +
+    '<div id="xotaRoleAccueil"></div>';
+  _renderXotaRoleAccueil();
   const grid = document.getElementById('activityGrid');
   grid.innerHTML = ACTIVITIES.map(a =>
     '<button type="button" class="activity-card' + (a.pilote ? ' pilote' : '') + '" onclick="choisirActivite(\'' + a.id + '\')">' +
@@ -61,33 +72,51 @@ function _grille(){
       '<span class="activity-hint">' + a.hint + '</span>' +
     '</button>'
   ).join('');
-  _chargerBandeaux();
+  if(window.LogxCockpit) window.LogxCockpit.charger();
+  _brancherBandeaux();
+}
+
+// Section « Mode SOTA/POTA cette session » : 3 tuiles de rôle (chasse/portable/
+// les deux), rôle mémorisé surligné. Clic -> mémorise + ouvre le logbook réglé
+// pour ce rôle. Absente si le module n'est pas chargé. Contenu 100% contrôlé.
+function _renderXotaRoleAccueil(){
+  const el = document.getElementById('xotaRoleAccueil');
+  if(!el || !window.LogxXotaRole) return;
+  const actuel = LogxXotaRole.getRole();
+  el.innerHTML =
+    '<h2 class="xota-acc-h">Mode SOTA / POTA cette session</h2>' +
+    '<div class="xota-acc-tiles">' +
+    LogxXotaRole.ROLES.map(r =>
+      '<button type="button" class="xota-acc-tile' + (r.id === actuel ? ' on' : '') +
+      '" onclick="_choisirRoleXota(\'' + r.id + '\')" title="' + r.hint + '">' +
+      '<span class="xota-acc-ico">' + r.icone + '</span>' +
+      '<span class="xota-acc-name">' + r.label + '</span>' +
+      '<span class="xota-acc-hint">' + r.hint + '</span></button>'
+    ).join('') + '</div>';
+}
+function _choisirRoleXota(role){
+  if(window.LogxXotaRole) LogxXotaRole.setRole(role);
+  window.location.href = 'logx_logbook.html';
 }
 
 // Bandeau défilant d'info ambiante (DXpéditions ≤7j + propagation), affiché
-// SOUS la grille. Ne tourne que quand la grille est visible (jamais sur une
-// redirection immédiate -- « ne pas rallonger le chemin quotidien »). Les deux
-// flux sont indépendants : l'échec de l'un n'empêche pas l'autre. Rafraîchi
-// toutes les 2 min tant que la page reste ouverte.
-let _bandeauxTimer = null;
-async function _chargerBandeaux(){
-  const LB = window.LogxBandeaux;
-  const wrap = document.getElementById('bandeaux');
-  if(!LB || !wrap) return;
-  const donnees = {};
-  await Promise.all([
-    fetch('/data/dxpeditions_active').then(r => r.json())
-      .then(d => { donnees.dxpeditions = d; }).catch(() => {}),
-    fetch('/data/propagation').then(r => r.json())
-      .then(d => { donnees.propagation = d; }).catch(() => {}),
-  ]);
-  const ctx = { activite: 'accueil', maintenant: Date.now() };
-  const html = LB.rendreTicker(['dxped', 'propag'], ctx, donnees);
-  if(html){ wrap.innerHTML = html; wrap.hidden = false; }
-  else { wrap.innerHTML = ''; wrap.hidden = true; }   // aucune info live -> pas de bande morte
-  if(!_bandeauxTimer){
-    _bandeauxTimer = setInterval(_chargerBandeaux, 120000);
-  }
+// SOUS la grille. Branché SEULEMENT quand la grille est visible (jamais sur une
+// redirection immédiate -- « ne pas rallonger le chemin quotidien »). Via le
+// driver partagé : récupère les flux, rend les bandeaux ACTIFS, pose le ⚙
+// afficher/masquer (comme LOGBOOK). Idempotent : brancher une seule fois même
+// si _grille est rejouée (?changer=1).
+let _bandeauxBranches = false;
+function _brancherBandeaux(){
+  if(_bandeauxBranches || !window.LogxBandeauxDriver) return;
+  _bandeauxBranches = true;
+  window.LogxBandeauxDriver.brancher({
+    wrapId: 'bandeaux', activite: 'accueil',
+    tags: ['hf'],                              // l'accueil met en avant le DX/propag HF
+    ids: ['dxped', 'propag'],
+    sources: { dxpeditions: '/data/dxpeditions_active', propagation: '/data/propagation' },
+    besoins: { dxped: ['dxpeditions'], propag: ['propagation'] },
+    defauts: { accueil: ['dxped', 'propag'] }
+  });
 }
 
 // ?changer=1 force le réaffichage de la grille même si une activité est déjà
@@ -101,9 +130,8 @@ async function _chargerBandeaux(){
   let deja = null;
   try{ deja = localStorage.getItem('logx_activity'); }catch(e){}
   const forcer = new URLSearchParams(window.location.search).get('changer') === '1';
-  if (deja && !forcer){
-    window.location.href = _pageSuivante();
-    return;
-  }
-  _grille();
+  // Décision F4GLD (28/08) : plus de redirection AUTOMATIQUE. On affiche le
+  // cockpit + un bouton « Reprendre » (retour en UN clic, aucun allongement du
+  // chemin quotidien). `?changer=1` masque le bouton (on vient justement changer).
+  _grille(forcer ? null : deja);
 })();

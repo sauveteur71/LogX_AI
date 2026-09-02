@@ -294,6 +294,13 @@
       #rcStatusBar .rcsb-item{display:flex;align-items:center;gap:6px;
         padding:6px 14px;border-right:1px solid var(--border,#2B2F4A);white-space:nowrap}
       #rcStatusBar .rcsb-item:last-child{border-right:none}
+      /* Frontière de BLOC (cockpit, retour F4GLD 27/08) : les fins traits
+         (border-right) séparent les items DANS un groupe ; un écart plus large
+         (margin-left sur le PREMIER item d'un bloc) marque le passage d'un bloc
+         à l'autre. Marge à GAUCHE = robuste même si des items du bloc précédent
+         sont masqués (orage/réseau/dxcc/bandchange en display:none). Blocs :
+         CONCOURS │ PROPAG/MÉTÉO │ STATION/MAINTENANCE │ ACTIONS. */
+      #rcStatusBar .rcsb-blockstart{margin-left:12px}
       #rcStatusBar .rcsb-val{color:var(--text,#E9ECF5)}
       #rcStatusBar .rcsb-contest{color:var(--accent,#FF5030);font-weight:700;letter-spacing:1px}
       #rcStatusBar .rcsb-running{color:var(--green,#00FF88)}
@@ -365,16 +372,23 @@
       .rcsb-skip:focus{transform:translateY(0);outline:3px solid var(--accent,#E8964A);outline-offset:2px}
       @media (prefers-reduced-motion:reduce){.rcsb-skip{transition:none}}
     </style>
+    <!-- ── BLOC CONCOURS (contest · chrono · rate · règle 10 min) ──────────── -->
     <div class="rcsb-item" title="Concours actif (choisi dans CONFIG)">
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
     </div>
     <div class="rcsb-item" id="rcsbTimeItem" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
       ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
-    <div class="rcsb-item" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
-      💾 <span class="rcsb-val" id="rcsbSave">—</span>
+    <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
+         id="rcsbRateItem" style="cursor:pointer">
+      ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
     </div>
-    <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
+    <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
+         title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
+      🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
+    </div>
+    <!-- ── BLOC PROPAGATION / ENVIRONNEMENT (SFI · balise · orage) ──────────── -->
+    <div class="rcsb-item rcsb-blockstart" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
       <a href="logx_propagation.html#solarPanel">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
@@ -385,6 +399,10 @@
          target="_blank" rel="noopener noreferrer">
         <span id="rcsbStormIcon">⚡</span> <span class="rcsb-val" id="rcsbStorm">—</span></a>
     </div>
+    <!-- ── BLOC STATION / MAINTENANCE (disque · réseau · dxcc · règlements) ── -->
+    <div class="rcsb-item rcsb-blockstart" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
+      💾 <span class="rcsb-val" id="rcsbSave">—</span>
+    </div>
     <div class="rcsb-item" id="rcsbNetworkItem" style="display:none"
          title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
       📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
@@ -393,18 +411,10 @@
          title="cty.dat absent — la résolution des pays, zones et entités DXCC est désactivée. Clic : ouvrir CONFIG pour recharger cty.dat.">
       <a href="logx_configuration.html">⚠ <span class="rcsb-val" id="rcsbDxccText" style="color:var(--red,#FF2D55)">DXCC indisponible</span></a>
     </div>
-    <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
-         id="rcsbRateItem" style="cursor:pointer">
-      ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
-    </div>
-    <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
-         title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
-      🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
-    </div>
     <div class="rcsb-item" id="rcsbRulesItem" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
-    <div class="rcsb-item expert-only" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
+    <div class="rcsb-item expert-only rcsb-blockstart" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>
@@ -957,10 +967,66 @@
     if (v === 'normal') return false;
     return !!(window.matchMedia && window.matchMedia('(prefers-contrast: more)').matches);
   }
+  // Le haut-contraste est-il actif PARCE QUE le système le demande (et non par
+  // choix manuel) ? C'est ce cas qui surprend : l'opérateur voit un thème très
+  // contrasté (jour = fond blanc pur) sans savoir d'où ça vient. rc_contrast
+  // absent = aucun choix manuel -> on suit prefers-contrast.
+  function _contrasteAuto(){
+    return localStorage.getItem('rc_contrast') === null
+      && !!(window.matchMedia && window.matchMedia('(prefers-contrast: more)').matches);
+  }
+  // Décision PURE (testable) : afficher le repère ssi le HC est auto-système ET
+  // l'utilisateur ne l'a pas déjà écarté.
+  function _doitAfficherRepere(){
+    return _contrasteAuto() && localStorage.getItem('rc_contrast_hint_off') !== '1';
+  }
+  // Repère discret + « Désactiver » en un clic, uniquement quand le HC est AUTO
+  // (système) ET non déjà écarté. Rend l'origine du thème découvrable — sinon le
+  // bouton est enterré dans CONFIG et l'utilisateur ne fait pas le lien.
+  var _contrastHintEl = null;
+  function majContrastHint(){
+    var montrer = _doitAfficherRepere();
+    if (!montrer){ if (_contrastHintEl) _contrastHintEl.style.display = 'none'; return; }
+    if (!_contrastHintEl){
+      var el = document.createElement('div');
+      el.id = 'rcsbContrastHint';
+      el.innerHTML =
+        '<style>'
+        + '#rcsbContrastHint{position:fixed;left:14px;bottom:14px;z-index:2147483000;'
+        + 'display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:10px;'
+        + 'background:var(--bg2,#1D1F22);border:1px solid var(--border,#464950);'
+        + 'color:var(--text,#E9ECF5);font-family:var(--font-mono,monospace);font-size:12px;'
+        + 'box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:min(360px,92vw)}'
+        + '#rcsbContrastHint b{color:var(--accent,#E8964A);font-weight:600}'
+        + '#rcsbContrastHint button{font-family:inherit;font-size:12px;cursor:pointer;'
+        + 'border-radius:7px;padding:4px 9px;border:1px solid var(--border,#464950);'
+        + 'background:transparent;color:var(--accent2,#E8964A)}'
+        + '#rcsbContrastHint button:hover{border-color:var(--accent,#E8964A)}'
+        + '#rcsbContrastHint .rcsb-ch-x{border:none;color:var(--muted,#A9B0C8);font-size:15px;padding:0 4px}'
+        + '</style>'
+        + '<span><b>Contraste élevé</b> actif (suit ton système)</span>'
+        + '<button type="button" class="rcsb-ch-off">Désactiver</button>'
+        + '<button type="button" class="rcsb-ch-x" aria-label="Masquer">×</button>';
+      document.body.appendChild(el);
+      // « Désactiver » : force le contraste normal (le manuel prime sur l'auto).
+      el.querySelector('.rcsb-ch-off').addEventListener('click', function(){
+        localStorage.setItem('rc_contrast', 'normal');
+        applyContraste();
+      });
+      // « × » : on n'en reparle plus (l'utilisateur assume le contraste système).
+      el.querySelector('.rcsb-ch-x').addEventListener('click', function(){
+        localStorage.setItem('rc_contrast_hint_off', '1');
+        el.style.display = 'none';
+      });
+      _contrastHintEl = el;
+    }
+    _contrastHintEl.style.display = 'flex';
+  }
   function applyContraste(){
     document.body.classList.toggle('high-contrast', contrasteEleve());
     var b = document.getElementById('contrastToggle');
     if (b) b.setAttribute('aria-pressed', contrasteEleve() ? 'true' : 'false');
+    majContrastHint();
   }
   applyContraste();
   window.addEventListener('storage', function(e){
@@ -977,6 +1043,8 @@
   // API publique pour un bouton/réglage (CONFIG) : bascule et persiste.
   window.LogxContraste = {
     actif: contrasteEleve,
+    autoSysteme: _contrasteAuto,          // HC actif à cause du système (pas manuel)
+    doitAfficherRepere: _doitAfficherRepere,   // décision d'afficher le repère découvrable
     basculer: function(){
       var nouveau = contrasteEleve() ? 'normal' : 'high';
       localStorage.setItem('rc_contrast', nouveau);
@@ -1044,6 +1112,34 @@
     a.href = '#' + ((cible && cible.id) || 'main-content');
     a.textContent = (typeof rcT === 'function') ? rcT('Aller au contenu') : 'Aller au contenu';
     document.body.insertBefore(a, document.body.firstChild);
+  }
+
+  // ── Menu « Outils ▾ » de la nav (disclosure accessible) ────────────────────
+  // Refonte nav approche A (F4GLD 27/08) : le cœur (CONFIG·LOGBOOK·CHASSE·PROPAG)
+  // reste au 1er niveau, les outils secondaires sont rangés dans ce menu.
+  // Motif DISCLOSURE (pas ARIA menu) : bouton natif + aria-expanded + panneau
+  // `hidden` ; Échap ferme et rend le focus au bouton ; clic-extérieur ferme.
+  // Le focus n'est PAS déplacé dans le panneau (Tab y entre naturellement).
+  function _wireNavTools(){
+    const btn = document.getElementById('navToolsBtn');
+    const menu = document.getElementById('navToolsMenu');
+    if (!btn || !menu) return;   // page sans le menu (pas encore déployé)
+    function ouvrir(o){
+      btn.setAttribute('aria-expanded', o ? 'true' : 'false');
+      if (o) menu.removeAttribute('hidden'); else menu.setAttribute('hidden', '');
+    }
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();   // ne pas déclencher le clic-extérieur ci-dessous
+      ouvrir(btn.getAttribute('aria-expanded') !== 'true');
+    });
+    btn.addEventListener('keydown', function(e){ if (e.key === 'Escape') ouvrir(false); });
+    menu.addEventListener('keydown', function(e){
+      if (e.key === 'Escape'){ ouvrir(false); btn.focus(); }
+    });
+    document.addEventListener('click', function(e){
+      if (!menu.hasAttribute('hidden') && !btn.contains(e.target) && !menu.contains(e.target))
+        ouvrir(false);
+    });
   }
 
   // ── Concours actif + temps restant ─────────────────────────────────────────
@@ -2221,6 +2317,7 @@
   function boot(){
     insert();
     insererSkipLink();      // après insert() : le contenu principal suit la barre
+    _wireNavTools();        // menu « Outils ▾ » de la nav (si présent sur la page)
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
     refreshGuideLink();     // idem, purement local
     maybeApplyActivityPresetOnChange();     // preset de l'activité si elle a changé

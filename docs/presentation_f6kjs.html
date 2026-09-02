@@ -1,0 +1,396 @@
+<meta charset="utf-8">
+<title>LogX AI au F6KJS</title>
+<style>
+  /* ── Palette « graphite & cuivre » de LogX AI, verrouillée le 03/08/2026.
+     Choix ASSUMÉ du thème nuit : c'est un support de VIDÉOPROJECTION dans une
+     salle de club, et c'est l'identité du logiciel qu'on présente. Toutes les
+     couleurs sont posées explicitement — la page ne doit rien emprunter au
+     thème de celui qui l'ouvre. ── */
+  :root{
+    --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+    --accent:#E8964A; --accent-rgb:232,150,74;
+    --texte:#E9E6E0; --muted:#8E8B85;
+    --vert:#4CAF6E; --rouge:#E0524E; --jaune:#E8C34A;
+    --serif:Georgia,'Iowan Old Style','Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,'Cascadia Mono',Consolas,'DejaVu Sans Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--texte);
+    font-family:var(--sans); font-size:17px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── Rail de progression ── */
+  #rail{position:fixed;top:0;left:0;right:0;height:3px;background:var(--bg3);z-index:60}
+  #railFill{height:100%;width:0;background:var(--accent);transition:width .25s ease}
+
+  /* ── Diapositives ── */
+  .pont{scroll-snap-type:y mandatory;height:100vh;overflow-y:auto;scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){.pont{scroll-behavior:auto}}
+  .dia{
+    scroll-snap-align:start; min-height:100vh; display:flex; flex-direction:column;
+    justify-content:center; padding:5vh clamp(24px,7vw,110px) 12vh; gap:28px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:13px; letter-spacing:2.4px;
+    text-transform:uppercase; color:var(--accent); display:flex; gap:14px;
+    align-items:baseline; flex-wrap:wrap;
+  }
+  .eyebrow .t{color:var(--muted);letter-spacing:1.6px}
+  h1{
+    font-family:var(--serif); font-weight:700; font-size:clamp(38px,7.2vw,86px);
+    line-height:1.04; margin:0; text-wrap:balance; letter-spacing:-.5px;
+  }
+  h2{
+    font-family:var(--serif); font-weight:700; font-size:clamp(30px,4.6vw,54px);
+    line-height:1.1; margin:0; text-wrap:balance; letter-spacing:-.3px;
+  }
+  .accroche{font-size:clamp(19px,2.1vw,26px); max-width:30ch; color:var(--texte)}
+  p{margin:0;max-width:62ch}
+  .muted{color:var(--muted)}
+  strong{color:#fff;font-weight:600}
+  em{color:var(--accent);font-style:normal;font-weight:600}
+
+  /* ── Grilles ── */
+  .grille{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));max-width:1180px}
+  .carte{
+    background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+    padding:20px 22px; display:flex; flex-direction:column; gap:9px;
+  }
+  .carte .k{
+    font-family:var(--mono); font-size:12px; letter-spacing:1.8px;
+    text-transform:uppercase; color:var(--accent);
+  }
+  .carte p{font-size:15.5px;color:var(--muted);max-width:none}
+  .carte .gros{font-family:var(--mono);font-size:34px;color:var(--texte);font-variant-numeric:tabular-nums;line-height:1}
+
+  /* ── Listes ── */
+  ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:13px;max-width:66ch}
+  /* Puce en position ABSOLUE, surtout pas en flex : un li en display:flex
+     fait de CHAQUE enfant un item de la grille — le ::before, chaque morceau
+     de texte, et le <strong> — et le gap:14px venait donc s'insérer AU MILIEU
+     des phrases. 12 puces sur 22 contiennent une mise en gras. */
+  li{position:relative; padding-left:22px; font-size:clamp(16px,1.6vw,19px)}
+  li::before{
+    content:''; position:absolute; left:0; top:.55em; width:8px; height:8px;
+    background:var(--accent); border-radius:2px; transform:rotate(45deg);
+  }
+  ul.plat li::before{background:var(--muted)}
+
+  /* ── Démo ── */
+  .demo{
+    border-left:3px solid var(--accent); background:rgba(var(--accent-rgb),.07);
+    padding:16px 22px; border-radius:0 8px 8px 0; max-width:70ch;
+  }
+  .demo .k{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:6px}
+
+  /* ── Tableau ── */
+  .tw{overflow-x:auto;max-width:100%}
+  table{border-collapse:collapse;font-size:15.5px;min-width:520px}
+  th,td{text-align:left;padding:10px 20px 10px 0;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);font-weight:400}
+  td.ok{color:var(--vert)} td.att{color:var(--jaune)}
+
+  /* ── HUD orateur ── */
+  #hud{
+    position:fixed; left:18px; bottom:14px; z-index:60; display:flex; gap:16px;
+    align-items:center; font-family:var(--mono); font-size:12.5px;
+    color:var(--muted); letter-spacing:1.4px; background:rgba(23,24,26,.82);
+    padding:7px 13px; border:1px solid var(--border); border-radius:7px;
+    backdrop-filter:blur(6px);
+  }
+  #hud b{color:var(--accent);font-weight:600}
+  #chrono{font-variant-numeric:tabular-nums}
+  #hud button{
+    font:inherit;letter-spacing:1.4px;background:none;border:1px solid var(--border);
+    color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer;
+  }
+  #hud button:hover,#hud button:focus-visible{color:var(--accent);border-color:var(--accent)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+  /* ── Conducteur ── */
+  #plan{
+    position:fixed; inset:0; z-index:80; background:rgba(15,16,18,.96);
+    padding:min(7vh,60px) clamp(20px,6vw,90px); overflow-y:auto; display:none;
+  }
+  #plan.on{display:block}
+  #plan h2{margin-bottom:26px}
+  #plan table{min-width:0;width:100%;max-width:900px}
+  #plan td:first-child{font-family:var(--mono);color:var(--accent);white-space:nowrap;width:1%;font-variant-numeric:tabular-nums}
+  .ferme{position:absolute;top:22px;right:26px}
+
+  @media (max-width:640px){
+    .dia{padding:4vh 22px 14vh;gap:22px}
+    #hud{font-size:11px;gap:10px;left:10px}
+  }
+</style>
+
+<div id="rail"><div id="railFill"></div></div>
+
+<main class="pont" id="pont">
+
+  <!-- 1 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Radio-club F6KJS</span><span class="t">19 août 2026</span></div>
+    <h1>LogX AI</h1>
+    <p class="accroche">Un logiciel de trafic et de concours, écrit par un radioamateur pour des radioamateurs.</p>
+    <p class="muted" style="font-family:var(--mono);font-size:14px;letter-spacing:1.6px">
+      F4GLD &nbsp;·&nbsp; VERSION 1.2-beta1 &nbsp;·&nbsp; 30 MINUTES
+    </p>
+  </section>
+
+  <!-- 2 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Pourquoi</span><span class="t">0:30 — 2 min</span></div>
+    <h2>Pourquoi un logiciel de plus ?</h2>
+    <ul>
+      <li>Parce qu'on finit tous avec <strong>quatre logiciels ouverts</strong> : le carnet, le décodeur numérique, le cluster, la propagation — et rien ne se parle.</li>
+      <li>Parce que la plupart supposent qu'on sait déjà. <em>Le débutant paie l'addition.</em></li>
+      <li>Parce qu'un carnet de trafic, c'est <strong>quinze ans de mémoire</strong>. Il ne doit dépendre de personne.</li>
+    </ul>
+  </section>
+
+  <!-- 3 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Ce que c'est</span><span class="t">2:30 — 2 min</span></div>
+    <h2>Quatre engagements, pas des arguments</h2>
+    <div class="grille">
+      <div class="carte"><span class="k">Gratuit</span><p>Pas de version « pro », pas d'abonnement, pas de fonction bridée.</p></div>
+      <div class="carte"><span class="k">Autonome</span><p>Aucun service tiers obligatoire. Coupez Internet : le carnet, le CAT et les modes numériques continuent.</p></div>
+      <div class="carte"><span class="k">Multiplateforme</span><p>Windows, macOS, Linux. L'interface est une page web servie en local.</p></div>
+      <div class="carte"><span class="k">Vie privée</span><p>Vos QSO restent chez vous. Rien ne part sans que vous l'ayez demandé.</p></div>
+    </div>
+  </section>
+
+  <!-- 4 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 1</span><span class="t">4:30 — 2 min</span></div>
+    <h2>Le carnet</h2>
+    <ul>
+      <li>Un <strong>carnet unique</strong>, chronologique, toutes bandes et tous modes.</li>
+      <li>L'indicatif est reconnu pendant que vous le tapez : pays, zones, distance, azimut, déjà travaillé ou non.</li>
+      <li>Import et export <strong>ADIF</strong>, <strong>Cabrillo</strong>, <strong>EDI</strong>.</li>
+      <li>Multi-opérateur en réseau local, sans serveur extérieur.</li>
+    </ul>
+    <div class="demo"><span class="k">À montrer en direct</span>
+      Saisir un indicatif DX et laisser la fiche se remplir toute seule. C'est le geste que tout le monde fera dès le premier jour.</div>
+  </section>
+
+  <!-- 5 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 2</span><span class="t">6:30 — 1 min 30</span></div>
+    <h2>Le poste se pilote tout seul</h2>
+    <ul>
+      <li>Le logiciel <strong>cherche le port et la vitesse</strong> à votre place. Vous ne saisissez pas d'adresse hexadécimale.</li>
+      <li>Icom (CI-V), Yaesu, Kenwood, Elecraft, FlexRadio — <strong>16 modèles</strong> reconnus par leur nom.</li>
+      <li>Fréquence et mode suivent dans les deux sens : vous tournez le VFO, le carnet suit.</li>
+      <li>Rotor, amplificateur, transverters : gérés aussi.</li>
+    </ul>
+  </section>
+
+  <!-- 6 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 3 — le clou</span><span class="t">8:00 — 2 min 30</span></div>
+    <h2>FT8 sans aucun logiciel tiers</h2>
+    <p class="accroche">Le décodeur et l'émetteur FT8 sont <em>dans</em> LogX AI. Pas de pont, pas de second programme à configurer.</p>
+    <ul>
+      <li>Décodage en temps réel, waterfall, rapport signal/bruit en dB calibré.</li>
+      <li>Un séquenceur enchaîne le QSO complet — appel, report, RRR, 73 — et l'enregistre seul. <strong>Le mode manuel reste le défaut</strong> : personne n'émet sans l'avoir demandé.</li>
+      <li>Un niveau <strong>copilote</strong> va plus loin : il prépare la réponse au bon créneau et l'émet après un court délai <em>sauf annulation</em> — et seulement si vous l'avez choisi. Chaque émission part dans un <strong>journal d'audit</strong>.</li>
+      <li>Cinq façons de tout arrêter, dont la touche Échap.</li>
+      <li>RTTY et SSTV suivent la même logique.</li>
+    </ul>
+    <div class="demo"><span class="k">À montrer en direct</span>
+      Le waterfall qui décode, puis cocher « activer l'émission » et faire un QSO. C'est le moment où la salle comprend.</div>
+  </section>
+
+  <!-- 7 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 4</span><span class="t">10:30 — 2 min</span></div>
+    <h2>Les concours</h2>
+    <div class="grille">
+      <div class="carte"><span class="gros">43</span><span class="k">concours décrits</span><p>Le barème, les multiplicateurs et les doublons sont calculés côté serveur — jamais saisis à la main.</p></div>
+      <div class="carte"><span class="k">Pendant</span><p>Score en direct, doublons signalés avant l'erreur, band map, cluster, score à battre.</p></div>
+      <div class="carte"><span class="k">Après</span><p>Cabrillo prêt à envoyer, EDI pour les concours THF, archive permanente par édition.</p></div>
+    </div>
+  </section>
+
+  <!-- 8 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 5</span><span class="t">12:30 — 1 min 30</span></div>
+    <h2>Chasse et activations</h2>
+    <ul>
+      <li><strong>POTA, SOTA, WWFF, IOTA, châteaux</strong> : les spots en direct, et l'export au bon format pour déclarer votre activation.</li>
+      <li>Les DXpéditions en cours, avec ce que vous avez <em>déjà</em> travaillé sur chaque entité.</li>
+      <li>Chaque station spottée dit <em>ce qu'elle vous apporte</em> — nouvelle entité, nouvelle bande, nouveau mode, ou une confirmation qui manque — pas seulement « c'est rare ».</li>
+      <li>Cluster, balises, propagation, WebSDR — au même endroit que le carnet.</li>
+    </ul>
+  </section>
+
+  <!-- 9 ────────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Démonstration 6</span><span class="t">14:00 — 2 min</span></div>
+    <h2>L'IA : ce qu'elle fait, et ce qu'elle ne fait pas</h2>
+    <div class="grille">
+      <div class="carte"><span class="k">Ce qu'elle fait</span><p>Elle lit <em>votre</em> carnet et répond en français : quelle bande ouvrir, quels multiplicateurs manquent, où est le temps perdu. Elle débriefe le concours.</p></div>
+      <div class="carte"><span class="k">Ce qu'elle ne fait pas</span><p>Elle n'émet pas, ne loggue rien à votre place, et ne décide rien. Elle ne part jamais toute seule.</p></div>
+      <div class="carte"><span class="k">Ce qu'elle coûte</span><p><strong>Rien du tout si vous ne l'activez pas.</strong> Le logiciel est entier sans elle. Avec votre propre clé, trois niveaux dont un à zéro jeton.</p></div>
+    </div>
+  </section>
+
+  <!-- 10 ───────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Confiance</span><span class="t">16:00 — 1 min 30</span></div>
+    <h2>Votre carnet est protégé contre le logiciel lui-même</h2>
+    <p class="accroche">Ce matin, j'ai perdu mon carnet complet : <strong>9 874 QSO, de 2011 à 2026</strong>.</p>
+    <ul>
+      <li>Il a été <strong>entièrement récupéré</strong> — les pages effacées de la base contenaient encore les données.</li>
+      <li>Depuis aujourd'hui, le logiciel <em>refuse</em> de remplacer un carnet par nettement moins sans qu'on le lui demande explicitement.</li>
+      <li>Si l'enregistrement est suspendu, tout ce qui est saisi ensuite est mis de côté et repris au redémarrage. Et un bandeau le dit, sur toutes les pages.</li>
+    </ul>
+    <p class="muted">La cause exacte n'est toujours pas identifiée. Je préfère le dire.</p>
+  </section>
+
+  <!-- 11 ───────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Honnêteté</span><span class="t">17:30 — 1 min 30</span></div>
+    <h2>Où ça en est vraiment</h2>
+    <div class="tw"><table>
+      <tr><th>Ce qui marche</th><th>État</th></tr>
+      <tr><td>Carnet, import/export, concours, CAT</td><td class="ok">solide, utilisé en trafic réel</td></tr>
+      <tr><td>FT8 natif, RTTY, SSTV</td><td class="ok">éprouvé sur l'air</td></tr>
+      <tr><td>Chasse, diplômes, cartes, propagation</td><td class="ok">opérationnel</td></tr>
+      <tr><td>Copilote FT8 / CW / SSB (préparer, jamais décider)</td><td class="att">nouveau — prépare et propose, émission tracée</td></tr>
+      <tr><td>Page d'accueil par activité</td><td class="att">en place, s'étend activité par activité</td></tr>
+    </table></div>
+    <p><strong>C'est une bêta.</strong> <em>plus de 10 000 tests automatiques</em> rejoués à chaque modification, une intégration continue, et un utilisateur quotidien : moi.</p>
+  </section>
+
+  <!-- 12 ───────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>La suite</span><span class="t">19:00 — 1 min</span></div>
+    <h2>Là où je veux l'emmener</h2>
+    <p class="accroche">Une page d'accueil, des boutons, et on trafique.</p>
+    <ul class="plat">
+      <li>LOG déca &nbsp;·&nbsp; LOG 6 m &nbsp;·&nbsp; LOG V/UHF &nbsp;·&nbsp; LOG satellites &nbsp;·&nbsp; LOG concours &nbsp;·&nbsp; LOG DXpédition…</li>
+    </ul>
+    <p>L'écran s'adapte à <em>ce que vous faites</em>, pas à un niveau que vous auriez déclaré. On commence en 144 FM, on découvre le CW le jour où on choisit le CW. <strong>Il n'y a pas de « mode débutant » à trouver.</strong></p>
+    <p class="muted">La première activité — V/UHF — est en construction.</p>
+  </section>
+
+  <!-- 13 ───────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Participer</span><span class="t">20:00 — 1 min</span></div>
+    <h2>J'ai besoin de vous</h2>
+    <div class="grille">
+      <div class="carte"><span class="k">Essayer</span><p>Installez, faites dix QSO, et dites-moi ce qui vous a bloqué. <strong>Surtout ce qui vous a bloqué.</strong></p></div>
+      <div class="carte"><span class="k">Les postes que je n'ai pas</span><p>Chaque marque a ses pièges. Un essai CAT sur votre poste vaut mieux que dix heures de lecture de documentation.</p></div>
+      <div class="carte"><span class="k">Le V/UHF</span><p>C'est l'activité en cours de construction. C'est maintenant que vos avis comptent le plus.</p></div>
+    </div>
+    <p style="font-family:var(--mono);letter-spacing:1.4px;font-size:15px">
+      github.com/sauveteur71/LogX_AI &nbsp;·&nbsp; sauveteur71.github.io/LogX_AI
+    </p>
+  </section>
+
+  <!-- 14 ───────────────────────────────────────────────────────────── -->
+  <section class="dia">
+    <div class="eyebrow"><span>Fin</span><span class="t">21:00 — questions</span></div>
+    <h1>Questions</h1>
+    <p class="accroche">Et si vous préférez : venez l'essayer sur le poste du club.</p>
+    <p class="muted" style="font-family:var(--mono);letter-spacing:1.6px">73 — F4GLD</p>
+  </section>
+
+</main>
+
+<div id="hud">
+  <span><b id="num">1</b>/14</span>
+  <span id="chrono">00:00</span>
+  <button type="button" id="bPlan" aria-label="Afficher le conducteur">Plan</button>
+  <button type="button" id="bChrono">Départ</button>
+</div>
+
+<div id="plan" role="dialog" aria-label="Conducteur de la présentation">
+  <button type="button" class="ferme" id="bFerme">Fermer</button>
+  <h2>Conducteur — 30 minutes</h2>
+  <table>
+    <tr><td>0:00</td><td>Titre — se présenter, annoncer 20 min + questions</td></tr>
+    <tr><td>0:30</td><td>Pourquoi un logiciel de plus</td></tr>
+    <tr><td>2:30</td><td>Les quatre engagements</td></tr>
+    <tr><td>4:30</td><td><strong>Démo</strong> — le carnet, saisie d'un indicatif DX</td></tr>
+    <tr><td>6:30</td><td><strong>Démo</strong> — le poste, détection CAT</td></tr>
+    <tr><td>8:00</td><td><strong>Démo</strong> — FT8 natif, waterfall puis QSO ← le clou</td></tr>
+    <tr><td>10:30</td><td>Les concours</td></tr>
+    <tr><td>12:30</td><td>Chasse et activations</td></tr>
+    <tr><td>14:00</td><td>L'IA : ce qu'elle fait et ne fait pas</td></tr>
+    <tr><td>16:00</td><td>La perte de carnet de ce matin — argument de confiance</td></tr>
+    <tr><td>17:30</td><td>Où ça en est vraiment (dire « bêta »)</td></tr>
+    <tr><td>19:00</td><td>La direction : par activité</td></tr>
+    <tr><td>20:00</td><td>Appel aux testeurs</td></tr>
+    <tr><td>21:00</td><td>Questions — 4 min</td></tr>
+  </table>
+  <p class="muted" style="margin-top:26px;max-width:70ch">
+    <strong>Si le temps manque :</strong> sacrifiez « Chasse et activations » et « Les concours »,
+    jamais la démo FT8 ni la diapositive sur la protection du carnet.<br>
+    <strong>Si le direct tombe en panne :</strong> annoncez-le et enchaînez — une démo ratée
+    assumée coûte moins qu'une démo qu'on s'acharne à réparer devant 50 personnes.
+  </p>
+</div>
+
+<script>
+(function(){
+  var pont = document.getElementById('pont');
+  var dias = Array.prototype.slice.call(document.querySelectorAll('.dia'));
+  var num = document.getElementById('num');
+  var fill = document.getElementById('railFill');
+  var plan = document.getElementById('plan');
+  var chrono = document.getElementById('chrono');
+  var bChrono = document.getElementById('bChrono');
+  var t0 = null, tick = null;
+
+  function courante(){
+    var h = pont.clientHeight || 1;
+    return Math.min(dias.length - 1, Math.round(pont.scrollTop / h));
+  }
+  function maj(){
+    var i = courante();
+    num.textContent = i + 1;
+    fill.style.width = ((i / (dias.length - 1)) * 100) + '%';
+  }
+  pont.addEventListener('scroll', maj, {passive:true});
+  maj();
+
+  function aller(d){
+    var i = Math.max(0, Math.min(dias.length - 1, courante() + d));
+    dias[i].scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && plan.classList.contains('on')){ basculePlan(); return; }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' '){ e.preventDefault(); aller(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); aller(-1); }
+    else if (e.key === 'p' || e.key === 'P'){ basculePlan(); }
+  });
+
+  function basculePlan(){ plan.classList.toggle('on'); }
+  document.getElementById('bPlan').addEventListener('click', basculePlan);
+  document.getElementById('bFerme').addEventListener('click', basculePlan);
+
+  function deuxChiffres(n){ return (n < 10 ? '0' : '') + n; }
+  bChrono.addEventListener('click', function(){
+    if (tick){ clearInterval(tick); tick = null; t0 = null; chrono.textContent = '00:00';
+               chrono.style.color = ''; bChrono.textContent = 'Départ'; return; }
+    t0 = Date.now();
+    bChrono.textContent = 'Stop';
+    tick = setInterval(function(){
+      var s = Math.floor((Date.now() - t0) / 1000);
+      chrono.textContent = deuxChiffres(Math.floor(s / 60)) + ':' + deuxChiffres(s % 60);
+      // 25 min = fin du discours, 30 min = fin du créneau.
+      chrono.style.color = s >= 1800 ? 'var(--rouge)' : (s >= 1500 ? 'var(--jaune)' : '');
+    }, 1000);
+  });
+})();
+</script>

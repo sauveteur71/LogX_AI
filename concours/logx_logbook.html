@@ -27,6 +27,7 @@
 <script src="/vendor/leaflet/leaflet.min.js"></script>
 <script src="/vendor/chartjs/chart.umd.min.js"></script>
 <link rel="stylesheet" href="logx_theme.css">
+<script src="logx_theme_guard.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 /* ─── DIRECTION GRAPHITE & CUIVRE (2026-08) : voir logx_configuration.html
@@ -248,7 +249,7 @@ body.sans-concours .compass-pts{display:none}
 .panel-title{font-family:var(--font-display);font-size:18px;color:var(--accent2);letter-spacing:.2px;padding:10px 18px 8px;border-bottom:1px solid var(--border);font-weight:900;flex-shrink:0}
 
 /* FORM DE SAISIE — zone prioritaire, jamais rognée */
-.saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.saisie-form{padding:5px 18px;display:flex;flex-direction:column;gap:3px;flex-shrink:0}
 /* Grille départements 00–99 (clic direct, échanges-département). Compacte,
    tokens de charte -> suit jour/nuit. */
 .dept-grid-wrap{display:flex;flex-direction:column;gap:4px}
@@ -267,11 +268,11 @@ body.sans-concours .compass-pts{display:none}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .op-btn.active::before{content:'\2713\00a0'}
 
-.field-group{display:flex;flex-direction:column;gap:3px}
-.field-label{font-size:14px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+.field-group{display:flex;flex-direction:column;gap:2px}
+.field-label{font-size:13px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 /* Visuellement masqué mais lu par les lecteurs d'écran -- audit accessibilité 09/08/2026 */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.field-input{background:var(--bg3);border:1px solid var(--border-strong);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:22px;padding:7px 14px;outline:none;transition:border-color .2s;width:100%;text-transform:uppercase;letter-spacing:2px;font-weight:700}
+.field-input{background:var(--bg3);border:1px solid var(--border-strong);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:20px;padding:5px 14px;outline:none;transition:border-color .2s;width:100%;text-transform:uppercase;letter-spacing:2px;font-weight:700}
 .field-input:focus{border-color:var(--accent2);box-shadow:0 0 10px rgba(var(--accent-rgb),.15)}
 .field-input.error{border-color:var(--red)}
 .field-input.ok{border-color:var(--green)}
@@ -282,8 +283,33 @@ body.sans-concours .compass-pts{display:none}
 .field-input.field-compact{font-size:14px;padding:5px 10px;text-transform:none;letter-spacing:.3px;font-weight:400}
 select.field-input{cursor:pointer}
 /* Références multiples (two-fer SOTA+POTA) : lignes {programme, valeur} */
-.ref-row{display:flex;gap:6px;margin-bottom:6px}
+.ref-wrap{margin-bottom:6px}
+.ref-row{display:flex;gap:6px;margin-bottom:2px}
 .ref-row .refdrop{max-width:110px;flex:0 0 auto}
+/* Relevé sommet/parc sous un champ de réf (SOTA/POTA…) — lecture seule, discret. */
+.ref-info{font-family:var(--font-mono);font-size:11.5px;color:var(--accent2);padding:2px 4px 0;line-height:1.4}
+.ref-info[hidden]{display:none}
+/* Totaux points de chasse SOTA « indicatifs » (NON officiels) — discret. */
+.sota-points{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:3px 4px 0;line-height:1.5}
+.sota-points[hidden]{display:none}
+.sota-points b{color:var(--accent2);font-weight:600}
+.sota-points .indic{opacity:.7;font-style:italic}
+/* Export « prêt pour sotadata » (téléversement manuel). */
+.sota-export{padding:5px 4px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sota-export[hidden]{display:none}
+.sota-exp-btn{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.4px}
+.sota-exp-btn:hover{border-color:var(--accent);border-style:solid}
+.sota-exp-note{flex-basis:100%;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);line-height:1.45;opacity:.85}
+.sota-exp-note a{color:var(--accent2)}
+/* Bascule de mode de session XOTA (chasse / portable / les deux). */
+.xota-role-switch{display:flex;gap:6px;padding:8px 4px 2px;flex-wrap:wrap}
+.xota-role-switch[hidden]{display:none}
+.xrs-btn{flex:1;min-width:92px;font-family:var(--font-mono);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--muted);border-radius:8px;padding:7px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all .15s}
+.xrs-btn:hover{border-color:var(--accent)}
+.xrs-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.12);font-weight:700}
+.xrs-btn .xrs-ico{font-size:16px;line-height:1}
+.xrs-btn .xrs-hint{font-size:9.5px;color:var(--muted);letter-spacing:.2px}
+.xrs-btn.on .xrs-hint{color:var(--accent2)}
 .ref-add{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:transparent;border:1px dashed var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;letter-spacing:.5px}
 .ref-add:hover{border-color:var(--accent)}
 .ref-del{font-family:var(--font-mono);font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--border);border-radius:6px;padding:0 9px;cursor:pointer}
@@ -464,7 +490,7 @@ select.field-input{cursor:pointer}
    Position absolue et z-index élevé : il se déploie PAR-DESSUS le tableau du
    log, sans repousser les lignes ni faire sauter la mise en page. */
 .lb-menu{position:relative;display:inline-block}
-.lb-menu-dd{position:absolute;top:calc(100% + 4px);right:0;z-index:400;
+.lb-menu-dd{position:absolute;top:calc(100% + 4px);left:0;z-index:1200;
   min-width:250px;background:var(--bg2);border:1px solid var(--border);
   border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .lb-menu-dd .grp{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;
@@ -498,6 +524,11 @@ select.field-input{cursor:pointer}
 #qsoMap{width:100%;height:100%;min-height:500px}
 .map-toggle-btn{font-family:var(--font-mono);font-size:13px;padding:6px 12px;border-radius:5px;border:1px solid var(--accent2);background:var(--bg3);color:var(--accent2);cursor:pointer;font-weight:700;letter-spacing:1px;transition:all .15s}
 .map-toggle-btn.active{background:rgba(var(--accent-rgb),.18);box-shadow:0 0 8px rgba(var(--accent-rgb),.3)}
+/* Carte de sortie XOTA (partage PNG hors-ligne, logx_xota_carte.js) : même
+   gabarit que .map-toggle-btn, icône + libellé alignés (celui-ci n'a pas
+   déjà display:flex par défaut). */
+#carteSortieBtn{display:inline-flex;align-items:center;gap:6px}
+#carteSortieBtn svg{width:15px;height:15px;flex-shrink:0}
 .map-legend{position:absolute;bottom:20px;left:12px;z-index:1000;background:rgba(10,12,32,.85);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:14px;color:var(--text);pointer-events:none}
 .map-legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .map-legend-dot{width:12px;height:12px;border-radius:50%;border:2px solid rgba(0,0,0,.5);flex-shrink:0}
@@ -676,6 +707,9 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,160,.2)}
 /* CONNEXION RÉSEAU */
 .net-status{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:14px;color:var(--muted);padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:nowrap;white-space:nowrap;overflow-x:auto}
+/* Le lien réseau complet est long et faisait déborder la barre : on le plafonne
+   (ellipsis). L'URL entière reste dans le title + copiable via le bouton. */
+.net-status .share-link{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Retour terrain F4GLD (24/08) : barre d'état sur UNE ligne. Météo, pont
    WSJT-X et soapbox EDI ne sont plus cachés EN DUR ici — ils sont devenus des
    bascules du menu ⚙ AFFICHAGE (OFF par défaut = écran épuré, rappelables d'un
@@ -683,6 +717,24 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
 /* Version : compacte, dans l'en-tête à côté du logo (voir #hdrVersion). */
 .hdr-version{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:10px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .hdr-version .net-version{color:var(--accent2)}
+/* Étiquette « V: version » masquée au repos (discrétion, retour F4GLD 27/08) :
+   la version installée reste dans le popup de mise à jour, la config et le
+   rapport de bug. Le badge d'alerte #netVersionWarn + le bouton de mise à jour
+   réseau, eux, apparaissent tout seuls SI ce poste est en retard — donc le
+   widget multi-poste reste fonctionnel, juste invisible quand tout va bien. */
+.hdr-version-label{display:none}
+/* Alerte sécurité pylône (vent/rafales) — escaladée quand active : rouge,
+   encadrée, clignotante pour s'imposer. prefers-reduced-motion : pas de
+   clignotement (fond rouge statique fort à la place). Couleur sémantique
+   --red (contraste >=3:1 tenu par le verrou test_theme_contrast). */
+@keyframes weatherPylonePulse{0%,100%{opacity:1}50%{opacity:.4}}
+.weather-alert{display:none}
+.weather-alert.on{display:inline-flex;align-items:center;margin-left:12px;
+  font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--red);
+  padding:1px 9px;border:1px solid var(--red);border-radius:9px;
+  animation:weatherPylonePulse 1.15s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .weather-alert.on{animation:none;background:rgba(255,45,85,.16)}}
 .net-dot{width:8px;height:8px;border-radius:50%}
 .share-link{color:var(--accent2);font-weight:700;text-decoration:none;letter-spacing:.5px}
 .share-link:hover{text-decoration:underline}
@@ -910,7 +962,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 
 <!-- Bannière petit écran : proposer la saisie mobile dédiée (cf. CSS #mobileBanner) -->
 <div id="mobileBanner">
-  <span><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1.5" width="8" height="15" rx="1.5"/><line x1="8" y1="14" x2="10" y2="14"/></svg></span> Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
+  <span><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1.5" width="8" height="15" rx="1.5"/><line x1="8" y1="14" x2="10" y2="14"/></svg></span> Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
   <button type="button" class="mb-close" title="Fermer" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
 </div>
 <script>
@@ -980,7 +1032,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
         <span id="editQslScanEmpty" style="color:var(--muted);font-size:12px">Aucun scan attaché</span>
         <a id="editQslScanLink" href="#" target="_blank" rel="noopener" style="display:none">
-          <img id="editQslScanThumb" style="max-height:70px;max-width:110px;border:1px solid var(--border);border-radius:6px;display:block">
+          <img id="editQslScanThumb" alt="Aperçu de la carte QSL scannée" style="max-height:70px;max-width:110px;border:1px solid var(--border);border-radius:6px;display:block">
         </a>
         <input type="file" id="editQslScanFile" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" style="display:none" onchange="uploadQslScan()">
         <button type="button" class="edit-cancel" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('editQslScanFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9.5V5.5a3 3 0 0 1 6 0v7a2 2 0 0 1-4 0v-6a1 1 0 0 1 2 0v5.5"/></svg> Choisir un scan…</button>
@@ -1059,7 +1111,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div>
     <div class="logo-wrap">
       <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
-      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)">V: <span class="net-version" id="netVersion">—</span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
+      <span class="logo-suffix"> — <span id="hdrContest" style="color:var(--yellow)">LOGBOOK</span></span><span class="hdr-version" title="Version de ce poste — comparée au serveur et aux autres postes (badge d'alerte + màj réseau si écart)"><span class="hdr-version-label">V: <span class="net-version" id="netVersion">—</span></span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg></span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Version en retard : chercher une passerelle réseau ou un pair déjà à jour (jamais automatique — GitHub reste la source authentique)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg></button><span id="netUpdatePathResult"></span></span>
     </div>
   </div>
   <div class="hdr-info">
@@ -1404,18 +1456,32 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 </div>
 
 <!-- NAV -->
-<nav class="app-nav">
-  <a href="logx_configuration.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
-  <a href="logx_logbook.html" class="active"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
-  <a href="logx_chasse.html" title="Spots DX en direct, expéditions annoncées, POTA/SOTA/WWFF"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
-  <a href="logx_modes_numeriques.html" title="Modes numériques en fenêtres détachables : FT8, RTTY, SSTV"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg></span>MODE NUMÉRIQUE</a>
-  <a href="logx_propagation.html" onclick="if(typeof _navPropagContextuel==='function'){_navPropagContextuel(event);return false;}" title="Conditions de propagation de la bande en cours de saisie : cluster, ouvertures, carrés à reprendre"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
-  <a href="logx_carte.html" title="Tableau de bord temps réel : propagation, spots, analyse IA"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
-  <a href="logx_departements.html" title="Suivi du diplôme départements français (REF) et des pays DXCC"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>ZONES TRAVAILLÉES</a>
-  <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
-  <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
-  <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
-  <a href="logx_cw.html" title="Entraînement au morse avec tes propres indicatifs — rien ne part sur l'air"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
+<nav class="app-nav" aria-label="Navigation principale">
+  <a href="logx_configuration.html"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
+  <a href="logx_logbook.html" class="active" aria-current="page"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
+  <a href="logx_chasse.html" title="Spots DX en direct, expéditions annoncées, POTA/SOTA/WWFF"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
+  <a href="logx_propagation.html" onclick="if(typeof _navPropagContextuel==='function'){_navPropagContextuel(event);return false;}" title="Conditions de propagation de la bande en cours de saisie : cluster, ouvertures, carrés à reprendre"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
+  <!-- ── Menu « Outils ▾ » (disclosure accessible) : range les outils
+       secondaires ; le cœur (CONFIG·LOGBOOK·CHASSE·PROPAG) reste au 1er niveau.
+       Bouton natif + aria-expanded + panneau hidden ; Échap ferme et rend le
+       focus, clic-extérieur ferme (voir logx_statusbar.js _wireNavTools). ── -->
+  <div class="nav-tools" id="navTools">
+    <button type="button" class="nav-tools-btn" id="navToolsBtn" aria-expanded="false" aria-controls="navToolsMenu" aria-haspopup="true" title="Autres outils">
+      <span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="4" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg></span>Outils <span aria-hidden="true" class="nav-tools-caret">▾</span>
+    </button>
+    <div class="nav-tools-menu" id="navToolsMenu" hidden>
+      <a href="logx_diagnostic.html" title="État des sous-systèmes de la station"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9h3l2-5 3 10 2-5h4"/></svg></span>SANTÉ STATION</a>
+      <a href="logx_session.html" title="Planifier une session : objectif → plan par créneaux"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="10.5"/></svg></span>PLAN DE SESSION</a>
+      <a href="logx_modes_numeriques.html" title="Modes numériques en fenêtres détachables : FT8, RTTY, SSTV"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg></span>MODE NUMÉRIQUE</a>
+      <a href="logx_carte.html" title="Tableau de bord temps réel : propagation, spots, analyse IA"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
+      <a href="logx_departements.html" title="Suivi du diplôme départements français (REF) et des pays DXCC"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>ZONES TRAVAILLÉES</a>
+      <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
+      <a href="logx_calendrier.html"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
+      <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
+      <a href="logx_eme.html" title="Suivi EME (Earth-Moon-Earth) : Lune, rotor, Doppler"><span class="nav-ico"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8" fill="currentColor" stroke="none"/><path d="M3 15L13 4M13 4L8 15"/></svg></span>EME</a>
+      <a href="logx_cw.html" title="Entraînement au morse avec tes propres indicatifs — rien ne part sur l'air"><span class="nav-ico"><svg aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
+    </div>
+  </div>
 </nav>
 <script src="logx_statusbar.js"></script>
 <script src="logx_tx_bar.js"></script>
@@ -1423,14 +1489,79 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
 
+<!-- Bandeau défilant (ticker HUD) : DX ≤7j + bandes exploitables, en direct
+     sous la nav. Bande fine NON-INTRUSIVE (flex-shrink:0, la saisie a son propre
+     overflow-y:auto -> jamais coupée) ; ⚙ afficher/masquer (choix opérateur
+     persisté) ; jamais le chemin critique. Rendu par le driver partagé. -->
+<div id="bandeaux" class="rcb-wrap" hidden></div>
+<script src="logx_bandeaux.js"></script>
+<script src="logx_bandeaux_defs.js"></script>
+<script src="logx_bandeaux_driver.js"></script>
+<script>
+  // ADAPTATION PAR ACTIVITÉ : le LOGBOOK sert TOUTES les activités ; le bandeau
+  // se cale sur l'activité courante (choisie à l'accueil -> localStorage
+  // logx_activity), de sorte que les bandeaux disponibles ET le choix on/off
+  // sont propres à l'activité (doctrine « l'axe = l'activité »). Repli 'normal'.
+  var _actLog = 'normal';
+  try { _actLog = localStorage.getItem('logx_activity') || 'normal'; } catch(e) {}
+  // Activités NON-HF : VHF/UHF, SHF, satellites -> classe 'vhf' (masque les
+  // bandeaux HF : DX≤7j, PROPAG déca). Tout le reste -> 'hf' (F4GLD : « masquer
+  // le HF hors HF »).
+  var _vhfAct = { vuhf: 1, shf: 1, sat: 1 };
+  var _defLog = {};
+  // Défaut ON = dxped+propag+mults ; la DISPONIBILITÉ (tags) filtre : dxped/
+  // propag seulement en HF, mults seulement en concours. Sur VHF hors concours,
+  // rien de tout ça n'est dispo -> barre cachée (pas de HF hors de propos).
+  _defLog[_actLog] = ['dxped', 'propag', 'mults'];
+  LogxBandeauxDriver.brancher({
+    wrapId: 'bandeaux',
+    activite: _actLog,                        // clé de config on/off (propre à l'activité)
+    // Contexte de DISPONIBILITÉ, résolu à chaque rendu (deux axes indépendants) :
+    // classe de bande de l'activité + 'concours' si un concours est ACTIF
+    // (contestActif, quelle que soit la bande — un concours VHF EST un concours).
+    tags: function(){
+      var t = [ _vhfAct[_actLog] ? 'vhf' : 'hf' ];
+      try { if(typeof contestActif === 'function' && contestActif()) t.push('concours'); } catch(e){}
+      return t;
+    },
+    ids: ['dxped', 'propag', 'spots', 'mults'],
+    sources: {
+      dxpeditions: '/data/dxpeditions_active',
+      propagation: '/data/propagation',
+      spots_ranked: '/data/spots_ranked'
+    },
+    besoins: { dxped: ['dxpeditions'], propag: ['propagation'], spots: ['spots_ranked'], mults: ['spots_ranked'] },
+    // spots DISPONIBLE (chip dans le ⚙) mais OFF par défaut : opt-in, car
+    // /data/spots_ranked est lourd — fetch-aware, il n'est appelé que si activé.
+    defauts: _defLog,
+    // ADAPTATION bande/mode : bande/mode EN COURS de saisie (currentBand/
+    // currentMode de logx_logbook.js). Fonction -> valeurs fraîches à chaque
+    // rendu. typeof : le driver s'appelle avant que logx_logbook.js ne charge,
+    // mais contexte() n'est invoqué qu'au rendu (async), quand elles existent.
+    contexte: function(){
+      return {
+        band: (typeof currentBand !== 'undefined') ? currentBand : '',
+        mode: (typeof currentMode !== 'undefined') ? currentMode : ''
+      };
+    }
+  });
+</script>
+
 <!-- RÉSEAU -->
 <div class="net-status">
   <div class="net-dot" id="netDot"></div>
   <span id="netStatus">Connexion au serveur...</span>
   <span style="margin-left:12px" title="Survole pour le détail par poste">Postes connectés : <span class="net-peers" id="netPeers">—</span></span>
   <span style="margin-left:12px;color:var(--muted)">Serveur : <span id="serverAddr" style="color:var(--accent2)">127.0.0.1:8080</span></span>
+  <span aria-hidden="true" style="margin-left:12px;color:var(--border);user-select:none">│</span>
   <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;color:var(--muted)">Backup: —</span>
   <span id="weatherWidget" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;display:none" title="Météo du point haut (sécurité matériel)"></span>
+  <!-- Alerte SÉCURITÉ pylône (vent/rafales) extraite dans son propre nœud
+       role="alert" (stable, vide au repos) : quand elle s'active, un lecteur
+       d'écran l'annonce, et elle clignote pour s'imposer à l'œil (voir
+       refreshWeather + .weather-alert). Réservée à l'alerte, jamais à la météo
+       de routine (température/vent normal). -->
+  <span id="weatherAlert" role="alert" class="weather-alert"></span>
   <span id="wsjtxWidget" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;display:none" title="Pont WSJT-X : QSO FT8/FT4 auto-loggés"></span>
   <button type="button" id="btnTtsLog" onclick="toggleTtsLog()"
           title="Lecture vocale des alertes (nouveau pays/carré/besoin LoTW entendu en FT8) — mains-libres, casque de suivi, jamais sur l'air. Réglage partagé avec la carte."
@@ -1512,6 +1643,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">ESM ○</button>
       </span>
     </div>
+
+    <!-- Mode de SESSION XOTA (chasse / portable / les deux), bascule en 1 geste.
+         Adaptabilité terrain : le rôle change d'une session à l'autre. Pilote la
+         visibilité des champs/panneaux et les exports. Rendu par renderXotaRoleSwitch(). -->
+    <div id="xotaRoleSwitch" class="xota-role-switch" hidden></div>
 
     <div class="saisie-form">
 
@@ -1636,6 +1772,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              la saisie. -->
         <!-- Widget Time of Day : jour/nuit chez toi vs chez le correspondant -->
         <div id="todWidget" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;gap:14px" title="Heure/jour-nuit approximés (heure solaire, pas de fuseau politique)"></div>
+        <!-- Provenance par champ : remontée dans la zone de saisie principale
+             (visible pendant la frappe, plus dans l'onglet Correspondant masqué)
+             — d'où vient chaque donnée enrichie : fait sourcé vs calcul. -->
+        <div id="provenancePanel" class="prov-panel" hidden></div>
       </div>
 
       <!-- Prénom du correspondant : auto-rempli au lookup (base interne d'abord,
@@ -1655,12 +1795,34 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           style="margin-top:5px;font-family:var(--font-mono);font-size:11px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:4px 9px;cursor:pointer;width:fit-content">⭳ Importer les prénoms de mon journal</button>
       </div>
 
-      <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
+      <!-- Réf. correspondant : chasse SOTA/POTA (mode chasseur), ou P2P/S2S quand
+           on est soi-même en portable. Programme sélectionnable pour le chasseur. -->
       <div class="field-group" id="theirRefGroup" style="display:none">
-        <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></label>
-        <input type="text" class="field-input" id="inputTheirRef" placeholder="si le correspondant active aussi (ex: DL-0042)"
-          autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+        <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(chasse / P2P / S2S)</span></label>
+        <div class="ref-row">
+          <select class="field-input field-compact refdrop" id="theirRefProg">
+            <option value="SOTA">SOTA</option>
+            <option value="POTA">POTA</option>
+            <option value="WWFF">WWFF</option>
+            <option value="IOTA">IOTA</option>
+          </select>
+          <input type="text" class="field-input field-compact" id="inputTheirRef" placeholder="réf. du correspondant (ex: G/LD-001)"
+            autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+        </div>
+        <div id="theirRefInfo" class="ref-info" hidden></div>
+        <!-- Points de chasse « indicatifs » (NON officiels) : indice par QSO
+             (rempli par sotaPointsHint) + totaux courants (refreshSotaPoints).
+             Calcul purement local, jamais envoyé à SOTA. -->
+        <div id="theirRefPoints" class="ref-info" hidden></div>
+        <div id="sotaPointsPanel" class="sota-points" hidden></div>
+        <!-- Export ADIF filtré « prêt pour sotadata » (téléversement MANUEL,
+             conforme aux CGU, aucun appel API). Un fichier PAR RÔLE. -->
+        <div id="sotaExportRow" class="sota-export" hidden>
+          <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('chaser')">Exporter mes chasses SOTA</button>
+          <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('activator')">Exporter mon portable SOTA</button>
+          <div class="sota-exp-note">ADIF à téléverser à la main sur <a href="https://www.sotadata.org.uk/en/upload/chaser" target="_blank" rel="noopener">sotadata</a> (fichier chasse → page Chasse, fichier portable → page Portable). L'import ADIF de sotadata peut mal deviner le rôle : vérifie le premier envoi.</div>
+        </div>
       </div>
 
       <!-- RST -->
@@ -2278,6 +2440,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            TOUTES les pages, avec les dispositions enregistrées — trois
            boutons de moins sans rien perdre. -->
       <button class="map-toggle-btn" id="mapToggleBtn" onclick="toggleMapView()">🗺️ CARTE</button>
+      <button class="map-toggle-btn" id="carteSortieBtn" onclick="ouvrirCarteSortie()" title="Générer une carte de sortie partageable (PNG) — QSO de ta dernière sortie SOTA/POTA/…"><svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s6-5.5 6-9.5A6 6 0 0 0 3 6.5C3 10.5 9 16 9 16Z"/><circle cx="9" cy="6.5" r="2"/></svg> CARTE DE SORTIE</button>
       <button class="export-btn" id="selfSpotBtn" onclick="selfSpot()" style="display:none;color:var(--accent);border-color:rgba(var(--accent-rgb),.5)" title="Publier mon indicatif + ma fréquence sur le cluster DX">📡 SELF-SPOT</button>
       <button class="export-btn" id="qtcBtn" onclick="showQTCPanel()" style="display:none;color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)" title="WAE : saisir/consulter les séries QTC (1 pt émis + 1 pt reçu par QTC, max 10 cumulés par station)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1"/><polyline points="2.5,5 9,11 15.5,5"/></svg> QTC : <span id="qtcCount">0</span></button>
 
@@ -2291,6 +2454,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
                 style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4);margin-left:8px"
                 title="Préparation et clôture : import, stats, contrôle, exports, archivage, diplômes">☰ DÉBUT / FIN ▾</button>
         <div class="lb-menu-dd" id="lbMenuDD" style="display:none"></div>
+      </div>
+      <!-- Fil IA « Ce que l'IA remarque » : volet repliable (choix F4GLD 28/08) —
+           masqué par défaut, ouvert via ce bouton (badge = nb d'observations),
+           dropdown ancré ici plutôt que flottant sur l'en-tête. Actions au clic
+           conservées (propose-only). -->
+      <div class="lb-menu" id="filIaMenu">
+        <button class="export-btn" id="filIaBtn" onclick="if(window.LogxFilIA)LogxFilIA.basculer()"
+                title="Ce que l'IA remarque — opportunités, QSO à vérifier…">◈ IA<span class="fil-count" id="filIaCount" hidden></span></button>
+        <div class="lb-menu-dd fil-dd" id="filIaPanel" style="display:none">
+          <div class="fil-head"><span>🧠 CE QUE L'IA REMARQUE</span></div>
+          <div id="filIaCorps"></div>
+        </div>
       </div>
       <!-- Point d'entrée léger vers l'assistant IA de CONFIG (retour audit
            trouvabilité 09/08/2026) : jusque-là, aucun secours IA n'existait
@@ -2310,19 +2485,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <table class="log-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th title="Heure UTC">HEURE</th>
-            <th>INDICATIF</th>
-            <th>BANDE</th>
-            <th>MODE</th>
-            <th>ENVOYÉ</th>
-            <th>REÇU</th>
-            <th>LOCATOR</th>
-            <th>DIST/CAP</th>
-            <th class="th-pts">PTS</th>
-            <th class="th-op-col">OP</th>
-            <th><span class="sr-only">Corriger</span></th>
-            <th><span class="sr-only">Supprimer</span></th>
+            <th scope="col" title="Heure UTC">HEURE</th>
+            <th scope="col">INDICATIF</th>
+            <th scope="col">BANDE</th>
+            <th scope="col">MODE</th>
+            <th scope="col">ENVOYÉ</th>
+            <th scope="col">REÇU</th>
+            <th scope="col">LOCATOR</th>
+            <th scope="col">DIST/CAP</th>
+            <th scope="col" class="th-pts">PTS</th>
+            <th scope="col" class="th-op-col">OP</th>
+            <th scope="col"><span class="sr-only">Corriger</span></th>
+            <th scope="col"><span class="sr-only">Supprimer</span></th>
           </tr>
         </thead>
         <tbody id="logBody"></tbody>
@@ -2426,6 +2600,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_net_control.js"></script>
 <script src="logx_rate_panel.js"></script>
 <script src="logx_verif_panel.js"></script>
+<script src="logx_ref_info.js"></script>
+<script src="logx_fil_ia.js"></script>
+<script src="logx_coach_fil.js"></script>
+<script src="logx_validation_live.js"></script>
 <script src="logx_awards.js"></script>
 <script src="logx_qsl_card.js"></script>
 <script src="logx_popout_selfspot.js"></script>
@@ -2437,7 +2615,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_contest_picker.js"></script>
 <script src="logx_dxcc_lookup.js"></script>
 <script src="logx_qso_map.js"></script>
+<script src="logx_xota_carte.js"></script>
 <script src="logx_busted_call.js"></script>
+<script src="logx_apres_qso.js"></script>
+<script src="logx_provenance.js"></script>
 <script src="logx_sstv_panel.js"></script>
 <script src="logx_callbook.js"></script>
 <script src="logx_lookup.js"></script>
@@ -2474,7 +2655,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      appelle _resolveContestFilters(), défini ici -- partagé avec
      logx_configuration.js, voir logx_contest_rules.js pour le détail. -->
 <script src="logx_contest_rules.js"></script>
+<script src="logx_xota_role.js"></script>
 <script src="logx_logbook.js"></script>
+<script src="logx_occupation.js"></script>
+<script src="logx_opportunites.js"></script>
 <!-- Coquille d'onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) --
      module dédié pour ne pas grossir logx_logbook.js (déjà ~4100 lignes).
      APRÈS logx_logbook.js : ne dépend d'aucune fonction qu'il définit, mais
@@ -2573,6 +2757,46 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="chat-input-row">
     <input type="text" id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()">
     <button onclick="sendChat()" style="background:#C9822E;border:none;border-radius:4px;color:#001018;padding:5px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px">▶</button>
+  </div>
+</div>
+
+<!-- Carte d'occupation des bandes multi-postes (log partagé : radioclub / expé /
+     indicatif spécial). Opt-in : le bouton démarre le heartbeat + l'affichage.
+     hidden au repos ; rien ne tourne pour un opérateur solo tant qu'on n'ouvre pas. -->
+<button type="button" id="occupationToggle" onclick="if(window.LogxOccupation)LogxOccupation.basculer()" title="Qui est sur quelle bande / mode (log partagé multi-postes)">📻 Occupation</button>
+<div id="occupationPanel" hidden>
+  <div class="occ-head"><span>📻 OCCUPATION DES BANDES</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.arreter()" aria-label="Fermer">✕</button></div>
+  <div id="occupationCorps"></div>
+</div>
+
+<!-- HUD « Opportunités » : remonte dans le LOGBOOK la NEED LIST de CHASSE (même
+     moteur, /data/spots_ranked) avec la séparation FAIT / CALCUL / PROPOSITION.
+     Persistant (visible pendant la saisie), non-modal, repli natif <details>.
+     « Appeler » = pré-remplir l'indicatif + QSY si CAT — jamais d'émission. -->
+<!-- Fil IA unifié « Ce que l'IA remarque » : agrège opportunités, validation,
+     après-QSO et busted-call en un seul fil priorisé. Complète les widgets
+     existants (v1), caché tant qu'il n'y a rien à signaler. Lecture seule. -->
+<div id="opportunitesPanel">
+  <div class="opp-head">
+    <span>🎯 OPPORTUNITÉS <span id="oppDemoBadge" class="opp-demo" hidden>DÉMO</span></span>
+    <button type="button" onclick="if(window.LogxOpportunites)LogxOpportunites.basculer()" aria-label="Masquer les opportunités" title="Masquer / afficher">▾</button>
+  </div>
+  <div id="opportunitesCorps"></div>
+</div>
+
+<!-- Assistant « Activer un log partagé » (radioclub / expé / indicatif spécial).
+     Porte d'entrée : choisir le type préconfigure le sync conseillé + ouvre la
+     carte. Ouvert par le bouton Occupation à la 1re utilisation. -->
+<div id="logPartageOverlay" hidden>
+  <div class="lp-box">
+    <div class="lp-head"><span>📻 ACTIVER UN LOG PARTAGÉ</span><button type="button" onclick="if(window.LogxOccupation)LogxOccupation.fermerAssistant()" aria-label="Fermer">✕</button></div>
+    <div id="lpChoix">
+      <p class="lp-intro">Plusieurs postes, un seul log. Quel type d'opération ?</p>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('radioclub')"><b>🏛 Radioclub</b><span>Plusieurs opérateurs, souvent en temps réel</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('expedition')"><b>🏝 Expédition</b><span>Équipe répartie à distance ou sur site</span></button>
+      <button type="button" class="lp-scenario" onclick="if(window.LogxOccupation)LogxOccupation.choisirScenario('special')"><b>📻 Indicatif spécial</b><span>Un indicatif spécial depuis plusieurs stations</span></button>
+    </div>
+    <div id="lpDetail" hidden></div>
   </div>
 </div>
 

@@ -437,6 +437,57 @@ def sync_now(cfg, shared_log):
     return r
 
 
+# ─── OCCUPATION DES BANDES (canal Cloud, distant) ────────────────────────────
+# Transport SÉPARÉ du log : un petit fichier occupancy PAR POSTE
+# (logx_occupancy_<call>_<iid>.json) à côté des fichiers de log dans le dossier
+# partagé. On n'écrit QUE le sien (même anti-collision que my_file), on lit ceux
+# des AUTRES. Non signé (statut éphémère, borné par TTL côté logx_occupancy) :
+# le contenu est du band/mode, pas des QSO. Best-effort de bout en bout.
+OCC_PREFIX = 'logx_occupancy_'
+
+
+def _occ_filename(cfg):
+    call = (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or 'nocall'
+    return f'{OCC_PREFIX}{_safe(call)}_{_instance_id()}.json'
+
+
+def _publier_occupation(folder, cfg):
+    """Écrit le statut de CE poste (bande/mode) dans son fichier occupancy dédié."""
+    try:
+        import logx_occupancy as occ
+        st = occ._mon_statut[0]
+        if not st:
+            return
+        path = os.path.join(folder, _occ_filename(cfg))
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump({'station': st.get('station'), 'call': st.get('call', ''),
+                       'band': st.get('band', ''), 'mode': st.get('mode', ''),
+                       'ts': time.time()}, f)
+        os.replace(tmp, path)     # écriture atomique (le dossier est synchronisé)
+    except Exception:
+        pass
+
+
+def _lire_occupation(folder, cfg):
+    """Lit les fichiers occupancy des AUTRES postes du dossier -> enregistrer_pair."""
+    try:
+        import logx_occupancy as occ
+        mine = _occ_filename(cfg)
+        for p in glob.glob(os.path.join(folder, OCC_PREFIX + '*.json')):
+            if os.path.basename(p) == mine:
+                continue
+            try:
+                with open(p, encoding='utf-8') as f:
+                    d = json.load(f)
+                if isinstance(d, dict) and d.get('station'):
+                    occ.enregistrer_pair(d)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+
 def _sync_now_blocking(cfg, shared_log):
     # Une seule synchronisation à la fois (voir _sync_serial_lock ci-dessus) —
     # sérialise aussi le worker « abandonné » par un timeout de sync_now, qui
@@ -453,6 +504,13 @@ def _sync_now_locked(cfg, shared_log):
         os.makedirs(s['folder'], exist_ok=True)
     except Exception as e:
         return {'ok': False, 'error': f"Dossier inaccessible : {e}"}
+
+    # Occupation des bandes (canal Cloud, distant) : publier mon statut + lire
+    # celui des autres postes. Transport SÉPARÉ du log, best-effort et isolé du
+    # cycle de carnet ci-dessous pour ne jamais le perturber.
+    _publier_occupation(s['folder'], cfg)
+    if s['mode'] == 'full':
+        _lire_occupation(s['folder'], cfg)
 
     my_path = os.path.join(s['folder'], s['my_file'])
     tomb_path = os.path.join(s['folder'], s['my_tomb'])

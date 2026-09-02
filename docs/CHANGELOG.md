@@ -13,6 +13,337 @@ poussé.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Contraste du badge « fil IA » en mode jour / haut-contraste.** Le compteur
+  `.fil-count` (◈ IA) affichait un texte sombre fixe sur un fond `accent2` ;
+  en mode jour (et haut-contraste jour) `accent2` devient le cuivre-encre sombre
+  → texte sombre sur fond sombre, illisible. Ajout de l'override jour (texte
+  clair), comme ses jumeaux. Verrouillé par un test qui interdit tout texte
+  sombre fixe sur `accent2` sans override jour.
+
+- **Longueur des champs ADIF en octets (accents).** `<NOM:longueur>` annonçait
+  un nombre de **caractères** ; pour un champ accentué (COMMENT/NAME/QTH « café »)
+  un lecteur ADIF strict (POTA, autres loggers) attend le nombre d'**octets** UTF-8.
+  Un accent décalait donc la fin du record à la relecture. Corrigé sur les trois
+  jumeaux : export serveur (`_adif_field`), export client (`adifField`) et parseur
+  d'import (`_parse_adif_records`). Aucun effet sur l'ASCII (octets = caractères).
+
+- **Bandeaux défilants (ticker DX/propagation) doublés quand les animations sont
+  désactivées.** Le ruban duplique son contenu pour défiler sans couture ; lorsque
+  l'OS refuse le mouvement (`prefers-reduced-motion`, « effets d'animation » coupés
+  dans Windows), le défilement s'arrêtait mais la **copie dupliquée restait visible**
+  — l'info apparaissait deux fois. Désormais la 2ᵉ copie (décorative, `aria-hidden`)
+  est masquée dans ce cas : une seule copie, lisible et défilable à la main.
+
+### Modifié
+
+- **Alerte « à vérifier » : les QSO importés ne noient plus les QSO saisis.**
+  Après l'import d'un ancien carnet (parfois des dizaines de milliers de QSO
+  hérités d'un autre logiciel), la validation signalait tout d'un bloc (« 19650 à
+  vérifier »), noyant les rares QSO récents réellement à corriger. Le compte est
+  désormais **ventilé** : le badge affiche « **N à vérifier** » (uniquement les QSO
+  saisis dans LogX) **+ une mention discrète « (+M importés) »** ; si tout est
+  importé, un rappel **neutre** (non alarmant) remplace l'alerte. Rien n'est caché —
+  l'historique importé reste consultable dans VÉRIFIER.
+
+- **User-Agent identifiable pour les requêtes SOTA.** Les appels vers
+  l'infrastructure SOTA (liste des sommets, spots en direct, self-spot) s'annoncent
+  désormais `LogX-AI/<version> (<indicatif>)` — indicatif lu de la config de
+  l'opérateur, jamais codé en dur — conformément à la recommandation SOTA d'un
+  « descriptive User-Agent including callsign ». Prépare la conformité en vue d'une
+  demande d'accès à l'API (voir `docs/sota_demande_autorisation_api.md`).
+
+### Ajouté
+
+- **Référentiel DFCF (forts & châteaux) — recherche par référence/nom.** À la
+  saisie d'une réf. DFCF (chasse ou expédition), LogX affiche le **nom du
+  château** et la commune, à partir de la page officielle des validations
+  mensuelles (`dfcf.fr/valide.html`). C'est un référentiel **PARTIEL** (les
+  références récemment **validées**, statut officiel), pas le catalogue complet :
+  une réf. absente n'est pas invalide. Nouveau module `logx_dfcf.py` (cache
+  hebdo, page latin-1, nettoyage HTML), câblé au lookup `/activation_db`.
+
+- **Mode de session SOTA/POTA : chasseur / portable / les deux (bascule 1 geste).**
+  L'usage change d'une session à l'autre (un jour au sommet, le lendemain au shack,
+  le surlendemain les deux en S2S). On choisit son rôle **à l'accueil** (3 tuiles
+  🎯 Chasseur / 🏕️ Portable / ⚡ Les deux) et on le **rebascule en un geste** en tête
+  du logbook. Le dernier rôle est **mémorisé** (défaut). Le rôle pilote ce qui
+  s'allume : champ réf. correspondant + points/exports de chasse (chasseur), setup
+  expédition + export prêt-à-téléverser (portable), les deux + S2S/P2P (les deux).
+  Module partagé `logx_xota_role.js`.
+
+- **Export SOTA « prêt pour sotadata » (téléversement manuel).** En mode chasseur,
+  deux boutons exportent un ADIF filtré : **« Exporter mes chasses SOTA »** (QSO où
+  le correspondant est sur un sommet) et **« Exporter mon portable SOTA »** (QSO où
+  vous êtes vous-même sur un sommet). Fichiers **séparés par rôle** — l'import ADIF
+  de sotadata peut mal classer un fichier mixte — chacun destiné à sa page d'upload.
+  100 % conforme aux CGU (aucun appel API), le score officiel restant celui de
+  sotadata après téléversement. Nouvel endpoint `GET /sota/export_adif?role=…&year=…`.
+
+- **Points de chasse SOTA « indicatifs » (S2S inclus).** En mode chasseur, sous la
+  référence du correspondant, un indice montre les points du sommet contacté
+  (*▸ +8 pts chasse*, ou *+8 pts S2S* si vous êtes vous-même en portable), et un
+  panneau affiche vos **totaux courants** (*Chasse 2026 : 342 pts · dont S2S : 88*).
+  Calcul **purement local** à partir de la base des sommets, **jamais envoyé à
+  SOTA** et **explicitement non officiel** — le score officiel ne vient que de
+  sotadata après téléversement. Règles de score **sourcées** sur les *SOTA General
+  Rules v1.20* : barème 1/2/4/6/8/10 pts selon l'altitude (règle 3.11), un sommet
+  compté **une seule fois par jour UTC** (règle 3.8 §3), S2S = mon sommet + le sien
+  (règle 3.8 §7), aucun bonus saisonnier en chasse. Nouvel endpoint lecture seule
+  `GET /sota/points`.
+
+- **Multi-poste « qui marche tout seul » — ouverture du port dans le pare-feu Windows.**
+  Sur un Wi-Fi classé *Public*, Windows bloquait les connexions entrantes vers LogX AI
+  même l'accès LAN activé : un 2ᵉ poste ne pouvait pas se connecter. Désormais, au
+  démarrage (accès LAN activé) LogX AI **ouvre le port dans le pare-feu** (best-effort),
+  et *(CONFIG → Accès réseau)* un bouton **« Autoriser le multi-poste dans le pare-feu
+  Windows »** le fait en un clic (fenêtre UAC), une fois pour toutes, tous profils
+  réseau. Un statut indique si le port est ouvert.
+
+- **Infos du sommet/parc quand on tape une référence (SOTA/POTA/WWFF/IOTA).** Sous
+  un champ de référence — la sienne (*MES RÉFÉRENCES*) ou celle du correspondant
+  (*RÉF. CORRESPONDANT*) — un relevé lecture seule apparaît : **nom · région ·
+  altitude · points** (ex. *Scafell Pike · Lake District · 978 m · 10 pts*).
+  Hors-ligne (base locale de **181 658 sommets** SOTA + parcs POTA), non-intrusif,
+  discret si la référence est inconnue.
+
+- **Mode chasseur SOTA / POTA.** Un réglage *(CONFIG → SOTA)* fait apparaître dans
+  la saisie un champ **« réf. correspondant »** (programme + référence) même hors
+  sortie portable : on tape le sommet/parc **chassé**, on voit son **relevé**
+  (nom · altitude · points), et la référence est **enregistrée sur le QSO**
+  (`sig`/`sig_info`) pour comptabiliser ses chasses.
+
+- **Mise à jour hebdomadaire de la base des sommets SOTA.** Le cache local est
+  re-téléchargé depuis `storage.sota.org.uk` au premier accès une fois qu'il
+  dépasse **7 jours** (auparavant 30) — la liste reste fraîche sans intervention.
+
+- **Mode démo / simulation.** Un interrupteur **MODE DÉMO** (CONFIG → Assistant IA)
+  alimente l'app avec des **spots synthétiques** déterministes (JA1XYZ, 9M2JKL…),
+  pour présenter le programme **sans radio ni antenne connectée**. Tout est
+  **étiqueté « DÉMO »** (badge sur le HUD Opportunités), n'écrit **aucun QSO** et
+  n'émet **jamais** — purement visuel. Isolé : quand le mode démo est actif,
+  `/data/spots_ranked` renvoie les spots de démonstration ; désactivé, l'app
+  reprend les données réelles. Idéal pour une démonstration en salle ou en vidéo.
+
+- **Provenance par champ.** Sous la saisie d'un indicatif, un petit relevé montre
+  **d'où vient chaque donnée enrichie** : Pays / Continent / Zones CQ & ITU depuis
+  la **base DXCC (cty.dat)**, Distance / Azimut **calculés**. Pour la confiance :
+  on voit toujours si une valeur est un **fait sourcé** ou un **calcul**. Hors-ligne,
+  lecture seule, sans toucher aux champs de saisie.
+
+- **« Prochaines cibles recommandées » sur l'accueil.** Le cockpit d'accueil
+  affiche, par entité déjà entamée, le prochain slot à aller chercher :
+  **« à confirmer LoTW »** pour un pays travaillé mais pas encore confirmé, ou un
+  **mode manquant** sur une bande déjà travaillée (ex. **« Japon · CW · 15 m »**).
+  Priorisé par ce que vous avez le plus travaillé. Déterministe, calculé depuis
+  votre log — un objectif concret plutôt qu'un chiffre abstrait.
+
+### Modifié
+
+- **Désencombrement du LOGBOOK.** Maintenant que le **fil IA « Ce que l'IA
+  remarque »** rassemble tout, le **badge de validation** (en-tête) et la
+  **pastille « après-QSO »** — qui faisaient doublon — ont été retirés ; le fil
+  les résume, avec les mêmes actions au clic. Le **panneau Opportunités** (fiche
+  FAIT/CALCUL/PROPOSITION + QSY) et la **pastille busted-call** (corriger/non)
+  restent, car ils offrent plus que le résumé.
+
+### Corrigé
+
+- **Barre de navigation non stylée sur 5 pages.** Les pages *Santé (diagnostic)*,
+  *FT8*, *RTTY*, *SSTV* et *Plan de session* affichaient la barre de navigation
+  supérieure en liens bruts (le style `.app-nav` manquait dans leur feuille
+  locale). Les règles ont été ajoutées ; la barre est de nouveau cohérente avec
+  les autres pages, dans les deux thèmes.
+- **Provenance par champ remontée dans la zone de saisie.** Le panneau était placé
+  dans l'onglet *Correspondant* (masqué par défaut) et n'apparaissait donc jamais
+  pendant la frappe ; il est maintenant sous l'indicatif, dans la zone de saisie
+  principale, visible en direct.
+- **Fond de carte « API KEY REQUIRED » (Carte IA & écran mural).** Le fond sombre
+  utilisait CARTO `dark_all`, qui exige désormais une clé et servait sinon des
+  tuiles filigranées. Remplacé par **Esri Dark Gray**, un fond sombre sans clé
+  (attribution mise à jour) : les cartes sont de nouveau propres en mode nuit.
+- **Panneau détaché ouvert seul.** `logx_panel.html` sans paramètre `?id=`
+  affichait « Panneau inconnu : » (brut). Il explique maintenant qu'il s'ouvre
+  depuis une autre page via un bouton « détacher ». Un `?id=` réellement inconnu
+  garde le message technique.
+- **Comptage « N QSO à vérifier » faux (supérieur au total).** Le fil IA sommait
+  les **constats** de validation, or un même QSO peut en cumuler plusieurs (locator
+  manquant + département invalide + incohérence fréquence/bande…) — d'où « 15073 à
+  vérifier » pour 10067 QSO après un import. Le validateur renvoie désormais
+  `qso_a_verifier` = nombre de **QSO distincts** flaggés, borné par le total.
+- **Erreurs IA illisibles.** Un échec d'appel au fournisseur affichait « HTTP Error
+  400 » opaque, masquant la vraie cause (ex. *« anthropic-workspace-id is required… »*
+  pour une clé identity-linked, ou un modèle refusé). Le message réel de l'API est
+  maintenant **extrait et affiché** (Anthropic / OpenAI-compatibles / Gemini).
+
+- **LOGBOOK — fil IA « Ce que l'IA remarque » en volet repliable.** Il flottait sur
+  l'en-tête (mal placé). Il devient un **bouton ◈ IA** dans la barre du log, avec un
+  **badge compteur** (visible même fermé), et s'ouvre en volet ancré sous la barre —
+  plus de recouvrement de l'en-tête, actions au clic conservées, masqué par défaut.
+
+- **LOGBOOK — trois réglages d'affichage (retours F4GLD).** (1) La colonne **#**
+  (numéro de QSO, sans usage visuel) est retirée du tableau ; l'indicateur ⚠️ de
+  QSO incomplet est conservé, désormais devant l'indicatif. (2) Le menu
+  **DÉBUT / FIN** s'ouvrait vers la gauche et passait **coupé derrière la band map** ;
+  il s'ouvre maintenant vers la droite (dans la colonne du log), lisible. (3) La zone
+  de **saisie** a été compactée (espacements/champs) pour **tenir sans défilement**
+  et garder le bouton ENREGISTRER visible.
+
+- **Modèle IA Anthropic invalide (fonctions IA en échec 400).** Le défaut/recommandé
+  pointait sur `claude-sonnet-4-6`, un identifiant qui **n'existe pas** côté API →
+  toute fonction IA sur ce modèle (chat, analyse de règlement, plan de session)
+  échouait en HTTP 400. Corrigé vers **`claude-sonnet-5`** (défaut + libellé), avec
+  un **alias qui auto-répare** une config déjà enregistrée sur l'ancien ID — pas
+  besoin de re-sélectionner. (Opus 4.8 / Haiku 4.5 étaient déjà corrects.)
+
+## [1.2-beta2] — 2026-08-28
+
+### Sécurité
+
+- **Durcissement du consentement d'émission (additif, rétro-compatible).** Le
+  journal d'audit d'émission grave désormais l'**empreinte SHA-256 du message**
+  (autorisation ET copilote FT8) : la trace prouve exactement ce qui a été
+  autorisé et émis, un caractère changé donnant une empreinte différente.
+  L'autorisation accepte en plus un **plafond de puissance** optionnel
+  (`tx_max_power_w` en configuration) : au-delà, l'émission est refusée et le
+  jeton n'est pas consommé — garde-fou anti-sur-puissance accidentelle. Sans
+  configuration, le comportement est **inchangé**. Rien de tout cela ne modifie
+  l'émission elle-même (la validation on-air reste le geste de l'opérateur).
+
+### Ajouté
+
+- **Mode local uniquement (économie de crédits).** Un interrupteur dans la
+  configuration (section **Assistant IA**) coupe **tous** les appels réseau de
+  l'IA : chat, analyse, plan de session, audit du log, analyse de règlement…
+  basculent sur un repli propre — **zéro crédit dépensé**. Les moteurs
+  **déterministes** (coach, validation du log, diplômes, distances,
+  enrichissement) continuent normalement. Idéal en expédition ou pour maîtriser
+  sa consommation. Verrouillé par des tests (repli + « aucun appel réseau »).
+
+- **Cockpit d'accueil « Que puis-je faire maintenant ? ».** La page d'accueil
+  affiche désormais, en plus des tuiles d'activité, un **cockpit** en un coup
+  d'œil : les **opportunités** du moment (meilleures stations à travailler), la
+  **progression** des diplômes (DXCC, départements, QSO) et l'**état de la
+  station** (CAT, FT8, DXCC). Pour l'habitué, un gros bouton **« Reprendre :
+  <dernière activité> »** repart en **un seul clic** — l'accueil ne redirige plus
+  automatiquement, mais ne rallonge pas non plus le chemin quotidien. Lecture
+  seule (agrège des endpoints existants), rien n'est piloté.
+
+- **Fil IA unifié « Ce que l'IA remarque » (LOGBOOK).** Un seul panneau discret
+  rassemble ce que l'IA observe, jusque-là éparpillé : les **opportunités** à
+  travailler maintenant, les **QSO à vérifier**, les **gains du dernier QSO** et
+  une éventuelle **correction d'indicatif** (busted-call) — chacun avec une
+  pastille de couleur (attention / proposition / info) et, quand c'est utile, une
+  action au clic (appeler, ouvrir VÉRIFIER, corriger). Priorisé, caché tant qu'il
+  n'y a rien à dire. **Lecture seule**, les actions réutilisent les fonctions
+  existantes (jamais d'émission). Les widgets d'origine restent en place.
+
+- **Planificateur de session (assistant, consultatif).** Un nouvel écran **Plan
+  de session** : vous indiquez vos contraintes (durée, objectif, mode(s),
+  bande(s), puissance) et l'IA propose un **plan découpé en créneaux horaires**,
+  avec pour chaque créneau la bande/mode à privilégier, la cible visée, et des
+  **critères d'arrêt** clairs. C'est un **conseil** : rien n'est déclenché, aucun
+  réglage ni aucune émission automatique — vous gardez le contrôle de chaque
+  changement de fréquence et de chaque émission. Accessible depuis le menu
+  **Outils** de toutes les pages.
+
+- **Écran « Santé de la station ».** Une page de diagnostic qui montre en un coup
+  d'œil l'état des sous-systèmes — **Radio (CAT)**, **Rotor**, **FT8/WSJT-X**,
+  **Callbook**, **Synchro Cloud/MySQL**, **Base DXCC**, **Émission
+  (consentement)** et **IA (consommation de tokens)** — chacun avec une pastille
+  **verte** (OK) / **jaune**
+  (attention) / **rouge** (à corriger) / **grise** (non configuré), plus
+  l'**horloge UTC**. Lecture seule (agrège des endpoints d'état existants), rien
+  n'est piloté. Rafraîchi automatiquement. Répond tout de suite à « est-ce que
+  tout est prêt ? ». Une section **Progression des diplômes** (DXCC, départements
+  FR, WAC, WAZ, total QSO) complète l'écran.
+
+- **Suivi de consommation IA (tokens réels).** Comme vous payez vos propres
+  crédits d'API, le logiciel compte désormais les **tokens réellement
+  consommés** (entrée / sortie) par fournisseur et par modèle, consultables via
+  `GET /ai/usage`. Ce sont des **faits** : aucun prix n'est inventé. Un **coût
+  estimé** n'apparaît **que si vous configurez vos propres tarifs**
+  (`ai_prix_usd_par_mtok`) — sinon le suivi n'affiche que des tokens. Le comptage
+  est branché de façon défensive (il ne peut jamais casser un appel IA).
+
+- **HUD « Opportunités » dans le LOGBOOK.** Un panneau discret (en bas à droite,
+  repliable) remonte directement dans le carnet la **NEED LIST** jusque-là
+  réservée à la page CHASSE : les meilleures stations à travailler **maintenant**
+  (nouveau pays/ATNO, nouvelle bande, nouveau mode, nouveau carré, confirmation
+  LoTW manquante), classées par intérêt — **exactement le même moteur** que
+  CHASSE (`/data/spots_ranked`, profil d'objectifs compris), aucun recalcul.
+  Nouveauté : chaque opportunité se déplie en **trois couches explicites** —
+  **FAIT** (données sourcées : pays·bande·mode), **CALCUL** (la raison + le score
+  du moteur déterministe), **PROPOSITION** (un bouton **▶ Appeler**). « Appeler »
+  **pré-remplit toujours l'indicatif** dans la saisie du QSO et **règle la radio
+  (QSY) uniquement si le CAT est branché** — jamais d'émission, jamais
+  d'armement (doctrine « l'IA prépare, l'humain déclenche »). Le corps se replie
+  via l'en-tête (masquer ≠ bloquer : le suivi continue en fond).
+
+- **Récap « après-QSO » — voir sa progression à chaque contact.** Juste après
+  l'enregistrement d'un QSO, une pastille discrète (non-modale, sous la saisie)
+  annonce **ce que ce QSO vient d'apporter** — nouveau pays, nouvelle bande,
+  nouveau département — et **ce qui reste à confirmer** (LoTW non confirmé). Elle
+  reste **silencieuse sur un doublon** (aucun bruit) et s'efface seule après
+  quelques QSO. C'est la boucle de gratification : la même donnée que le panneau
+  d'avant-QSO (moteur diplômes via `/call/history`), rejouée **après** coup —
+  aucun recalcul, lecture seule, jamais d'écriture au log.
+
+- **Bandeaux défilants (tickers) — l'info live sous la nav.** Sur l'accueil, le
+  LOGBOOK et la page CHASSE, de fines bandes défilent avec ce qui compte à
+  l'instant : **DX ≤7J** (DXpéditions actives ou annoncées sous 7 jours, avec la
+  fréquence du cluster), **PROPAG** (bandes exploitables maintenant, **votre
+  bande en cours de saisie mise en tête et marquée**), **SPOTS DX** (meilleurs
+  spots du cluster classés par intérêt, optionnel), et **MULTS** (nouveaux
+  multiplicateurs à chercher, **uniquement en concours**). Le défilement
+  **s'arrête au survol** ; un **clic sur un item actif ouvre une fiche** :
+  entité/pays, fréquence·bande·mode du cluster, nom de l'opérateur (recherché
+  automatiquement), bouton **▶ QSY** si la radio est pilotée, et lien direct
+  **QRZ.com**. Un **⚙** à droite de chaque bande permet d'**afficher/masquer**
+  chaque bandeau, choix **retenu par activité**.
+- **Adaptation des bandeaux à votre activité** (doctrine « l'axe, c'est
+  l'activité »). En VHF/UHF/SHF/satellites, les bandeaux **HF** (DX ≤7J, PROPAG
+  déca) **disparaissent** — ils n'ont rien à faire là. Le bandeau **MULTS**
+  n'apparaît **que lorsqu'un concours est actif**, quelle que soit la bande (un
+  concours VHF reste un concours). Une bande sans rien de vivant à dire ne
+  s'affiche pas (pas de bandeau mort), et rien ne gêne jamais la saisie.
+
+- **Carte d'occupation des bandes multi-postes.** Pour un log partagé
+  (radioclub, expédition, ou indicatif spécial opéré depuis plusieurs stations),
+  un bouton **📻 Occupation** sur le LOGBOOK ouvre un assistant **« Activer un
+  log partagé »** (radioclub / expédition / indicatif spécial) qui conseille le
+  sync adapté, puis affiche **qui est sur quelle bande/mode** en direct, avec
+  **recouvrement surligné en rouge** (deux postes sur la même bande ET le même
+  mode). La carte prend automatiquement le canal actif avec **priorité au
+  local** : instantané entre postes du même réseau, sinon **Cloud Sync** (dossier
+  partagé, réseaux distants) ou **MySQL** (radioclub temps réel). Transport
+  **séparé du carnet** — le log n'est jamais touché.
+
+### Modifié
+
+- **Cockpit du LOGBOOK réorganisé.** La barre de statut est regroupée en **blocs
+  sémantiques** (concours, propagation, maintenance) séparés visuellement, pour
+  retrouver chaque indicateur d'un coup d'œil. Les items sont ordonnés par usage
+  plutôt que par hasard historique.
+- **Navigation refondue.** Le **cœur** (CONFIG · LOGBOOK · CHASSE · PROPAG) reste
+  au premier niveau ; les **outils secondaires** passent dans un menu **« Outils
+  ▾ »** (disclosure accessible : bouton `aria-expanded`, panneau `hidden`, Échap
+  ferme et rend le focus, clic-dehors). Moins de bruit, l'essentiel toujours à
+  portée.
+- **Alerte sécurité pylône escaladée et accessible.** L'avertissement
+  vent/rafales (« surveille le pylône ») sort du widget météo dans un nœud dédié
+  `role="alert"` (annoncé par les lecteurs d'écran), avec clignotement — coupé
+  sous `prefers-reduced-motion`. La météo de routine n'est plus assertive.
+
+### Accessibilité
+
+- Champs de saisie en **bordure renforcée** (`--border-strong`) pour un contour
+  net et contrasté.
+- Tableaux avec en-têtes `scope`, lien courant `aria-current="page"`, langue de
+  page (`<html lang>`) alignée sur le contenu, motif **disclosure clavier**
+  unifié (Échap + retour focus) pour les menus.
+
 ## [1.2-beta1] - 2026-08-26
 
 ### Ajouté

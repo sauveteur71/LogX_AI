@@ -238,7 +238,7 @@ def build_ft8_strategy_prompt(call, series):
             "récent) :\n%s\n\nOù et quand dois-je appeler %s ?" % (call, '\n'.join(lignes), call))
 
 
-def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
+def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096, provider='openai'):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
     msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
     payload = {'model': ai_model or default_model, 'max_tokens': max_tokens, 'messages': msgs}
@@ -246,15 +246,75 @@ def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_p
         base_url, data=json.dumps(payload).encode(),
         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
         method='POST')
-    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-        d = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            d = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(_llm_error_message(provider, e.code, e.read()))
+    try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
+        import logx_ai_usage as _usage
+        _usage.enregistrer_reponse(provider, ai_model or default_model, d)
+    except Exception:
+        pass
     return d.get('choices', [{}])[0].get('message', {}).get('content', '')
+
+
+# « Mode local uniquement » : quand l'opérateur l'active (config ia_local_only),
+# AUCUN appel réseau IA n'est fait — zéro crédit dépensé. Les moteurs
+# DÉTERMINISTES (coach, validation, diplômes, enrichissement) restent actifs ;
+# seules les fonctions qui appellent un LLM basculent sur ce repli propre.
+MSG_IA_LOCAL = ('IA en mode local — aucun appel réseau (les calculs déterministes '
+                'restent actifs). Décochez « Mode local uniquement » dans la '
+                'configuration pour réactiver l\'IA en ligne.')
+
+
+def _demo_mode(cfg):
+    """True si le MODE DÉMO est actif (config demo_mode) : l'app est alimentée par
+    des données synthétiques, sans radio. Tolère booléen ou chaîne ('oui'/…)."""
+    v = (cfg or {}).get('demo_mode')
+    if isinstance(v, str):
+        return v.strip().lower() in ('1', 'true', 'oui', 'on', 'yes')
+    return bool(v)
+
+
+def _ia_local(cfg):
+    """True si l'opérateur a coupé le réseau IA (config ia_local_only). Tolère un
+    booléen OU une chaîne ('oui'/'true'/… venant du <select> de CONFIG) — sans
+    ça, bool('non') vaudrait True (toute chaîne non vide est vraie en Python)."""
+    v = (cfg or {}).get('ia_local_only')
+    if isinstance(v, str):
+        return v.strip().lower() in ('1', 'true', 'oui', 'on', 'yes')
+    return bool(v)
+
+
+def _llm_error_message(provider, code, body):
+    """Message d'erreur LISIBLE depuis la réponse HTTP d'un fournisseur IA :
+    extrait error.message (Anthropic/OpenAI) ou error.error.message (Gemini),
+    sinon un extrait brut — au lieu du « HTTP Error 400 » opaque qui masquait la
+    vraie cause (ex. « anthropic-workspace-id is required… », clé/modèle refusé).
+    Pur (testable)."""
+    txt = body.decode('utf-8', 'replace') if isinstance(body, (bytes, bytearray)) else str(body or '')
+    msg = ''
+    try:
+        d = json.loads(txt)
+        err = d.get('error', d) if isinstance(d, dict) else {}
+        if isinstance(err, dict):
+            msg = err.get('message') or (err.get('error') or {}).get('message') or ''
+        elif isinstance(err, str):
+            msg = err
+    except Exception:  # noqa: BLE001 — corps non-JSON : on retombe sur l'extrait brut
+        pass
+    if not msg:
+        msg = txt.strip()[:300] or 'réponse vide'
+    return '%s (HTTP %s) : %s' % (provider or 'IA', code, msg)
 
 
 def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     """Appelle le fournisseur IA configuré et retourne le TEXTE de la réponse.
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
     Lève une exception en cas d'échec."""
+    if _ia_local(cfg):
+        raise RuntimeError(MSG_IA_LOCAL)
     provider = (cfg or {}).get('api_provider', 'anthropic')
     # Le modèle vient de la CONFIGURATION ; celui que passe l'appelant n'est
     # retenu que s'il appartient au fournisseur configuré (voir modele_effectif).
@@ -272,15 +332,23 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
             'https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(),
             headers={'Content-Type': 'application/json', 'x-api-key': api_key,
                      'anthropic-version': '2023-06-01'}, method='POST')
-        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-            data = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(_llm_error_message('anthropic', e.code, e.read()))
+        try:                                    # suivi de consommation (FAITS ; ne casse jamais l'appel)
+            import logx_ai_usage as _usage
+            _usage.enregistrer_reponse('anthropic', ai_model, data)
+        except Exception:
+            pass
         return ''.join(b.get('text', '') for b in data.get('content', [])
                        if b.get('type') == 'text')
 
     if provider in OPENAI_COMPATIBLE_ENDPOINTS:
         base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
         return _call_openai_compatible(base_url, ai_model, default_model, api_key,
-                                       system_prompt, messages, max_tokens)
+                                       system_prompt, messages, max_tokens, provider=provider)
 
     if provider == 'gemini':
         model_id = ai_model
@@ -294,8 +362,16 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers={'Content-Type': 'application/json',
                                               'x-goog-api-key': api_key}, method='POST')
-        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-            d = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+                d = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(_llm_error_message('gemini', e.code, e.read()))
+        try:                                # suivi de consommation (FAITS ; ne casse jamais l'appel)
+            import logx_ai_usage as _usage
+            _usage.enregistrer_reponse('gemini', model_id, d)
+        except Exception:
+            pass
         return (d.get('candidates', [{}])[0].get('content', {})
                 .get('parts', [{}])[0].get('text', ''))
 
@@ -342,6 +418,10 @@ def call_llm_stream(cfg, system_prompt, messages, model=None, max_tokens=4096, o
     call_llm() — un seul on_delta avec le texte entier. Le dispatch (modèle
     effectif, clé) est STRICTEMENT celui de call_llm : c'est la même logique, en
     flux, pour ne pas dupliquer une 4e fois la sélection de fournisseur."""
+    if _ia_local(cfg):
+        if on_delta:
+            on_delta(MSG_IA_LOCAL)      # mode local : un seul fragment, repli propre
+        return MSG_IA_LOCAL
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
@@ -515,6 +595,8 @@ def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
     (ou None). Single-shot. Seul Anthropic gère les outils ; les autres
     fournisseurs retombent sur une réponse TEXTE (action None) — le chat ne casse
     jamais."""
+    if _ia_local(cfg):
+        return {'text': MSG_IA_LOCAL, 'action': None}   # mode local : repli propre, jamais d'action
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, None, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
@@ -1977,6 +2059,33 @@ def _pounce_sur_qso(msg):
         pounce.session.noter_qso(msg.get('call', ''))
 
 
+def _dxcc_positions_dict(calls):
+    """Résout une liste d'indicatifs en positions (lat/lon, pays) via cty.dat.
+
+    Sert la carte de sortie XOTA : un QSO sans locator Maidenhead est placé
+    au centroïde de son entité DXCC (position APPROXIMATIVE, pas exacte). Le
+    lookup client (logx_dxcc_lookup.js) ne porte pas de coordonnées — seul
+    logx_dxcc.lookup (cty.dat AD1C) le fait. Dédoublonne, ignore les vides, et
+    classe en 'unresolved' les indicatifs sans entité OU sans coordonnées."""
+    import logx_dxcc
+    positions = {}
+    unresolved = []
+    vus = set()
+    for call in (calls or []):
+        c = (call or '').strip().upper()
+        if not c or c in vus:
+            continue
+        vus.add(c)
+        info = logx_dxcc.lookup(c)
+        lat = (info or {}).get('lat')
+        lon = (info or {}).get('lon')
+        if info and lat is not None and lon is not None:
+            positions[c] = {'lat': lat, 'lon': lon, 'country': info.get('country', '')}
+        else:
+            unresolved.append(c)
+    return {'positions': positions, 'unresolved': unresolved}
+
+
 def _wsjtx_state_dict(cfg_snap):
     import logx_wsjtx as wsjtx
     settings = wsjtx.wsjtx_settings(cfg_snap)
@@ -2053,6 +2162,97 @@ def _wsjtx_state_dict(cfg_snap):
     return st
 
 
+def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
+    """Agrégat du cockpit EME : compose les briques EXISTANTES (position Lune,
+    Doppler sur la RF, décodages Q65/JT65, état du suivi lunaire, état rig). Une
+    seule requête à poller côté page. AUCUNE logique métier neuve ici."""
+    import logx_eme as eme
+    import logx_eme_bandplan as bandplan
+    import logx_wsjtx as wsjtx
+    import logx_moon_track as moon_track
+    from logx_utils import locator_to_latlon
+
+    band = str(band or '144')
+    rf_mhz = bandplan.centre_rf_mhz(band)
+    lat, lon = locator_to_latlon((cfg_snap or {}).get('locator', '') or '')
+    alt_m = (cfg_snap or {}).get('altitude', 0) or 0
+
+    moon = doppler = None
+    rise = setg = None
+    window = []
+    if lat is not None:
+        m = eme.moon_position(lat, lon, alt_m)
+        moon = m if m.get('available') else {'error': m.get('error', '')}
+        if rf_mhz:
+            dp = eme.doppler_shift_hz(lat, lon, rf_mhz, alt_m)
+            doppler = dp.get('doppler_hz') if dp.get('available') else None
+        rs = eme.moon_rise_set(lat, lon, alt_m)
+        if rs.get('available'):
+            rise, setg = rs.get('rise_utc'), rs.get('set_utc')
+        dxlat, dxlon = locator_to_latlon((dx_locator or '').strip())
+        if dxlat is not None:
+            cw = eme.common_window(lat, lon, dxlat, dxlon)
+            window = cw.get('windows', []) if cw.get('available') else []
+
+    # Sélection de la source des décodages : le pont UDP WSJT-X (historique,
+    # défaut) ou le décodeur Q65 natif (logx_q65_natif) si l'opérateur l'a
+    # explicitement configuré. Import LOCAL du module natif : il ne doit pas
+    # alourdir le chemin par défaut ni tirer sounddevice si non utilisé.
+    src = ((cfg_snap or {}).get('eme', {}) or {}).get('source', 'wsjtx')
+    if src == 'natif':
+        import logx_q65_natif as q65n
+        decodes = q65n.decodes_natifs()
+    else:
+        decodes = wsjtx.eme_decodes()
+
+    return {
+        'band': band,
+        'rf_mhz': rf_mhz,
+        'transverter': bandplan.est_transverter(band),
+        'moon': moon,
+        'doppler_hz': doppler,
+        'rise_utc': rise,
+        'set_utc': setg,
+        'window': window,
+        'decodes': decodes,
+        'source': src,
+        'track': moon_track.etat_suivi_lune(),
+        'rig': _wsjtx_state_dict(cfg_snap),
+    }
+
+
+def _eme_audio_devices_dict():
+    """Périphériques d'ENTRÉE audio disponibles pour la capture EME native
+    (logx_q65_natif). Séparé du routage pour rester testable sans handler
+    HTTP (même motif que _eme_cockpit_dict). sounddevice est un import
+    paresseux et opt-in côté logx_q65_natif : un échec (wheel PortAudio
+    absent/cassé) ne doit jamais faire tomber cet endpoint, seulement
+    renvoyer une liste vide accompagnée d'une erreur lisible."""
+    import logx_q65_natif as q65n
+    try:
+        return {'devices': q65n.lister_peripheriques_entree()}
+    except Exception as e:
+        return {'devices': [], 'error': str(e)}
+
+
+def _eme_moteur_action(action, cfg):
+    """Démarre/arrête le moteur EME natif (logx_q65_natif.demarrer_moteur /
+    arreter_moteur). Séparé du routage pour rester testable sans handler HTTP.
+    Une action inconnue ou une exception (carte son absente, sounddevice
+    cassé...) renvoient toutes deux `{'ok': False, 'error': ...}` — jamais
+    de plantage du handler."""
+    import logx_q65_natif as q65n
+    try:
+        if action == 'start':
+            return q65n.demarrer_moteur(cfg)
+        if action == 'stop':
+            return q65n.arreter_moteur()
+        return {'ok': False,
+                'error': "action inconnue (attendu 'start' ou 'stop')"}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
 def _rotor_state_dict(cfg_snap):
     import logx_rotor as rotor
     import logx_station as station
@@ -2109,6 +2309,35 @@ def _activation_db_adapter(program):
         import logx_wca as wca
         return {'search': wca.search_castles, 'lookup': wca.get_castle_geocoded,
                 'nearby': None, 'status': wca.status}
+    if program == 'DFCF':
+        # Catalogue COMPLET des châteaux (agrégé des ~100 pages départementales
+        # dfcf.fr/dept/dNN.html, cache disque 15 j, chargé en tâche de fond) :
+        # nom + commune du château. Pas de coordonnées sur ces pages -> pas de
+        # nearby. Une réf absente n'est pas invalide (catalogue en cours de
+        # chargement au 1er démarrage, ou page départementale injoignable).
+        import logx_dfcf as dfcf
+        return {'search': dfcf.search, 'lookup': dfcf.get,
+                'nearby': None, 'status': dfcf.status}
+    if program == 'WWBOTA':
+        # Base COMPLÈTE des bunkers (export CSV maître api.wwbota.org, cache
+        # LOCAL 15 j chargé en tâche de fond — données protégées, jamais dans le
+        # dépôt). Nom + schéma + coordonnées -> nearby disponible.
+        import logx_wwbota as wwbota
+        return {'search': wwbota.search, 'lookup': wwbota.get,
+                'nearby': wwbota.nearby, 'status': wwbota.status}
+    if program == 'GMA':
+        # API officielle PAR RÉFÉRENCE (cqgma.org/api/ref/?REF) : lookup de la réf
+        # tapée, cache mémoire, aucun bulk téléchargé -> aucune redistribution.
+        # Pas de recherche par nom ni nearby (API par-réf).
+        import logx_gma as gma
+        return {'search': gma.search, 'lookup': gma.get,
+                'nearby': None, 'status': gma.status}
+    if program == 'ARLHS':
+        # Base WLOL protégée (Copyright ARLHS) : lookup PAR RÉFÉRENCE seulement
+        # (fiche du phare tapé), cache mémoire, aucun bulk -> aucune redistribution.
+        import logx_arlhs as arlhs
+        return {'search': arlhs.search, 'lookup': arlhs.get,
+                'nearby': None, 'status': arlhs.status}
     return None
 
 
@@ -2125,6 +2354,77 @@ def _freq_khz_from_payload(payload):
         except (TypeError, ValueError):
             freq_khz = 0
     return freq_khz
+
+
+def _qsy_freq_hz_depuis_payload(payload):
+    """Fréquence (Hz) d'un QSY. Priorité : freq_hz / freq_khz explicites. À
+    défaut, `band` + `dial_mode` (ex. FT8) -> fréquence d'appel de ce mode sur
+    cette bande, via la SOURCE UNIQUE logx_frequences.dial_freq (jamais une table
+    dupliquée côté client — piège documenté du dépôt). Permet à la page FT8 de
+    demander « cale-moi sur la fréquence FT8 de la bande » sans connaître les
+    fréquences elle-même. Renvoie 0 si rien d'exploitable (bande/mode inconnus)."""
+    freq = payload.get('freq_hz') or 0
+    if not freq and payload.get('freq_khz'):
+        freq = float(payload['freq_khz']) * 1000
+    if not freq and payload.get('band'):
+        import logx_frequences as _fq
+        # label_bande : la page FT8 envoie la clé interne ('14') ; les données
+        # dial_freq sont indexées par label longueur d'onde ('20m').
+        mhz = _fq.dial_freq(_fq.label_bande(payload['band']),
+                            str(payload.get('dial_mode') or 'FT8'))
+        if mhz is not None:
+            freq = float(mhz) * 1e6
+    return freq
+
+
+# ─── Thème incorporé (contournement Web Shield antivirus) ────────────────────
+# PROBLÈME. logx_theme.css est un fichier SÉPARÉ : le navigateur le récupère par
+# une 2e requête. Un antivirus/proxy qui inspecte le trafic (Avast Web Shield,
+# déjà vu couper des fichiers sur un poste de l'équipe, cf. le commentaire
+# Content-Length plus bas) peut bloquer/tronquer CETTE requête .css sans toucher
+# au HTML — résultat : la page s'affiche mais SANS thème (tokens `var(--x)`
+# indéfinis → police serif, contraste cassé, barres sans couleur). SOLUTION : à
+# la volée, on remplace le <link> vers logx_theme.css par le CSS INLINE dans la
+# réponse HTML elle-même (qui, elle, passe). Plus de requête séparée à bloquer.
+# UNE SEULE SOURCE conservée (le fichier reste l'original ; injection au service,
+# donc test_css_mutualise/les pages sur disque ne changent pas). Le garde-fou
+# logx_theme_guard.js reste en dernier recours si l'injection échouait.
+_THEME_LINK = '<link rel="stylesheet" href="logx_theme.css">'
+_THEME_CSS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logx_theme.css')
+_theme_inline_cache = {'mtime': None, 'style': ''}
+
+
+def _theme_css_inline_style():
+    """`<style>…</style>` contenant logx_theme.css, en cache (relu si le fichier
+    change). Chaîne vide si illisible (repli : on laisse le <link>)."""
+    try:
+        mt = os.path.getmtime(_THEME_CSS_PATH)
+    except OSError:
+        return ''
+    if _theme_inline_cache['mtime'] != mt:
+        try:
+            with open(_THEME_CSS_PATH, encoding='utf-8') as f:
+                css = f.read()
+        except OSError:
+            return ''
+        # Un </style> dans le CSS fermerait le bloc par accident (ne devrait pas
+        # exister, mais on ne suppose pas) : on le neutralise.
+        css = css.replace('</style>', '<\\/style>')
+        _theme_inline_cache['mtime'] = mt
+        _theme_inline_cache['style'] = '<style id="logx-theme-inline">\n' + css + '\n</style>'
+    return _theme_inline_cache['style']
+
+
+def _inline_theme_in_html(body_bytes):
+    """Remplace le <link> logx_theme.css par le CSS inline dans un corps HTML.
+    No-op si le lien est absent ou le CSS illisible."""
+    link = _THEME_LINK.encode('utf-8')
+    if link not in body_bytes:
+        return body_bytes
+    style = _theme_css_inline_style()
+    if not style:
+        return body_bytes
+    return body_bytes.replace(link, style.encode('utf-8'), 1)
 
 
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
@@ -3408,6 +3708,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
+        # « Prochaines cibles recommandées » : par entité entamée, le prochain
+        # slot à aller chercher (à confirmer LoTW, ou mode manquant). Déterministe,
+        # lecture seule — alimente le cockpit d'accueil.
+        if path == '/awards/prochaines_cibles':
+            import logx_awards as awards
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json({'cibles': awards.prochaines_cibles(log_copy)})
+            return
+
+        # Provenance par champ : d'où vient chaque donnée enrichie d'un indicatif
+        # (Pays/zones = cty.dat, Distance/Azimut = calculé). Lecture seule, offline.
+        if path.startswith('/calldb/provenance'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_provenance as prov
+            call = (parse_qs(urlparse(self.path).query).get('call') or [''])[0]
+            self._json({'rows': prov.provenance(call, self._cfg_snapshot())})
+            return
+
         # Résumé À VIE des activations/chasses par programme (POTA/SOTA/IOTA...) :
         # nombre de références UNIQUES activées (my_sig_info) et chassées
         # (sig_info). Agrégation pure du log, aucune confirmation externe.
@@ -3581,6 +3900,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pos = eme.moon_position(lat, lon, alt_m)
             rs = eme.moon_rise_set(lat, lon, alt_m)
             self._json({**pos, **rs})
+            return
+
+        # Cockpit EME agrégé : une seule requête composant position Lune,
+        # Doppler (sur la RF du plan de bandes, pas le dial), décodages
+        # Q65/JT65, état du suivi lunaire et état rig — plutôt que la page
+        # ne fasse elle-même 5 requêtes séparées à chaque rafraîchissement.
+        if path == '/eme/cockpit':
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            band = (q.get('band', ['144'])[0])
+            dxloc = (q.get('dx_locator', [''])[0])
+            self._json(_eme_cockpit_dict(self._cfg_snapshot(), band, dxloc))
+            return
+
+        # Périphériques d'entrée audio pour la capture EME native
+        # (décodage Q65 hors WSJT-X, sélectionné via config eme.source).
+        if path == '/eme/audio-devices':
+            self._json(_eme_audio_devices_dict())
+            return
+        if path == '/moon/track/state':
+            import logx_moon_track as moon_track
+            self._json(moon_track.etat_suivi_lune())
             return
 
         # Écart de l'horloge de ce PC par rapport à l'heure UTC de référence
@@ -3806,6 +4147,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             callsign = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or 'LOG').upper()
             body = export.build_adif(qsos, cfg_snap).encode('utf-8')
             fname = pota.export_filename(callsign, my_ref, qsos)
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # Export ADIF filtré « prêt pour sotadata » — téléversement MANUEL
+        # (conforme aux CGU, aucun appel API). Rôle SÉPARÉ (chasse/portable) :
+        # l'import ADIF de sotadata peut mal deviner le rôle d'un fichier mixte,
+        # donc un fichier par rôle, chacun pour SA page d'upload.
+        if path == '/sota/export_adif':
+            import logx_export as export
+            from urllib.parse import parse_qs, urlparse
+            qp = parse_qs(urlparse(self.path).query)
+            role = (qp.get('role') or ['chaser'])[0].strip().lower()
+            if role not in ('chaser', 'activator'):
+                self._json({'error': 'role invalide (chaser|activator)'}, 400)
+                return
+            year = (qp.get('year') or [''])[0].strip() or None
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                qsos = export.sota_qsos_pour_upload(list(shared_log), role, year)
+            if not qsos:
+                quoi = 'chasse' if role == 'chaser' else 'portable'
+                self._json({'error': f'Aucun QSO SOTA en {quoi} à exporter'}, 400)
+                return
+            callsign = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or 'LOG').upper()
+            body = export.build_adif(qsos, cfg_snap).encode('utf-8')
+            libelle = 'chasses' if role == 'chaser' else 'portable'
+            call_fs = re.sub(r'[^A-Za-z0-9]+', '-', callsign) or 'LOG'
+            fname = f'sota_{libelle}_{call_fs}_{year or "tout"}.adi'
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
@@ -4126,10 +4501,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'show': shortcut.should_offer()})
             return
 
-        # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s)
+        # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s).
+        # On passe l'indicatif de l'opérateur pour un User-Agent identifiable
+        # (recommandation SOTA).
         if path == '/data/sota_spots':
             import logx_sota as sota
-            self._json({'spots': sota.fetch_sota_spots()})
+            _call = (self._cfg_snapshot().get('callsign') or '').strip()
+            self._json({'spots': sota.fetch_sota_spots(callsign=_call)})
             return
 
         # Auto-spot SOTA : état de la connexion SOTA SSO (clientId configuré,
@@ -4137,6 +4515,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/sota/status':
             import logx_sota_spot as sotaspot
             self._json(sotaspot.status(self._cfg_snapshot()))
+            return
+
+        # Points de chasse SOTA « indicatifs » (NON officiels) — calcul purement
+        # local, jamais envoyé à SOTA. Règles 3.8/3.11 sourcées dans
+        # logx_sota_points. On copie le carnet sous verrou puis on calcule HORS
+        # verrou (get_summit a son propre verrou interne). Année UTC calculée à
+        # la requête pour rester juste au passage d'année.
+        if path == '/sota/points':
+            import logx_sota as sota
+            import logx_sota_points as sotapts
+            with log_lock:
+                log_copy = list(shared_log)
+            annee = datetime.datetime.now(datetime.timezone.utc).year
+            self._json(sotapts.totaux(log_copy, sota.get_summit, annee))
+            return
+
+        # Multi-poste : le port est-il ouvert dans le pare-feu Windows ? (lecture
+        # sans admin) — pour que CONFIG/Santé sachent si un 2e poste peut se
+        # connecter sans réglage manuel. Voir logx_firewall.
+        if path == '/lan/firewall/status':
+            import logx_firewall as fw
+            self._json({
+                'windows': fw.is_windows(),
+                'rule': fw.rule_exists(PORT),
+                'lan_access': bool(self._cfg_snapshot().get('lan_access')),
+                'port': PORT,
+            })
             return
 
         # Auto-spot SOTA : lance la connexion SOTA SSO (Authorization Code +
@@ -4298,6 +4703,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 a = dict(_act_jobs.get(aid) or {'status': 'unknown'})
             a['id'] = aid
             self._json(a)
+            return
+
+        # Suivi de consommation IA (tokens réels par fournisseur/modèle). FAITS
+        # seulement ; un coût n'apparaît que si l'opérateur a configuré ses
+        # tarifs (config ai_prix_usd_par_mtok) — aucun prix inventé.
+        if path == '/ai/usage':
+            import logx_ai_usage as _usage
+            self._json(_usage.resume((self._cfg_snapshot() or {}).get('ai_prix_usd_par_mtok')))
             return
 
         # État d'une stratégie pile-up FT8 (voir POST /wsjtx/strategy).
@@ -4533,6 +4946,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Occupation des bandes multi-postes (log partagé : radioclub / expé /
+        # activation spéciale) : qui est sur quelle bande/mode, et conflits.
+        # Vue FUSIONNÉE (ce poste + pairs reçus des canaux LAN/Cloud/MySQL),
+        # calculée par logx_occupancy. Lecture seule, ouverte comme les /data/.
+        if path == '/data/occupancy':
+            import logx_occupancy as occ
+            self._json(occ.vue(time.time()))
+            return
+
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min,
         # lecture seule ici — le rafraîchissement réseau se fait en tâche de fond).
         if path == '/data/propagation':
@@ -4749,6 +5171,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_alerts as alerts
             import logx_awards as awards
             cfg_snap = self._cfg_snapshot()
+            if _demo_mode(cfg_snap):        # MODE DÉMO : spots synthétiques, sans radio
+                import logx_demo as demo
+                self._json({'spots': demo.spots_demo(), 'demo': True})
+                return
             # Réchauffe le cache de spots HF (fetch de fond, throttlé) AVANT de
             # le lire. Défaut F4GLD (27/08/2026) : la need list CHASSE lisait
             # _spots_from_caches() sans jamais le remplir -> « 0 spots » hors
@@ -5279,6 +5705,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             with open(filepath, 'rb') as f:
                 body = f.read()
+            # Thème incorporé dans le HTML (contournement Web Shield antivirus) :
+            # supprime la requête .css séparée que l'antivirus peut bloquer.
+            if filepath.endswith('.html'):
+                body = _inline_theme_in_html(body)
             self.send_response(200)
             ct = 'text/html; charset=utf-8'
             if filepath.endswith('.js'):   ct = 'application/javascript'
@@ -5415,6 +5845,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # attendant des octets qui n'arriveront jamais.
         self._corps_lu = True
         body = self.rfile.read(length)
+
+        # Résolution batch indicatif -> position (carte de sortie XOTA). POST
+        # (pas GET) car une grosse expédition peut envoyer des centaines
+        # d'indicatifs, au-delà de la longueur d'URL raisonnable. Lecture pure
+        # (cty.dat), aucune écriture.
+        if self.path == '/dxcc/positions':
+            try:
+                payload = json.loads(body) if body else {}
+                calls = payload.get('calls', [])
+                if not isinstance(calls, list):
+                    self._json({'error': "'calls' doit être une liste"}, 400)
+                    return
+                self._json(_dxcc_positions_dict(calls))
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
+        # Occupation des bandes multi-postes : CE poste déclare sa bande/mode
+        # COURANTES (le client LOGBOOK envoie currentBand/currentMode par
+        # heartbeat). Auth déjà exigée plus haut (anti-usurpation LAN). L'iid
+        # (identifiant d'installation, cloudsync) distingue les postes qui
+        # partagent le MÊME indicatif en activation spéciale.
+        if self.path == '/occupancy/heartbeat':
+            try:
+                payload = json.loads(body) if body else {}
+                cfg = self._cfg_snapshot()
+                import logx_cloudsync as cs
+                import logx_occupancy as occ
+                iid = cs._instance_id()
+                call = cfg.get('callsign_contest') or cfg.get('callsign') or ''
+                occ.poser_mon_statut(iid, call, str(payload.get('band', '')),
+                                     str(payload.get('mode', '')), time.time())
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
 
         # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur).
         # NB : cette route vivait dans do_GET avec un test "method == 'POST'"
@@ -5696,6 +6162,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # configurée, valide la proposition contre le schema et le moteur.
         # NE SAUVEGARDE RIEN : la relecture humaine passe par /rules/save_definition.
         if self.path == '/rules/analyze':
+            if _ia_local(self._cfg_snapshot()):        # mode local : pas d'analyse LLM
+                self._json({'ok': False, 'error': MSG_IA_LOCAL}, 400)
+                return
             try:
                 payload = json.loads(body) if body else {}
                 result = analyze_rules(
@@ -5835,6 +6304,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(reponse)
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        if self.path == '/config/reset':
+            # Réinitialisation DOUCE de la configuration : tout revient à l'état
+            # « première installation » SAUF les identifiants (SECRET_FIELDS :
+            # mots de passe/clés d'API), conservés pour ne pas obliger l'opérateur
+            # à tout re-saisir. Ne touche NI au carnet, NI au token
+            # d'authentification, NI à l'ID d'instance cloud (fichiers séparés) —
+            # les préférences d'affichage (thème, mode) sont remises à zéro côté
+            # client. Confirmation obligatoire, comme /log/reset.
+            try:
+                payload = json.loads(body or '{}')
+                if payload.get('confirm') != 'RESET':
+                    self._json({'ok': False, 'error': 'Confirmation requise'}, 400)
+                    return
+                with config_lock:
+                    secrets_gardes = {
+                        f: current_config[f] for f in logx_crypto.SECRET_FIELDS
+                        if current_config.get(f) not in (None, '')}
+                    current_config = dict(secrets_gardes)
+                    _save_config_to_disk(current_config)
+                # Comme /config/save : la portée visible (concours+année) peut
+                # avoir changé sans qu'aucun QSO n'ait bougé -> forcer les clients
+                # à recharger la liste sous la nouvelle portée.
+                with log_lock:
+                    bump_log_version()
+                    mark_hard_reset()
+                print('[CFG] Configuration reinitialisee (identifiants conserves)')
+                self._json({'ok': True, 'secrets_conserves': sorted(secrets_gardes)})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
             return
 
         # Définit/modifie (password non vide) ou désactive (password vide) le
@@ -6472,9 +6972,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if self.path == '/rig/qsy':
                 try:
-                    freq = payload.get('freq_hz') or 0
-                    if not freq and payload.get('freq_khz'):
-                        freq = float(payload['freq_khz']) * 1000
+                    # freq_hz / freq_khz explicites, ou calage sur la fréquence
+                    # d'appel FT8 de la bande (band + dial_mode) — voir helper.
+                    freq = _qsy_freq_hz_depuis_payload(payload)
                     if not freq:
                         self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
                         return
@@ -6685,7 +7185,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             #    jeton (freq/mode/CAT/verrou), et CONSOMME le jeton (usage unique).
             rs = txc.radio_state_from_cat(cat_state, c, locked=txc.is_tx_locked())
             try:
-                entry = txc.authorize_transmission(c, rs)
+                # Plafond de puissance optionnel (config tx_max_power_w) : au-delà,
+                # l'autorisation est refusée. Absent -> aucun plafond (inchangé).
+                entry = txc.authorize_transmission(
+                    c, rs, max_power_w=(cfg_snap or {}).get('tx_max_power_w'))
             except (PermissionError, ConnectionError) as e:
                 self._json({'ok': False, 'error': str(e), 'blocked': True}, 403)
                 return
@@ -7121,6 +7624,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                        200 if ok else 409)
             return
 
+        if self.path in ('/moon/track/start', '/moon/track/stop'):
+            import logx_moon_track as moon_track
+            if self.path == '/moon/track/start':
+                ok, msg = moon_track.demarrer_suivi_lune(self._cfg_snapshot())
+            else:
+                ok, msg = moon_track.arreter_suivi_lune()
+            self._json({'ok': ok, 'error': ('' if ok else msg), 'message': msg},
+                       200 if ok else 400)
+            return
+
+        # Moteur de décodage EME natif (logx_q65_natif) : démarre/arrête la
+        # capture carte son + décodage jt9 embarqué, en complément (ou à la
+        # place) du pont UDP WSJT-X. Réception seule.
+        if self.path == '/eme/moteur':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            action = str(payload.get('action') or '')
+            res = _eme_moteur_action(action, self._cfg_snapshot())
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         if self.path in ('/rotor/point', '/rotor/stop'):
             import logx_rotor as rotor
             import logx_station as station
@@ -7253,6 +7779,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                   str(payload.get('mode') or ''), spotter=call,
                                   comment=str(payload.get('comment') or ''))
             self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Multi-poste : ouvre le port dans le pare-feu Windows AVEC élévation
+        # (fenêtre UAC) — le correctif permanent en UN CLIC depuis CONFIG, pour
+        # qu'un 2e poste se connecte même quand le Wi-Fi est classé « Public ».
+        # add_rule_elevated ne fait que LANCER l'UAC : le client re-vérifie
+        # /lan/firewall/status après confirmation.
+        if self.path == '/lan/firewall/open':
+            import logx_firewall as fw
+            lance, msg = fw.add_rule_elevated(PORT)
+            self._json({'launched': lance, 'message': msg, 'rule': fw.rule_exists(PORT)})
             return
 
         # Auto-spot SOTA (SOTA SSO + api2.sota.org.uk, cf. logx_sota_spot.py)
@@ -8107,6 +8644,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # fusionne les constats sous ceux du VÉRIFIER déterministe.
         if self.path == '/log/audit':
             global _audit_seq
+            if _ia_local(self._cfg_snapshot()):        # mode local : audit IA désactivé
+                self._json({'error': MSG_IA_LOCAL}, 400)
+                return
             try:
                 import logx_validator as validator
                 cfg_snap = self._cfg_snapshot()
@@ -8231,8 +8771,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 500)
             return
 
+        # Planificateur de session (CONSULTATIF) : propose un plan par créneaux à
+        # partir des contraintes de l'opérateur. L'IA CONSEILLE — aucune action,
+        # aucune émission n'est déclenchée ; l'opérateur garde le contrôle.
+        if self.path == '/session/plan':
+            import logx_session as _session
+            cfg_snap = self._cfg_snapshot()
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            provider = cfg_snap.get('api_provider', 'anthropic')
+            api_key = cfg_snap.get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
+            if not api_key:
+                self._json({'error': 'Clé API non configurée'}, 400)
+                return
+            try:
+                msg = _session.build_session_message(payload)
+                # Contexte terrain OPTIONNEL (propagation/spots réels) : rend le
+                # plan concret au lieu de générique. Best-effort — un échec de
+                # contexte n'empêche pas de planifier.
+                if payload.get('avec_contexte'):
+                    try:
+                        _ctx = do_refresh(cfg_snap)
+                        if _ctx.get('context'):
+                            msg = _ctx['context'] + '\n\n' + msg
+                    except Exception as _e:  # noqa: BLE001
+                        print(f"[SESSION] contexte indisponible : {_e}")
+                plan = call_llm(cfg_snap, _session.SESSION_PLAN_SYSTEM,
+                                [{'role': 'user', 'content': msg}])
+                self._json({'plan': plan})
+            except Exception as e:  # noqa: BLE001 — un échec LLM ne doit pas planter le serveur
+                self._json({'error': str(e)}, 502)
+            return
+
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
+            if _ia_local(cfg_snap):                    # mode local : repli propre, zéro réseau
+                self._json({'error': {'message': MSG_IA_LOCAL}}, 200)
+                return
             provider = cfg_snap.get('api_provider', 'anthropic')
             ai_model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
             api_key  = cfg_snap.get('api_key', '')
@@ -8277,6 +8854,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         result = resp.read()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Anthropic OK ({len(result)} bytes)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('anthropic', ai_model, result)
+                    except Exception:
+                        pass
 
                 # ── OpenAI / Mistral / xAI / DeepSeek (même format d'API) ────
                 elif provider in OPENAI_COMPATIBLE_ENDPOINTS:
@@ -8306,6 +8888,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] {provider} OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse(provider, ai_model, oai_data)
+                    except Exception:
+                        pass
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
@@ -8331,6 +8918,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
                     print(f"[API] Gemini OK ({len(text)} chars)")
+                    try:                        # suivi tokens (après réponse envoyée ; ne casse rien)
+                        import logx_ai_usage as _usage
+                        _usage.enregistrer_reponse('gemini', model_id, gem_data)
+                    except Exception:
+                        pass
 
                 else:
                     self._json({'error': {'message': f'Fournisseur inconnu: {provider}'}}, 400)
