@@ -20,6 +20,12 @@ import os
 # en mode développeur, où les fichiers sont dans le dossier).
 _datas = [(f, '.') for f in glob.glob('*.html')]
 _datas += [(f, '.') for f in glob.glob('*.js')]
+# Feuilles de style (logx_theme.css) : SANS elles dans le bundle, l'exe gelé ne
+# peut ni servir le <link> ni l'inliner (logx_http._theme_css_inline_style lit
+# _MEIPASS/logx_theme.css) -> page sans thème chez l'utilisateur de l'exe (F4GLD
+# ne le voit pas : il tourne depuis les sources). L'inlining est la défense
+# anti-Avast, mais il était inopérant en release faute de ce glob.
+_datas += [(f, '.') for f in glob.glob('*.css')]
 for ref in ('contest_schema.json', 'cty.dat', 'france_departements.geojson',
             'custom_contests.json', 'external_contests.json',
             'manifest.webmanifest', 'logx_icon.svg', 'logx_logo.png'):
