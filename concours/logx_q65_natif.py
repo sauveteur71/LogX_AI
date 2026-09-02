@@ -7,6 +7,7 @@ import queue
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -73,6 +74,25 @@ def resoudre_jt9(cfg=None):
     )
 
 
+def _env_avec_libs(jt9_path):
+    """Environnement du sous-processus jt9, avec le dossier du binaire ajouté au
+    chemin de recherche des bibliothèques dynamiques. Nécessaire pour le binaire
+    embarqué (Tâche 8) : jt9 et ses dépendances (fftw3f, libgfortran…) vivent
+    ensemble dans vendor/jt9/, et il faut que jt9 les y trouve — y compris dans
+    l'exécutable PyInstaller GELÉ, qui réinitialise LD_LIBRARY_PATH pour les
+    processus fils (sans ceci, jt9 ne trouverait pas ses .so une fois figé).
+    Sous Windows, les DLL voisines de l'exe sont trouvées d'office : rien à
+    faire. Inoffensif quand jt9 vient du PATH (deps résolues par le système)."""
+    env = os.environ.copy()
+    if os.name == 'nt':
+        return env
+    var = 'DYLD_LIBRARY_PATH' if sys.platform == 'darwin' else 'LD_LIBRARY_PATH'
+    d = os.path.dirname(os.path.abspath(jt9_path))
+    ancien = env.get(var, '')
+    env[var] = d + (os.pathsep + ancien if ancien else '')
+    return env
+
+
 def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
                  data_path=None, ap=None, freq_mhz=0.0, band='', timeout=55.0):
     """Lance jt9 en sous-processus sur un fichier .wav (déjà capturé/aligné
@@ -99,7 +119,8 @@ def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
                 argv += [flag, str(ap[cle])]
     try:
         res = subprocess.run(argv, capture_output=True, text=True,
-                             timeout=timeout, cwd=tmp)
+                             timeout=timeout, cwd=tmp,
+                             env=_env_avec_libs(jt9_path))
         return parse_jt9_stdout(res.stdout, freq_mhz=freq_mhz, band=band)
     finally:
         if ephemere:

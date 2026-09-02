@@ -64,6 +64,22 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install --upgrade pyinstaller
 
+      # jt9 (WSJT-X) recupere ICI, AVANT le build : logx.spec embarque le
+      # contenu de vendor/jt9/ dans l'executable (decodage Q65 natif hors-ligne
+      # sans WSJT-X installe cote utilisateur). Voir .github/actions/fetch-jt9.
+      - name: Recuperer jt9 (embarque dans la release)
+        uses: ./.github/actions/fetch-jt9
+
+      # Temoin vert SUR LA PLATEFORME CIBLE : le jt9 vendorise decode-t-il
+      # reellement l'echantillon EME de reference ? Fait echouer la release si
+      # le fetch/les dependances runtime sont casses sur cet OS.
+      - name: Verifier le decodage jt9 vendorise
+        working-directory: concours
+        shell: bash
+        run: |
+          python -m pip install --upgrade pytest
+          python -m pytest tests/test_q65_natif.py -v
+
       - name: Construction PyInstaller
         working-directory: concours
         run: python -m PyInstaller --noconfirm --clean logx.spec

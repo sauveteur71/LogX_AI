@@ -1,0 +1,6 @@
+# Le binaire jt9 et ses dépendances sont récupérés en CI (action fetch-jt9),
+# jamais commités dans git (choix « téléchargement en CI » — dépôt léger).
+# On ne garde sous git que la doc de provenance/licence et ce .gitignore.
+*
+!.gitignore
+!README.md

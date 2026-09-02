@@ -1,0 +1,48 @@
+name: Vérifier jt9 embarqué
+
+# Vérifie, sur CHAQUE OS cible (Windows/macOS/Linux), que le binaire jt9
+# récupéré par l'action fetch-jt9 décode réellement l'échantillon EME de
+# référence (tests/fixtures/q65_60A_eme_6m.wav → 3 stations attendues).
+#
+# C'est le TÉMOIN VERT SUR LA PLATEFORME CIBLE de l'embarquement jt9 : la
+# seule preuve valable que le fetch + les dépendances runtime fonctionnent.
+# Ne construit PAS l'exécutable PyInstaller (itération rapide sur la partie
+# dure). Déclenchement manuel — on ne télécharge pas WSJT-X à chaque push.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: jt9 ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Récupérer jt9
+        uses: ./.github/actions/fetch-jt9
+
+      - name: Décodage du fixture EME (test d'intégration)
+        working-directory: concours
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pytest tests/test_q65_natif.py -v

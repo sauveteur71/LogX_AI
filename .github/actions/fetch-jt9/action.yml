@@ -1,0 +1,98 @@
+name: 'Récupérer jt9'
+description: >-
+  Télécharge le binaire jt9 de WSJT-X et ses dépendances runtime dans
+  concours/vendor/jt9/ pour l'OS du runner courant. Utilisé par build-release
+  (embarquement dans la release) et par verify-jt9 (vérification rapide).
+
+inputs:
+  wsjtx_version:
+    description: 'Version WSJT-X à vendoriser (Windows/macOS). Linux = paquet de la distribution.'
+    required: false
+    default: '2.7.0'
+
+runs:
+  using: composite
+  steps:
+    # Linux : le paquet Ubuntu « wsjtx » installe jt9 avec ses dépendances
+    # résolues par apt. On copie jt9 ET ses .so jt9-spécifiques (fftw3f,
+    # gfortran, gomp, quadmath, gcc_s, boost…) à CÔTÉ de lui — SAUF le noyau
+    # système (libc, loader, pthread…), qui doit rester celui de l'hôte cible.
+    # La version = celle du dépôt de la distribution (≥ 2.5, donc Q65 présent),
+    # divergence assumée avec la version épinglée Windows/macOS (apt = chemin
+    # d'installation le plus fiable sous Linux, cf. conflits libgfortran connus
+    # sur les .deb hors-distribution).
+    - name: jt9 — Linux (paquet wsjtx)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y wsjtx
+        dest="concours/vendor/jt9"
+        mkdir -p "$dest"
+        jt9="$(command -v jt9 || true)"
+        if [ -z "$jt9" ]; then
+          jt9="$(dpkg -L wsjtx | grep -E '/jt9$' | head -1)"
+        fi
+        test -x "$jt9"
+        cp -L "$jt9" "$dest/jt9"
+        ldd "$dest/jt9" | awk '/=> \//{print $3}' | while read -r lib; do
+          base="$(basename "$lib")"
+          case "$base" in
+            libc.so*|libm.so*|libdl.so*|libpthread.so*|librt.so*|ld-linux*|libresolv.so*|linux-vdso*) continue ;;
+          esac
+          cp -Ln "$lib" "$dest/" 2>/dev/null || true
+        done
+        chmod +x "$dest/jt9"
+        echo "Version wsjtx : $(dpkg -s wsjtx 2>/dev/null | awk '/^Version:/{print $2}')"
+        echo "Contenu vendorisé :"; ls -la "$dest"
+
+    # Windows : l'installeur NSIS est extractible par 7-Zip (préinstallé sur
+    # les runners). jt9.exe et ses DLL vivent dans le même dossier ; Windows
+    # cherche les DLL à côté de l'exe, donc on copie jt9.exe + tous les *.dll
+    # voisins.
+    - name: jt9 — Windows (installeur, extraction 7-Zip)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver="${{ inputs.wsjtx_version }}"
+        url="https://downloads.sourceforge.net/project/wsjt/wsjtx-${ver}/wsjtx-${ver}-win64.exe"
+        curl -fL -o wsjtx.exe "$url"
+        7z x -y wsjtx.exe -oextracted >/dev/null
+        dest="concours/vendor/jt9"
+        mkdir -p "$dest"
+        jt9="$(find extracted -name jt9.exe | head -1)"
+        test -n "$jt9"
+        bindir="$(dirname "$jt9")"
+        cp "$bindir"/jt9.exe "$dest/"
+        cp "$bindir"/*.dll "$dest/" 2>/dev/null || true
+        echo "Contenu vendorisé :"; ls -la "$dest"
+
+    # macOS : le .dmg contient WSJT-X.app ; jt9 est dans Contents/MacOS et ses
+    # dylibs dans Contents/Frameworks (références @rpath vers le bundle).
+    # dylibbundler (Homebrew) relocalise récursivement les dylibs non-système à
+    # côté de jt9 et réécrit les chemins en @executable_path — ce qui rend jt9
+    # autonome hors du bundle .app.
+    - name: jt9 — macOS (dmg + dylibbundler)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver="${{ inputs.wsjtx_version }}"
+        url="https://downloads.sourceforge.net/project/wsjt/wsjtx-${ver}/wsjtx-${ver}-Darwin.dmg"
+        curl -fL -o wsjtx.dmg "$url"
+        hdiutil attach wsjtx.dmg -mountpoint /Volumes/wsjtx -nobrowse -quiet
+        app="$(find /Volumes/wsjtx -maxdepth 1 -name '*.app' | head -1)"
+        test -n "$app"
+        jt9="$app/Contents/MacOS/jt9"
+        test -x "$jt9"
+        dest="concours/vendor/jt9"
+        mkdir -p "$dest"
+        cp "$jt9" "$dest/jt9"
+        brew list dylibbundler >/dev/null 2>&1 || brew install dylibbundler
+        dylibbundler -of -b -x "$dest/jt9" -d "$dest" -p '@executable_path/' \
+          -s "$app/Contents/Frameworks" -s "$app/Contents/MacOS" || true
+        chmod +x "$dest/jt9"
+        hdiutil detach /Volumes/wsjtx -quiet || true
+        echo "Contenu vendorisé :"; ls -la "$dest"
