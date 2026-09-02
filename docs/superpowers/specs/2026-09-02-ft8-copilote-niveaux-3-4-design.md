@@ -150,8 +150,9 @@ clôture, station suivante. Le pile-up réutilise **tel quel** le code existant.
 ### 5. Contrôle de présence (optionnel, recommandé)
 
 Filet contre l'oubli (opérateur parti) **sans** contredire « tourne jusqu'au
-Stop » : réglage **activable/désactivable** (défaut : **activé**, à
-confirmer par F4GLD). Si actif : après `delaiPauseS` sans interaction (souris/
+Stop » : réglage **activable/désactivable**, **désactivé par défaut** (décision
+F4GLD 02/09 : vrai continu dès le départ ; le filet reste disponible si
+l'opérateur le coche). Si actif : après `delaiPauseS` sans interaction (souris/
 touche/ping), la session **met l'émission en PAUSE** (n'émet plus, n'annule pas
 la session) et affiche « Toujours là ? » ; un clic reprend. **Désactivable**
 pour un vrai fonctionnement continu sans interaction. Logique pure
@@ -218,8 +219,8 @@ trace ratée ne défait jamais une émission, comme #266).
 
 ## Auto-revue
 
-- **Placeholders** : aucun TODO/TBD ; le seul « à confirmer » explicite = défaut
-  du contrôle de présence (activé ?), à trancher par F4GLD avant le plan.
+- **Placeholders** : aucun TODO/TBD. Le défaut du contrôle de présence est
+  tranché (désactivé, F4GLD 02/09).
 - **Cohérence** : réutilise `reponseFt8`/`appelInitial`/`estFinQso`/file
   existants (source de vérité inchangée) ; n'ajoute que le moteur d'autonomie +
   la session + l'UI + la trace. Pas de duplication de la machine d'état QSO.
