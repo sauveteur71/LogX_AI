@@ -11,6 +11,17 @@ name: Vérifier jt9 embarqué
 
 on:
   workflow_dispatch:
+  # Déclenché automatiquement sur les PR qui touchent la machinerie jt9 (et
+  # seulement celles-là : le fetch télécharge WSJT-X, coûteux — on ne le paie
+  # que quand c'est pertinent). Garde-fou permanent : preuve 3-OS que le
+  # binaire embarqué décode toujours après une modif du natif ou du fetch.
+  pull_request:
+    paths:
+      - 'concours/logx_q65_natif.py'
+      - 'concours/logx.spec'
+      - 'concours/tests/test_q65_natif.py'
+      - '.github/actions/fetch-jt9/**'
+      - '.github/workflows/verify-jt9.yml'
 
 permissions:
   contents: read
