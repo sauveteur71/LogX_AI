@@ -12,10 +12,16 @@ def ctx():
     from py_mini_racer import py_mini_racer
     c = py_mini_racer.MiniRacer()
     c.eval('var window = {};')
+    # Charger d'abord le copilote FT8 (dépendance)
+    copilote_path = os.path.join(CONCOURS, 'logx_ft8_copilote.js')
+    with open(copilote_path, encoding='utf-8') as f:
+        c.eval(f.read())
+    # Puis la session
     with open(JS, encoding='utf-8') as f:
         c.eval(f.read())
     # rendre l'API accessible au niveau global pour c.eval()
     c.eval('var LogxFt8Session = window.LogxFt8Session;')
+    c.eval('var LogxFt8Copilote = window.LogxFt8Copilote;')
     return c
 
 
@@ -132,3 +138,45 @@ def test_dial_pile_a_la_tolerance_reste_valide(ctx):
                  "LogxFt8Session.sessionValide(s,{band:'20m',dial_hz:14074050,mode:'USB-D',power_w:20},%s).ok"
                  % (EMP, ETAT_OK))
     assert r is True
+
+
+# --- Driver N3 : prochaineTrameQso (enchaînement QSO complet) ---
+
+def test_qso_repond_a_un_appel(ctx):
+    # « F4GLD DL1ABC JO31 » (on m'appelle avec grille) -> je réponds report
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineTrameQso(s,"
+                 "{message:'F4GLD DL1ABC JO31',snr:-12,dx:'DL1ABC'},'F4GLD'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'emettre'
+    assert d['message'] == 'DL1ABC F4GLD -12'
+    assert d['dx'] == 'DL1ABC'
+
+
+def test_qso_accuse_report(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineTrameQso(s,"
+                 "{message:'F4GLD DL1ABC R-08',snr:-10,dx:'DL1ABC'},'F4GLD'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'emettre'
+    assert d['message'] == 'DL1ABC F4GLD RR73'
+
+
+def test_qso_cloture_donne_loguer(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineTrameQso(s,"
+                 "{message:'F4GLD DL1ABC 73',snr:-10,dx:'DL1ABC'},'F4GLD'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'loguer'
+    assert d['dx'] == 'DL1ABC'
+
+
+def test_qso_ignore_pas_pour_moi(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineTrameQso(s,"
+                 "{message:'CQ SP9XYZ KO02',snr:-5,dx:'SP9XYZ'},'F4GLD'))" % EMP)
+    import json
+    assert json.loads(r)['action'] == 'ignorer'

@@ -49,8 +49,28 @@
     return { ok: true, raison: '' };
   }
 
+  // Driver N3 : enchaînement QSO complet (report→R→RR73→fin).
+  // Retourne {action, message, dx} où action ∈ {'emettre','loguer','ignorer'} :
+  //   - 'emettre' + message (trame FT8) + dx : émettre la réponse
+  //   - 'loguer' + dx : correspondant a clôturé → proposer le log
+  //   - 'ignorer' : rien à faire (pas pour moi / autre station en QSO)
+  // Le module NE modifie PAS session (l'appelant applique le résultat).
+  function _cop() { return (window.LogxFt8Copilote || {}); }
+
+  function prochaineTrameQso(session, decode, monCall) {
+    decode = decode || {};
+    var cop = _cop();
+    if (cop.estFinQso && cop.estFinQso(decode.message, monCall)) {
+      return { action: 'loguer', message: '', dx: decode.dx || '' };
+    }
+    var rep = cop.reponseFt8 ? cop.reponseFt8(decode.message, decode.snr, monCall) : null;
+    if (!rep) { return { action: 'ignorer', message: '', dx: '' }; }
+    return { action: 'emettre', message: rep.message, dx: rep.dxCall };
+  }
+
   window.LogxFt8Session = {
     creerSession: creerSession,
-    sessionValide: sessionValide
+    sessionValide: sessionValide,
+    prochaineTrameQso: prochaineTrameQso
   };
 })();
