@@ -222,6 +222,7 @@ def journal_copilote_emission(details) -> dict:
         'mode': str(d.get('mode') or ''),
         'message': str(d.get('message') or ''),
         'message_sha256': empreinte_message(d.get('message')),
+        'session_id': str(d.get('session_id') or ''),
         'declencheur': decl,
         # Traçabilité : au niveau copilote_auto l'IA a déclenché après un délai ;
         # au niveau copilote c'est le geste ÉMETTRE. Dans les DEUX cas un humain a
@@ -254,6 +255,37 @@ def journal_copilote_qso(details) -> dict:
     }
     journal_audit(entry)
     return entry
+
+
+def journal_session(event, session_id, details, now=None) -> dict:
+    """Grave un événement de SESSION FT8 autonome (armement/arrêt) dans le
+    MÊME journal d'audit d'émission que journal_copilote_emission (UTC, non
+    modifiable, via journal_audit). Le PTT FT8 reste CÔTÉ CLIENT ; ceci trace
+    l'AUTORISATION de la session (armée par un geste humain, niveaux 3/4 du
+    copilote) et sa fin, consultable via GET /tx/audit même navigateur fermé
+    ensuite. `now` injectable (aware-UTC) pour les tests. Ne lève JAMAIS —
+    TOUT le corps est protégé (comme journal_audit) : une trace ratée ne doit
+    pas casser une session, et la route /tx/session est un appel fire-and-forget
+    qui ne doit jamais renvoyer 500 ni « perdre » l'écriture sur un `details`
+    malformé. Coercion défensive : un `details` non-dict devient {} (pas une
+    entrée corrompue, pas une exception)."""
+    try:
+        ts = now or _now()
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=_UTC)
+        ts = ts.astimezone(_UTC)
+        det = dict(details) if isinstance(details, dict) else {}
+        entry = {
+            'event': str(event),
+            'timestamp_utc': ts.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'session_id': str(session_id or ''),
+            'details': det,
+            'consent_token': None,       # évènement de session, pas un jeton TX
+        }
+        journal_audit(entry)   # même ajout d'audit que le reste du module
+        return entry
+    except Exception:
+        return {}
 
 
 def audit_entries(limite=50):

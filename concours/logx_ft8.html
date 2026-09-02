@@ -300,6 +300,22 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   background:rgba(255,214,10,.12);border:1px solid var(--yellow);color:var(--yellow);
   font-family:var(--font-mono);font-size:12px;font-weight:700;line-height:1.4}
 #ft8StopBtn{background:#B3261E;color:#fff;border-color:#B3261E}
+/* SESSION AUTONOME (N3/N4) — même famille visuelle que .cq-auto-avertissement
+   (avertissement jaune) et #ft8StopBtn (arrêt rouge fixe, lisible identique
+   jour/nuit — même raisonnement documenté plus haut pour .ptt-alarme) ;
+   regroupés dans un bloc dédié car la session porte SES PROPRES enveloppe/
+   état/bouton Stop, tous liés au même geste d'armement. */
+.session-autonome{flex-basis:100%;display:flex;flex-direction:column;gap:8px;
+  padding:10px 12px;border-radius:8px;border:1px solid var(--yellow);
+  background:rgba(255,214,10,.06)}
+.session-autonome-avert{font-family:var(--font-mono);font-size:12px;font-weight:700;
+  color:var(--yellow);line-height:1.4}
+.session-autonome-corps{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.session-autonome-enveloppe{display:flex;flex-direction:column;gap:2px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--muted);
+  padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2)}
+#sessionStopBtn{background:#B3261E;color:#fff;border-color:#B3261E;font-size:14px;
+  padding:12px 20px;align-self:flex-start}
 
 .qso-prompt{display:none;background:rgba(var(--accent-rgb),.12);border:1px solid var(--accent2);border-radius:8px;
   padding:10px 14px;margin-top:10px;font-family:var(--font-mono);font-size:12.5px;gap:12px;align-items:center;flex-wrap:wrap}
@@ -342,6 +358,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_ft8_dsp.js"></script>
 <script src="logx_tx_bar.js"></script>
 <script src="logx_ft8_copilote.js"></script>
+<!-- Session autonome FT8 (niveaux 3/4 du copilote) : logique PURE testée
+     (concours/tests/test_ft8_session.py), APRÈS logx_ft8_copilote.js dont
+     elle réutilise reponseFt8/estFinQso/appelCQ. -->
+<script src="logx_ft8_session.js"></script>
 
 <div class="wrap">
   <h1>Décodeur/émetteur FT8 natif</h1>
@@ -570,6 +590,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="copilote_auto">Copilote auto — l'IA propose puis émet après un délai, sauf si tu annules (STOP TX)</option>
             <option value="sequenceur">Séquenceur — déroule le QSO et le logue</option>
             <option value="auto">Automatique — appelle CQ et enchaîne les QSO sans confirmation</option>
+            <!-- N3/N4 : SESSION AUTONOME, distincte du niveau « copilote_auto »
+                 ci-dessus (qui reconfirme délai par délai). Ici une SESSION
+                 entière est armée d'un geste puis enchaîne SANS reconfirmer
+                 chaque trame -- voir le bandeau dédié (#sessionAutonomeBandeau)
+                 qui n'apparaît qu'à ces deux niveaux. ⚠️ : encore à valider sur
+                 l'air, non un doute sur le principe (STOP TX reste immédiat). -->
+            <option value="copilote_qso">Copilote — QSO auto ⚠️ (session autonome, à valider sur l'air)</option>
+            <option value="copilote_cq">Copilote — CQ auto ⚠️ (session autonome, à valider sur l'air)</option>
           </select>
         </label>
         <label id="seqRelancesLabel" style="display:none">RELANCES SANS RÉPONSE
@@ -596,6 +624,31 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           ⚠ Mode Automatique : la station appelle CQ, décode les réponses et transmet
           RRR/73 SANS validation humaine à chaque étape. ■ STOP SÉQUENCE ou Échap
           arrêtent tout, immédiatement.
+        </div>
+        <!-- SESSION AUTONOME (niveaux N3/N4 : copilote_qso/copilote_cq) — jamais
+             expert-only, c'est le chemin FT8 lui-même (voir CLAUDE.md). Masquée
+             hors de ces deux niveaux (seqMajUI). Rien n'émet tant que le bouton
+             « Autoriser une session autonome » n'a pas été cliqué : c'est le
+             geste humain qui arme la session (skill tx-human-consent). Le bouton
+             STOP dédié reste visible tant que la session est armée, en plus du
+             Stop/Échap déjà globaux à la page. -->
+        <div class="session-autonome" id="sessionAutonomeBandeau" style="display:none">
+          <div class="session-autonome-avert" id="sessionAutonomeAvert">
+            ⚠ Session autonome : une fois armée, la station répond ou appelle CQ et
+            enchaîne les QSO SANS confirmation à chaque trame. Encore À VALIDER SUR
+            L'AIR — reste à portée du bouton ■ STOP TX ci-dessous. Tout changement
+            de bande, de mode, de puissance ou de fréquence arrête la session.
+          </div>
+          <div class="session-autonome-corps" id="sessionAutonomeCorps">
+            <button type="button" id="sessionArmerBtn" onclick="sessionAutonomeArmer()">▶ Autoriser une session autonome</button>
+            <span class="tx-status" id="sessionAutonomeEtat">Session non armée.</span>
+          </div>
+          <div class="session-autonome-enveloppe" id="sessionAutonomeEnveloppe" style="display:none"></div>
+          <button type="button" id="sessionStopBtn" class="danger" style="display:none"
+                  onclick="sessionAutonomeStop('stop')"
+                  title="Coupe la session autonome et l'émission en cours (Échap coupe aussi)">
+            ■ STOP TX — SESSION AUTONOME
+          </button>
         </div>
         <!-- File d'attente du copilote (pile-up) : stations en attente, prises à
              la suite. ★ = nouveau DXCC (priorisé). Clic = prioriser manuellement. -->
@@ -713,6 +766,14 @@ if(localStorage.getItem('rc_theme') === null){
 
 (function(){
   const T = s => (window.rcT ? window.rcT(s) : s);
+  // Même repli identité que T() si logx_i18n.js manque ou n'est pas encore
+  // chargé (voir tests/test_i18n_dialogues.py::test_le_repli_fonctionne_sans_le_moteur) —
+  // utilisé pour les chaînes dynamiques NEUVES de la session autonome N3/N4
+  // (bandeau/état), qu'aucun scan DOM statique ne peut couvrir puisqu'elles
+  // n'existent qu'après un geste opérateur.
+  const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
   if(location.protocol === 'file:'){
     document.body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Ouvre via le serveur : http://127.0.0.1:8080/logx_ft8.html</div>';
     return;
@@ -1042,6 +1103,26 @@ if(localStorage.getItem('rc_theme') === null){
   // chemin manuel la donne à retenirPariteCorrespondant. Un seul paramètre
   // sert les deux — en garder deux aurait été le début d'une divergence.
   function repondreEtEnvoyer(text, slotEntendu){
+    // 🚨 PORTE DÉROBÉE FERMÉE (revue T8, tx-human-consent). Aux niveaux
+    // AUTONOMES (copilote_qso/copilote_cq), doitProposer() renvoie false : sans
+    // ce garde, le double-clic sautait la branche copilote ci-dessous PUIS
+    // tombait dans `if(seqNiveau !== 'manuel')` -> seqDemarrer(), c'est-à-dire
+    // l'ANCIEN séquenceur, qui enchaîne le QSO SANS session armée, SANS
+    // empreinte radio verrouillée et SANS POST /tx/session. Un opérateur qui
+    // choisit « QSO auto »/« CQ auto » et double-clique une ligne émettait
+    // ainsi en boucle sans jamais avoir armé. La SEULE porte d'émission
+    // autonome est la session armée (bouton « Autoriser une session autonome »)
+    // + la boucle sessionValide (_sessionTraiterCycle) : le double-clic ne doit
+    // JAMAIS atteindre seqDemarrer ici. On informe via #seqEtat, le même canal
+    // que le reste de cette fonction utilise pour le retour de double-clic.
+    if(typeof LogxFt8Copilote !== 'undefined' && LogxFt8Copilote.estSessionAutonome(seqNiveau)){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = Tf('Session autonome : arme-la avec « Autoriser une session autonome » — le double-clic est ignoré ici.');
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
     // COPILOTE : un double-clic sur un CQ (ou une station) PROPOSE l'appel
     // initial « CIBLE MONCALL MAGRILLE » dans la barre de consentement, il
     // n'émet JAMAIS seul — ÉMETTRE (geste humain) déclenche l'émission au
@@ -2054,6 +2135,15 @@ if(localStorage.getItem('rc_theme') === null){
     // Sortir sans prévenir le séquenceur le figerait indéfiniment sur un
     // « j'attends sa réponse » qui ne viendrait jamais.
     seqExaminerCreneau(messagesDuCreneau, slotTermine);
+    // Session autonome (N3/N4) : traite TOUS les décodes de ce cycle (y
+    // compris zéro décode -- c'est ainsi qu'un CQ répété au niveau
+    // copilote_cq se reprogramme sans réponse). No-op hors niveau autonome ou
+    // hors session armée (voir _sessionTraiterCycle). Placée APRÈS
+    // seqExaminerCreneau : les deux mécanismes sont indépendants (jamais actifs
+    // en même temps, gatés par seqNiveau), l'ordre ne change rien à l'un ou
+    // l'autre, mais regrouper les consommateurs de messagesDuCreneau ici évite
+    // d'éparpiller les points d'entrée du cycle de décodage.
+    _sessionTraiterCycle(messagesDuCreneau);
     // Le décodage est terminé : les créneaux mis de côté pendant qu'il
     // tournait peuvent enfin partir, dans leur ordre d'arrivée.
     viderCreneauxDifferes();
@@ -3128,6 +3218,16 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   window.stopEmission = async function(){
+    // 🚨 DÉSARMER LA SESSION AUTONOME (revue T8, tx-human-consent). Placé ICI,
+    // dans stopEmission elle-même et non aux sites d'appel, pour que le bouton
+    // « STOP ÉMISSION » existant (#ft8StopBtn) ET tout autre appelant (Échap,
+    // pagehide…) désarment la session — sans ce garde, #ft8StopBtn coupait la
+    // trame en cours mais laissait `sessionCourante` armée, et la boucle
+    // _sessionTraiterCycle réémettait au cycle suivant. Pas de récursion :
+    // _sessionArreter met `sessionCourante = null` AVANT de rappeler
+    // stopEmission(), donc la ré-entrée voit null et saute ce bloc (il POSTe
+    // aussi /tx/session ended + bandeau rouge, une seule fois).
+    if(typeof sessionCourante !== 'undefined' && sessionCourante){ _sessionArreter('stop'); }
     // EN PREMIER : une émission déjà programmée doit renoncer. Sans cela le
     // bouton ne coupait que ce qui était déjà en cours — c'est-à-dire rien,
     // pendant l'attente du créneau.
@@ -3160,6 +3260,17 @@ if(localStorage.getItem('rc_theme') === null){
   // c'est même le moment où un opérateur appuie le plus souvent.
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
+    // Session autonome (N3/N4) ARMÉE mais RIEN en vol (aucune des quatre
+    // conditions historiques ci-dessous n'est vraie) : cas séparé, posé AVANT
+    // la garde historique -- jamais modifiée ci-dessous (son texte EXACT est
+    // verrouillé par test_ft8_sequenceur.py::test_echap_atteint_la_boucle_cq_en_attente)
+    // -- pour qu'Échap désarme aussi une session qui attend simplement le
+    // prochain cycle de décodage, pas seulement une émission déjà en vol.
+    if(sessionCourante && !pttDemande && !emissionProgrammee && !seq && !cqAutoActif){
+      e.preventDefault();
+      _sessionArreter('stop');
+      return;
+    }
     // TROIS états où Échap doit agir, et ils ne se recouvrent pas :
     //   pttDemande        — le PTT est engagé, la trame est sur l'air
     //   emissionProgrammee— une trame attend son créneau (jusqu'à 16 s)
@@ -3174,6 +3285,7 @@ if(localStorage.getItem('rc_theme') === null){
     if(!pttDemande && !emissionProgrammee && !seq && !cqAutoActif) return;
     e.preventDefault();
     window.stopEmission();
+    if(sessionCourante) _sessionArreter('stop');
   });
 
   // Fermer la fenêtre pendant une émission ne doit pas laisser la radio en
@@ -3838,6 +3950,22 @@ if(localStorage.getItem('rc_theme') === null){
   // pas tout seul après un échec ».
   let qsoEchecEcriture = false;
 
+  // Lien trace↔QSO, factorisé : copilote (niveaux 1/2) et session autonome
+  // (N3/N4) postent chacun /tx/trace kind:'qso' au même moment (écriture
+  // RÉELLEMENT confirmée, pas un doublon) avec la même forme — une seule
+  // fonction pour ne pas risquer de faire diverger les deux copies.
+  // Fire-and-forget : une trace ratée ne défait jamais le log.
+  function _posterTraceQsoLogge(fiche, qsoEnAttente, qso){
+    if(!fiche || fiche.dx !== qsoEnAttente) return;
+    try{
+      fetch('/tx/trace', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({kind:'qso', operator_callsign: myCall, radio_id: qsoEnAttente,
+          band: qso.band, mode: qso.mode, rst_sent: qso.rst_sent, rst_rcvd: qso.rst_rcvd,
+          locator: qso.locator, declencheur: fiche.declencheur,
+          session_id: fiche.sessionId || ''})});
+    }catch(e){}
+  }
+
   window.annulerLogQso = function(){
     // 🚨 « Ignorer » APRÈS UN ÉCHEC d'écriture ne doit pas effacer la fiche en
     // silence. La branche d'échec de confirmerLogQso laisse le bandeau OUVERT
@@ -3851,6 +3979,7 @@ if(localStorage.getItem('rc_theme') === null){
     qsoEnAttente = null;
     qsoInfosEnAttente = null;
     _copiloteFicheEnAttente = null;   // l'offre est close (loggée ou ignorée)
+    _sessionFicheEnAttente = null;    // idem pour une offre issue d'une session autonome (N3/N4)
     document.getElementById('qsoPrompt').style.display = 'none';
   };
   window.confirmerLogQso = async function(){
@@ -3910,16 +4039,14 @@ if(localStorage.getItem('rc_theme') === null){
         dejaEcrits.push({cle: cleFiche(qsoEnAttente, qso.band),
                          call: qsoEnAttente, band: qso.band,
                          heure: qso.time, ts: Date.now()});
-        // Lien trace↔QSO : fiche COPILOTE réellement écrite (pas un doublon) ->
-        // grave TX_COPILOTE_QSO_LOGGED, reliant la chaîne d'émissions au QSO
-        // loggé. Fire-and-forget : une trace ratée ne défait jamais le log.
+        // Lien trace↔QSO (grave TX_COPILOTE_QSO_LOGGED côté serveur), fiche
+        // réellement écrite (pas un doublon) -> _posterTraceQsoLogge, factorisée
+        // ci-dessus. Deux origines possibles, jamais actives en même temps.
         if(!doublon && _copiloteFicheEnAttente && _copiloteFicheEnAttente.dx === qsoEnAttente){
-          try{
-            fetch('/tx/trace', {method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({kind:'qso', operator_callsign: myCall, radio_id: qsoEnAttente,
-                band: qso.band, mode: qso.mode, rst_sent: qso.rst_sent, rst_rcvd: qso.rst_rcvd,
-                locator: qso.locator, declencheur: _copiloteFicheEnAttente.declencheur})});
-          }catch(e3){}
+          _posterTraceQsoLogge(_copiloteFicheEnAttente, qsoEnAttente, qso);
+        }
+        if(!doublon && _sessionFicheEnAttente && _sessionFicheEnAttente.dx === qsoEnAttente){
+          _posterTraceQsoLogge(_sessionFicheEnAttente, qsoEnAttente, qso);
         }
       } else {
         detail = 'erreur ' + r.status;
@@ -4017,6 +4144,255 @@ if(localStorage.getItem('rc_theme') === null){
   // qu'une variable a été mal initialisée émettrait sans que personne ne l'ait
   // demandé — c'est le genre de défaut qu'on ne découvre que sur l'air.
   let seqNiveau = 'manuel';
+
+  // ─── SESSION AUTONOME (niveaux 3/4 : copilote_qso/copilote_cq) ──────────
+  //
+  // Machine à états SÉPARÉE de seq (séquenceur) et de _copiloteQso/_copiloteFile
+  // (copilote niveaux 1/2) : elle ne partage RIEN avec eux, ce sont trois
+  // niveaux d'automatisme distincts, jamais actifs deux à la fois puisque
+  // gatés par seqNiveau (un seul choix à la fois dans #seqNiveauSel). La
+  // LOGIQUE (validité, prochaine trame) vit dans logx_ft8_session.js, PURE et
+  // testée (test_ft8_session.py) ; ici, uniquement la glue DOM/réseau — lire
+  // l'état radio réel, armer/désarmer sur geste humain, appeler le chemin
+  // d'émission EXISTANT (envoyerMessage), et tracer côté serveur.
+  //
+  // sessionCourante ne survit JAMAIS à un rechargement de page (comme
+  // cqAutoActif ci-dessous) : elle est réinitialisée à `null` ici et
+  // seul un clic humain sur « Autoriser une session autonome » la crée.
+  let sessionCourante = null;
+  // Trace du QSO EN COURS dans la session (report/grille), pour l'offre de
+  // log à la clôture — même principe que _copiloteQso, namespace séparé pour
+  // ne jamais mélanger les deux mécanismes.
+  let _sessionQso = null;
+  // Fiche copilote-session proposée au log, en attente de confirmation
+  // HUMAINE (offrirLogQso) — relit à l'écriture réelle pour poster le lien
+  // trace↔QSO, même schéma que _copiloteFicheEnAttente.
+  let _sessionFicheEnAttente = null;
+  // Contrôle de présence (filet d'arrêt) : DÉSACTIVÉ PAR DÉFAUT (spec §Contrôle
+  // de présence). Aucun réglage UI pour l'activer n'est demandé par ce lot —
+  // la glue existe (doitPauserPresence est appelée à chaque cycle) pour qu'un
+  // futur réglage n'ait qu'à faire passer `actif` à true.
+  const _sessionPresence = {actif: false, dernierPingMs: 0, delaiPauseMs: 300000};
+  // Raisons lisibles, même patron que SEQ_RAISONS plus bas — les codes viennent
+  // de LogxFt8Session.sessionValide (stop/desarmee/cat/horloge/radio) plus
+  // 'niveau' (changement de mode) et 'stop' (bouton dédié).
+  const SESSION_RAISONS = {
+    stop: "Stop TX (arrêt d'urgence).",
+    desarmee: 'session désarmée.',
+    cat: 'perte du pilotage CAT.',
+    horloge: "horloge du PC non confirmée à l'heure UTC (mesure SNTP).",
+    radio: 'la radio a changé (bande, mode, puissance ou fréquence).',
+    niveau: "le mode d'envoi a changé.",
+  };
+
+  // Empreinte radio ACTUELLE, lue depuis les MÊMES sources que le reste de la
+  // page (rigFreqKhz/rigMode/rigActif, pollRig() plus haut ; puissanceVoulueW
+  // du module de protection partagé) — jamais une deuxième lecture qui
+  // pourrait diverger. Utilisée à l'armement ET à chaque cycle de validité :
+  // une seule fonction, pour que les deux lectures ne divergent jamais.
+  function _sessionEmpreinteRadio(){
+    return {
+      band: bandeDepuisKhz(rigFreqKhz) || '',
+      dial_hz: Math.round((rigFreqKhz || 0) * 1000),
+      mode: rigMode || '',
+      power_w: (typeof puissanceVoulueW === 'function') ? (puissanceVoulueW('FT8') || 0) : 0
+    };
+  }
+
+  // Horloge « OK » : CONSERVATEUR. On ne désigne l'horloge en cause QUE si une
+  // mesure SNTP explicite (mesurerHorloge/mesureHorloge, voir plus haut) l'a
+  // confirmée mauvaise — jamais sur un décalage encore non mesuré (ce qui
+  // désarmerait une session saine à la moindre latence de chaîne audio, déjà
+  // documentée plus haut comme distincte d'une horloge fausse).
+  function _sessionHorlogeOk(){
+    return !(mesureHorloge && mesureHorloge.ok
+             && Math.abs(mesureHorloge.ecart_s) >= HORLOGE_SAINE_S);
+  }
+
+  function _sessionEtatRadio(){
+    return {
+      stop: false,           // le Stop dédié désarme directement (sessionAutonomeStop), pas via ce drapeau
+      cat_ok: !!rigActif,
+      horloge_ok: _sessionHorlogeOk(),
+      dial_tol_hz: 50
+    };
+  }
+
+  function _sessionAfficherEtat(msg, cls){
+    const el = document.getElementById('sessionAutonomeEtat');
+    if(!el) return;
+    el.textContent = msg;
+    el.className = 'tx-status' + (cls ? ' ' + cls : '');
+  }
+
+  function _sessionMajBoutons(){
+    const armBtn = document.getElementById('sessionArmerBtn');
+    const stopBtn = document.getElementById('sessionStopBtn');
+    if(armBtn) armBtn.style.display = sessionCourante ? 'none' : '';
+    if(stopBtn) stopBtn.style.display = sessionCourante ? '' : 'none';
+  }
+
+  // Enveloppe affichée à l'armement — même esprit que l'écran de confirmation
+  // TX (skill tx-human-consent) : ce que la session va considérer comme SON
+  // état radio de référence, en clair, AVANT qu'elle ne parte.
+  function _sessionAfficherEnveloppe(empreinte){
+    const el = document.getElementById('sessionAutonomeEnveloppe');
+    if(!el) return;
+    el.textContent = '';
+    const lignes = [
+      Tf('Radio : {etat}', {etat: rigActif ? 'CAT connecté' : 'CAT NON connecté'}),
+      Tf('Bande : {b}', {b: empreinte.band ? (empreinte.band + ' m') : '—'}),
+      Tf('Fréquence : {f}', {f: empreinte.dial_hz ? ((empreinte.dial_hz / 1e6).toFixed(3) + ' MHz') : '—'}),
+      Tf('Mode : {m}', {m: empreinte.mode || '—'}),
+      Tf('Puissance : {p}', {p: empreinte.power_w ? (empreinte.power_w + ' W') : 'non limitée (voir CONFIG > RADIO)'}),
+    ];
+    lignes.forEach(function(t){
+      const d = document.createElement('div'); d.textContent = t; el.appendChild(d);
+    });
+    el.style.display = '';
+  }
+
+  // Armement : LE geste humain requis avant toute émission autonome (skill
+  // tx-human-consent). Lit l'état radio réel, crée la session (module PUR),
+  // trace côté serveur (fire-and-forget : une trace ratée ne doit jamais
+  // empêcher/défaire l'armement, cohérent avec journal_session côté serveur
+  // qui ne lève jamais).
+  window.sessionAutonomeArmer = function(){
+    if(typeof LogxFt8Session === 'undefined') return;
+    if(!rigActif){
+      _sessionAfficherEtat(Tf("Impossible d'armer : radio non pilotée (CAT). Vérifie CONFIG > RADIO."), 'err');
+      return;
+    }
+    const empreinte = _sessionEmpreinteRadio();
+    const sessionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                     ? crypto.randomUUID() : (Date.now() + '');
+    sessionCourante = LogxFt8Session.creerSession(seqNiveau, empreinte, sessionId);
+    _sessionQso = null;
+    _sessionAfficherEnveloppe(empreinte);
+    try{
+      fetch('/tx/session', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'armed', session_id: sessionId, details: empreinte})}).catch(function(){});
+    }catch(e){}
+    _sessionAfficherEtat(Tf('Session armée — {niveau}.',
+      {niveau: seqNiveau === 'copilote_cq' ? 'CQ auto' : 'QSO auto'}));
+    _sessionMajBoutons();
+  };
+
+  // Arrêt — bouton dédié (toujours visible en session) OU désarmement
+  // automatique sur perte de validité (voir _sessionTraiterCycle). Réutilise
+  // stopEmission() (chemin STOP existant : coupe audio/PTT/séquence) puis
+  // trace la fin côté serveur. Idempotent (sessionCourante déjà null -> sort).
+  function _sessionArreter(raison){
+    if(!sessionCourante) return;
+    const sid = sessionCourante.sessionId;
+    sessionCourante = null;
+    _sessionQso = null;
+    window.stopEmission();
+    try{
+      fetch('/tx/session', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'ended', session_id: sid, details:{raison: raison || 'stop'}})}).catch(function(){});
+    }catch(e){}
+    _sessionAfficherEtat(Tf('Session arrêtée : {raison}',
+      {raison: SESSION_RAISONS[raison] || raison || 'stop'}), 'err');
+    _sessionMajBoutons();
+  }
+  window.sessionAutonomeStop = function(raison){ _sessionArreter(raison || 'stop'); };
+
+  // Met à jour _sessionQso (report/grille reçus) à partir des décodes du cycle
+  // qui viennent de LA STATION ENGAGÉE — même logique que _copiloteTracer
+  // (extraireGrille/extraireReport), namespace séparé. `cible` DOIT être fourni
+  // par l'appelant (la station que prochaineAction vient de choisir), PAS
+  // déduit ici : en pile-up, plusieurs stations peuvent m'appeler dans le
+  // MÊME cycle, et une première version qui traçait TOUT décode qui m'était
+  // adressé finissait par retenir la DERNIÈRE de la liste, pas celle
+  // réellement engagée -- un report/grille pouvait alors se retrouver associé
+  // au mauvais indicatif, ou _sessionLoguer ne plus rien trouver à proposer.
+  function _sessionTracerDecodes(decodes, cible){
+    if(!cible) return;
+    const moi = (myCall || '').toUpperCase();
+    decodes.forEach(function(d){
+      const toks = String(d.message || '').trim().toUpperCase().split(/\s+/);
+      if(toks[0] !== moi || toks[1] !== cible) return;   // pas pour moi, ou pas la station engagée
+      if(!_sessionQso || _sessionQso.dxCall !== cible){
+        _sessionQso = {dxCall: cible, rst_sent: '', rst_rcvd: '', locator: ''};
+      }
+      const g = LogxFt8Copilote.extraireGrille(d.message); if(g) _sessionQso.locator = g;
+      const r = LogxFt8Copilote.extraireReport(d.message); if(r) _sessionQso.rst_rcvd = r;
+    });
+  }
+
+  // Clôture : propose la fiche au LOG (geste humain, offrirLogQso — jamais une
+  // écriture directe) puis libère qsoActifDx pour que la session reprenne la
+  // file/le CQ. Même garde-fou que _copiloteLoguer : sans trace connue du DX,
+  // on ne propose rien (pas de fiche vide).
+  function _sessionLoguer(dx){
+    const cible = String(dx || '').toUpperCase();
+    if(!_sessionQso || _sessionQso.dxCall !== cible){
+      if(sessionCourante) sessionCourante.qsoActifDx = null;
+      return;
+    }
+    let dist = 0;
+    try{
+      const moi = gridVersLatLon(myGrid), lui = gridVersLatLon(_sessionQso.locator);
+      if(moi && lui) dist = distanceKm(moi, lui);
+    }catch(e){}
+    _sessionFicheEnAttente = {dx: cible, declencheur: seqNiveau,
+      sessionId: sessionCourante ? sessionCourante.sessionId : '',
+      rst_sent: _sessionQso.rst_sent, rst_rcvd: _sessionQso.rst_rcvd, locator: _sessionQso.locator};
+    if(typeof offrirLogQso === 'function'){
+      offrirLogQso(cible, {rst_sent: _sessionQso.rst_sent, rst_rcvd: _sessionQso.rst_rcvd,
+                           locator: _sessionQso.locator, dist: dist});
+    }
+    if(sessionCourante) sessionCourante.qsoActifDx = null;
+    _sessionQso = null;
+  }
+
+  // ─── Le cœur du câblage : appelé à CHAQUE cycle de décodage (voir
+  // conclureCreneau plus haut), avec les décodes DE CE cycle. Ne fait RIEN
+  // hors niveau autonome ou hors session armée. Ordre imposé par la spec :
+  // validité radio D'ABORD (dernière trame ne doit jamais partir sur un état
+  // périmé), présence ENSUITE, action seulement si les deux passent.
+  function _sessionTraiterCycle(msgsDuCreneau){
+    if(typeof LogxFt8Session === 'undefined' || typeof LogxFt8Copilote === 'undefined') return;
+    if(!LogxFt8Copilote.estSessionAutonome(seqNiveau) || !sessionCourante) return;
+    const radioActuelle = _sessionEmpreinteRadio();
+    const etat = _sessionEtatRadio();
+    const v = LogxFt8Session.sessionValide(sessionCourante, radioActuelle, etat);
+    if(!v.ok){ _sessionArreter(v.raison); return; }
+    if(LogxFt8Session.doitPauserPresence(_sessionPresence, Date.now())){
+      _sessionAfficherEtat(Tf('Toujours là ? (contrôle de présence)'), 'wait');
+      return;
+    }
+    const decodes = (msgsDuCreneau || []).map(function(m){
+      return {message: m.text, snr: m.snr, dx: extraireStation(m.text).call};
+    });
+    // prochaineAction D'ABORD : c'est ELLE qui choisit la station engagée (en
+    // file d'attente comme en QSO déjà ouvert). Ne tracer QUE cette station
+    // ensuite évite qu'un autre appelant simultané (pile-up) ne vienne écraser
+    // le report/grille qu'on est en train de suivre pour la bonne (voir la
+    // note de _sessionTracerDecodes).
+    const a = LogxFt8Session.prochaineAction(sessionCourante, decodes, myCall, myGrid);
+    const cibleCycle = String(a.dx || sessionCourante.qsoActifDx || '').toUpperCase();
+    if(cibleCycle) _sessionTracerDecodes(decodes, cibleCycle);
+    if(a.action === 'loguer'){ _sessionLoguer(a.dx); return; }
+    if(a.action !== 'emettre' && a.action !== 'cq') return;   // 'attendre' : rien
+    const rs = LogxFt8Copilote.extraireReport(a.message);
+    if(rs && _sessionQso && _sessionQso.dxCall === String(a.dx || '').toUpperCase()){
+      _sessionQso.rst_sent = rs;
+    }
+    Promise.resolve(envoyerMessage(a.message)).then(function(ok){
+      if(ok !== true || !sessionCourante) return;   // refusée (désarmée entre-temps, etc.) : rien à tracer
+      sessionCourante.txCount++;
+      if(a.engager) sessionCourante.qsoActifDx = a.engager;
+      _sessionAfficherEtat(Tf('Session active — {n} émission(s).', {n: String(sessionCourante.txCount)}));
+      try{
+        fetch('/tx/trace', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({declencheur: seqNiveau, session_id: sessionCourante.sessionId,
+            operator_callsign: myCall, radio_id: a.dx || a.engager || '',
+            frequency_hz: Math.round((rigFreqKhz || 0) * 1000), mode: 'FT8', message: a.message})}).catch(function(){});
+      }catch(e){}
+    });
+  }
 
   // Niveau 2 du copilote (« copilote_auto ») : délai fixe avant AUTO-ÉMISSION,
   // sauf annulation (STOP TX) — décision F4GLD (« Délai fixe puis émet sauf
@@ -5243,6 +5619,14 @@ if(localStorage.getItem('rc_theme') === null){
     if(cqBtn) cqBtn.style.display = (seqNiveau === 'auto' && !cqAutoActif && !seq) ? '' : 'none';
     const cqWarn = document.getElementById('cqAutoAvertissement');
     if(cqWarn) cqWarn.style.display = (seqNiveau === 'auto') ? '' : 'none';
+    // Bandeau session autonome (N3/N4) : visible SEULEMENT à ces deux niveaux.
+    // Purement un affichage — la DÉCISION d'arrêter une session en cours quand
+    // on quitte ces niveaux est prise dans le listener 'change' de selNiveau
+    // (cablerSequenceur), pas ici (voir la note ci-dessus : « aucune décision
+    // ne dépend de ce qui est écrit dans seqMajUI »).
+    const sessionBandeau = document.getElementById('sessionAutonomeBandeau');
+    if(sessionBandeau) sessionBandeau.style.display =
+      (seqNiveau === 'copilote_qso' || seqNiveau === 'copilote_cq') ? '' : 'none';
     majBoutonEnvoyer();
     const etatEl = document.getElementById('seqEtat');
     if(!etatEl) return;
@@ -5277,6 +5661,15 @@ if(localStorage.getItem('rc_theme') === null){
       etatEl.textContent = cqAutoActif
         ? 'Automatique : en attente du prochain créneau CQ…'
         : 'Automatique prêt : ▶ DÉMARRER APPEL CQ pour appeler et enchaîner les QSO sans confirmation.';
+    } else if(seqNiveau === 'copilote_qso' || seqNiveau === 'copilote_cq'){
+      // Le texte détaillé (armée/arrêtée/nombre d'émissions) vit dans le
+      // bandeau dédié (#sessionAutonomeEtat, tenu par _sessionAfficherEtat) --
+      // ici seEtat ne fait que rappeler qu'un geste reste nécessaire tant
+      // qu'aucune session n'est armée, cohérent avec le patron des autres
+      // niveaux (ce libellé général, l'état fin dans le sous-panneau dédié).
+      etatEl.textContent = sessionCourante
+        ? 'Session autonome active — voir le bandeau ci-dessous.'
+        : "Session autonome prête : ▶ AUTORISER UNE SESSION AUTONOME (ci-dessous) pour l'armer.";
     } else {
       etatEl.textContent = 'Séquenceur prêt : double-clique une station, le QSO se déroule et se logue.';
     }
@@ -5299,7 +5692,11 @@ if(localStorage.getItem('rc_theme') === null){
       // chaque chargement, exactement comme `seq` lui-même ne survit jamais
       // à un rechargement. Un rechargement de page en mode Automatique ne
       // relance JAMAIS l'appel CQ tout seul.
-      if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'copilote_auto' || memo === 'sequenceur' || memo === 'auto') seqNiveau = memo;
+      // copilote_qso/copilote_cq (N3/N4) : le CHOIX de niveau persiste comme les
+      // cinq autres, mais SESSION ARMÉE (sessionCourante) n'est jamais restaurée
+      // -- elle reste à `null` tant qu'aucun geste humain ne l'arme, exactement
+      // comme cqAutoActif ne survit jamais à un rechargement (voir juste au-dessus).
+      if(memo === 'manuel' || memo === 'assiste' || memo === 'copilote' || memo === 'copilote_auto' || memo === 'sequenceur' || memo === 'auto' || memo === 'copilote_qso' || memo === 'copilote_cq') seqNiveau = memo;
       const memoR = parseInt(localStorage.getItem('rc_ft8_seq_relances'), 10);
       if(isFinite(memoR) && memoR >= 0) seqMaxRelancesDefaut = memoR;
       // Délai d'auto-émission réglable : restauré en SECONDES, borné par le
@@ -5327,6 +5724,17 @@ if(localStorage.getItem('rc_theme') === null){
         // afficher, et le libellé du nouveau mode doit apparaître.
         const avaitUneSequence = !!seq;
         seqArreter('niveau');
+        // Même principe pour la session autonome (N3/N4) : elle ne partage pas
+        // la machine `seq` ci-dessus, donc seqArreter() ne la voit pas. Un
+        // changement de mode DOIT la couper -- y compris un aller-retour entre
+        // copilote_qso et copilote_cq, puisque le niveau enchaîné vient de
+        // sessionCourante.niveau (figé à l'armement), pas du sélecteur : sans
+        // ce désarmement, l'écran afficherait « CQ auto » choisi pendant
+        // qu'une session encore active continuerait de se comporter en QSO
+        // auto (ou l'inverse). Re-cliquer « Autoriser » relit l'état radio à
+        // jour, ce qui est de toute façon la bonne pratique après un
+        // changement de mode.
+        if(sessionCourante) _sessionArreter('niveau');
         if(!avaitUneSequence) seqMajUI();
       });
     }

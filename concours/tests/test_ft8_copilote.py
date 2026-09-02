@@ -251,3 +251,19 @@ def test_cle_anti_spam_idempotente():
     c = ctx.eval("window.LogxFt8Copilote.cle('F4ABC', 'F4ABC F1XYZ RR73')")
     assert a == b
     assert a != c            # message différent (étape suivante) -> clé différente
+
+
+def test_est_session_autonome():
+    ctx = _ctx()
+    assert ctx.eval("window.LogxFt8Copilote.estSessionAutonome('copilote_qso')") is True
+    assert ctx.eval("window.LogxFt8Copilote.estSessionAutonome('copilote_cq')") is True
+    assert ctx.eval("window.LogxFt8Copilote.estSessionAutonome('copilote')") is False
+    assert ctx.eval("window.LogxFt8Copilote.estSessionAutonome('copilote_auto')") is False
+    assert ctx.eval("window.LogxFt8Copilote.estSessionAutonome('manuel')") is False
+
+
+def test_appel_cq():
+    ctx = _ctx()
+    assert ctx.eval("window.LogxFt8Copilote.appelCQ('F4GLD','JN15xc')") == 'CQ F4GLD JN15'
+    assert ctx.eval("window.LogxFt8Copilote.appelCQ('f4gld','')") == 'CQ F4GLD'
+    assert ctx.eval("window.LogxFt8Copilote.appelCQ('','JN15')") is None

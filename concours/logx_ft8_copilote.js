@@ -110,6 +110,19 @@
     return cible + ' ' + monCall + (g ? ' ' + g : '');
   }
 
+  // Niveaux à autonomie de SESSION (enchaînent sans reconfirmer chaque trame).
+  function estSessionAutonome(niveau) {
+    return niveau === 'copilote_qso' || niveau === 'copilote_cq';
+  }
+
+  // Appel CQ : 'CQ MONCALL GRID4'. Grille tronquée à 4 (omise si absente).
+  function appelCQ(monCall, monGrid) {
+    monCall = String(monCall || '').trim().toUpperCase();
+    if (!monCall) { return null; }
+    var g = String(monGrid || '').trim().toUpperCase().slice(0, 4);
+    return 'CQ ' + monCall + (g ? ' ' + g : '');
+  }
+
   // ── Extraction pour la JOURNALISATION du QSO copilote (données à
   // enregistrer, doc F4GLD). Le copilote (approche X) n'utilise pas la boucle
   // du séquenceur : il trace lui-même les reports/grille au fil des décodes
@@ -221,6 +234,8 @@
     messagePropose: messagePropose,
     reponseFt8: reponseFt8,
     appelInitial: appelInitial,
+    estSessionAutonome: estSessionAutonome,
+    appelCQ: appelCQ,
     doitIgnorerPileup: doitIgnorerPileup,
     ajouterFile: ajouterFile,
     retirerFile: retirerFile,

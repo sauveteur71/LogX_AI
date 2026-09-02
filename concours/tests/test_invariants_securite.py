@@ -222,3 +222,58 @@ def test_i5_audit_ne_journalise_jamais_le_jeton_en_clair():
     entry = txc.authorize_transmission(c, rs)
     assert entry['consent_token'] == 'redacted'
     assert c.token not in str(entry)          # le vrai jeton n'apparaît nulle part
+
+
+# ───────────────── Invariants FT8 N3/N4 — validité = seule porte TX ────────────
+
+@pytest.fixture()
+def ctx_ft8():
+    """Charge logx_ft8_copilote.js et logx_ft8_session.js en V8 pour tester
+    les invariants de sécurité du séquenceur autonome FT8 N3/N4 : la validité
+    de session est l'UNIQUE barrière d'émission."""
+    from py_mini_racer import py_mini_racer
+    c = py_mini_racer.MiniRacer()
+    c.eval('var window = {};')
+    # Charger d'abord le copilote FT8 (dépendance)
+    copilote_path = os.path.join(CONCOURS, 'logx_ft8_copilote.js')
+    with open(copilote_path, encoding='utf-8') as f:
+        c.eval(f.read())
+    # Puis la session
+    session_path = os.path.join(CONCOURS, 'logx_ft8_session.js')
+    with open(session_path, encoding='utf-8') as f:
+        c.eval(f.read())
+    # Rendre l'API accessible au niveau global pour c.eval()
+    c.eval('var LogxFt8Session = window.LogxFt8Session;')
+    c.eval('var LogxFt8Copilote = window.LogxFt8Copilote;')
+    return c
+
+
+EMP_FT8 = "{band:'20m',dial_hz:14074000,mode:'USB-D',power_w:20}"
+ETAT_OK_FT8 = "{stop:false,cat_ok:true,horloge_ok:true,dial_tol_hz:50}"
+
+
+def test_invariant_aucune_emission_si_desarmee(ctx_ft8):
+    """Session désarmée : sessionValide.ok doit être False.
+    Rougit si on retire le garde `if (!session.armed)` de sessionValide
+    (logx_ft8_session.js ~38)."""
+    v = ctx_ft8.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');s.armed=false;"
+                     "LogxFt8Session.sessionValide(s,%s,%s).ok" % (EMP_FT8, EMP_FT8, ETAT_OK_FT8))
+    assert v is False
+
+
+def test_invariant_stop_bloque_meme_avec_appel(ctx_ft8):
+    """Stop = true : sessionValide.ok doit être False, MÊME si tout le reste est OK.
+    Rougit si on retire le garde `if (etat.stop)` de sessionValide
+    (logx_ft8_session.js ~37)."""
+    v = ctx_ft8.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');"
+                     "LogxFt8Session.sessionValide(s,%s,{stop:true,cat_ok:true,horloge_ok:true,dial_tol_hz:50}).ok" % (EMP_FT8, EMP_FT8))
+    assert v is False
+
+
+def test_invariant_changement_radio_bloque(ctx_ft8):
+    """Changement de radio (mode) : sessionValide.ok doit être False.
+    Rougit si on retire le garde de comparaison radio dans sessionValide
+    (logx_ft8_session.js ~43-47)."""
+    v = ctx_ft8.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');"
+                     "LogxFt8Session.sessionValide(s,{band:'20m',dial_hz:14074000,mode:'CW',power_w:20},%s).ok" % (EMP_FT8, ETAT_OK_FT8))
+    assert v is False
