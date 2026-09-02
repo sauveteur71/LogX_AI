@@ -87,3 +87,48 @@ def test_desarmee_invalide(ctx):
     r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');s.armed=false;"
                  "LogxFt8Session.sessionValide(s,%s,%s).raison" % (EMP, EMP, ETAT_OK))
     assert r == 'desarmee'
+
+
+# --- Ordre de priorité par causes COMBINÉES ---
+# Sans ces tests, une inversion de l'ordre des `if` passerait tous les
+# tests à cause unique. On force ici la priorité relative.
+
+def test_stop_prime_sur_desarmee(ctx):
+    # stop:true ET session désarmée -> 'stop' doit primer sur 'desarmee'
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');s.armed=false;"
+                 "LogxFt8Session.sessionValide(s,%s,{stop:true,cat_ok:true,horloge_ok:true,dial_tol_hz:50}).raison"
+                 % (EMP, EMP))
+    assert r == 'stop'
+
+
+def test_cat_prime_sur_horloge(ctx):
+    # cat_ok:false ET horloge_ok:false -> 'cat' doit primer sur 'horloge'
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "LogxFt8Session.sessionValide(s,%s,{stop:false,cat_ok:false,horloge_ok:false,dial_tol_hz:50}).raison"
+                 % (EMP, EMP))
+    assert r == 'cat'
+
+
+# --- Invalidation radio par composante SEULE ---
+# Seuls bande + dial étaient testés ; on couvre mode et puissance isolés.
+
+def test_changement_mode_seul_invalide(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "LogxFt8Session.sessionValide(s,{band:'20m',dial_hz:14074000,mode:'LSB-D',power_w:20},%s).raison"
+                 % (EMP, ETAT_OK))
+    assert r == 'radio'
+
+
+def test_changement_puissance_seul_invalide(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "LogxFt8Session.sessionValide(s,{band:'20m',dial_hz:14074000,mode:'USB-D',power_w:40},%s).raison"
+                 % (EMP, ETAT_OK))
+    assert r == 'radio'
+
+
+def test_dial_pile_a_la_tolerance_reste_valide(ctx):
+    # 14074000 -> 14074050 (drift exactement 50 = tol) : > tol est faux -> OK
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "LogxFt8Session.sessionValide(s,{band:'20m',dial_hz:14074050,mode:'USB-D',power_w:20},%s).ok"
+                 % (EMP, ETAT_OK))
+    assert r is True
