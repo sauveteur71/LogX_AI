@@ -50,6 +50,58 @@ CONTEST_DEFINITIONS = {
         'log_deadline': 'wednesday_after',
         'log_submit': 'https://concours.r-e-f.org',
     },
+    # IARU UHF/SHF — règlement REF lu par F4GLD (01/09/2026) : « 432 MHz et
+    # au-delà », 1 pt/km quelle que soit la bande (scoring 'km', PAS km×loc — le
+    # classement CONTEST_SCORING historique était approximatif), numérotation ET
+    # compte rendu séparés par bande, format IARU reg1test (= EDI). Édition 2026 :
+    # 3 oct 14:00 → 4 oct 14:00 UTC = premier samedi d'octobre. Les bandes listées
+    # sont TOUTES celles ≥ 432 MHz supportées par l'app (la plage réglementaire) ;
+    # l'opérateur sélectionne celles qu'il a réellement utilisées.
+    'REF_IARU_UHF': {
+        'name': 'IARU UHF/SHF',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_iaruuhf_fr_20250312.pdf',
+        'date_rule': 'first_saturday_october_14h',
+        'duration_h': 24,
+        'start_utc': '14:00',
+        'bands': ['432','1296','2320','3400','5760','10368','24048','47088'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km','multiplier':None,'unit':'1 pt/km'},
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org',
+        'serial_per_band': True,
+        'notes': '432 MHz et au-delà (règlement). 1 pt/km toutes bandes, numérotation + compte rendu séparés par bande.',
+    },
+    # Trophée F8TD — règlement officiel REF LU par l'IA (reg_f8td_fr_20250312.pdf,
+    # 01/09/2026) : dimanche du DERNIER week-end entier d'août, 04:00→13:00 UTC ;
+    # « 1296 MHz et au delà » ; « 1 point km, quelle que soit la bande » (scoring
+    # 'km', PAS km×loc — le CONTEST_SCORING historique était approximatif comme
+    # pour IARU UHF) ; RS(T)+n°+locator, numérotation séparée par bande ; format
+    # IARU reg1test (= EDI), dépôt 1er mercredi suivant. Le « Trophée » ajoute une
+    # majoration multi-bandes au CLASSEMENT (+10% 2 bandes … +80% 7 bandes) — c'est
+    # un bonus de classement par opérateur, pas le score par QSO (noté). Modes non
+    # précisés au règlement : SSB/CW retenus (usage SHF, cohérent CONTEST_SCORING).
+    'REF_F8TD': {
+        'name': 'Trophée F8TD',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_f8td_fr_20250312.pdf',
+        'date_rule': 'last_sunday_august_04h',
+        'duration_h': 9,
+        'start_utc': '04:00',
+        'bands': ['1296','2320','3400','5760','10368','24048','47088'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km','multiplier':None,'unit':'1 pt/km'},
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'http://concours.r-e-f.org/tools/upload/thf.php',
+        'serial_per_band': True,
+        'notes': '1296 MHz et au-delà, 1 pt/km. Trophée : majoration de classement +10% (2 bandes) … +80% (7 bandes). Numérotation séparée par bande.',
+    },
     'REF_PRINTEMPS': {
         'name': 'Concours du Printemps',
         'organizer': 'REF',

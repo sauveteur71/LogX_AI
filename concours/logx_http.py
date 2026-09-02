@@ -2059,6 +2059,33 @@ def _pounce_sur_qso(msg):
         pounce.session.noter_qso(msg.get('call', ''))
 
 
+def _dxcc_positions_dict(calls):
+    """Résout une liste d'indicatifs en positions (lat/lon, pays) via cty.dat.
+
+    Sert la carte de sortie XOTA : un QSO sans locator Maidenhead est placé
+    au centroïde de son entité DXCC (position APPROXIMATIVE, pas exacte). Le
+    lookup client (logx_dxcc_lookup.js) ne porte pas de coordonnées — seul
+    logx_dxcc.lookup (cty.dat AD1C) le fait. Dédoublonne, ignore les vides, et
+    classe en 'unresolved' les indicatifs sans entité OU sans coordonnées."""
+    import logx_dxcc
+    positions = {}
+    unresolved = []
+    vus = set()
+    for call in (calls or []):
+        c = (call or '').strip().upper()
+        if not c or c in vus:
+            continue
+        vus.add(c)
+        info = logx_dxcc.lookup(c)
+        lat = (info or {}).get('lat')
+        lon = (info or {}).get('lon')
+        if info and lat is not None and lon is not None:
+            positions[c] = {'lat': lat, 'lon': lon, 'country': info.get('country', '')}
+        else:
+            unresolved.append(c)
+    return {'positions': positions, 'unresolved': unresolved}
+
+
 def _wsjtx_state_dict(cfg_snap):
     import logx_wsjtx as wsjtx
     settings = wsjtx.wsjtx_settings(cfg_snap)
@@ -2133,6 +2160,97 @@ def _wsjtx_state_dict(cfg_snap):
         st['lotw'] = []
         st['carres'] = []
     return st
+
+
+def _eme_cockpit_dict(cfg_snap, band, dx_locator=''):
+    """Agrégat du cockpit EME : compose les briques EXISTANTES (position Lune,
+    Doppler sur la RF, décodages Q65/JT65, état du suivi lunaire, état rig). Une
+    seule requête à poller côté page. AUCUNE logique métier neuve ici."""
+    import logx_eme as eme
+    import logx_eme_bandplan as bandplan
+    import logx_wsjtx as wsjtx
+    import logx_moon_track as moon_track
+    from logx_utils import locator_to_latlon
+
+    band = str(band or '144')
+    rf_mhz = bandplan.centre_rf_mhz(band)
+    lat, lon = locator_to_latlon((cfg_snap or {}).get('locator', '') or '')
+    alt_m = (cfg_snap or {}).get('altitude', 0) or 0
+
+    moon = doppler = None
+    rise = setg = None
+    window = []
+    if lat is not None:
+        m = eme.moon_position(lat, lon, alt_m)
+        moon = m if m.get('available') else {'error': m.get('error', '')}
+        if rf_mhz:
+            dp = eme.doppler_shift_hz(lat, lon, rf_mhz, alt_m)
+            doppler = dp.get('doppler_hz') if dp.get('available') else None
+        rs = eme.moon_rise_set(lat, lon, alt_m)
+        if rs.get('available'):
+            rise, setg = rs.get('rise_utc'), rs.get('set_utc')
+        dxlat, dxlon = locator_to_latlon((dx_locator or '').strip())
+        if dxlat is not None:
+            cw = eme.common_window(lat, lon, dxlat, dxlon)
+            window = cw.get('windows', []) if cw.get('available') else []
+
+    # Sélection de la source des décodages : le pont UDP WSJT-X (historique,
+    # défaut) ou le décodeur Q65 natif (logx_q65_natif) si l'opérateur l'a
+    # explicitement configuré. Import LOCAL du module natif : il ne doit pas
+    # alourdir le chemin par défaut ni tirer sounddevice si non utilisé.
+    src = ((cfg_snap or {}).get('eme', {}) or {}).get('source', 'wsjtx')
+    if src == 'natif':
+        import logx_q65_natif as q65n
+        decodes = q65n.decodes_natifs()
+    else:
+        decodes = wsjtx.eme_decodes()
+
+    return {
+        'band': band,
+        'rf_mhz': rf_mhz,
+        'transverter': bandplan.est_transverter(band),
+        'moon': moon,
+        'doppler_hz': doppler,
+        'rise_utc': rise,
+        'set_utc': setg,
+        'window': window,
+        'decodes': decodes,
+        'source': src,
+        'track': moon_track.etat_suivi_lune(),
+        'rig': _wsjtx_state_dict(cfg_snap),
+    }
+
+
+def _eme_audio_devices_dict():
+    """Périphériques d'ENTRÉE audio disponibles pour la capture EME native
+    (logx_q65_natif). Séparé du routage pour rester testable sans handler
+    HTTP (même motif que _eme_cockpit_dict). sounddevice est un import
+    paresseux et opt-in côté logx_q65_natif : un échec (wheel PortAudio
+    absent/cassé) ne doit jamais faire tomber cet endpoint, seulement
+    renvoyer une liste vide accompagnée d'une erreur lisible."""
+    import logx_q65_natif as q65n
+    try:
+        return {'devices': q65n.lister_peripheriques_entree()}
+    except Exception as e:
+        return {'devices': [], 'error': str(e)}
+
+
+def _eme_moteur_action(action, cfg):
+    """Démarre/arrête le moteur EME natif (logx_q65_natif.demarrer_moteur /
+    arreter_moteur). Séparé du routage pour rester testable sans handler HTTP.
+    Une action inconnue ou une exception (carte son absente, sounddevice
+    cassé...) renvoient toutes deux `{'ok': False, 'error': ...}` — jamais
+    de plantage du handler."""
+    import logx_q65_natif as q65n
+    try:
+        if action == 'start':
+            return q65n.demarrer_moteur(cfg)
+        if action == 'stop':
+            return q65n.arreter_moteur()
+        return {'ok': False,
+                'error': "action inconnue (attendu 'start' ou 'stop')"}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
 
 
 def _rotor_state_dict(cfg_snap):
@@ -3782,6 +3900,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pos = eme.moon_position(lat, lon, alt_m)
             rs = eme.moon_rise_set(lat, lon, alt_m)
             self._json({**pos, **rs})
+            return
+
+        # Cockpit EME agrégé : une seule requête composant position Lune,
+        # Doppler (sur la RF du plan de bandes, pas le dial), décodages
+        # Q65/JT65, état du suivi lunaire et état rig — plutôt que la page
+        # ne fasse elle-même 5 requêtes séparées à chaque rafraîchissement.
+        if path == '/eme/cockpit':
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            band = (q.get('band', ['144'])[0])
+            dxloc = (q.get('dx_locator', [''])[0])
+            self._json(_eme_cockpit_dict(self._cfg_snapshot(), band, dxloc))
+            return
+
+        # Périphériques d'entrée audio pour la capture EME native
+        # (décodage Q65 hors WSJT-X, sélectionné via config eme.source).
+        if path == '/eme/audio-devices':
+            self._json(_eme_audio_devices_dict())
+            return
+        if path == '/moon/track/state':
+            import logx_moon_track as moon_track
+            self._json(moon_track.etat_suivi_lune())
             return
 
         # Écart de l'horloge de ce PC par rapport à l'heure UTC de référence
@@ -5706,6 +5846,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._corps_lu = True
         body = self.rfile.read(length)
 
+        # Résolution batch indicatif -> position (carte de sortie XOTA). POST
+        # (pas GET) car une grosse expédition peut envoyer des centaines
+        # d'indicatifs, au-delà de la longueur d'URL raisonnable. Lecture pure
+        # (cty.dat), aucune écriture.
+        if self.path == '/dxcc/positions':
+            try:
+                payload = json.loads(body) if body else {}
+                calls = payload.get('calls', [])
+                if not isinstance(calls, list):
+                    self._json({'error': "'calls' doit être une liste"}, 400)
+                    return
+                self._json(_dxcc_positions_dict(calls))
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
         # Occupation des bandes multi-postes : CE poste déclare sa bande/mode
         # COURANTES (le client LOGBOOK envoie currentBand/currentMode par
         # heartbeat). Auth déjà exigée plus haut (anti-usurpation LAN). L'iid
@@ -7466,6 +7622,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                             self._cfg_snapshot())
             self._json({'ok': ok, 'error': msg} if not ok else {'ok': True},
                        200 if ok else 409)
+            return
+
+        if self.path in ('/moon/track/start', '/moon/track/stop'):
+            import logx_moon_track as moon_track
+            if self.path == '/moon/track/start':
+                ok, msg = moon_track.demarrer_suivi_lune(self._cfg_snapshot())
+            else:
+                ok, msg = moon_track.arreter_suivi_lune()
+            self._json({'ok': ok, 'error': ('' if ok else msg), 'message': msg},
+                       200 if ok else 400)
+            return
+
+        # Moteur de décodage EME natif (logx_q65_natif) : démarre/arrête la
+        # capture carte son + décodage jt9 embarqué, en complément (ou à la
+        # place) du pont UDP WSJT-X. Réception seule.
+        if self.path == '/eme/moteur':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            action = str(payload.get('action') or '')
+            res = _eme_moteur_action(action, self._cfg_snapshot())
+            self._json(res, 200 if res.get('ok') else 400)
             return
 
         if self.path in ('/rotor/point', '/rotor/stop'):

@@ -691,6 +691,19 @@ def recent_decodes(max_age=_DECODE_TTL):
         return [dict(call=c, **v) for c, v in _decodes.items() if v['last_seen'] >= cutoff]
 
 
+# Modes EME faible-signal relayés au cockpit EME. Le pont est mode-agnostique
+# (parse_message lit le champ mode tel quel) : Q65/JT65 transitent déjà, il
+# suffit de les DISTINGUER de FT8/FT4 côté vue.
+EME_MODES = frozenset({'Q65', 'JT65'})
+
+
+def eme_decodes(max_age=_DECODE_TTL):
+    """Décodages récents en mode EME (Q65/JT65) uniquement — vue consommée par
+    le cockpit EME. S'appuie sur recent_decodes() (cache + purge déjà gérés)."""
+    return [d for d in recent_decodes(max_age)
+            if str(d.get('mode', '')).upper() in EME_MODES]
+
+
 def decode_history(call, max_n=_DECODE_SERIE_MAX):
     """Série temporelle des derniers décodages BRUTS d'une station (heure
     relative en secondes, SNR, décalage Hz, message) — pour la stratégie
