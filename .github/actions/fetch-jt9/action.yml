@@ -90,17 +90,27 @@ runs:
         dest="concours/vendor/jt9"
         mkdir -p "$dest"
         cp "$jt9" "$dest/jt9"
-        # Où sont les dylibs dans ce bundle ? (diagnostic + robustesse)
-        echo "--- dylibs du bundle ---"
-        find "$app/Contents" -maxdepth 3 -name '*.dylib' | head -50
-        # Pré-copier les dylibs localement PUIS laisser dylibbundler les
-        # résoudre depuis cette copie (-s "$dest") : le premier essai avec
-        # -s Contents/Frameworks seul ne résolvait pas @executable_path/../
-        # Frameworks (jt9 déplacé hors du bundle).
-        find "$app/Contents" -maxdepth 3 -name '*.dylib' -exec cp -n {} "$dest/" \; 2>/dev/null || true
+        fw="$app/Contents/Frameworks"
+        # Dylibs plates du bundle, à côté de jt9.
+        find "$fw" -maxdepth 1 -name '*.dylib' -exec cp -n {} "$dest/" \; 2>/dev/null || true
+        # QtCore est un FRAMEWORK (pas une .dylib) : dylibbundler ne le
+        # relocalise pas. On l'aplatit en voisine « QtCore » et on réécrit la
+        # référence de jt9. Au runtime jt9 est SON PROPRE processus, donc
+        # @executable_path = le dossier de jt9 (vrai aussi en exe gelé).
+        qt="$fw/QtCore.framework/Versions/5/QtCore"
+        if [ -f "$qt" ]; then
+          cp "$qt" "$dest/QtCore"
+          install_name_tool -change \
+            @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore \
+            @executable_path/QtCore "$dest/jt9"
+          install_name_tool -id @executable_path/QtCore "$dest/QtCore"
+        fi
         brew list dylibbundler >/dev/null 2>&1 || brew install dylibbundler
+        # dylibbundler résout/aplatit récursivement le reste (dylibs plates +
+        # dépendances propres de QtCore), en cherchant dans la copie locale
+        # puis dans le bundle.
         dylibbundler -of -b -x "$dest/jt9" -d "$dest" -p '@executable_path/' \
-          -s "$dest" -s "$app/Contents/Frameworks" -s "$app/Contents/MacOS" || true
+          -s "$dest" -s "$fw" || true
         chmod +x "$dest/jt9"
         hdiutil detach /Volumes/wsjtx -quiet || true
         echo "Contenu vendorisé :"; ls -la "$dest"

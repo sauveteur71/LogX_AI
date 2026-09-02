@@ -109,8 +109,13 @@ def decoder_wav(wav_path, *, submode='A', tr_period=60, jt9_path=None,
     # interne : un data_path fourni par l'appelant lui appartient.
     tmp = data_path or tempfile.mkdtemp(prefix='logx_q65_')
     ephemere = data_path is None
+    # PAS de -q : dans jt9 VANILLA (celui embarqué en release), « -q » (quiet)
+    # supprime aussi l'écriture des décodages sur stdout — jt9 tourne mais ne
+    # renvoie rien à parser (mesuré sur les 3 OS en CI). Le fork « Improved »
+    # les imprimait malgré -q, d'où le piège masqué en local. Le parser ignore
+    # déjà la ligne <DecodeFinished>, donc on la laisse s'afficher.
     argv = [jt9_path, '-3', '-p', str(int(tr_period)), '-b', submode,
-            '-q', '-a', tmp, wav_path]
+            '-a', tmp, wav_path]
     if ap:
         for flag, cle in (('-c', 'my_call'), ('-G', 'my_grid'),
                           ('-x', 'his_call'), ('-g', 'his_grid'),

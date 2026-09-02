@@ -70,18 +70,9 @@ jobs:
           fi
           tmp="$(mktemp -d)"
           cp tests/fixtures/q65_60A_eme_6m.wav "$tmp/x.wav"
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            echo "macOS : jt9 pas encore exécutable (Qt) — sweep sauté ce tour"
-            exit 0
-          fi
-          # Balayage de flags : vanilla jt9 décode 0 au défaut (-d 1) là où
-          # l'Improved décode 3. On cherche la profondeur/plage qui sort les
-          # stations EME faibles du fixture.
-          for flags in "-3 -p 60 -b A" "-3 -p 60 -b A -d 2" "-3 -p 60 -b A -d 3" "-3 -p 60 -b A -d 3 -H 5000 -F 200"; do
-            echo "### flags: $flags"
-            ( cd "$tmp" && "$abin" $flags -a "$tmp" "$tmp/x.wav" ) 2>&1
-            echo "--- (exit=$?) ---"
-          done
+          echo "=== jt9 -3 -p 60 -b A -a <tmp> x.wav (sans -q) ==="
+          ( cd "$tmp" && "$abin" -3 -p 60 -b A -a "$tmp" "$tmp/x.wav" ) 2>&1
+          echo "=== exit=$? ==="
 
       - name: Décodage du fixture EME (test d'intégration)
         working-directory: concours
