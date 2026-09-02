@@ -221,3 +221,20 @@ def test_n3_attend_si_aucun_appel(ctx):
                  "JSON.stringify(LogxFt8Session.prochaineAction(s,[],'F4GLD','JN15'))" % EMP)
     import json
     assert json.loads(r)['action'] == 'attendre'
+
+
+def test_n4_un_qso_a_la_fois_pile_up(ctx):
+    # Pile-up : QSO en cours avec IK2ABC ET un NOUVEL appelant OTHER99 dans le
+    # même cycle. La priorité au bloc « QSO en cours » doit être verrouillée :
+    # on POURSUIT IK2ABC (RR73), on n'engage PAS OTHER99. Sans le bloc 1, le
+    # fallback engagerait OTHER99 (premier décode qui m'appelle).
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');s.qsoActifDx='IK2ABC';"
+                 "JSON.stringify(LogxFt8Session.prochaineAction(s,"
+                 "[{message:'F4GLD OTHER99 JN00',snr:-5,dx:'OTHER99'},"
+                 "{message:'F4GLD IK2ABC R-11',snr:-9,dx:'IK2ABC'}],'F4GLD','JN15'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'emettre'
+    assert d['dx'] == 'IK2ABC'
+    assert d['message'] == 'IK2ABC F4GLD RR73'
+    assert d['engager'] == ''
