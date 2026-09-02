@@ -80,6 +80,23 @@ if __name__ == '__main__':
         print('SELFTEST-JT9 calls=%r' % _calls)
         sys.exit(0 if _calls else 2)
 
+    # ─── AUTO-TEST DU THÈME EMBARQUÉ (exécutable GELÉ) ────────────────────────
+    # « LogXAI --selftest-theme » vérifie que logx_theme.css est bien embarqué
+    # ET lisible au chemin que l'inlining utilise (_MEIPASS), donc que le thème
+    # sera inliné dans le HTML servi (défense anti-Avast). Prouve en CI le
+    # correctif « glob *.css dans logx.spec » : sans lui, l'exe rendait des
+    # pages SANS thème chez l'utilisateur (bug invisible en dev/sources).
+    if '--selftest-theme' in sys.argv:
+        try:
+            import logx_http as _h
+            _style = _h._theme_css_inline_style()
+            _ok = bool(_style) and ('--accent' in _style) and ('--bg' in _style)
+        except Exception as _e:  # noqa: BLE001
+            print('SELFTEST-THEME ERREUR: %r' % _e)
+            sys.exit(3)
+        print('SELFTEST-THEME ok=%r len=%d' % (_ok, len(_style or '')))
+        sys.exit(0 if _ok else 2)
+
     def _abandonner(message, code=1):
         """Affiche l'explication puis termine, sans traceback Python.
         En mode figé, garde la fenêtre console ouverte : Windows la referme

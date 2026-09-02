@@ -87,3 +87,15 @@ def test_page_reellement_servie_a_le_theme_incorpore(serveur):
         'le <link> vers logx_theme.css subsiste -> requête séparée bloquable')
     assert b'<style id="logx-theme-inline">' in body
     assert b'--accent' in body
+
+
+def test_logx_spec_embarque_les_css():
+    """Garde-fou de régression : logx.spec DOIT embarquer les .css, sinon l'exe
+    gelé rend des pages sans thème (logx_theme.css absent de _MEIPASS -> ni
+    servi ni inlinable). Bug réel remonté par un utilisateur de l'exe (02/09)."""
+    import os
+    spec = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logx.spec')
+    with open(spec, encoding='utf-8') as f:
+        txt = f.read()
+    assert "glob.glob('*.css')" in txt or 'glob.glob("*.css")' in txt, \
+        "logx.spec doit globber les *.css dans _datas (sinon theme absent de l'exe)"
