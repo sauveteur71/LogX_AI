@@ -4,4 +4,4 @@ de mise à jour (logx_update.py). À incrémenter à CHAQUE tag `vX.Y...` pouss�
 (voir .github/workflows/build-release.yml) : sans ça, l'appli fraîchement
 construite continuerait à se croire en retard sur elle-même."""
 
-APP_VERSION = '1.2-beta6'
+APP_VERSION = '1.2-beta7'
