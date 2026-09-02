@@ -322,9 +322,13 @@ button:focus-visible,.eme-btn:focus-visible,a:focus-visible,select:focus-visible
     return s < 60 ? (s + ' s') : (Math.round(s / 60) + ' min');
   }
 
-  function renderDecodes(decodes, rig) {
+  function renderDecodes(decodes, rig, source) {
     const box = document.getElementById('emeDecodesBody');
-    if (!rig || !rig.connected) {
+    // Le bloc « WSJT-X non relié » ne concerne QUE le mode pont WSJT-X : en
+    // mode moteur natif (source === 'natif'), les décodages viennent du
+    // backend logx_q65_natif, jamais de rig/WSJT-X — rig.connected est donc
+    // hors-sujet et ne doit jamais court-circuiter leur affichage (Finding C1).
+    if (source !== 'natif' && (!rig || !rig.connected)) {
       box.innerHTML = '<div class="eme-decode-fallback">' +
         esc(T('Aucun décodage : WSJT-X n\'est pas relié à LogX AI.')) + '<br><br>' +
         '<b>' + esc(T('Marche à suivre')) + '</b> — ' +
@@ -333,7 +337,11 @@ button:focus-visible,.eme-btn:focus-visible,a:focus-visible,select:focus-visible
       return;
     }
     if (!decodes || !decodes.length) {
-      box.innerHTML = '<div class="eme-decode-empty">' + esc(T('Aucune station entendue pour le moment.')) + '</div>';
+      box.innerHTML = '<div class="eme-decode-empty">' +
+        esc(source === 'natif'
+          ? T('Moteur natif : aucune station Q65 entendue pour le moment.')
+          : T('Aucune station entendue pour le moment.')) +
+        '</div>';
       return;
     }
     box.innerHTML = decodes.map(dd => {
@@ -390,7 +398,7 @@ button:focus-visible,.eme-btn:focus-visible,a:focus-visible,select:focus-visible
       const d = await r.json();
       renderLune(d);
       renderRig(d.rig);
-      renderDecodes(d.decodes || [], d.rig);
+      renderDecodes(d.decodes || [], d.rig, d.source);
       renderTransverter(!!d.transverter);
       renderTrack(d.track);
     } catch (e) {
