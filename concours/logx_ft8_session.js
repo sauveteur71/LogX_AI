@@ -68,6 +68,16 @@
     return { action: 'emettre', message: rep.message, dx: rep.dxCall };
   }
 
+  // Contrôle de présence : filet d'arrêt pour le copilote. Désactivé par défaut
+  // (presence.actif=false). Retourne true si la présence est active ET que le
+  // délai d'inactivité a dépassé le seuil (nowMs - dernierPingMs > delaiPauseMs).
+  // nowMs injecté pour tester.
+  function doitPauserPresence(presence, nowMs) {
+    presence = presence || {};
+    if (!presence.actif) { return false; }
+    return (Number(nowMs) - Number(presence.dernierPingMs || 0)) > Number(presence.delaiPauseMs || 0);
+  }
+
   // Driver N4 : combine N3 (QSO en cours) et N4 (CQ + pile-up).
   // Retourne {action, message, dx, engager} où action ∈ {'emettre','loguer','cq','attendre'} :
   //   - 'emettre' : émettre (avec message + dx engagé ou QSO en cours)
@@ -109,6 +119,7 @@
     creerSession: creerSession,
     sessionValide: sessionValide,
     prochaineTrameQso: prochaineTrameQso,
-    prochaineAction: prochaineAction
+    prochaineAction: prochaineAction,
+    doitPauserPresence: doitPauserPresence
   };
 })();

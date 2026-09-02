@@ -238,3 +238,15 @@ def test_n4_un_qso_a_la_fois_pile_up(ctx):
     assert d['dx'] == 'IK2ABC'
     assert d['message'] == 'IK2ABC F4GLD RR73'
     assert d['engager'] == ''
+
+
+# --- Contrôle de présence : doitPauserPresence (désactivé par défaut) ---
+
+def test_presence_inactif_ne_pause_jamais(ctx):
+    r = ctx.eval("LogxFt8Session.doitPauserPresence({actif:false,dernierPingMs:0,delaiPauseMs:1000},999999)")
+    assert r is False
+
+
+def test_presence_actif_pause_apres_delai(ctx):
+    assert ctx.eval("LogxFt8Session.doitPauserPresence({actif:true,dernierPingMs:0,delaiPauseMs:1000},1500)") is True
+    assert ctx.eval("LogxFt8Session.doitPauserPresence({actif:true,dernierPingMs:0,delaiPauseMs:1000},800)") is False
