@@ -180,3 +180,44 @@ def test_qso_ignore_pas_pour_moi(ctx):
                  "{message:'CQ SP9XYZ KO02',snr:-5,dx:'SP9XYZ'},'F4GLD'))" % EMP)
     import json
     assert json.loads(r)['action'] == 'ignorer'
+
+
+# --- Driver N4 : prochaineAction (CQ + pile-up) ---
+
+def test_n4_appelle_cq_si_personne(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineAction(s,[],'F4GLD','JN15'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'cq'
+    assert d['message'] == 'CQ F4GLD JN15'
+
+
+def test_n4_engage_un_appelant(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineAction(s,"
+                 "[{message:'F4GLD IK2ABC JN45',snr:-9,dx:'IK2ABC'}],'F4GLD','JN15'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'emettre'
+    assert d['dx'] == 'IK2ABC'
+    assert d['engager'] == 'IK2ABC'
+    assert d['message'] == 'IK2ABC F4GLD -09'
+
+
+def test_n4_poursuit_le_qso_en_cours(ctx):
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_cq',%s,'x');s.qsoActifDx='IK2ABC';"
+                 "JSON.stringify(LogxFt8Session.prochaineAction(s,"
+                 "[{message:'F4GLD IK2ABC R-11',snr:-9,dx:'IK2ABC'}],'F4GLD','JN15'))" % EMP)
+    import json
+    d = json.loads(r)
+    assert d['action'] == 'emettre'
+    assert d['message'] == 'IK2ABC F4GLD RR73'
+
+
+def test_n3_attend_si_aucun_appel(ctx):
+    # niveau QSO (pas CQ) : sans QSO engagé ni appel pour moi -> attendre (pas de CQ)
+    r = ctx.eval("var s=LogxFt8Session.creerSession('copilote_qso',%s,'x');"
+                 "JSON.stringify(LogxFt8Session.prochaineAction(s,[],'F4GLD','JN15'))" % EMP)
+    import json
+    assert json.loads(r)['action'] == 'attendre'
