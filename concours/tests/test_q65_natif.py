@@ -434,3 +434,37 @@ def test_resoudre_jt9_leve_si_binaire_embarque_absent(monkeypatch):
         for p, contenu in binaires_sauvegardes.items():
             with open(p, 'wb') as f:
                 f.write(contenu)
+
+
+# --- _env_avec_libs : chemin des bibliothèques dynamiques vers le dossier de
+# jt9 (indispensable au binaire embarqué + à l'exe PyInstaller gelé). Testé en
+# forçant os.name/sys.platform pour couvrir les 3 branches indépendamment de
+# l'OS hôte.
+def test_env_avec_libs_linux_prepend(monkeypatch):
+    monkeypatch.setattr(q65n.os, 'name', 'posix')
+    monkeypatch.setattr(q65n.sys, 'platform', 'linux')
+    monkeypatch.setenv('LD_LIBRARY_PATH', '/deja/present')
+    env = q65n._env_avec_libs(os.path.join('opt', 'jt9dir', 'jt9'))
+    attendu = os.path.dirname(os.path.abspath(os.path.join('opt', 'jt9dir', 'jt9')))
+    parts = env['LD_LIBRARY_PATH'].split(os.pathsep)
+    assert parts[0] == attendu            # le dossier de jt9 passe en TÊTE
+    assert '/deja/present' in parts       # sans écraser l'existant
+
+
+def test_env_avec_libs_macos_utilise_DYLD(monkeypatch):
+    monkeypatch.setattr(q65n.os, 'name', 'posix')
+    monkeypatch.setattr(q65n.sys, 'platform', 'darwin')
+    monkeypatch.delenv('DYLD_LIBRARY_PATH', raising=False)
+    env = q65n._env_avec_libs(os.path.join('a', 'b', 'jt9'))
+    attendu = os.path.dirname(os.path.abspath(os.path.join('a', 'b', 'jt9')))
+    assert env['DYLD_LIBRARY_PATH'].split(os.pathsep)[0] == attendu
+    assert 'LD_LIBRARY_PATH' not in env or 'DYLD' not in 'LD_LIBRARY_PATH'
+
+
+def test_env_avec_libs_windows_inchange(monkeypatch):
+    # Windows trouve les DLL à côté de l'exe : aucune variable de chemin ajoutée.
+    monkeypatch.setattr(q65n.os, 'name', 'nt')
+    monkeypatch.delenv('LD_LIBRARY_PATH', raising=False)
+    env = q65n._env_avec_libs(os.path.join('C:', 'x', 'jt9.exe'))
+    assert 'LD_LIBRARY_PATH' not in env
+    assert 'DYLD_LIBRARY_PATH' not in env
