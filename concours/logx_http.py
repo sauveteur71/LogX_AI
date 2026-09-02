@@ -7266,7 +7266,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # (ÉMETTRE humain, ou expiration du délai sans annulation au niveau
         # copilote_auto) pour que l'émission soit GRAVÉE dans le journal d'audit
         # serveur — traçabilité verrouillée, même si le navigateur est fermé
-        # ensuite. Journalisation seule : ne déclenche AUCUN PTT.
+        # ensuite. Journalisation seule : ne déclenche AUCUN PTT. `session_id`
+        # (optionnel) relie cette émission à une SESSION autonome armée via
+        # /tx/session (niveaux 3/4 du copilote) ; `declencheur` accepte
+        # 'copilote' (confirmation manuelle), 'copilote_auto' (délai écoulé),
+        # ainsi que 'copilote_qso'/'copilote_cq' (déclenchés depuis une session
+        # autonome, selon le type d'échange) — texte libre journalisé tel quel,
+        # aucune émission ne dépend de sa valeur.
         if self.path == '/tx/trace':
             import logx_tx_consent as txc
             try:
@@ -7280,6 +7286,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 entry = txc.journal_copilote_qso(payload)
             else:
                 entry = txc.journal_copilote_emission(payload)
+            self._json({'ok': True, 'audit': entry}, 200)
+            return
+
+        # Armement/arrêt d'une SESSION FT8 AUTONOME (niveaux 3/4 du copilote) :
+        # trace SERVEUR de l'AUTORISATION de session (geste humain) et de sa
+        # fin, dans le MÊME journal d'audit que /tx/trace (consultable via
+        # GET /tx/audit même navigateur fermé ensuite). Journalisation seule :
+        # ne déclenche AUCUN PTT (le PTT FT8 reste côté client).
+        if self.path == '/tx/session':
+            import logx_tx_consent as txc
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            event = ('TX_SESSION_ARMED' if payload.get('action') == 'armed'
+                     else 'TX_SESSION_ENDED')
+            entry = txc.journal_session(event, payload.get('session_id'),
+                                        payload.get('details', {}))
             self._json({'ok': True, 'audit': entry}, 200)
             return
 
