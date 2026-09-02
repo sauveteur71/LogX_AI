@@ -462,6 +462,20 @@ let myActivationRef = '';
 let activationTimer = null;
 let lastActQsoTotal = 0;
 
+// Mode chasseur (réglé dans CONFIG) : quand actif, le champ « réf. correspondant »
+// reste disponible dans la saisie même hors activation, pour logger un sommet/parc
+// chassé (la réf part sur le QSO -> sig/sig_info).
+function chaserModeActif(){
+  // Piloté d'abord par le MODE DE SESSION XOTA choisi à l'accueil (chasse/mixte
+  // -> champ réf. correspondant visible). Repli sur l'ancien réglage CONFIG
+  // chaser_mode pour rétro-compat si le module n'est pas chargé.
+  try{
+    if(window.LogxXotaRole) return !!LogxXotaRole.roleConfig(LogxXotaRole.getRole()).chasse;
+  }catch(e){}
+  try{ return JSON.parse(localStorage.getItem('logx_config')||'{}').chaser_mode === 'oui'; }
+  catch(e){ return false; }
+}
+
 function applyActivationMode(program, ref){
   activationProgram = (program||'').toUpperCase();
   myActivationRef = (ref||'').trim().toUpperCase();
@@ -469,7 +483,11 @@ function applyActivationMode(program, ref){
   const bar = document.getElementById('activationBar');
   const trg = document.getElementById('theirRefGroup');
   if(bar) bar.style.display = on ? '' : 'none';
-  if(trg) trg.style.display = on ? '' : 'none';
+  // En activation : le programme du correspondant suit celui que J'active (S2S).
+  const tp = document.getElementById('theirRefProg');
+  if(tp && on && activationProgram) tp.value = activationProgram;
+  // Reste visible si activation OU mode chasseur (sinon masqué, saisie compacte).
+  if(trg) trg.style.display = (on || chaserModeActif()) ? '' : 'none';
   if(on){
     const p = document.getElementById('actProg'); if(p) p.textContent = activationProgram;
     const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
@@ -492,6 +510,124 @@ function applyActivationMode(program, ref){
   } else if(activationTimer){
     clearInterval(activationTimer); activationTimer = null;
   }
+  // Points de chasse indicatifs : même visibilité que la réf. correspondant.
+  sotaPointsHint();
+  refreshSotaPoints();
+  majExportSotaVisible();
+}
+
+// ─── Points de chasse SOTA « indicatifs » (NON officiels) ────────────────────
+// Purement local, JAMAIS envoyé à SOTA (le score officiel ne vient que de
+// sotadata après téléversement). Règles sourcées (3.8 §3 dédup jour UTC, 3.11
+// barème) côté serveur dans logx_sota_points. Deux surfaces : un indice sous le
+// champ réf. (points du sommet du QSO en cours) et un panneau de totaux courants.
+
+function _sotaPointsVisible(){
+  // Même règle que theirRefGroup : mode chasseur OU je suis moi-même en portable.
+  return chaserModeActif() || !!(activationProgram && myActivationRef);
+}
+
+// Indice « ▸ +N pts » sous la réf. du correspondant, SOTA uniquement (les autres
+// programmes n'ont pas de barème de points par altitude). textContent, jamais de
+// balisage ; le « ▸ » est un caractère texte, pas une icône.
+function sotaPointsHint(){
+  var el = document.getElementById('theirRefPoints');
+  if(!el || !window.LogxRefInfo) return;
+  var prog = (document.getElementById('theirRefProg') || {}).value;
+  prog = (prog || '').toUpperCase();
+  var ref = (document.getElementById('inputTheirRef') || {}).value;
+  ref = (ref || '').trim().toUpperCase();
+  if(prog !== 'SOTA' || !ref || !_sotaPointsVisible()){ el.hidden = true; el.textContent = ''; return; }
+  LogxRefInfo.lookup('SOTA', ref).then(function(e){
+    var pts = e && e.points;
+    if(!pts || pts <= 0){ el.hidden = true; el.textContent = ''; return; }
+    var s2s = (activationProgram === 'SOTA' && myActivationRef);
+    el.textContent = '▸ +' + pts + (s2s ? ' pts S2S' : ' pts chasse') + ' (indicatif — non officiel)';
+    el.hidden = false;
+  });
+}
+
+// Totaux courants (année + cumul) depuis /sota/points. Lecture seule. Toutes les
+// valeurs interpolées sont coercées en nombre -> aucune injection possible.
+async function refreshSotaPoints(){
+  var el = document.getElementById('sotaPointsPanel');
+  if(!el) return;
+  if(!_sotaPointsVisible()){ el.hidden = true; return; }
+  try{
+    var r = await fetch('/sota/points'); if(!r.ok){ el.hidden = true; return; }
+    var d = await r.json();
+    var year = Number(d && d.year) || 0;
+    var cy = Number(d && d.chasse_year) || 0;
+    var s2sy = Number(d && d.s2s_year) || 0;
+    var ca = Number(d && d.chasse_all) || 0;
+    if(!ca && !cy){ el.hidden = true; return; }   // rien chassé : on n'encombre pas
+    var htm = 'Chasse ' + year + ' : <b>' + cy + ' pts</b>';
+    if(s2sy) htm += ' · dont S2S <b>' + s2sy + '</b>';
+    if(ca !== cy) htm += ' · cumul <b>' + ca + '</b>';
+    htm += ' <span class="indic">(indicatif — non officiel)</span>';
+    el.innerHTML = htm;
+    el.hidden = false;
+  }catch(e){ el.hidden = true; }
+}
+
+// Boutons d'export « prêt pour sotadata » : visibles dès que la zone chasse
+// l'est (mode chasseur ou portable). L'export lui-même gère le cas « rien à
+// exporter » côté serveur.
+function majExportSotaVisible(){
+  var el = document.getElementById('sotaExportRow');
+  if(el) el.hidden = !_sotaPointsVisible();
+}
+
+// Export ADIF filtré pour téléversement MANUEL sur sotadata (conforme, aucun
+// appel API). fetch + blob : gère proprement le cas « aucun QSO » (une simple
+// navigation vers l'endpoint afficherait le JSON d'erreur brut). role =
+// 'chaser' (chasses) | 'activator' (portable).
+async function telechargerExportSota(role){
+  try{
+    var r = await fetch('/sota/export_adif?role=' + encodeURIComponent(role));
+    if(!r.ok){
+      var msg = 'Export impossible';
+      try{ var d = await r.json(); if(d && d.error) msg = d.error; }catch(e){}
+      if(typeof notify === 'function') notify('⚠️ ' + msg);
+      return;
+    }
+    var blob = await r.blob();
+    var cd = r.headers.get('Content-Disposition') || '';
+    var m = /filename="([^"]+)"/.exec(cd);
+    var nom = m ? m[1] : ('sota_' + role + '.adi');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nom;
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(a.href);
+  }catch(e){
+    if(typeof notify === 'function') notify('⚠️ Export SOTA impossible (réseau).');
+  }
+}
+
+// ─── Mode de session XOTA : bascule 1-geste (chasse / portable / les deux) ────
+// Rendu des 3 boutons (rôle courant surligné). Contenu 100% généré ici (icône,
+// libellé, hint contrôlés) -> pas d'injection.
+function renderXotaRoleSwitch(){
+  var el = document.getElementById('xotaRoleSwitch');
+  if(!el || !window.LogxXotaRole) return;
+  var actuel = LogxXotaRole.getRole();
+  el.innerHTML = LogxXotaRole.ROLES.map(function(r){
+    return '<button type="button" class="xrs-btn' + (r.id === actuel ? ' on' : '')
+      + '" onclick="basculerRoleXota(\'' + r.id + '\')" title="' + r.hint + '">'
+      + '<span class="xrs-ico">' + r.icone + '</span>'
+      + '<span>' + r.label + '</span>'
+      + '<span class="xrs-hint">' + r.hint + '</span></button>';
+  }).join('');
+  el.hidden = false;
+}
+// Changer de rôle en 1 geste : mémorise + ré-applique toute la visibilité
+// (champ réf. correspondant, points/exports de chasse) sans recharger la page.
+function basculerRoleXota(role){
+  if(!window.LogxXotaRole) return;
+  LogxXotaRole.setRole(role);
+  renderXotaRoleSwitch();
+  applyActivationMode(activationProgram, myActivationRef);   // relit chaserModeActif()
 }
 
 async function refreshActivation(){
@@ -2811,16 +2947,32 @@ function collectRefs(containerId){
 function addRefRow(containerId){
   const box = document.getElementById(containerId);
   if(!box) return;
+  const wrap = document.createElement('div');   // ligne + info sommet dessous
+  wrap.className = 'ref-wrap';
   const row = document.createElement('div');
   row.className = 'ref-row';
   const opts = REF_PROGRAMS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
   row.innerHTML = '<select class="field-input field-compact ref-prog refdrop">'+opts+'</select>'+
     '<input type="text" class="field-input field-compact ref-val" placeholder="réf. (F/AB-123, FR-1234…)" autocomplete="off">'+
     '<button type="button" class="ref-del" title="Retirer cette référence">✕</button>';
+  const info = document.createElement('div');   // « Scafell Pike · 978 m · 10 pts »
+  info.className = 'ref-info';
+  info.hidden = true;
   var _refresh = function(){ if(typeof renderActivityTags === 'function') renderActivityTags(); };
-  row.querySelector('.ref-del').addEventListener('click', function(){ row.remove(); _refresh(); });
+  row.querySelector('.ref-del').addEventListener('click', function(){ wrap.remove(); _refresh(); });
   row.querySelector('.ref-val').addEventListener('change', _refresh);   // ref saisie -> tag SOTA/POTA en aperçu
-  box.appendChild(row);
+  // Changer de programme relance le relevé (via un input synthétique sur la réf).
+  row.querySelector('.ref-prog').addEventListener('change', function(){
+    var rv = row.querySelector('.ref-val');
+    if(rv) rv.dispatchEvent(new Event('input'));
+  });
+  wrap.appendChild(row); wrap.appendChild(info);
+  box.appendChild(wrap);
+  // Relevé du sommet/parc sous la ligne (SOTA/POTA/WWFF/IOTA) — lecture seule.
+  if(window.LogxRefInfo){
+    LogxRefInfo.attacher(row.querySelector('.ref-val'),
+      function(){ var s = row.querySelector('.ref-prog'); return s ? s.value : ''; }, info);
+  }
 }
 
 // Auto-remplissage éditable (lot 5, sous-chantier A). PERSISTE l'azimut (bearing,
@@ -2945,8 +3097,14 @@ async function submitQSO(){
   if(activationProgram && myActivationRef){
     qso.my_sig = activationProgram;
     qso.my_sig_info = myActivationRef;
-    const tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
-    if(tr){ qso.sig = activationProgram; qso.sig_info = tr; }
+  }
+  // Réf. du correspondant (chasse SOTA/POTA, ou P2P/S2S en activation) : toujours
+  // enregistrée si présente, INDÉPENDAMMENT du mode activation — un chasseur pur
+  // la logge aussi (sig/sig_info -> comptage de ses chasses).
+  const _tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
+  if(_tr){
+    const _tp = (document.getElementById('theirRefProg')?.value || activationProgram || 'SOTA').toUpperCase();
+    qso.sig = _tp; qso.sig_info = _tr;
   }
 
   // Champs secondaires des onglets (lot 2, sous-chantier A) : puissance, e-mail,
@@ -3018,11 +3176,17 @@ async function submitQSO(){
       document.getElementById('inputCall').focus();
       try{ renderLog(); }catch(e){ console.warn('renderLog',e); }
       try{ updateStats(); }catch(e){ console.warn('updateStats',e); }
+      // Copilote : re-valider le log en tâche de fond (badge discret). Jamais
+      // de correction auto — juste signaler. Debounce côté module.
+      try{ if(window.LogxValidationLive) LogxValidationLive.rafraichir(); }catch(e){}
       try{ updateLastQso(qso); }catch(e){}
       if(activationProgram) refreshActivation();   // MAJ immédiate du compteur d'activation
       playBeep(880, 80);
       vieillirPastilleBusted();      // la pastille du QSO précédent vieillit
       verifierIndicatifApres(qso);   // filet anti-busted call, APRÈS coup
+      // Récap « après-QSO » : ce que ce QSO apporte (nouveau pays/bande, à
+      // confirmer LoTW) — boucle de gratification, lecture seule, non-modal.
+      try{ if(window.LogxApresQso){ LogxApresQso.vieillir(); LogxApresQso.montrer(qso); } }catch(e){}
     } else if(res.status === 409){
       // Doublon détecté par le serveur : l'opérateur décide (2e période,
       // dupe assumé pour l'arbitre...) — bandeau non bloquant, pas de
@@ -3118,6 +3282,8 @@ function clearForm(){
   // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
   const _cm = document.getElementById('inputComment'); if(_cm) _cm.value = '';
   const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';
+  const _trp2 = document.getElementById('theirRefPoints'); if(_trp2){ _trp2.hidden = true; _trp2.textContent = ''; }
+  if(typeof refreshSotaPoints === 'function') refreshSotaPoints();   // QSO loggué -> maj du total de chasse indicatif
   const _nm = document.getElementById('inputName'); if(_nm) _nm.value = '';   // prénom : propre au contact
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
@@ -3634,7 +3800,7 @@ function renderLog(){
     const emptyMsg = qsoLog.length === 0
       ? 'Aucun QSO enregistré — remplis le formulaire ci-dessus et clique ENREGISTRER LE QSO.'
       : 'Aucun QSO ne correspond à ce filtre ou cette recherche.';
-    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-mono)">${emptyMsg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-mono)">${emptyMsg}</td></tr>`;
     return;
   }
 
@@ -3651,9 +3817,8 @@ function renderLog(){
     const cap = _brg !== null ? cardinalDir(_brg) : '—';
     const rowClass = [isDupQ?'dup-entry':'', q._new?'new-entry':'', incomplete?'incomplete-entry':''].filter(Boolean).join(' ');
     return `<tr class="${rowClass}" id="qso_${q.id}" ondblclick="editQSO(${q.id})" title="Double-clic pour corriger ce QSO">
-      <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${posOf.get(q)||0}</td>
       <td class="td-time">${escHtml(q.time)||'—'}</td>
-      <td class="td-call">${escHtml(q.call)||'—'}${q.qsl_scan?` <span title="Scan QSL attaché">📎</span>`:''}</td>
+      <td class="td-call">${incomplete?'<span class="incomplete-flag" title="QSO incomplet — champ(s) manquant(s), à corriger">⚠️</span> ':''}${escHtml(q.call)||'—'}${q.qsl_scan?` <span title="Scan QSL attaché">📎</span>`:''}</td>
       <td class="td-band"${q.freq?` title="${escHtml(q.freq)} MHz"`:''}>${BAND_LABELS[q.band]||escHtml(q.band)||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${escHtml(q.freq)}</span>`:''}</td>
       <td class="td-mode">${escHtml(q.mode)||'—'}</td>
       <td class="td-sent">${escHtml(q.rst_sent)||'—'}/${escHtml(q.num_sent)||'—'}</td>
@@ -4548,6 +4713,33 @@ window.addEventListener('DOMContentLoaded', () => {
   if(typeof so2rRafraichir === 'function') so2rRafraichir();
   if(typeof initCallDictation === 'function') initCallDictation();   // dictée vocale #inputCall (logx_voice_dictation.js) : affiche #callMicBtn seulement si SpeechRecognition est dispo
   initBroadcastChannel();
+  // Relevé du sommet/parc sous la réf. du correspondant (chasse, ou S2S/P2P) :
+  // le programme vient du sélecteur #theirRefProg (repli sur ce que j'active,
+  // puis SOTA). Lecture seule.
+  if(window.LogxRefInfo){
+    LogxRefInfo.attacher(document.getElementById('inputTheirRef'),
+      function(){ var s = document.getElementById('theirRefProg'); return (s && s.value) || activationProgram || 'SOTA'; },
+      document.getElementById('theirRefInfo'));
+  }
+  // Changer le programme du correspondant relance le relevé.
+  var _trp = document.getElementById('theirRefProg');
+  if(_trp) _trp.addEventListener('change', function(){
+    var i = document.getElementById('inputTheirRef'); if(i) i.dispatchEvent(new Event('input'));
+    sotaPointsHint();
+  });
+  // Indice points de chasse indicatifs : suit la saisie de la réf. correspondant.
+  var _itr = document.getElementById('inputTheirRef');
+  if(_itr){ _itr.addEventListener('input', sotaPointsHint); _itr.addEventListener('change', sotaPointsHint); }
+  // Mode chasseur (CONFIG) : le champ réf. correspondant reste visible même hors
+  // activation, pour logger les sommets/parcs qu'on chasse.
+  if(chaserModeActif()){
+    var _trg = document.getElementById('theirRefGroup'); if(_trg) _trg.style.display = '';
+    refreshSotaPoints();   // affiche d'emblée les totaux de chasse
+    majExportSotaVisible();   // et les boutons d'export sotadata
+  }
+  if(window.LogxXotaRole){
+    renderXotaRoleSwitch();   // bascule de mode de session toujours visible en tête de saisie
+  }
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
   // .saisie-secondary (SA zone de scroll propre), pas .saisie-panel — voir

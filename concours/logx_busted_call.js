@@ -88,12 +88,16 @@ function afficherPastilleBusted(qso, cible){
     + `<button class="bp-oui" onclick="corrigerBusted()">${escHtml(trT('corriger'))}</button>`
     + `<button class="bp-non" onclick="fermerPastilleBusted()">${escHtml(trT('non'))}</button>`;
   zone.style.display = 'flex';
+  // Alimente le fil IA unifié (si présent) : texte BRUT, le fil échappe lui-même.
+  if(window.LogxFilIA) window.LogxFilIA.pousser('busted',
+    [{icone:'🔍', texte: qso.call + ' → ' + cible.call + ' ?', type:'proposition', onclick:'corrigerBusted()'}]);
 }
 
 function fermerPastilleBusted(){
   const zone = document.getElementById('bustedPastille');
   if(zone){ zone.style.display = 'none'; zone.innerHTML = ''; }
   _bcPastille = null;
+  if(window.LogxFilIA) window.LogxFilIA.pousser('busted', []);   // retire l'entrée du fil
 }
 
 // Sans action, la pastille s'efface au bout de deux QSO : elle ne doit pas

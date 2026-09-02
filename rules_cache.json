@@ -1,0 +1,559 @@
+{
+  "last_update": "2026-08-15T06:50:01.212646",
+  "year": 2026,
+  "dates": {
+    "REF_RPH": {
+      "name": "Rallye des Points Hauts",
+      "date": "04/07/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_NAT_THF": {
+      "name": "National THF — Trophée F3SK",
+      "date": "07/03/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_PRINTEMPS": {
+      "name": "Concours du Printemps",
+      "date": "02/05/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_ETE": {
+      "name": "Concours d'Été",
+      "date": "01/08/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_THF": {
+      "name": "Championnat de France THF",
+      "date": "06/06/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_QRP": {
+      "name": "Bol d'Or des QRP — Trophée F8BO",
+      "date": "18/07/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_160M": {
+      "name": "REF 160m — Trophée F8EX",
+      "date": "21/11/2026 à 17h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_HF_SSB": {
+      "name": "Championnat de France HF Téléphonie",
+      "date": "21/02/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_HF_CW": {
+      "name": "Championnat de France HF Télégraphie",
+      "date": "24/01/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_VHF": {
+      "name": "IARU R1 VHF 145 MHz",
+      "date": "05/09/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_UHF": {
+      "name": "IARU R1 UHF/SHF",
+      "date": "03/10/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_50MHZ": {
+      "name": "IARU R1 50 MHz — Mémorial F8SH",
+      "date": "20/06/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_MARCONI": {
+      "name": "Marconi Memorial — IARU R1 VHF CW",
+      "date": "07/11/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_HF_WC": {
+      "name": "IARU HF World Championship",
+      "date": "11/07/2026 → 12/07/2026 à 12h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_SSB": {
+      "name": "CQ World Wide DX — SSB",
+      "date": "24/10/2026 → 25/10/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_CW": {
+      "name": "CQ World Wide DX — CW",
+      "date": "28/11/2026 → 29/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "WWA_2027_JAN": {
+      "name": "World Wide Award — janvier",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "WWA_2027_JUL": {
+      "name": "World Wide Award — Sprint",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WPX_SSB": {
+      "name": "CQ WPX — SSB",
+      "date": "28/03/2026 → 29/03/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WPX_CW": {
+      "name": "CQ WPX — CW",
+      "date": "30/05/2026 → 31/05/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_DX_SSB": {
+      "name": "ARRL DX — SSB",
+      "date": "21/03/2026 → 22/03/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_DX_CW": {
+      "name": "ARRL DX — CW",
+      "date": "14/02/2026 → 15/02/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_FD": {
+      "name": "ARRL Field Day",
+      "date": "27/06/2026 → 28/06/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "SOTA": {
+      "name": "Summits on the Air",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "POTA": {
+      "name": "Parks on the Air",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_SSB": {
+      "name": "WAE DX Contest — SSB",
+      "date": "12/09/2026 → 13/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_RTTY": {
+      "name": "WAE DX Contest — RTTY",
+      "date": "14/11/2026 → 15/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "UBA_DX_SSB": {
+      "name": "UBA DX Contest — SSB",
+      "date": "24/01/2026 → 25/01/2026 à 13h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "UBA_DX_CW": {
+      "name": "UBA DX Contest — CW",
+      "date": "21/02/2026 → 22/02/2026 à 13h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "EU_HF_CHAMP": {
+      "name": "European HF Championship",
+      "date": "01/08/2026 à 12h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "RUSSIAN_DX": {
+      "name": "Russian DX Contest",
+      "date": "21/03/2026 à 12h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "SP_DX": {
+      "name": "SP DX Contest",
+      "date": "04/04/2026 → 05/04/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "HA_DX": {
+      "name": "HA DX Contest",
+      "date": "17/01/2026 → 18/01/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ALL_ASIAN_CW": {
+      "name": "All Asian DX Contest — CW",
+      "date": "20/06/2026 à 00h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "ALL_ASIAN_SSB": {
+      "name": "All Asian DX Contest — SSB",
+      "date": "05/09/2026 → 06/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "STEW_PERRY": {
+      "name": "Stew Perry Topband Challenge",
+      "date": "19/12/2026 à 15h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_10M": {
+      "name": "ARRL 10-Meter Contest",
+      "date": "12/12/2026 → 13/12/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_160M": {
+      "name": "ARRL 160-Meter Contest",
+      "date": "05/12/2026 à 22h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "CWOPS_CWT": {
+      "name": "CWops Mini-Test (CWT)",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "UFT_CHALLENGE_ETE": {
+      "name": "Challenge d'été F5CED",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    },
+    "UFT_CHALLENGE_HIVER": {
+      "name": "Challenge d'hiver UFT",
+      "date": "Permanent (2026)",
+      "year": 2026,
+      "next_year": false
+    }
+  },
+  "dates_next_year": {
+    "REF_RPH": {
+      "name": "Rallye des Points Hauts",
+      "date": "03/07/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_NAT_THF": {
+      "name": "National THF — Trophée F3SK",
+      "date": "06/03/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_PRINTEMPS": {
+      "name": "Concours du Printemps",
+      "date": "01/05/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_ETE": {
+      "name": "Concours d'Été",
+      "date": "07/08/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_CDF_THF": {
+      "name": "Championnat de France THF",
+      "date": "05/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_QRP": {
+      "name": "Bol d'Or des QRP — Trophée F8BO",
+      "date": "17/07/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_160M": {
+      "name": "REF 160m — Trophée F8EX",
+      "date": "20/11/2027 à 17h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_CDF_HF_SSB": {
+      "name": "Championnat de France HF Téléphonie",
+      "date": "20/02/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_CDF_HF_CW": {
+      "name": "Championnat de France HF Télégraphie",
+      "date": "23/01/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_VHF": {
+      "name": "IARU R1 VHF 145 MHz",
+      "date": "04/09/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_UHF": {
+      "name": "IARU R1 UHF/SHF",
+      "date": "02/10/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_50MHZ": {
+      "name": "IARU R1 50 MHz — Mémorial F8SH",
+      "date": "19/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_MARCONI": {
+      "name": "Marconi Memorial — IARU R1 VHF CW",
+      "date": "06/11/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_HF_WC": {
+      "name": "IARU HF World Championship",
+      "date": "10/07/2027 → 11/07/2027 à 12h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WW_SSB": {
+      "name": "CQ World Wide DX — SSB",
+      "date": "30/10/2027 → 31/10/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WW_CW": {
+      "name": "CQ World Wide DX — CW",
+      "date": "27/11/2027 → 28/11/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "WWA_2027_JAN": {
+      "name": "World Wide Award — janvier",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "WWA_2027_JUL": {
+      "name": "World Wide Award — Sprint",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WPX_SSB": {
+      "name": "CQ WPX — SSB",
+      "date": "27/03/2027 → 28/03/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WPX_CW": {
+      "name": "CQ WPX — CW",
+      "date": "29/05/2027 → 30/05/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_SSB": {
+      "name": "ARRL DX — SSB",
+      "date": "20/03/2027 → 21/03/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_CW": {
+      "name": "ARRL DX — CW",
+      "date": "13/02/2027 → 14/02/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_FD": {
+      "name": "ARRL Field Day",
+      "date": "26/06/2027 → 27/06/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "SOTA": {
+      "name": "Summits on the Air",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "POTA": {
+      "name": "Parks on the Air",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "WAEDC_SSB": {
+      "name": "WAE DX Contest — SSB",
+      "date": "11/09/2027 → 12/09/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "WAEDC_RTTY": {
+      "name": "WAE DX Contest — RTTY",
+      "date": "13/11/2027 → 14/11/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "UBA_DX_SSB": {
+      "name": "UBA DX Contest — SSB",
+      "date": "30/01/2027 → 31/01/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "UBA_DX_CW": {
+      "name": "UBA DX Contest — CW",
+      "date": "27/02/2027 → 28/02/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "EU_HF_CHAMP": {
+      "name": "European HF Championship",
+      "date": "07/08/2027 à 12h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "RUSSIAN_DX": {
+      "name": "Russian DX Contest",
+      "date": "20/03/2027 à 12h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "SP_DX": {
+      "name": "SP DX Contest",
+      "date": "03/04/2027 → 04/04/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "HA_DX": {
+      "name": "HA DX Contest",
+      "date": "16/01/2027 → 17/01/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_CW": {
+      "name": "All Asian DX Contest — CW",
+      "date": "19/06/2027 à 00h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_SSB": {
+      "name": "All Asian DX Contest — SSB",
+      "date": "04/09/2027 → 05/09/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "STEW_PERRY": {
+      "name": "Stew Perry Topband Challenge",
+      "date": "18/12/2027 à 15h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_10M": {
+      "name": "ARRL 10-Meter Contest",
+      "date": "11/12/2027 → 12/12/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_160M": {
+      "name": "ARRL 160-Meter Contest",
+      "date": "04/12/2027 à 22h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "CWOPS_CWT": {
+      "name": "CWops Mini-Test (CWT)",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "UFT_CHALLENGE_ETE": {
+      "name": "Challenge d'été F5CED",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    },
+    "UFT_CHALLENGE_HIVER": {
+      "name": "Challenge d'hiver UFT",
+      "date": "Permanent (2027)",
+      "year": 2027,
+      "next_year": true
+    }
+  },
+  "rules_checks": {
+    "REF_RPH": {
+      "contest_id": "REF_RPH",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf",
+      "checked_at": "2026-08-15T06:50:01.953824"
+    },
+    "REF_NAT_THF": {
+      "contest_id": "REF_NAT_THF",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf",
+      "checked_at": "2026-08-15T06:50:03.226466"
+    },
+    "REF_PRINTEMPS": {
+      "contest_id": "REF_PRINTEMPS",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf",
+      "checked_at": "2026-08-15T06:50:03.897681"
+    },
+    "REF_ETE": {
+      "contest_id": "REF_ETE",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf",
+      "checked_at": "2026-08-15T06:50:04.567689"
+    },
+    "IARU_VHF": {
+      "contest_id": "IARU_VHF",
+      "check_url": "https://www.iaru-r1.org/on-the-air/contests/",
+      "latest_year_found": 2026,
+      "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
+      "checked_at": "2026-08-15T06:50:06.606744"
+    },
+    "IARU_UHF": {
+      "contest_id": "IARU_UHF",
+      "check_url": "https://www.iaru-r1.org/on-the-air/contests/",
+      "latest_year_found": 2026,
+      "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
+      "checked_at": "2026-08-15T06:50:08.173314"
+    },
+    "CQ_WW_SSB": {
+      "contest_id": "CQ_WW_SSB",
+      "check_url": "https://cqww.com/rules.htm",
+      "latest_year_found": 2026,
+      "rules_url": "https://cqww.com/rules.htm",
+      "checked_at": "2026-08-15T06:50:09.540420"
+    },
+    "CQ_WW_CW": {
+      "contest_id": "CQ_WW_CW",
+      "check_url": "https://cqww.com/rules.htm",
+      "latest_year_found": 2026,
+      "rules_url": "https://cqww.com/rules.htm",
+      "checked_at": "2026-08-15T06:50:10.841355"
+    }
+  },
+  "alerts": []
+}

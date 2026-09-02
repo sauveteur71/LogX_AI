@@ -248,11 +248,60 @@ def validate_log(qsos, contest_id='', cfg=None):
     counts = {'erreur': 0, 'attention': 0, 'info': 0}
     for x in findings:
         counts[x['level']] = counts.get(x['level'], 0) + 1
+
+    # Séparation SAISI / IMPORTÉ. Un log IMPORTÉ (`source == 'adif_import'`,
+    # posé par logx_import) peut apporter des dizaines de milliers de QSO
+    # hérités d'un autre logiciel : ils déclenchent des milliers de constats
+    # LÉGITIMES mais non actionnables « ici et maintenant ». On ventile pour que
+    # le badge n'alarme que sur les QSO saisis DANS LogX — sans jamais cacher
+    # l'historique importé (il reste dans `findings`, consultable dans VÉRIFIER).
+    # Clé de QSO NAMESPACÉE : un même log peut mêler des QSO avec id (assignés
+    # par le stockage) et sans id (findings repérés par index). Mélanger les deux
+    # espaces dans un set provoquerait des collisions (un id numériquement égal à
+    # l'index d'un autre QSO) — un QSO saisi serait alors classé « importé ». On
+    # préfixe donc ('id', …) vs ('idx', …). Même clé côté qsos et côté finding.
+    def _cle(qid, index):
+        return ('id', qid) if qid is not None else ('idx', index)
+
+    _importe_keys = set()
+    for i, q in enumerate(qsos):
+        if (q.get('source') or '') == 'adif_import':
+            _importe_keys.add(_cle(q.get('id'), i))
+
+    def _est_importe(x):
+        return _cle(x.get('id'), x.get('index')) in _importe_keys
+
+    counts_saisi = {'erreur': 0, 'attention': 0, 'info': 0}
+    counts_importe = {'erreur': 0, 'attention': 0, 'info': 0}
+    # « N QSO à vérifier » = nombre de QSO DISTINCTS portant ≥1 constat
+    # erreur/attention — et NON le nombre de constats. Un même QSO peut en
+    # cumuler plusieurs (locator manquant + département invalide + …) : sommer
+    # les constats donnait un total pouvant DÉPASSER le nombre de QSO (vu après
+    # un import massif sans locator : « 15073 à vérifier » pour 10067 QSO). Borné
+    # par qso_count. (Les 'erreur' ne sont jamais plafonnées, cf. _f ; le compte
+    # est donc exact pour elles — la seule perte possible touche des 'attention'
+    # au-delà du plafond d'affichage, cas marginal.)
+    a_verifier = set()
+    a_verifier_saisi = set()
+    a_verifier_importe = set()
+    for x in findings:
+        importe = _est_importe(x)
+        (counts_importe if importe else counts_saisi)[x['level']] += 1
+        if x['level'] in ('erreur', 'attention'):
+            k = _cle(x.get('id'), x.get('index'))
+            if k != ('idx', None):
+                a_verifier.add(k)
+                (a_verifier_importe if importe else a_verifier_saisi).add(k)
     return {
         'contest': contest_id,
         'qso_count': len(qsos),
         'findings': findings,
         'counts': counts,
+        'counts_saisi': counts_saisi,
+        'counts_importe': counts_importe,
+        'qso_a_verifier': len(a_verifier),
+        'qso_a_verifier_saisi': len(a_verifier_saisi),
+        'qso_a_verifier_importe': len(a_verifier_importe),
         'ok': counts['erreur'] == 0,
         'truncated': len(findings) >= MAX_FINDINGS,
     }

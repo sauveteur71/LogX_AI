@@ -51,3 +51,208 @@ body.high-contrast.day-mode {
   --green:#004D1F; --red:#960018; --yellow:#4A3A00; --purple:#4E1C7A; --orange:#8A4500;
   --text:#000000; --muted:#1A1A1A;
 }
+
+/* ─── BANDEAU DÉFILANT (ticker HUD) — composant PARTAGÉ (classes rcb-*) ───────
+   Rendu par logx_bandeaux.js (rendreTicker). MUTUALISÉ ici depuis
+   logx_accueil.html pour être réutilisable par toute page (CHASSE, etc.) —
+   chargé par les 20 pages via <link>. Non-intrusif : bande fine, ne pousse pas
+   la grille (flex-shrink:0). Garde-fous (règles du dépôt) : pause au survol +
+   arrêt total si prefers-reduced-motion. Étiquette de catégorie colorée à
+   gauche (cuivre par défaut ; --green pour propag). CSS repris du prototype
+   validé en navigateur (docs/maquettes/bandeau_defilant.html). */
+.rcb-wrap{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);position:relative}
+.rcb-row{display:flex;align-items:stretch;height:34px;overflow:hidden;border-top:1px solid var(--border)}
+.rcb-row:first-child{border-top:none}
+.rcb-cat{flex:0 0 auto;display:flex;align-items:center;padding:0 12px;
+  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1.5px;
+  color:#0b0d10;background:var(--accent2);z-index:2;white-space:nowrap;
+  box-shadow:6px 0 10px -4px var(--bg)}
+body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-encre (contraste jour) */
+.rcb-cat.rcb-propag{background:var(--green)}
+.rcb-cat.rcb-spots{background:var(--yellow)}
+.rcb-cat.rcb-mults{background:var(--purple)}
+.rcb-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
+.rcb-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;
+  will-change:transform;animation:rcb-defile 46s linear infinite}
+.rcb-row:hover .rcb-move{animation-play-state:paused}  /* PAUSE AU SURVOL */
+@keyframes rcb-defile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.rcb-item{display:inline-flex;align-items:center;padding:0 26px;height:100%;
+  font-family:var(--font-mono);font-size:13px;color:var(--text);text-decoration:none;
+  border-right:1px solid var(--border)}
+.rcb-item:hover{color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
+/* Chaque copie du bloc défilant. display:contents -> le span n'existe pas pour
+   la mise en page (les items restent enfants flex de .rcb-move). */
+.rcb-seq{display:contents}
+@media (prefers-reduced-motion:reduce){
+  .rcb-move{animation:none}
+  .rcb-track{overflow-x:auto}                          /* défilable à la main si l'OS refuse le mouvement */
+  .rcb-dup{display:none}                                /* défilement coupé -> une seule copie, pas d'info en double */
+}
+/* ⚙ « afficher / masquer » les bandeaux (driver logx_bandeaux_driver.js). Le ⚙
+   flotte en haut à droite de la bande ; le panneau de chips s'ouvre en dessous.
+   « masquer ≠ bloquer » : purement visuel, la config/les endpoints restent. */
+.rcb-gear{position:absolute;right:0;top:0;height:34px;width:32px;z-index:6;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:none;border-left:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:15px;line-height:1}
+.rcb-gear:hover,.rcb-gear[aria-expanded="true"]{color:var(--accent2);background:var(--bg3)}
+.rcb-gear:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.rcb-chips{position:absolute;right:0;top:34px;z-index:2001;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:8px;display:flex;flex-direction:column;gap:6px;min-width:150px}
+.rcb-chips[hidden]{display:none}
+.rcb-chips.rcb-chips-haut{top:auto;bottom:34px;border-radius:8px 8px 0 0}   /* barre en bas d'écran (accueil) : ouvre vers le haut */
+.rcb-chip{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;text-align:left;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .12s}
+.rcb-chip:hover{border-color:var(--accent)}
+.rcb-chip.on{background:var(--accent2);color:#0b0d10;border-color:var(--accent2)}
+body.day-mode .rcb-chip.on{color:#F8F6EF}                /* texte clair sur cuivre-encre (contraste jour) */
+.rcb-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rcb-vide{padding:9px 20px 9px 20px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+
+/* ─── Carte d'occupation des bandes multi-postes (log partagé) ────────────────
+   Panneau flottant opt-in (radioclub / expé / activation). Qui est sur quelle
+   bande/mode ; recouvrement bande+mode surligné en rouge. */
+#occupationToggle{position:fixed;left:14px;bottom:14px;z-index:1400;display:flex;align-items:center;gap:6px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent2);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+#occupationToggle:hover{background:var(--bg3)}
+#occupationToggle.occ-toggle-conflit{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.12)}
+
+/* Badge de validation LIVE (copilote) : discret, dans l'en-tête, caché si log
+   propre. Jaune = attentions, rouge = au moins une erreur. */
+.vl-badge{margin-left:10px;padding:3px 10px;border-radius:12px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;border:1px solid var(--yellow);color:var(--yellow);background:rgba(255,214,10,.12)}
+.vl-badge[hidden]{display:none}
+.vl-badge:hover{background:rgba(255,214,10,.22)}
+.vl-badge.vl-erreur{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.14)}
+/* QSO seulement IMPORTÉS à revoir : neutre/discret, PAS d'alarme (historique). */
+.vl-badge.vl-importe{border-color:var(--border);color:var(--muted);background:rgba(var(--accent-rgb),.05);font-weight:600}
+.vl-badge.vl-importe:hover{background:rgba(var(--accent-rgb),.1)}
+#occupationPanel{position:fixed;left:14px;bottom:56px;z-index:1400;width:340px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+#occupationPanel[hidden]{display:none}
+.occ-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.occ-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+#occupationCorps{padding:8px 12px}
+.occ-vide{color:var(--muted);font-size:12px;padding:8px 0}
+.occ-alerte{color:var(--red);font-weight:700;font-size:12px;margin-bottom:8px}
+.occ-table{width:100%;border-collapse:collapse;font-size:13px}
+.occ-table th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;letter-spacing:1px;border-bottom:1px solid var(--border);padding:3px 6px}
+.occ-table td{padding:4px 6px;border-bottom:1px solid var(--border)}
+.occ-call{font-weight:700;color:var(--text)}
+.occ-band{color:var(--accent2);font-weight:700}
+.occ-mode{color:var(--yellow)}
+.occ-table tr.occ-conflit td{background:rgba(255,45,85,.14)}
+.occ-table tr.occ-conflit .occ-flag{color:var(--red);font-weight:700;font-size:11px}
+
+/* HUD « Opportunités » (LOGBOOK) : remonte la NEED LIST de CHASSE (même moteur)
+   avec la séparation FAIT / CALCUL / PROPOSITION. Panneau flottant à droite,
+   persistant ; le corps se replie via l'en-tête (masquer ≠ bloquer). */
+#opportunitesPanel{position:fixed;right:14px;bottom:56px;z-index:1400;width:300px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-family:var(--font-mono)}
+.opp-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.opp-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+.opp-demo{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--yellow);color:#17181A;font-size:10px;font-weight:800;letter-spacing:.5px;vertical-align:1px}
+.opp-demo[hidden]{display:none}
+#opportunitesCorps{padding:6px 10px}
+#opportunitesCorps[hidden]{display:none}
+.opp-vide{color:var(--muted);font-size:12px;padding:8px 2px}
+.opp-row{border-bottom:1px solid var(--border)}
+.opp-row:last-child{border-bottom:0}
+.opp-sum{display:flex;align-items:center;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px}
+.opp-sum::-webkit-details-marker{display:none}
+.opp-emoji{flex-shrink:0}
+.opp-call{font-weight:700;color:var(--text);flex:1}
+.opp-score{color:var(--accent2);font-weight:700}
+.opp-body{padding:2px 2px 9px 2px;font-size:12px;display:flex;flex-direction:column;gap:5px}
+.opp-fait,.opp-calc,.opp-prop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.opp-tag{font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:4px;flex-shrink:0}
+.opp-fait .opp-tag{color:var(--muted);border:1px solid var(--border)}
+.opp-fait{color:var(--text)}
+.opp-calc .opp-tag{color:var(--accent2);border:1px solid var(--accent2)}
+.opp-calc{color:var(--muted)}
+.opp-prop .opp-tag{color:var(--accent);border:1px solid var(--accent)}
+.opp-appeler{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer}
+.opp-appeler:hover{background:rgba(var(--accent-rgb),.2)}
+
+/* Provenance par champ : d'où vient chaque donnée enrichie (relevé lecture seule
+   sous la zone d'enrichissement de la saisie). */
+.prov-panel{margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px;font-family:var(--font-mono);font-size:12px}
+.prov-panel[hidden]{display:none}
+.prov-h{color:var(--muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.prov-row{display:flex;align-items:baseline;gap:8px;padding:1px 0}
+.prov-c{color:var(--muted);min-width:80px}
+.prov-v{color:var(--text);flex:1}
+.prov-s{color:var(--accent2)}
+
+/* Fil IA unifié « Ce que l'IA remarque » (LOGBOOK) : agrège opportunités /
+   validation / après-QSO / busted en un fil priorisé. Panneau flottant en haut
+   à droite, caché tant qu'il n'y a rien. Pastille de couleur par type. */
+/* Volet repliable ancré au bouton ◈ IA (positionnement/boîte via .lb-menu-dd) —
+   n'est plus un panneau flottant sur l'en-tête (retour F4GLD 28/08). */
+/* left:auto;right:0 via l'id (spécificité > .lb-menu-dd) : s'ouvre vers la
+   gauche, dans la colonne du log, sans déborder du bord droit de l'écran. */
+#filIaPanel{width:320px;max-width:calc(100vw - 28px);max-height:60vh;overflow:auto;font-family:var(--font-mono);left:auto;right:0}
+#filIaPanel[hidden]{display:none}
+.fil-count{display:inline-block;margin-left:6px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--accent2);color:#17181A;font-size:11px;font-weight:800;text-align:center;line-height:16px;vertical-align:1px}
+/* JOUR/HC-jour : accent2 devient cuivre-encre SOMBRE -> le texte sombre par
+   défaut deviendrait illisible (sombre sur sombre). Texte clair, comme les
+   jumeaux .rcb-chip.on / .lp-btn-primaire. Couvre aussi le haut-contraste jour
+   (body.high-contrast.day-mode matche body.day-mode). */
+body.day-mode .fil-count{color:#F8F6EF}
+.fil-count[hidden]{display:none}
+#filIaBtn.has-items{border-color:var(--accent2);color:var(--accent2)}
+.fil-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;font-size:13px;letter-spacing:1px}
+.fil-head button{background:none;border:0;color:var(--muted);font-size:16px;cursor:pointer}
+#filIaCorps{padding:4px 8px}
+#filIaCorps[hidden]{display:none}
+.fil-item{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
+.fil-item:last-child{border-bottom:0}
+.fil-item[role="button"]{cursor:pointer}
+.fil-item[role="button"]:hover{background:rgba(var(--accent-rgb),.08)}
+.fil-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--muted)}
+.fil-attention .fil-dot{background:var(--yellow)}
+.fil-proposition .fil-dot{background:var(--accent2)}
+.fil-info .fil-dot{background:var(--green)}
+.fil-ico{flex-shrink:0}
+.fil-txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Récap « après-QSO » : pastille non-modale sous la saisie, dit ce que le QSO
+   vient d'apporter (gain en cuivre) et ce qui reste à confirmer LoTW. Discret,
+   ne pousse pas le formulaire (width:fit-content). Silencieux sur un doublon. */
+#apresQsoPastille{display:none;align-items:center;flex-wrap:wrap;gap:8px;margin-top:4px;padding:6px 10px;border-radius:6px;border:1px solid var(--green);background:rgba(0,255,136,.07);font-family:var(--font-mono);font-size:12px;color:var(--text);width:fit-content;max-width:100%}
+.aq-titre{color:var(--green);font-weight:700;letter-spacing:.5px;white-space:nowrap}
+.aq-gains{display:inline-flex;flex-wrap:wrap;gap:8px}
+.aq-gain{color:var(--accent2);font-weight:700}
+.aq-aconf{color:var(--muted)}
+.aq-close{margin-left:auto;background:none;border:0;color:var(--muted);font-size:14px;cursor:pointer;line-height:1}
+.aq-close:hover{color:var(--accent2)}
+
+/* Assistant « Activer un log partagé » (radioclub / expé / activation) */
+#logPartageOverlay{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+#logPartageOverlay[hidden]{display:none}
+.lp-box{background:var(--bg2);border:1px solid var(--accent2);border-radius:12px;max-width:460px;width:100%;font-family:var(--font-mono);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.lp-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);color:var(--accent2);font-weight:700;letter-spacing:1px}
+.lp-head button{background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer}
+#lpChoix,#lpDetail{padding:16px}
+#lpChoix[hidden],#lpDetail[hidden]{display:none}
+.lp-intro{color:var(--text);margin:0 0 12px}
+.lp-scenario{display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .12s}
+.lp-scenario:hover{border-color:var(--accent2);background:var(--bg2)}
+.lp-scenario b{display:block;color:var(--accent2);font-size:14px;margin-bottom:3px}
+.lp-scenario span{color:var(--muted);font-size:12px}
+.lp-detail-titre{color:var(--accent2);font-weight:700;font-size:15px;margin-bottom:8px}
+.lp-resume{color:var(--text);font-size:13px;margin:0 0 10px}
+.lp-sync{background:var(--bg3);border-left:3px solid var(--accent2);padding:8px 12px;font-size:13px;color:var(--text);border-radius:0 6px 6px 0;margin-bottom:10px}
+.lp-rappel{color:var(--muted);font-size:12px;margin:0 0 14px}
+.lp-actions{display:flex;gap:10px;flex-wrap:wrap}
+.lp-btn{flex:1 1 auto;text-align:center;padding:9px 14px;border-radius:8px;font-family:var(--font-mono);font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid var(--accent2);color:var(--accent2);background:none}
+.lp-btn:hover{background:var(--bg3)}
+.lp-btn-primaire{background:var(--accent2);color:#0b0d10;border-color:var(--accent2)}
+body.day-mode .lp-btn-primaire{color:#F8F6EF}
+
+/* ─── Menu « Outils ▾ » de la nav (refonte nav approche A, F4GLD 27/08) ───────
+   Partagé (chargé par toutes les pages via <link>) : le HTML du menu est posé
+   par page, le comportement par logx_statusbar.js (_wireNavTools). Bouton
+   calqué sur .app-nav a (que chaque page définit localement) mais autonome. */
+.nav-tools{position:relative;display:flex;align-items:stretch}
+.nav-tools-btn{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);background:none;border:none;border-right:1px solid var(--border);padding:10px 22px;display:flex;align-items:center;gap:7px;cursor:pointer;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.nav-tools-btn:hover,.nav-tools-btn[aria-expanded="true"]{color:var(--text);background:var(--bg3)}
+.nav-tools-btn:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.nav-tools-caret{transition:transform .15s;font-size:11px}
+.nav-tools-btn[aria-expanded="true"] .nav-tools-caret{transform:rotate(180deg)}
+.nav-tools-menu{position:absolute;top:100%;left:0;z-index:2000;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;display:flex;flex-direction:column;padding:4px 0}
+.nav-tools-menu[hidden]{display:none}
+.nav-tools-menu a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-decoration:none;padding:9px 16px;display:flex;align-items:center;gap:8px;transition:all .12s}
+.nav-tools-menu a:hover{color:var(--text);background:var(--bg3)}
+.nav-tools-menu a:focus-visible{color:var(--text);background:var(--bg3);outline:2px solid var(--accent);outline-offset:-2px}

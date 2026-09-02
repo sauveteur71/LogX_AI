@@ -150,6 +150,9 @@ const CONFIG_HELP = {
 
   wsjtx_enabled: "Active la réception automatique des QSO validés dans WSJT-X (FT8/FT4) : ils apparaissent dans ton log SANS ressaisie.",
   wsjtx_port: "Le port UDP sur lequel WSJT-X diffuse ses informations — doit correspondre au réglage « UDP Server » dans WSJT-X (Réglages → Rapports), généralement 2237.",
+  eme_source: "D'où viennent les décodages Q65 affichés sur le cockpit EME : le pont UDP WSJT-X (historique, nécessite que WSJT-X tourne) ou le décodeur natif LogX (capture directement une carte son, sans WSJT-X).",
+  eme_audio_device: "Le périphérique audio d'ENTRÉE relié à la sortie audio de la radio (ou à un câble virtuel) — utilisé uniquement quand la source EME est réglée sur « LogX natif ».",
+  eme_submode: "Le sous-mode Q65 à décoder (doit correspondre au réglage côté correspondant) — utilisé uniquement en source « LogX natif », WSJT-X gérant lui-même ses sous-modes.",
   adifnet_mode: "Comment ce PC échange des QSO en réseau avec un autre logiciel (N1MM/DXLog) : recevoir seulement, envoyer seulement, ou les deux.",
   adifnet_port: "Le port UDP utilisé pour cet échange réseau ADIF.",
   adifnet_target: "L'adresse IP du PC voisin avec lequel échanger les QSO en réseau (laisser vide pour diffuser en broadcast sur tout le réseau local).",
@@ -389,7 +392,7 @@ async function askAssistant(presetQuestion){
   try{
     const helpDump = Object.entries(CONFIG_HELP).map(([id, t]) => `- ${id} : ${t}`).join('\n');
     const provider = (localStorage.getItem('logx_ai_provider') || 'anthropic');
-    const model = document.getElementById('ai_model') && document.getElementById('ai_model').value || 'claude-sonnet-4-6';
+    const model = document.getElementById('ai_model') && document.getElementById('ai_model').value || 'claude-sonnet-5';
     const system = "Tu es l'assistant intégré au formulaire de CONFIGURATION du logiciel radioamateur LogX AI. "
       + "Réponds en français, en 2 à 5 phrases MAXIMUM, avec des mots simples pour un débutant (pas de jargon "
       + "non expliqué). Voici le sens exact des champs du formulaire (ne parle QUE de ce qui existe réellement "
@@ -1087,6 +1090,7 @@ async function init() {
   majPttMethode(); // affiche le port de la ligne PTT si une ligne série est choisie
   updateCat2ModeVisibility(); // Radio 2 (SO2R)
   loadVoiceKeyerDevices();
+  loadEmeAudioDevices();
   loadDxRecord();
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
   // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
@@ -1101,6 +1105,7 @@ async function init() {
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
   _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
+  checkFirewall();   // pare-feu multi-poste (Windows) : montre le bouton/statut si pertinent
   const sotaHint = document.getElementById('sotaRedirectUriHint');
   if (sotaHint) sotaHint.textContent = `http://localhost:${window.location.port || 8080}/sota/oauth/callback`;
   refreshAccessPasswordStatus(); // Mot de passe d'accès optionnel (section RÉSEAU)
@@ -1189,6 +1194,34 @@ async function connectSota(){
   window.open('/sota/oauth/start', 'sota_oauth',
     'width=520,height=680,menubar=no,toolbar=no,location=yes');
   setTimeout(refreshSotaStatus, 4000);   // laisse le temps de finir la connexion
+}
+
+// ─── PARE-FEU MULTI-POSTE (Windows) ─────────────────────────────────────────
+// Sur un Wi-Fi « Public », le port reste bloqué en entrée même l'accès LAN
+// activé : un 2e poste ne se connecte pas. Le bouton ouvre le port (UAC) une
+// fois pour toutes ; le statut dit si c'est déjà fait. Masqué hors Windows.
+async function checkFirewall(){
+  const row = document.getElementById('firewallRow');
+  const st = document.getElementById('firewallStatus');
+  if (!row) return;
+  try {
+    const d = await (await fetch('/lan/firewall/status')).json();
+    if (!d.windows){ row.style.display = 'none'; return; }
+    row.style.display = '';
+    if (d.rule){ st.textContent = '✓ port ' + d.port + ' ouvert — les autres postes peuvent se connecter'; st.style.color = 'var(--green)'; }
+    else if (!d.lan_access){ st.textContent = 'active d\'abord l\'accès réseau (LAN) ci-dessus'; st.style.color = 'var(--muted)'; }
+    else { st.textContent = 'port ' + d.port + ' encore bloqué par le pare-feu — clique pour autoriser'; st.style.color = 'var(--yellow)'; }
+  } catch (e){ row.style.display = 'none'; }
+}
+
+async function openFirewall(){
+  const st = document.getElementById('firewallStatus');
+  if (st){ st.textContent = 'fenêtre Windows (UAC) — confirme pour autoriser…'; st.style.color = 'var(--muted)'; }
+  try {
+    const d = await (await fetch('/lan/firewall/open', { method: 'POST' })).json();
+    if (st && !d.launched){ st.textContent = 'échec : ' + (d.message || ''); st.style.color = 'var(--red)'; }
+    setTimeout(checkFirewall, 4500);   // l'UAC est asynchrone : on re-vérifie après
+  } catch (e){ if (st){ st.textContent = 'erreur réseau'; st.style.color = 'var(--red)'; } }
 }
 
 // Le bloc "À PROXIMITÉ" reste visible pour tout programme dont la base est
@@ -1426,6 +1459,64 @@ async function loadVoiceKeyerDevices(){
     if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
     if(devSel2 && cfg.voicekeyer_device2 !== undefined) devSel2.value = cfg.voicekeyer_device2;
   }catch(e){}
+}
+
+// ─── EME — décodage Q65 natif (Tâche 7, plomberie station, expert-only) ────
+// Même motif que loadVoiceKeyerDevices() ci-dessus : liste ENTRÉES audio
+// (logx_q65_natif.lister_peripheriques_entree(), pas les sorties du keyer
+// vocal) peuplée au chargement de page, valeur sauvegardée ré-appliquée une
+// fois les <option> en place.
+async function loadEmeAudioDevices(){
+  const sel = document.getElementById('eme_audio_device');
+  if(!sel) return;
+  try{
+    const r = await fetch('/eme/audio-devices');
+    if(!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    const devices = d.devices || [];
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + devices.map(x => `<option value="${x.index}">${_vkEsc(x.nom)} (${x.canaux} ch., ${x.freq_defaut} Hz)</option>`).join('');
+  }catch(e){
+    sel.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
+  }
+  try{
+    const cfg = _lireConfig();
+    if(cfg.eme && cfg.eme.audio_device !== undefined) sel.value = cfg.eme.audio_device;
+  }catch(e){}
+}
+
+// Démarre/arrête le moteur de décodage EME natif (POST /eme/moteur). L'état
+// affiché (bouton + note) reflète TOUJOURS la dernière réponse du serveur —
+// jamais un optimisme local — pour qu'un échec matériel (carte son absente)
+// reste visible plutôt que de laisser croire que le moteur tourne.
+let _emeMoteurActif = false;
+function _majBoutonEmeMoteur(){
+  const label = document.getElementById('eme_moteur_btn_label');
+  const statut = document.getElementById('eme_moteur_status');
+  if(label) label.textContent = _emeMoteurActif ? T('Arrêter') : T('Démarrer');
+  if(statut) statut.textContent = _emeMoteurActif
+    ? T('Moteur natif en cours — décodages sur la page EME')
+    : '';
+}
+async function toggleEmeMoteur(){
+  const statut = document.getElementById('eme_moteur_status');
+  const action = _emeMoteurActif ? 'stop' : 'start';
+  try{
+    const r = await fetch('/eme/moteur', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action})
+    });
+    const d = await r.json();
+    if(d.ok){
+      _emeMoteurActif = (action === 'start');
+      _majBoutonEmeMoteur();
+    }else if(statut){
+      statut.textContent = T('Erreur : ') + (d.error || T('échec inconnu'));
+    }
+  }catch(e){
+    if(statut) statut.textContent = T('Erreur réseau : impossible de joindre le serveur');
+  }
 }
 
 async function testVoiceKeyer(){
@@ -4008,7 +4099,7 @@ function copyPrompt() {
 // ─── FOURNISSEUR IA ──────────────────────────────────────────────────────────
 const AI_MODELS = {
   anthropic: [
-    {value:'claude-sonnet-4-6',        label:'Claude Sonnet 4.6 (recommandé)'},
+    {value:'claude-sonnet-5',          label:'Claude Sonnet 5 (recommandé)'},
     {value:'claude-opus-4-8',          label:'Claude Opus 4.8 (puissant)'},
     {value:'claude-haiku-4-5-20251001',label:'Claude Haiku 4.5 (rapide)'},
   ],
@@ -5121,6 +5212,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     activation_program: document.getElementById('activation_program').value,
     my_activation_ref: document.getElementById('my_activation_ref').value.trim().toUpperCase(),
     cluster_spot_enabled: document.getElementById('cluster_spot_enabled').value,
+    ia_local_only: (document.getElementById('ia_local_only') || {}).value || 'non',
+    demo_mode: (document.getElementById('demo_mode') || {}).value || 'non',
+    chaser_mode: (document.getElementById('chaser_mode') || {}).value || 'non',
     cluster_spot_host: document.getElementById('cluster_spot_host').value.trim(),
     cluster_spot_port: parseInt(document.getElementById('cluster_spot_port').value, 10) || 7300,
     wall_fields: {
@@ -5207,6 +5301,27 @@ function saveConfig(silent = false, feedbackBtn = null) {
     telemetry_endpoint: document.getElementById('telemetry_endpoint')?.value.trim() || '',
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
+    // EME natif (Q65, réception seule) : /config/save REMPLACE toute la
+    // config (voir commentaire cat_ptt_method ci-dessus) — cet objet doit
+    // donc être envoyé à CHAQUE sauvegarde, pas seulement quand ces champs
+    // changent, sinon un save ultérieur effacerait silencieusement la
+    // source/le périphérique choisis ici.
+    // Finding I1 (revue finale) : jt9_path/tr_period (concours/config.example.json)
+    // n'ont AUCUN champ dans l'UI — reconstruire l'objet avec seulement
+    // source/audio_device/submode les effaçait à CHAQUE sauvegarde, alors que
+    // jt9_path est le seul moyen d'activer le moteur natif tant que le
+    // binaire jt9 n'est pas embarqué (Tâche 8). On repart donc de l'objet eme
+    // CONNU du client (window._cfgRestauree, même mécanisme déjà utilisé plus
+    // haut pour cat_model/cat_port/amp_port/relay_port — restauré au
+    // chargement de page ou après un changement de profil, voir
+    // applyFullConfigToForm()) et on n'écrase QUE les 3 champs pilotés par
+    // l'UI, en préservant toute autre clé (jt9_path, tr_period...) telle quelle.
+    eme: {
+      ...((window._cfgRestauree && typeof window._cfgRestauree.eme === 'object') ? window._cfgRestauree.eme : {}),
+      source: document.getElementById('eme_source')?.value || 'wsjtx',
+      audio_device: (document.getElementById('eme_audio_device')?.value || ''),
+      submode: document.getElementById('eme_submode')?.value || 'A',
+    },
     adifnet_mode: document.getElementById('adifnet_mode').value,
     adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
     adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
@@ -5997,7 +6112,7 @@ function applyFullConfigToForm(c) {
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval','cloudsync_secret',
      'mysql_mode','mysql_host','mysql_port','mysql_user','mysql_password','mysql_database',
-     'rbn_enabled','clublog_live','expedition_mode',
+     'rbn_enabled','clublog_live','expedition_mode','ia_local_only','demo_mode','chaser_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
@@ -6130,6 +6245,19 @@ function applyFullConfigToForm(c) {
     if (c.amp_brand) updateAmpFieldsVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
+    // EME natif (Q65) : la carte son n'est ré-appliquée ici que si le
+    // <select> est déjà peuplé (loadEmeAudioDevices() peut ne pas avoir fini
+    // — même piège documenté pour rotor_brand/rotor_model ci-dessous) ;
+    // loadEmeAudioDevices() ré-applique lui-même la valeur une fois la
+    // liste chargée, donc aucune perte même si l'ordre s'inverse.
+    if(c.eme && typeof c.eme === 'object'){
+      const emeSrc = document.getElementById('eme_source');
+      if(emeSrc && c.eme.source) emeSrc.value = c.eme.source;
+      const emeDev = document.getElementById('eme_audio_device');
+      if(emeDev && c.eme.audio_device !== undefined) emeDev.value = c.eme.audio_device;
+      const emeSub = document.getElementById('eme_submode');
+      if(emeSub && c.eme.submode) emeSub.value = c.eme.submode;
+    }
     if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
     if(c.adifnet_port) document.getElementById('adifnet_port').value = c.adifnet_port;
     if(c.adifnet_target) document.getElementById('adifnet_target').value = c.adifnet_target;
@@ -6813,4 +6941,45 @@ async function handleContestParam(){
 // ait fini, et concluait à tort à l'absence de clé API. _initReady expose
 // la promesse pour que l'assistant puisse l'attendre sans retarder init()
 // elle-même ni le reste de la page.
+// ─── Réinitialisation de la configuration (zone dédiée du popup RÉSUMÉ) ───────
+// Réinit. DOUCE : le serveur (/config/reset) remet la config aux défauts tout en
+// CONSERVANT les identifiants (SECRET_FIELDS) et sans toucher au carnet ; côté
+// client on efface en plus les préférences d'AFFICHAGE (thème, mode, dispositions)
+// puis on recharge. Confirmation en 2 temps (le bouton révèle Oui/Annuler).
+function showConfigResetConfirm(){
+  var a = document.getElementById('cfgResetActions');
+  var c = document.getElementById('cfgResetConfirm');
+  if(a) a.style.display = 'none';
+  if(c) c.style.display = 'block';
+}
+function hideConfigResetConfirm(){
+  var a = document.getElementById('cfgResetActions');
+  var c = document.getElementById('cfgResetConfirm');
+  if(c) c.style.display = 'none';
+  if(a) a.style.display = 'block';
+}
+async function doConfigReset(btn){
+  if(btn){ btn.disabled = true; btn.textContent = 'Réinitialisation…'; }
+  try {
+    const res = await fetch('/config/reset', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirm: 'RESET'})
+    });
+    let d = {};
+    try { d = await res.json(); } catch(e) {}
+    if(!res.ok || !d.ok){ throw new Error((d && d.error) || ('HTTP ' + res.status)); }
+    // Préférences d'AFFICHAGE remises à zéro (le reste de la config est fait serveur).
+    try {
+      localStorage.removeItem('rc_theme');
+      localStorage.removeItem('rc_ui_mode');
+      localStorage.removeItem('rc_layouts');
+    } catch(e) {}
+    // Recharge : le formulaire repart des défauts, identifiants conservés côté serveur.
+    location.reload();
+  } catch(e) {
+    alert(Tf('Échec de la réinitialisation : ') + (e && e.message ? e.message : e));
+    if(btn){ btn.disabled = false; btn.textContent = 'Oui, réinitialiser'; }
+  }
+}
+
 const _initReady = init();

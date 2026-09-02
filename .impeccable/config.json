@@ -1,0 +1,102 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "docs/maquettes/tx_barre_emission.html"
+        ],
+        "createdAt": "2026-08-25T06:01:50.754Z",
+        "reason": "F4GLD design directive (CLAUDE.md) : glow sur les elements interactifs (boutons/focus) fait partie de l'identite verrouillee graphite & cuivre"
+      },
+      {
+        "rule": "overused-font",
+        "value": "fraunces",
+        "createdAt": "2026-08-25T17:57:44.493Z",
+        "reason": "Design system LogX AI verrouille (F4GLD 2026-08-03, CLAUDE.md) : Fraunces = police d'affichage des titres sur toutes les pages. Identite etablie du produit, pas un choix generique."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "concours/logx_modes_numeriques.html"
+        ],
+        "createdAt": "2026-08-25T17:57:44.603Z",
+        "reason": "border-left rouge de .ft2-warn = callout d'AVERTISSEMENT semantique (FT2 experimental), permanent par choix F4GLD ; pattern d'alerte conventionnel, pre-existant"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "docs/presentation_f6kjs.html"
+        ],
+        "createdAt": "2026-08-25T23:46:56.919Z",
+        "reason": "F4GLD: rail de progression fixed 3px isole, transition:width sans reflow - faux positif deck"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "docs/presentation_f6kjs.html"
+        ],
+        "createdAt": "2026-08-25T23:46:57.015Z",
+        "reason": "F4GLD: encart demo barre accent gauche, motif editorial preexistant du deck"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "docs/maquettes/bandeau_defilant.html"
+        ],
+        "createdAt": "2026-08-26T06:25:15.398Z",
+        "reason": "F4GLD a explicitement demande ce bandeau defilant (vu sur OERadio) ; mitigations posees : pause-survol, cliquable, prefers-reduced-motion, info ambiante seulement"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "docs/maquettes/bandeau_configurable.html"
+        ],
+        "createdAt": "2026-08-26T06:34:02.674Z",
+        "reason": "F4GLD a demande explicitement le bandeau defilant ; mitigations : pause-survol, cliquable, prefers-reduced-motion, info ambiante"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "docs/maquettes/net_control.html"
+        ],
+        "createdAt": "2026-08-26T07:59:09.090Z",
+        "reason": "Glow cuivre sur la carte AU MICRO = element actionnable central + etat live ; sanctionne par les directives design verrouillees (glow reserve aux elements interactifs/qui changent). Maquette."
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          ".claude/worktrees/bandeaux-accueil/concours/logx_accueil.html"
+        ],
+        "createdAt": "2026-08-26T08:08:27.423Z",
+        "reason": "Bandeau defilant = feature demandee par F4GLD (26/08), deja sanctionnee sur les prototypes. Mitigations : pause au survol + prefers-reduced-motion (arret total)."
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "concours/logx_accueil.html"
+        ],
+        "createdAt": "2026-08-26T08:08:43.057Z",
+        "reason": "Bandeau defilant = feature F4GLD sanctionnee ; mitigations pause survol + prefers-reduced-motion. Chemin canonique (post-merge)."
+      }
+    ]
+  },
+  "hook": {
+    "enabled": false,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  }
+}

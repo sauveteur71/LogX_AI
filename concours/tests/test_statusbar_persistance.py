@@ -183,7 +183,7 @@ def test_l_horodatage_nomme_sa_SOURCE():
 def test_l_infobulle_distingue_navigateur_et_disque():
     """C'est là que l'opérateur va chercher ce que la ligne veut dire."""
     src = _lire(BARRE)
-    m = re.search(r'<div class="rcsb-item" id="rcsbSaveItem" title="([^"]*)"', src)
+    m = re.search(r'<div class="rcsb-item[^"]*" id="rcsbSaveItem" title="([^"]*)"', src)
     assert m, 'infobulle introuvable'
     t = m.group(1).lower()
     assert 'navigateur' in t and 'disque' in t, (

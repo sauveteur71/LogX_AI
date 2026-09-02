@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — Écran mural d'expédition</title>
 <link rel="stylesheet" href="logx_theme.css">
+<script src="logx_theme_guard.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@400;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 /* DIRECTION GRAPHITE & CUIVRE : --accent/--accent2 pointent sur LA MÊME
@@ -480,7 +481,9 @@ if(localStorage.getItem('rc_theme') === null){
   function wallTileConfig(){
     const day = document.body.classList.contains('day-mode');
     if(day) return {url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc'};
-    return {url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd'};
+    // Fond sombre SANS CLÉ (Esri Dark Gray) — CARTO dark_all filigrane désormais
+    // sans clé. Ordre d'URL {z}/{y}/{x}.
+    return {url:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', sub:''};
   }
 
   // Fond de tuiles jour/nuit — extrait d'initWallMap() pour pouvoir être
@@ -496,7 +499,7 @@ if(localStorage.getItem('rc_theme') === null){
     const tile = wallTileConfig();
     wallTile = L.tileLayer(tile.url, {
       subdomains:tile.sub, maxZoom:8,
-      attribution:'© OpenStreetMap / CARTO',
+      attribution:'© Esri, HERE, Garmin © OpenStreetMap',
     }).addTo(wallMap);
   }
 

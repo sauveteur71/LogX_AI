@@ -64,9 +64,40 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install --upgrade pyinstaller
 
+      # jt9 (WSJT-X) recupere ICI, AVANT le build : logx.spec embarque le
+      # contenu de vendor/jt9/ dans l'executable (decodage Q65 natif hors-ligne
+      # sans WSJT-X installe cote utilisateur). Voir .github/actions/fetch-jt9.
+      - name: Recuperer jt9 (embarque dans la release)
+        uses: ./.github/actions/fetch-jt9
+
+      # Temoin vert SUR LA PLATEFORME CIBLE : le jt9 vendorise decode-t-il
+      # reellement l'echantillon EME de reference ? Fait echouer la release si
+      # le fetch/les dependances runtime sont casses sur cet OS.
+      - name: Verifier le decodage jt9 vendorise
+        working-directory: concours
+        shell: bash
+        run: |
+          python -m pip install --upgrade pytest
+          python -m pytest tests/test_q65_natif.py -v
+
       - name: Construction PyInstaller
         working-directory: concours
         run: python -m PyInstaller --noconfirm --clean logx.spec
+
+      # Auto-test du jt9 EMBARQUE dans l'exe GELE : preuve bout-en-bout que
+      # jt9 + ses dependances survivent au gel (UPX, resolution _MEIPASS,
+      # @executable_path/LD_LIBRARY_PATH). Fait echouer la release si l'exe
+      # construit ne decode pas les 3 stations EME du fixture. Chemin wav
+      # ABSOLU : bootstrap() bascule le cwd en mode gele.
+      - name: Auto-test jt9 dans l'exe gele
+        working-directory: concours
+        shell: bash
+        run: |
+          exe="dist/LogXAI"; [ -f dist/LogXAI.exe ] && exe="dist/LogXAI.exe"
+          out="$("$exe" --selftest-jt9 "$PWD/tests/fixtures/q65_60A_eme_6m.wav")"
+          echo "$out"
+          echo "$out" | grep -q "SELFTEST-JT9 calls=\['N8JX', 'VE1JF', 'W1VD'\]" \
+            || { echo "ECHEC: l'exe gele ne decode pas le fixture comme attendu"; exit 1; }
 
       # Resolu une seule fois, meme repli que l'etape d'attachement ci-dessous :
       # github.ref_name est le tag pousse (push tag v*), mais vaudrait le nom

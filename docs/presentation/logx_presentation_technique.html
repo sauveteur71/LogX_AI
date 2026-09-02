@@ -1,0 +1,197 @@
+<title>LogX AI — architecture & garde-fous (technique)</title>
+<style>
+  :root{
+    --bg:#101114;--bg2:#181A1E;--bg3:#20232A;--border:#31343B;--border-2:#474b54;
+    --accent:#E8964A;--accent-2:#F2AE6A;--accent-rgb:232,150,74;
+    --text:#E7EAF2;--muted:#9BA3B8;--green:#35D6A0;--red:#FF6B6B;--yellow:#FFD166;--blue:#6AA9FF;
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --font-display:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --maxw:1080px;
+  }
+  @media (prefers-color-scheme:light){:root{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;--accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#655C4D;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;--blue:#245C9E;}}
+  :root[data-theme="dark"]{--bg:#101114;--bg2:#181A1E;--bg3:#20232A;--border:#31343B;--border-2:#474b54;--accent:#E8964A;--accent-2:#F2AE6A;--accent-rgb:232,150,74;--text:#E7EAF2;--muted:#9BA3B8;--green:#35D6A0;--red:#FF6B6B;--yellow:#FFD166;--blue:#6AA9FF;}
+  :root[data-theme="light"]{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;--accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#655C4D;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;--blue:#245C9E;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);line-height:1.62;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h1,h2,h3{font-family:var(--font-display);font-weight:700;letter-spacing:.2px;text-wrap:balance;margin:0}
+  code,.m{font-family:var(--font-mono)}
+  p{text-wrap:pretty}
+  a{color:var(--accent)}
+  .hero{position:relative;padding:104px 0 74px;border-bottom:1px solid var(--border);overflow:hidden;
+    background:radial-gradient(120% 80% at 85% 0%,rgba(var(--accent-rgb),.12),transparent 55%)}
+  .hero::before{content:"";position:absolute;inset:0;opacity:.5;background-image:
+    linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+    background-size:44px 44px;mask-image:linear-gradient(180deg,rgba(0,0,0,.5),transparent 70%)}
+  .hero .wrap{position:relative;z-index:2}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}
+  .logo{width:36px;height:36px;border:1px solid var(--accent);border-radius:9px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.1)}
+  .brand b{font-family:var(--font-mono);letter-spacing:2px;font-size:15px}
+  .brand span{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:2px}
+  .hero h1{font-size:clamp(34px,5.6vw,60px);line-height:1.06}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .lede{font-size:clamp(16px,1.9vw,20px);color:var(--muted);max-width:66ch;margin:22px 0 0}
+  section{padding:70px 0;border-bottom:1px solid var(--border)}
+  .sec-head{max-width:70ch;margin-bottom:38px}
+  .sec-head h2{font-size:clamp(25px,3.4vw,37px);line-height:1.14}
+  .sec-head p{color:var(--muted);font-size:16.5px;margin:13px 0 0}
+  .alt{background:linear-gradient(180deg,var(--bg2),var(--bg))}
+
+  /* architecture diagram */
+  .arch{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .lane{border:1px solid var(--border);border-radius:14px;background:var(--bg2);padding:22px}
+  .lane.det{border-color:rgba(53,214,160,.4)}
+  .lane.llm{border-color:rgba(var(--accent-rgb),.45)}
+  .lane .h{font-family:var(--font-mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .lane.det .h{color:var(--green)} .lane.llm .h{color:var(--accent)}
+  .lane .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .chip{display:inline-block;font-family:var(--font-mono);font-size:12px;border:1px solid var(--border-2);border-radius:7px;padding:6px 10px;margin:0 6px 8px 0;background:var(--bg3)}
+  .lane.det .chip{border-color:rgba(53,214,160,.3)} .lane.llm .chip{border-color:rgba(var(--accent-rgb),.3)}
+  .bridge{grid-column:1/-1;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:13px;border:1px dashed var(--border-2);border-radius:12px;padding:14px}
+  .bridge b{color:var(--text)}
+
+  /* consent card + code */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+  pre{margin:0;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;overflow-x:auto;font-family:var(--font-mono);font-size:13px;line-height:1.7;color:var(--muted)}
+  pre .k{color:var(--accent)} pre .g{color:var(--green)} pre .r{color:var(--red)} pre .c{color:var(--muted);opacity:.7}
+  .facts{list-style:none;padding:0;margin:0}
+  .facts li{position:relative;padding-left:26px;margin:14px 0;color:var(--muted)}
+  .facts li b{color:var(--text)}
+  .facts li::before{content:"";position:absolute;left:0;top:8px;width:10px;height:10px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+
+  /* invariants table */
+  .tbl{width:100%;border-collapse:collapse;font-size:14.5px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .tbl th,.tbl td{text-align:left;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .tbl th{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--bg2)}
+  .tbl td:first-child{font-family:var(--font-mono);color:var(--accent);white-space:nowrap}
+  .tbl td b{color:var(--text)} .tbl td span{color:var(--muted)}
+  .tbl tr:last-child td{border-bottom:0}
+  .ok{color:var(--green);font-family:var(--font-mono);font-weight:700}
+  .tblwrap{overflow-x:auto}
+
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{border:1px solid var(--border);background:var(--bg2);border-radius:14px;padding:24px}
+  .card .n{font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--accent)}
+  .card h3{font-size:19px;margin:12px 0 8px}
+  .card p{color:var(--muted);font-size:14.5px;margin:0}
+  .card code{color:var(--text);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:12.5px}
+
+  .close{background:linear-gradient(180deg,var(--bg),var(--bg2));border-bottom:0}
+  .close h2{font-size:clamp(26px,3.8vw,40px)}
+  .close p{color:var(--muted);max-width:70ch;margin:16px 0 0;font-size:16.5px}
+  .foot{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px;padding:26px 0;text-align:center}
+  .theme-btn{position:fixed;top:16px;right:16px;z-index:20;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;background:var(--bg2);color:var(--muted);border:1px solid var(--border);border-radius:100px;padding:8px 13px;cursor:pointer}
+  .theme-btn:hover{color:var(--accent);border-color:var(--accent)}
+  @media (max-width:820px){.arch,.two,.grid3{grid-template-columns:1fr}}
+</style>
+
+<button class="theme-btn" onclick="(function(){var r=document.documentElement;var d=(r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark'?'light':'dark';r.setAttribute('data-theme',d);})()">◑ thème</button>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round"><path d="M4 15a8 8 0 0 1 16 0"/><path d="M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="15" r="1.6" fill="var(--accent)" stroke="none"/><line x1="12" y1="15" x2="12" y2="4"/></svg></span>
+      <div><b>LogX&nbsp;AI</b><br><span>ARCHITECTURE · GARDE-FOUS</span></div>
+    </div>
+    <p class="eyebrow">Comment on met une IA dans une station radio sans lui donner le PTT</p>
+    <h1>Déterministe d'abord. LLM en appoint. <em>Émission = geste humain.</em></h1>
+    <p class="lede">LogX AI sépare strictement ce qui <b style="color:var(--text)">calcule</b> (100 % local, hors-ligne, sans LLM) de ce que le LLM ajoute (de la prose et des <b style="color:var(--text)">propositions</b>). Aucun chemin IA n'écrit un QSO ni ne déclenche une émission RF — et c'est <b style="color:var(--text)">verrouillé par des tests d'invariants</b>.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Le principe fondateur</p>
+      <h2>Deux couches, une frontière nette.</h2>
+      <p>Tout ce qui touche à une décision opérationnelle (coach, scoring, plan de bande, propagation, validation, enrichissement, distances, priorités diplômes) est déterministe et sans réseau. Le LLM n'ajoute que du langage et des suggestions — il n'exécute rien.</p>
+    </div>
+    <div class="arch">
+      <div class="lane det">
+        <div class="h">Déterministe · hors-ligne</div>
+        <div class="sub">Fonctions pures, sourcées, testées. Aucun jeton dépensé.</div>
+        <span class="chip">Validation du log</span><span class="chip">Scoring concours</span><span class="chip">Priorité chasse</span><span class="chip">DXCC / diplômes</span><span class="chip">Distances / azimut</span><span class="chip">Enrichissement cty.dat</span><span class="chip">Coach trafic</span>
+      </div>
+      <div class="lane llm">
+        <div class="h">LLM · propose-only</div>
+        <div class="sub">Prose + propositions. BYOK multi-fournisseur. Sorties structurées.</div>
+        <span class="chip">Chat expert</span><span class="chip">Stratégie pile-up</span><span class="chip">Audit du log</span><span class="chip">Analyse de règlement</span><span class="chip">Plan de session</span><span class="chip">Actions proposées (tool-use)</span>
+      </div>
+      <div class="bridge">Le LLM produit une <b>intention structurée</b> → le serveur la valide (bornes, whitelist d'outils) → l'action reste une <b>proposition</b> que l'opérateur clique. Jamais d'exécution automatique, jamais de boucle agentique.</div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Le joyau</p>
+      <h2>Consentement d'émission : jeton unique, fail-closed.</h2>
+      <p>Une autorisation d'émettre est un jeton à usage unique, à expiration rapide, invalidé au moindre changement radio, relu contre l'état CAT réel juste avant le PTT. « Stop TX » annule tout et pose un verrou jusqu'à réarmement humain explicite.</p>
+    </div>
+    <div class="two">
+      <pre aria-label="Pseudo-code du contrôle d'autorisation"><span class="c"># juste avant le PTT — contrôle fail-closed</span>
+<span class="k">def</span> authorize_transmission(consent, radio):
+    <span class="k">if not</span> consent.is_valid():        <span class="c"># unique · 30 s · non annulé</span>
+        <span class="r">raise</span> PermissionError
+    <span class="k">if not</span> radio.cat_connected:       <span class="r">raise</span> ConnectionError
+    <span class="k">if</span> radio.ptt_locked:             <span class="r">raise</span> PermissionError  <span class="c"># Stop TX</span>
+    <span class="k">if</span> radio.freq  != consent.freq:  <span class="r">raise</span> PermissionError
+    <span class="k">if</span> radio.mode  != consent.mode:  <span class="r">raise</span> PermissionError
+    <span class="k">if</span> radio.power &gt; max_power:      <span class="r">raise</span> PermissionError
+    consent.used = <span class="g">True</span>              <span class="c"># consommé, une seule fois</span>
+    <span class="k">return</span> audit_entry(consent)      <span class="c"># tracé UTC · jeton jamais en clair</span></pre>
+      <div>
+        <ul class="facts">
+          <li><b>Usage unique</b> — le jeton est consommé et retiré du registre.</li>
+          <li><b>Empreinte du message</b> — SHA-256 gravée dans l'audit ; un caractère changé invalide.</li>
+          <li><b>Stop TX</b> — annule tous les consentements et verrouille jusqu'au réarmement humain.</li>
+          <li><b>Journal d'audit</b> — horodaté UTC, borné ; le jeton n'est jamais journalisé en clair.</li>
+          <li><b>Mode local</b> — un interrupteur coupe tout appel réseau IA : zéro crédit, moteurs déterministes intacts.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Vérifié, pas promis</p>
+      <h2>Les invariants critiques sont verrouillés par des tests.</h2>
+      <p>Une suite d'évals de bout en bout exerce les vrais endpoints et prouve, à chaque CI, qu'aucun chemin interdit ne s'ouvre. Chaque test est confirmé non-vacant par contre-épreuve de mutation.</p>
+    </div>
+    <div class="tblwrap"><table class="tbl">
+      <thead><tr><th>Invariant</th><th>Garantie</th><th>Statut</th></tr></thead>
+      <tbody>
+        <tr><td>I1</td><td><b>0 émission sans consentement</b> <span>— garde-fou mode/bande + jeton relu contre la radio réelle</span></td><td class="ok">✓ testé</td></tr>
+        <tr><td>I2</td><td><b>0 écriture QSO par le LLM</b> <span>— l'agent propose, il n'appelle jamais l'écriture du carnet</span></td><td class="ok">✓ testé</td></tr>
+        <tr><td>I3</td><td><b>0 faux crédit de diplôme</b> <span>— crédit déterministe, sourcé ; une source « IA » ne crédite jamais</span></td><td class="ok">✓ testé</td></tr>
+        <tr><td>I4</td><td><b>0 action aberrante exécutée</b> <span>— valeurs hors-bornes rejetées côté serveur</span></td><td class="ok">✓ testé</td></tr>
+        <tr><td>I5</td><td><b>Jeton jamais journalisé en clair</b> <span>— confidentialité de l'audit d'émission</span></td><td class="ok">✓ testé</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow">Le reste de la pile</p><h2>BYOK, autonomie, et une méthode.</h2></div>
+    <div class="grid3">
+      <div class="card"><div class="n">MULTI-FOURNISSEUR</div><h3>BYOK, config-first</h3><p>Anthropic, OpenAI, Gemini, Mistral, xAI, DeepSeek — clé fournie par l'opérateur. Le modèle est imposé par la config, jamais par la page. Sorties structurées (JSON forcé) pour l'audit et l'analyse de règlement.</p></div>
+      <div class="card"><div class="n">AUTONOMIE</div><h3>Zone blanche</h3><p>Le cœur fonctionne sans réseau : dégradation gracieuse vers des réponses <code>déterministes</code> quand l'IA est indisponible. Anti-injection sur les sources externes (cluster, PDF), garde SSRF sur les fetchs.</p></div>
+      <div class="card"><div class="n">MÉTHODE</div><h3>TDD + mutation</h3><p>Chaque correctif part d'un test qui <code>rougit</code>, puis on remet le défaut pour confirmer que le test le détecte (contre-épreuve). Revues adversariales. « Un test vert du premier coup ne prouve rien. »</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <p class="eyebrow">LogX AI</p>
+    <h2>Une IA utile parce qu'elle est bornée.</h2>
+    <p>La bonne évolution n'était pas d'autoriser l'IA à agir davantage, mais de rendre chaque proposition explicable, sourcée, rejouable, testable et révocable. C'est ce cadre qui rend l'IA digne de confiance dans un contexte où une émission a des conséquences réelles — réglementaires et physiques.</p>
+  </div>
+</section>
+<div class="foot">LogX AI · architecture & garde-fous · déterministe d'abord, LLM en appoint, émission = geste humain</div>

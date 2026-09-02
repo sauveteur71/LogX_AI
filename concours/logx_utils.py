@@ -83,12 +83,20 @@ OPENAI_COMPATIBLE_ENDPOINTS = {
 # n'en porte aucune. Les deux fournisseurs au format propre ne sont pas dans
 # OPENAI_COMPATIBLE_ENDPOINTS, d'où cette table qui les couvre tous.
 MODELE_DEFAUT = {
-    'anthropic': 'claude-sonnet-4-6',
+    'anthropic': 'claude-sonnet-5',
     'gemini':    'gemini-2.0-flash',
     'openai':    OPENAI_COMPATIBLE_ENDPOINTS['openai'][1],
     'mistral':   OPENAI_COMPATIBLE_ENDPOINTS['mistral'][1],
     'xai':       OPENAI_COMPATIBLE_ENDPOINTS['xai'][1],
     'deepseek':  OPENAI_COMPATIBLE_ENDPOINTS['deepseek'][1],
+}
+
+# Modèles renommés/retirés côté fournisseur : on remappe un ID périmé encore
+# présent dans une config ENREGISTRÉE vers l'ID courant, sinon l'API le refuse
+# (400). 'claude-sonnet-4-6' n'a jamais existé chez Anthropic — le Sonnet est
+# 'claude-sonnet-5'. Étendre ici si un autre modèle est retiré.
+MODELE_ALIAS = {
+    'claude-sonnet-4-6': 'claude-sonnet-5',
 }
 
 # À quoi ressemble un nom de modèle chez chaque fournisseur. Ne sert QU'À
@@ -124,13 +132,17 @@ def modele_effectif(provider, demande=None, configure=None):
     p = (provider or 'anthropic').strip().lower()
     conf = (configure or '').strip()
     dem = (demande or '').strip()
+    chosen = None
     if dem:
         prefixes = FAMILLES_MODELE.get(p)
         # Fournisseur inconnu de la table : on ne peut rien affirmer, on laisse
         # passer plutôt que d'imposer un défaut qui serait tout aussi arbitraire.
         if prefixes is None or dem.lower().startswith(prefixes):
-            return dem
-    return conf or MODELE_DEFAUT.get(p, MODELE_DEFAUT['anthropic'])
+            chosen = dem
+    if chosen is None:
+        chosen = conf or MODELE_DEFAUT.get(p, MODELE_DEFAUT['anthropic'])
+    # Auto-répare un ID périmé (défaut, config enregistrée OU demande interne).
+    return MODELE_ALIAS.get(chosen, chosen)
 
 
 
@@ -196,7 +208,7 @@ def _dec_fetch_pending(gen):
             _FETCH_PENDING = max(0, _FETCH_PENDING - 1)
 
 
-def fetch_url(url, timeout=10, log_url=True):
+def fetch_url(url, timeout=10, log_url=True, user_agent=None):
     """Requête HTTP(S) réellement bornée dans le temps.
 
     urlopen(timeout=...) ne couvre PAS la résolution DNS : socket.create_connection()
@@ -217,8 +229,10 @@ def fetch_url(url, timeout=10, log_url=True):
     def _do():
         if not url.lower().startswith(('http://', 'https://')):
             raise ValueError('schéma non autorisé')
+        # user_agent explicite (ex. requêtes SOTA identifiées par indicatif) ou
+        # repli générique historique.
         req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
+            'User-Agent': user_agent or 'Mozilla/5.0 (compatible; LogXAI/2.0)',
         })
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'

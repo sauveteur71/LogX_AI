@@ -141,8 +141,13 @@ def _parse_adif_records(text):
             continue
         length = int(m.group(2))
         start = m.end()
-        cur[name] = text[start:start + length].strip()
-        i = start + length
+        # La longueur ADIF est en OCTETS UTF-8 (cf. _adif_field côté export) :
+        # on tranche donc sur les octets, sinon un champ accentué (« café » = 4
+        # caractères mais 5 octets) décalerait toute la suite du record. errors=
+        # 'replace' : une longueur malformée dégrade au lieu de planter.
+        seg = text[start:].encode('utf-8')[:length].decode('utf-8', errors='replace')
+        cur[name] = seg.strip()
+        i = start + len(seg)
     if cur:
         records.append(cur)
     return records

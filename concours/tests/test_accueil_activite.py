@@ -79,14 +79,19 @@ def test_choisir_vuhf_redirige_vers_logbook_si_concours_deja_actif():
     assert ctx.eval('__redirected') == 'logx_logbook.html'
 
 
-def test_deuxieme_visite_redirige_directement_sans_montrer_la_grille():
-    """Résumé en un geste : l'activité déjà choisie ne doit plus jamais
-    ralentir l'habitué avec la grille de tuiles."""
+def test_deuxieme_visite_montre_le_cockpit_et_un_bouton_reprendre():
+    """Décision F4GLD (28/08) : plus de redirection AUTOMATIQUE. La 2e visite
+    affiche le cockpit + un bouton « Reprendre » (retour en UN clic, aucun
+    allongement du chemin quotidien) ; c'est LE BOUTON qui redirige, pas la page."""
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval("localStorage.setItem('logx_activity', 'vuhf');")
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
+    assert ctx.eval('__redirected') is None                     # pas de redirection AUTO
+    html = ctx.eval("document.getElementById('intro').innerHTML")
+    assert 'reprendre-btn' in html and 'activity-grid' in html  # bouton Reprendre + grille présents
+    ctx.eval("_reprendre();")                                    # le clic Reprendre, lui, redirige
     assert ctx.eval('__redirected') == 'logx_configuration.html'
 
 

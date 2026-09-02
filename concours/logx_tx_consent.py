@@ -17,12 +17,21 @@ Portée volontaire : « émission unique » uniquement. La « session limitée �
 (FT8 semi-auto) viendra plus tard, après tests approfondis (désactivée par défaut).
 """
 import datetime
+import hashlib
 import threading
 from collections import deque
 from dataclasses import dataclass, field
 from uuid import uuid4
 
 _UTC = datetime.timezone.utc
+
+
+def empreinte_message(message) -> str:
+    """SHA-256 (hex) du message d'émission. Gravée dans le journal d'audit : elle
+    prouve EXACTEMENT ce qui a été autorisé+émis (un caractère changé donne une
+    empreinte différente) sans stocker deux fois le texte. Additive : ne change
+    rien à l'émission elle-même."""
+    return hashlib.sha256(str(message or '').encode('utf-8')).hexdigest()
 
 # Durée de vie d'un consentement (secondes). Court exprès : l'humain vient de
 # cliquer « Émettre maintenant », l'émission doit suivre immédiatement.
@@ -212,6 +221,7 @@ def journal_copilote_emission(details) -> dict:
         'frequency_hz': d.get('frequency_hz'),
         'mode': str(d.get('mode') or ''),
         'message': str(d.get('message') or ''),
+        'message_sha256': empreinte_message(d.get('message')),
         'declencheur': decl,
         # Traçabilité : au niveau copilote_auto l'IA a déclenché après un délai ;
         # au niveau copilote c'est le geste ÉMETTRE. Dans les DEUX cas un humain a
@@ -287,13 +297,18 @@ def _radio_val(radio_state, cle):
     return getattr(radio_state, cle, None)
 
 
-def authorize_transmission(consent, radio_state, ptt_method=None, now=None) -> dict:
+def authorize_transmission(consent, radio_state, ptt_method=None, now=None,
+                           max_power_w=None) -> dict:
     """Contrôle FINAL juste avant PTT : relit l'état radio RÉEL et le compare au
     jeton. Lève PermissionError / ConnectionError si quoi que ce soit cloche,
     sinon CONSOMME le jeton (usage unique) et retourne l'entrée de JOURNAL D'AUDIT.
 
     `radio_state` : dict ou objet exposant frequency_hz, mode, power_w,
-    ptt_locked, cat_connected — l'état FRAIS du poste, relu du CAT."""
+    ptt_locked, cat_connected — l'état FRAIS du poste, relu du CAT.
+
+    `max_power_w` (optionnel) : plafond de puissance. Au-delà, l'autorisation est
+    REFUSÉE (jeton NON consommé). None (défaut) -> aucun plafond -> comportement
+    inchangé. Garde-fou anti-sur-puissance accidentelle, sans changer l'émission."""
     now = now or _now()
     if not consent.is_valid(now=now):
         raise PermissionError("Autorisation TX absente, utilisée, annulée ou expirée")
@@ -307,6 +322,17 @@ def authorize_transmission(consent, radio_state, ptt_method=None, now=None) -> d
         raise PermissionError("Mode radio modifié depuis l'autorisation")
     if _radio_val(radio_state, 'power_w') != consent.power_w:
         raise PermissionError("Puissance TX modifiée depuis l'autorisation")
+    if max_power_w is not None:
+        # Parse DÉFENSIF : un plafond illisible (config malformée) revient à
+        # « pas de plafond » plutôt que de faire planter l'autorisation (fail-open
+        # sur ce garde-fou OPTIONNEL — les barrières primaires restent intactes).
+        try:
+            cap = float(max_power_w)
+        except (TypeError, ValueError):
+            cap = None
+        if cap is not None and consent.power_w > cap:
+            raise PermissionError(
+                f"Puissance {consent.power_w} W au-dessus du plafond configuré ({cap} W)")
     # OK : consommé une fois pour toutes, retiré du registre, journalisé.
     consent.used = True
     with _lock:
@@ -325,6 +351,7 @@ def _audit_entry(consent, ptt_method, now) -> dict:
         'mode': consent.mode,
         'power_w': consent.power_w,
         'message': consent.message,
+        'message_sha256': empreinte_message(consent.message),
         'ptt_method': ptt_method,
         'consent_token': 'redacted',
         'consent_mode': consent.consent_mode,

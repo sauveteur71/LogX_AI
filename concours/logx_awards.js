@@ -114,20 +114,47 @@ function _awardsVuccBandesHtml(perBand){
 }
 
 // ─── DIPLÔMES & QSL (carnet permanent, tous concours) ────────────────────────
+// Résumé À VIE des activations/chasses par programme (POTA/SOTA/... — données
+// logx_activation.activation_summary). Références uniques activées (ma réf) et
+// chassées (réf de l'activateur d'en face). Le détail des réf est en title.
+const _ACT_NOMS = {POTA:'🏞️ POTA', SOTA:'⛰️ SOTA', IOTA:'🏝️ IOTA', WWFF:'🌲 WWFF',
+                   GMA:'🗻 GMA', WCA:'🏰 WCA', ARLHS:'🗼 ARLHS', ILLW:'🚨 ILLW',
+                   WWBOTA:'🛡️ WWBOTA'};
+function renderActivationSummary(s){
+  const progs = Object.keys(s || {}).sort();
+  if(!progs.length){
+    return `<div style="color:var(--muted);font-size:12px">Aucune activation ni chasse `
+      + `enregistrée. Renseigne la référence à l'activation (POTA/SOTA…), ou importe un `
+      + `ADIF portant les champs SIG/MY_SIG.</div>`;
+  }
+  const s1 = n => n > 1 ? 's' : '';
+  return progs.map(p => {
+    const d = s[p];
+    const tip = [];
+    if(d.activated) tip.push('Activés : ' + (d.activated_refs||[]).join(', '));
+    if(d.hunted) tip.push('Chassés : ' + (d.hunted_refs||[]).join(', '));
+    return `<div style="display:flex;justify-content:space-between;padding:4px 0" title="${escHtml(tip.join('  |  '))}">`
+      + `<span>${_ACT_NOMS[p] || p}</span>`
+      + `<b>${d.activated} activé${s1(d.activated)} · `
+      + `<span style="color:var(--green)">${d.hunted} chassé${s1(d.hunted)}</span></b></div>`;
+  }).join('');
+}
+
 async function showAwards(){
   const ov = document.getElementById('awardsOverlay');
   const inner = document.getElementById('awardsInner');
   if(!ov || !inner) return;
   ov.classList.add('show');
   inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Calcul des diplômes…</span></div>';
-  let a, q, m, dxr, act;
+  let a, q, m, dxr, act, actsum;
   try{
-    [a, q, m, dxr, act] = await Promise.all([
+    [a, q, m, dxr, act, actsum] = await Promise.all([
       fetch('/awards/summary').then(r=>r.json()),
       fetch('/qsl/status').then(r=>r.json()),
       fetch('/awards/matrix').then(r=>r.json()),
       fetch('/data/dx_records').then(r=>r.json()),
       fetch('/awards/activity?days=21').then(r=>r.json()),
+      fetch('/activation/summary').then(r=>r.json()),
     ]);
   }catch(e){
     inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ Serveur injoignable</span></div>`;
@@ -198,6 +225,10 @@ async function showAwards(){
       ${dep.missing && dep.missing.length ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Départements manquants : ${dep.missing.join(', ')}${dep.missing.length>=40?'…':''}</div>` : ''}
     </div>
     ${diplomesHtml}
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🏕️ ACTIVATIONS — activés / chassés par programme (à vie)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">${renderActivationSummary(actsum)}</div>
+    </div>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🧮 WORKED MATRIX — bande × mode</div>
       ${matrixHtml}

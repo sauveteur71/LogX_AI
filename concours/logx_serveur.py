@@ -58,6 +58,28 @@ import logx_singleton
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
 
+    # ─── AUTO-TEST DU jt9 EMBARQUÉ (exécutable GELÉ) ──────────────────────────
+    # « LogXAI --selftest-jt9 <fichier.wav> » décode le wav avec le binaire jt9
+    # vendorisé — résolu dans _MEIPASS (PyInstaller) — puis imprime les
+    # indicatifs et quitte, SANS démarrer le serveur ni toucher au port. But :
+    # prouver en CI (build-release) que jt9 + ses dépendances survivent au gel
+    # (UPX, @executable_path/LD_LIBRARY_PATH…), ce que verify-jt9 (non gelé) ne
+    # couvre pas. Chemin de diagnostic pur, jamais un usage opérateur. Placé en
+    # TOUT PREMIER, avant le verrou d'instance (aucune liaison de port).
+    if '--selftest-jt9' in sys.argv:
+        _i = sys.argv.index('--selftest-jt9')
+        _wav = sys.argv[_i + 1] if _i + 1 < len(sys.argv) else ''
+        try:
+            import logx_q65_natif as _q65
+            _dec = _q65.decoder_wav(_wav, submode='A', tr_period=60,
+                                    freq_mhz=50.313, band='6m')
+            _calls = sorted(x['call'] for x in _dec)
+        except Exception as _e:  # noqa: BLE001 — on veut la raison en clair en CI
+            print('SELFTEST-JT9 ERREUR: %r' % _e)
+            sys.exit(3)
+        print('SELFTEST-JT9 calls=%r' % _calls)
+        sys.exit(0 if _calls else 2)
+
     def _abandonner(message, code=1):
         """Affiche l'explication puis termine, sans traceback Python.
         En mode figé, garde la fenêtre console ouverte : Windows la referme
@@ -92,6 +114,18 @@ if __name__ == '__main__':
     # déjà chargé ici, avant même le premier print de ce démarrage.
     import logx_http as http_mod
     bind_host = '0.0.0.0' if http_mod.current_config.get('lan_access') else '127.0.0.1'
+
+    # Accès LAN activé : ouvre le port dans le pare-feu Windows (best-effort, en
+    # tâche de fond) pour que les AUTRES postes se connectent sans que l'opérateur
+    # bricole les réglages Windows — le blocage classique quand le Wi-Fi est
+    # classé « Public » (cf. logx_firewall). Silencieux si pas d'admin ; la page
+    # CONFIG offre alors un bouton « autoriser » avec élévation.
+    if bind_host == '0.0.0.0':
+        try:
+            import logx_firewall
+            threading.Thread(target=logx_firewall.ensure_at_startup, args=(PORT,), daemon=True).start()
+        except Exception:  # noqa: BLE001
+            pass
 
     # extra_hosts=[IP LAN] : la détection « port partagé sans risque » ne
     # vérifie sinon que 127.0.0.1, jamais l'adresse réellement annoncée aux

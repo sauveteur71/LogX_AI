@@ -1,0 +1,167 @@
+<title>LogX AI — l'assistant intelligent du radioamateur</title>
+<style>
+  :root{
+    --bg:#131417;--bg2:#1B1D21;--bg3:#232529;--border:#34363A;--border-2:#4a4d54;
+    --accent:#E8964A;--accent-2:#F2AE6A;--accent-rgb:232,150,74;
+    --text:#EAEDF5;--muted:#A6ADC2;--green:#35D6A0;--red:#FF6B6B;--yellow:#FFD166;
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --font-display:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --maxw:1060px;
+  }
+  @media (prefers-color-scheme:light){:root{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;--accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#6A6152;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;}}
+  :root[data-theme="dark"]{--bg:#131417;--bg2:#1B1D21;--bg3:#232529;--border:#34363A;--border-2:#4a4d54;--accent:#E8964A;--accent-2:#F2AE6A;--accent-rgb:232,150,74;--text:#EAEDF5;--muted:#A6ADC2;--green:#35D6A0;--red:#FF6B6B;--yellow:#FFD166;}
+  :root[data-theme="light"]{--bg:#ECEAE1;--bg2:#F6F3EB;--bg3:#E4DFD1;--border:#CFC8B4;--border-2:#b3aa92;--accent:#8B4F1F;--accent-2:#A5631F;--accent-rgb:139,79,31;--text:#23211C;--muted:#6A6152;--green:#0B7A55;--red:#B3402F;--yellow:#8A6A15;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h1,h2,h3{font-family:var(--font-display);font-weight:700;letter-spacing:.2px;text-wrap:balance;margin:0}
+  p{text-wrap:pretty}
+  a{color:var(--accent)}
+  .hero{position:relative;min-height:88vh;display:flex;align-items:center;border-bottom:1px solid var(--border);overflow:hidden}
+  #spectrum{position:absolute;inset:0;width:100%;height:100%;opacity:.45}
+  .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 22% 14%,rgba(var(--accent-rgb),.16),transparent 55%),linear-gradient(180deg,transparent 42%,var(--bg) 96%)}
+  .hero .wrap{position:relative;z-index:2;padding:70px 22px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+  .logo{width:38px;height:38px;border:1px solid var(--accent);border-radius:9px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.1)}
+  .brand b{font-family:var(--font-mono);letter-spacing:2px;font-size:15px}
+  .brand span{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:2px}
+  .hero h1{font-size:clamp(36px,6.2vw,68px);line-height:1.05}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .lede{font-size:clamp(17px,2.1vw,21px);color:var(--muted);max-width:62ch;margin:22px 0 30px}
+  .pills{display:flex;flex-wrap:wrap;gap:9px}
+  .pill{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border-2);border-radius:100px;padding:7px 14px;background:rgba(255,255,255,.02)}
+  .pill b{color:var(--accent)}
+  section{padding:74px 0;border-bottom:1px solid var(--border)}
+  .sec-head{max-width:66ch;margin-bottom:42px}
+  .sec-head h2{font-size:clamp(27px,3.7vw,40px);line-height:1.12}
+  .sec-head p{color:var(--muted);font-size:17px;margin:14px 0 0}
+  .alt{background:linear-gradient(180deg,var(--bg2),var(--bg))}
+  .qa{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .qa .box{border:1px solid var(--border);background:var(--bg2);border-radius:14px;padding:26px}
+  .qa .box .q{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:10px}
+  .qa .box h3{font-size:21px;margin-bottom:8px}
+  .qa .box p{color:var(--muted);font-size:15.5px;margin:0}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .num{border:1px solid var(--border);background:var(--bg2);border-radius:14px;padding:26px}
+  .num .n{font-family:var(--font-mono);font-size:13px;color:var(--accent);letter-spacing:2px}
+  .num h3{font-size:20px;margin:12px 0 8px}
+  .num p{color:var(--muted);font-size:15px;margin:0}
+  .banner{border:1px solid var(--accent);border-radius:16px;padding:34px;background:linear-gradient(180deg,rgba(var(--accent-rgb),.08),transparent)}
+  .banner h2{font-size:clamp(24px,3.4vw,34px)}
+  .banner p{color:var(--muted);font-size:17px;margin:14px 0 0;max-width:66ch}
+  .kw{color:var(--accent);font-weight:600}
+  .close{background:linear-gradient(180deg,var(--bg),var(--bg2));text-align:center;border-bottom:0}
+  .close h2{font-size:clamp(28px,4.4vw,46px)}
+  .close p{color:var(--muted);max-width:60ch;margin:16px auto 0;font-size:17px}
+  .foot{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px;padding:26px 0;text-align:center}
+  .theme-btn{position:fixed;top:16px;right:16px;z-index:20;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;background:var(--bg2);color:var(--muted);border:1px solid var(--border);border-radius:100px;padding:8px 13px;cursor:pointer}
+  .theme-btn:hover{color:var(--accent);border-color:var(--accent)}
+  @media (max-width:760px){.qa,.three{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){#spectrum{display:none}}
+</style>
+
+<button class="theme-btn" onclick="(function(){var r=document.documentElement;var d=(r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark'?'light':'dark';r.setAttribute('data-theme',d);})()">◑ thème</button>
+
+<header class="hero">
+  <canvas id="spectrum" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round"><path d="M4 15a8 8 0 0 1 16 0"/><path d="M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="15" r="1.6" fill="var(--accent)" stroke="none"/><line x1="12" y1="15" x2="12" y2="4"/></svg></span>
+      <div><b>LogX&nbsp;AI</b><br><span>ASSISTANT DE STATION</span></div>
+    </div>
+    <p class="eyebrow">L'intelligence artificielle au service d'une passion</p>
+    <h1>Quand une IA aide le radioamateur — <em>sans jamais décider à sa place</em>.</h1>
+    <p class="lede">La radio d'amateur relie des passionnés du monde entier. LogX AI est le logiciel qui rend ce loisir plus accessible : il note les contacts, aide à trouver les bonnes stations, et met une intelligence artificielle <span class="kw">discrète et honnête</span> au service de l'opérateur — qui garde toujours le dernier mot.</p>
+    <div class="pills">
+      <span class="pill">Une <b>IA qui conseille</b>, jamais qui agit seule</span>
+      <span class="pill">Fonctionne <b>sans internet</b></span>
+      <span class="pill">Pensé pour être <b>simple</b></span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">En deux mots</p>
+      <h2>C'est quoi, la radio d'amateur — et pourquoi un logiciel ?</h2>
+      <p>Des passionnés, souvent bénévoles, communiquent par ondes radio partout sur la planète — parfois là où plus rien d'autre ne fonctionne (montagne, mer, catastrophes). Chaque contact (« QSO ») se note dans un carnet, et beaucoup participent à des concours mondiaux. LogX AI modernise tout ça.</p>
+    </div>
+    <div class="qa">
+      <div class="box"><div class="q">Avant</div><h3>Un carnet, plusieurs outils</h3><p>Noter à la main, jongler entre logiciels pour la radio, les cartes, les fréquences, vérifier les erreurs après coup, calculer ses scores…</p></div>
+      <div class="box"><div class="q">Avec LogX AI</div><h3>Un copilote qui relie tout</h3><p>Le logiciel note, contrôle la radio, repère les occasions, vérifie le carnet en direct et calcule les points — pendant que l'opérateur se concentre sur le contact.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">L'innovation</p>
+      <h2>Une IA « copilote » — la bonne façon d'utiliser l'IA.</h2>
+      <p>Beaucoup de produits laissent l'IA agir toute seule. LogX AI fait un choix différent, plus responsable : <span class="kw">l'IA prépare, l'humain déclenche</span>.</p>
+    </div>
+    <div class="three">
+      <div class="num"><div class="n">01</div><h3>Elle observe</h3><p>L'IA repère les stations intéressantes, les erreurs possibles dans le carnet, ce qu'un contact vient d'apporter.</p></div>
+      <div class="num"><div class="n">02</div><h3>Elle propose</h3><p>Elle prépare une suggestion claire — jamais une action cachée. On voit toujours d'où vient l'information.</p></div>
+      <div class="num"><div class="n">03</div><h3>L'humain décide</h3><p>Rien ne part sur les ondes sans un geste explicite de l'opérateur. Un bouton d'arrêt coupe tout, à tout moment.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="banner">
+      <p class="eyebrow">Sécurité & confiance</p>
+      <h2>L'IA ne peut pas émettre à la place de l'opérateur.</h2>
+      <p>C'est une garantie inscrite au cœur du logiciel : chaque émission exige une autorisation humaine unique, vérifiée juste avant de partir, et annulable instantanément. L'IA aide à décider — elle ne se substitue jamais à la responsabilité de l'opérateur, qui reste seul maître de sa station et de ses transmissions.</p>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Accessible & autonome</p>
+      <h2>Simple à prendre en main. Robuste là où il n'y a rien.</h2>
+    </div>
+    <div class="three">
+      <div class="num"><div class="n">◆</div><h3>On ne se perd pas</h3><p>L'écran s'adapte à ce qu'on fait. Un débutant comprend en un coup d'œil ; la richesse est disponible, jamais imposée.</p></div>
+      <div class="num"><div class="n">◆</div><h3>Sans internet</h3><p>En expédition, en pleine nature ou en cas de coupure, l'essentiel continue de fonctionner : tout est calculé sur la machine.</p></div>
+      <div class="num"><div class="n">◆</div><h3>Ensemble</h3><p>Radioclubs et expéditions peuvent partager un même carnet en temps réel, sur plusieurs postes, sans se gêner.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <p class="eyebrow" style="justify-content:center">LogX AI</p>
+    <h2>La technologie au service de l'humain, pas l'inverse.</h2>
+    <p>LogX AI montre qu'une intelligence artificielle peut être utile, transparente et respectueuse : elle éclaire les choix de l'opérateur sans jamais lui retirer le contrôle. Une vision de l'IA que ce loisir centenaire méritait.</p>
+  </div>
+</section>
+<div class="foot">LogX AI · l'assistant intelligent du radioamateur · l'IA prépare, l'humain déclenche</div>
+
+<script>
+(function(){
+  var c=document.getElementById('spectrum');if(!c)return;
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  var x=c.getContext('2d'),W,H,cols,t=0;
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function size(){W=c.width=c.offsetWidth;H=c.height=c.offsetHeight;cols=Math.max(48,Math.floor(W/16));}
+  size();addEventListener('resize',size);
+  var seed=[];for(var i=0;i<400;i++)seed[i]=Math.random();
+  function draw(){
+    x.clearRect(0,0,W,H);var acc=css('--accent-rgb')||'232,150,74';var base=H*0.72,bw=W/cols;
+    for(var i=0;i<cols;i++){var n=Math.sin(i*0.3+t*0.8)*0.5+Math.sin(i*0.13-t*0.45)*0.5;
+      var peak=(seed[i%seed.length]*0.5+Math.abs(n)*0.5);
+      var spike=seed[(i+Math.floor(t*4))%seed.length]>0.965?0.55:0;
+      var h=(peak*0.4+spike)*H*0.6,a=0.09+peak*0.2+spike*0.5;
+      x.fillStyle='rgba('+acc+','+a.toFixed(3)+')';x.fillRect(i*bw,base-h,bw*0.62,h);}
+    var g=x.createLinearGradient(0,base,0,H);g.addColorStop(0,'rgba('+acc+',0.12)');g.addColorStop(1,'rgba('+acc+',0)');
+    x.fillStyle=g;x.fillRect(0,base,W,H-base);t+=0.02;requestAnimationFrame(draw);
+  }draw();
+})();
+</script>
