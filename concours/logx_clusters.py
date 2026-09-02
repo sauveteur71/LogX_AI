@@ -347,10 +347,16 @@ def fetch_dxwatch_hf(filter_digital=True):
     if not spots:
         try:
             content = fetch_url('http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0&c=100', timeout=10)
-            if content:
+            # L'API DXWatch :8010 renvoie par moments une réponse vide ou une
+            # page HTML (endpoint dégradé, constaté 02/09/2026). N'appeler
+            # json.loads QUE si le contenu ressemble vraiment à du JSON, sinon
+            # on n'a simplement pas de spots — ne PAS crier « parse error »
+            # (ça se lisait comme un bug alors que c'est juste la source muette).
+            _c = (content or '').strip()
+            if _c[:1] in ('{', '['):
                 # Essai format JSON
                 try:
-                    data = json.loads(content)
+                    data = json.loads(_c)
                     items = data if isinstance(data, list) else data.get('s', data.get('spots', []))
                     for s in (items if isinstance(items, list) else []):
                         try:
@@ -486,20 +492,26 @@ def fetch_f5len_hf(filter_digital=True):
 
 # ── DX SPIDER TELNET (cluster standard) ──────────────────────────────────────
 # Nœuds publics DX Spider — le premier qui répond est utilisé. Sous-ensemble
-# du catalogue vérifié DX_CLUSTER_CATALOG plus bas (8 des 17 nœuds, pas les
-# 17 : chaque essai raté coûte un timeout de connexion avant le suivant —
-# demande utilisateur du 02/08/2026 (« une vraie liste de cluster... les plus
-# utilisés réputés ») d'élargir au-delà des 4 nœuds nord-américains d'origine
-# sans pour autant allonger démesurément le pire cas de bascule).
+# du catalogue DX_CLUSTER_CATALOG plus bas. Chaque essai raté coûte un timeout
+# de connexion (ou de résolution DNS) avant le suivant : le pool ne contient
+# donc QUE des nœuds joignables, pour ne pas payer des timeouts inutiles à
+# chaque cycle de spots.
+# Purge du 02/09/2026 (F4GLD signalait des « getaddrinfo failed » en boucle) :
+# retirés telnet.dxsummit.fi / cluster.dx.fi / dx.maritimecontestclub.ca (noms
+# qui ne résolvent plus nulle part) et dxc.ve7cc.net (résolution intermittente
+# + connexion en timeout ici) — ve7cc reste défaut de self-spot et dans le
+# catalogue, mais pas dans le pool INTERROGÉ à chaque cycle. Ajoutés
+# dxc.nc7j.com / dxfun.com / gb7djk.dxcluster.net. Tous les nœuds ci-dessous
+# ont été vérifiés joignables (DNS + connexion TCP) le 02/09/2026 — pas de
+# mémoire.
 DX_SPIDER_NODES = [
-    ('dxc.ve7cc.net',      7300),
-    ('telnet.dxsummit.fi', 7300),
-    ('cluster.dx.fi',      7300),
-    ('dx.maritimecontestclub.ca', 7300),
-    ('w3lpl.net',          7373),
-    ('k1ttt.net',          7373),
-    ('cluster.f1led.fr',   7300),
-    ('ea4ure.com',         7300),
+    ('w3lpl.net',            7373),
+    ('k1ttt.net',            7373),
+    ('dxc.nc7j.com',         7373),
+    ('cluster.f1led.fr',     7300),
+    ('ea4ure.com',           7300),
+    ('dxfun.com',            8000),
+    ('gb7djk.dxcluster.net', 7300),
 ]
 
 # ── ANNUAIRE DE NŒUDS PUBLICS (pour le sélecteur CONFIG) ─────────────────────
@@ -508,20 +520,24 @@ DX_SPIDER_NODES = [
 # (consulté le 02/08/2026), PAS de mémoire — inventer un port enverrait
 # l'opérateur sur un nœud mort. Le champ CONFIG reste libre : ceci n'est qu'une
 # liste de raccourcis pour éviter de taper l'adresse à la main.
+# Purge/ajouts du 02/09/2026 : retirés telnet.dxsummit.fi / cluster.dx.fi /
+# dx.maritimecontestclub.ca (ne résolvent plus) ; ajoutés NC7J / DXFun / GB7DJK,
+# vérifiés joignables (DNS + connexion TCP) ce jour. ve7cc conservé (nœud
+# majeur, résolution intermittente) — reste le défaut de self-spot.
 DX_CLUSTER_CATALOG = [
     ('dxc.ve7cc.net',            7300,  'VE7CC (CC Cluster)',        'Amérique du Nord'),
     ('w3lpl.net',                7373,  'W3LPL',                     'Amérique du Nord'),
     ('k1ttt.net',                7373,  'K1TTT',                     'Amérique du Nord'),
+    ('dxc.nc7j.com',             7373,  'NC7J',                      'Amérique du Nord'),
     ('dx.w1nr.net',              7373,  'W1NR',                      'Amérique du Nord'),
     ('dxc.w4mya.us',             7373,  'W4MYA',                     'Amérique du Nord'),
     ('k4zr.no-ip.org',           7300,  'K4ZR',                      'Amérique du Nord'),
-    ('dx.maritimecontestclub.ca', 7300, 'Maritime Contest Club',     'Amérique du Nord'),
     ('cluster.f1led.fr',         7300,  'F1LED',                     'France'),
     ('ea4ure.com',               7300,  'EA4URE (Madrid)',           'Europe'),
+    ('dxfun.com',                8000,  'DXFun (EA)',                'Europe'),
+    ('gb7djk.dxcluster.net',     7300,  'GB7DJK (DXSpider)',         'Europe'),
     ('dxc.hamserve.uk',          7300,  'G1FEF (UK)',                'Europe'),
     ('dxspider.co.uk',           7300,  'G6NHU (UK)',                'Europe'),
-    ('telnet.dxsummit.fi',       7300,  'DX Summit (OH8X)',          'Europe'),
-    ('cluster.dx.fi',            7300,  'OH cluster',                'Europe'),
     ('pa1rbz.dyndns.org',        9000,  'PA1RBZ (NL)',               'Europe'),
     ('s50clx.si',                41112, 'S50CLX (Slovénie)',         'Europe'),
     ('9m2pju.hamradio.my',       7300,  '9M2PJU (Kuala Lumpur)',     'Asie / Océanie'),
