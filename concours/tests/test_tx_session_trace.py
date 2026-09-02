@@ -42,3 +42,24 @@ def test_journal_session_armed_puis_ended():
     assert ended['details']['raison'] == 'stop'
     # 3 minutes plus tard, bien après l'ARMED
     assert ended['timestamp_utc'] > armed['timestamp_utc']
+
+
+def test_journal_session_details_non_dict_ne_leve_jamais():
+    """Contrat verrouillé « ne lève JAMAIS » : la route /tx/session est un appel
+    fire-and-forget (le PTT est déjà côté client). Un `details` malformé (chaîne,
+    entier) doit être TOLÉRÉ — coercé en {} — et l'entrée quand même GRAVÉE, pas
+    une exception qui ferait perdre la trace ET renverrait un 500."""
+    tx.vider_audit()
+    t0 = datetime.datetime(2026, 9, 2, 12, 0, 0, tzinfo=UTC)
+    # Ne doit RIEN lever (assert implicite : pas d'exception propagée)
+    e1 = tx.journal_session('TX_SESSION_ARMED', 'sid1', 'not-a-dict', now=t0)
+    e2 = tx.journal_session('TX_SESSION_ARMED', 'sid2', 123, now=t0)
+    # details non-dict -> {} (pas d'entrée corrompue)
+    assert e1['details'] == {} and e2['details'] == {}
+    # RÉELLEMENT gravé dans le journal (la trace n'est pas perdue)
+    audit = tx.audit_entries(200)
+    sids = {a.get('session_id') for a in audit if a.get('event') == 'TX_SESSION_ARMED'}
+    assert 'sid1' in sids and 'sid2' in sids
+    for a in audit:
+        if a.get('session_id') in ('sid1', 'sid2'):
+            assert isinstance(a['details'], dict)

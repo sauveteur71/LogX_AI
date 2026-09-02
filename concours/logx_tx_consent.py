@@ -263,22 +263,29 @@ def journal_session(event, session_id, details, now=None) -> dict:
     modifiable, via journal_audit). Le PTT FT8 reste CÔTÉ CLIENT ; ceci trace
     l'AUTORISATION de la session (armée par un geste humain, niveaux 3/4 du
     copilote) et sa fin, consultable via GET /tx/audit même navigateur fermé
-    ensuite. `now` injectable (aware-UTC) pour les tests. Ne lève JAMAIS
-    (journal_audit ne lève pas — une trace ratée ne doit pas casser une
-    session)."""
-    ts = now or _now()
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=_UTC)
-    ts = ts.astimezone(_UTC)
-    entry = {
-        'event': str(event),
-        'timestamp_utc': ts.strftime('%Y-%m-%dT%H:%M:%SZ'),
-        'session_id': str(session_id or ''),
-        'details': dict(details or {}),
-        'consent_token': None,           # évènement de session, pas un jeton TX
-    }
-    journal_audit(entry)   # même ajout d'audit que le reste du module
-    return entry
+    ensuite. `now` injectable (aware-UTC) pour les tests. Ne lève JAMAIS —
+    TOUT le corps est protégé (comme journal_audit) : une trace ratée ne doit
+    pas casser une session, et la route /tx/session est un appel fire-and-forget
+    qui ne doit jamais renvoyer 500 ni « perdre » l'écriture sur un `details`
+    malformé. Coercion défensive : un `details` non-dict devient {} (pas une
+    entrée corrompue, pas une exception)."""
+    try:
+        ts = now or _now()
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=_UTC)
+        ts = ts.astimezone(_UTC)
+        det = dict(details) if isinstance(details, dict) else {}
+        entry = {
+            'event': str(event),
+            'timestamp_utc': ts.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'session_id': str(session_id or ''),
+            'details': det,
+            'consent_token': None,       # évènement de session, pas un jeton TX
+        }
+        journal_audit(entry)   # même ajout d'audit que le reste du module
+        return entry
+    except Exception:
+        return {}
 
 
 def audit_entries(limite=50):
