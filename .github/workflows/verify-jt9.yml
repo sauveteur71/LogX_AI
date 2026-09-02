@@ -51,6 +51,29 @@ jobs:
       - name: Récupérer jt9
         uses: ./.github/actions/fetch-jt9
 
+      # SONDE (temporaire) : lance jt9 en direct et montre stdout + STDERR +
+      # exit, que decoder_wav masque. Ne fait pas échouer le job.
+      - name: Diagnostic jt9 (stdout/stderr/exit)
+        working-directory: concours
+        shell: bash
+        run: |
+          set +e
+          jt9dir="$PWD/vendor/jt9"
+          abin="$jt9dir/jt9"; [ -f "$jt9dir/jt9.exe" ] && abin="$jt9dir/jt9.exe"
+          echo "=== binaire : $abin ==="
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            export LD_LIBRARY_PATH="$jt9dir:$LD_LIBRARY_PATH"
+            echo "--- ldd ---"; ldd "$abin"
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            export DYLD_LIBRARY_PATH="$jt9dir:$DYLD_LIBRARY_PATH"
+            echo "--- otool -L ---"; otool -L "$abin"
+          fi
+          tmp="$(mktemp -d)"
+          cp tests/fixtures/q65_60A_eme_6m.wav "$tmp/x.wav"
+          echo "=== jt9 -3 -p 60 -b A -q -a <tmp> x.wav ==="
+          ( cd "$tmp" && "$abin" -3 -p 60 -b A -q -a "$tmp" "$tmp/x.wav" )
+          echo "=== exit=$? ==="
+
       - name: Décodage du fixture EME (test d'intégration)
         working-directory: concours
         shell: bash

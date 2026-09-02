@@ -90,9 +90,17 @@ runs:
         dest="concours/vendor/jt9"
         mkdir -p "$dest"
         cp "$jt9" "$dest/jt9"
+        # Où sont les dylibs dans ce bundle ? (diagnostic + robustesse)
+        echo "--- dylibs du bundle ---"
+        find "$app/Contents" -maxdepth 3 -name '*.dylib' | head -50
+        # Pré-copier les dylibs localement PUIS laisser dylibbundler les
+        # résoudre depuis cette copie (-s "$dest") : le premier essai avec
+        # -s Contents/Frameworks seul ne résolvait pas @executable_path/../
+        # Frameworks (jt9 déplacé hors du bundle).
+        find "$app/Contents" -maxdepth 3 -name '*.dylib' -exec cp -n {} "$dest/" \; 2>/dev/null || true
         brew list dylibbundler >/dev/null 2>&1 || brew install dylibbundler
         dylibbundler -of -b -x "$dest/jt9" -d "$dest" -p '@executable_path/' \
-          -s "$app/Contents/Frameworks" -s "$app/Contents/MacOS" || true
+          -s "$dest" -s "$app/Contents/Frameworks" -s "$app/Contents/MacOS" || true
         chmod +x "$dest/jt9"
         hdiutil detach /Volumes/wsjtx -quiet || true
         echo "Contenu vendorisé :"; ls -la "$dest"
