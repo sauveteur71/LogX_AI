@@ -58,7 +58,12 @@ runs:
         set -euo pipefail
         ver="${{ inputs.wsjtx_version }}"
         url="https://downloads.sourceforge.net/project/wsjt/wsjtx-${ver}/wsjtx-${ver}-win64.exe"
-        curl -fL -o wsjtx.exe "$url"
+        # Retries : SourceForge sert via des miroirs parfois lents ou qui
+        # coupent la connexion (curl 56 « server closed abruptly ») — un build
+        # de release a échoué là-dessus (beta7, Windows). --retry-all-errors
+        # couvre aussi ces coupures ; -C - reprend le téléchargement partiel.
+        curl -fL --retry 5 --retry-all-errors --retry-delay 8 \
+             --connect-timeout 30 --max-time 900 -C - -o wsjtx.exe "$url"
         7z x -y wsjtx.exe -oextracted >/dev/null
         dest="concours/vendor/jt9"
         mkdir -p "$dest"
@@ -81,7 +86,8 @@ runs:
         set -euo pipefail
         ver="${{ inputs.wsjtx_version }}"
         url="https://downloads.sourceforge.net/project/wsjt/wsjtx-${ver}/wsjtx-${ver}-Darwin.dmg"
-        curl -fL -o wsjtx.dmg "$url"
+        curl -fL --retry 5 --retry-all-errors --retry-delay 8 \
+             --connect-timeout 30 --max-time 900 -C - -o wsjtx.dmg "$url"
         hdiutil attach wsjtx.dmg -mountpoint /Volumes/wsjtx -nobrowse -quiet
         app="$(find /Volumes/wsjtx -maxdepth 1 -name '*.app' | head -1)"
         test -n "$app"
