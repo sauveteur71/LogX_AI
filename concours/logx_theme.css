@@ -251,7 +251,7 @@ body.day-mode .lp-btn-primaire{color:#F8F6EF}
 .nav-tools-btn:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 .nav-tools-caret{transition:transform .15s;font-size:11px}
 .nav-tools-btn[aria-expanded="true"] .nav-tools-caret{transform:rotate(180deg)}
-.nav-tools-menu{position:absolute;top:100%;left:0;z-index:2000;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;display:flex;flex-direction:column;padding:4px 0}
+.nav-tools-menu{position:absolute;top:100%;left:0;z-index:10000;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;display:flex;flex-direction:column;padding:4px 0}
 .nav-tools-menu[hidden]{display:none}
 .nav-tools-menu a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-decoration:none;padding:9px 16px;display:flex;align-items:center;gap:8px;transition:all .12s}
 .nav-tools-menu a:hover{color:var(--text);background:var(--bg3)}
