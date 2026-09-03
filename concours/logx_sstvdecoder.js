@@ -122,6 +122,27 @@ function sstvModePd(nom, vis, scan, largeur, hauteur){
       {plan: 'y',  debut: sync + porch + 3 * scan, duree: scan, rangee: 'double1'},
     ]};
 }
+function sstvModeMono(nom, vis, scan, hauteur){
+  // Famille `mono` (Robot 8/12/24 BW, Lot B2) : sync PUIS un seul balayage
+  // luminance — pas de porch ni de séparateur (mode monochrome, un seul
+  // canal). sync=7ms/porch=0 sont UNIFORMES sur les 3 modes de la famille —
+  // SOURCE : slowrx (windytan/slowrx, modespec.c — SyncTime=7e-3,
+  // PorchTime=0 pour R8BW/R12BW/R24BW) × pySSTV (dnet/pySSTV,
+  // pysstv/grayscale.py — SYNC=7 pour Robot8BW/Robot24BW, ce dernier
+  // n'implémentant pas Robot12BW). `scan`/`hauteur` sourcés par mode, cf.
+  // bloc SSTV_MODES plus bas et test_timing_robot_bw_est_source (recoupement
+  // arithmétique contre la durée totale publiée par WB2OSZ 1996, source
+  // antérieure et indépendante des deux implémentations logicielles
+  // ci-dessus).
+  const sync = 0.007, porch = 0;
+  return {nom, vis, famille: 'mono', largeur: 320, hauteur, balayages: hauteur,
+    lignesParBalayage: 1, decalageDepart: 0,
+    dureeBalayage: sync + porch + scan,
+    syncDebut: 0, syncDuree: sync, sync, porch, scan,
+    canaux: [
+      {plan: 'y', debut: sync + porch, duree: scan, rangee: 'bal'},
+    ]};
+}
 
 const SSTV_MODES = {};                     // indexés par code VIS
 const SSTV_MODES_PAR_NOM = {};             // indexés par nom court (M1, S1…)
@@ -168,6 +189,28 @@ for(const [cle, m] of Object.entries({
   PD180: sstvModePd('PD180', 96, 0.18304,  640, 496),
   PD240: sstvModePd('PD240', 97, 0.24448,  640, 496),
   PD290: sstvModePd('PD290', 94, 0.2288,   800, 616),
+  // Famille `mono` (Lot B2, 03/09/2026) : Robot 8/12/24 BW — sync + UN SEUL
+  // balayage luminance (rendu gris R=G=B), pas de porch ni de séparateur.
+  // SOURCES croisées (détail complet dans le commentaire de
+  // sstvModeMono() et test_timing_robot_bw_est_source) : slowrx
+  // (windytan/slowrx, modespec.c) × pySSTV (dnet/pySSTV, grayscale.py —
+  // R8BW/R24BW seulement) × recoupement arithmétique contre la durée totale
+  // publiée par WB2OSZ (John Langner, compilation "SSTV Transmission Modes",
+  // mars 1996 — antérieure à N7CXI 2000, qui ne définit PAS ces modes BW :
+  // vérifié par grep sur le texte du PDF N7CXI lui-même, le commentaire
+  // "// N7CXI, 2000" présent dans modespec.c pour ces 3 entrées est un
+  // intitulé de bloc erroné). scan/hauteur = PixelTime(slowrx) × 320 :
+  //   R8BW  : 0.1871875e-3×320=0.0599 ; hauteur=120 (slowrx NumLines, WB2OSZ
+  //           "8 sec / 120 lignes" : 120×0.0669=8.028s, +0.35%).
+  //   R12BW : 0.291e-3×320=0.09312 ; hauteur=120 (WB2OSZ "12 sec / 120
+  //           lignes" : 120×0.10012=12.014s, +0.12% — VIS=6 slowrx SEUL,
+  //           pySSTV ne définit pas ce mode, confiance légèrement
+  //           inférieure signalée dans le rapport Lot B2).
+  //   R24BW : 0.291e-3×320=0.09312 ; hauteur=240 (slowrx+pySSTV, WB2OSZ
+  //           "24 sec / 240 lignes" : 240×0.10012=24.029s, +0.12%).
+  R8BW:  sstvModeMono('Robot 8 BW',  2,  0.0599,  120),
+  R12BW: sstvModeMono('Robot 12 BW', 6,  0.09312, 120),
+  R24BW: sstvModeMono('Robot 24 BW', 10, 0.09312, 240),
 })){
   m.cle = cle;
   SSTV_MODES[m.vis] = m;
@@ -410,6 +453,8 @@ class SstvDecodeur {
     const demi = Math.ceil(h / 2);
     this._plans = (mode.famille === 'rgb')
       ? {r: new Float32Array(l * h), g: new Float32Array(l * h), b: new Float32Array(l * h)}
+      : (mode.famille === 'mono')
+      ? {y: new Float32Array(l * h)}
       : {y: new Float32Array(l * h),
          cr: new Float32Array(l * (mode.famille === 'robot72' ? h : demi)),
          cb: new Float32Array(l * (mode.famille === 'robot72' ? h : demi))};
@@ -644,6 +689,8 @@ class SstvDecodeur {
           ligne(y, x => sstvYccVersRgb(p.y[y * l + x], p.cr[k * l + x], p.cb[k * l + x]));
         }
       }
+    } else if(m.famille === 'mono'){
+      ligne(bal, x => { const v = p.y[bal * l + x]; return [v, v, v]; });
     } else {                             // pd : deux lignes par balayage
       for(const y of [2 * bal, 2 * bal + 1]){
         ligne(y, x => sstvYccVersRgb(p.y[y * l + x], p.cr[bal * l + x], p.cb[bal * l + x]));
@@ -794,6 +841,12 @@ function sstvEncodeSamples({mode = 'M1', pixels, sampleRate = 44100,
       scan(m.scanC, plan('cr', bal));
       ton(2300, m.sep); ton(1900, m.porch2);
       scan(m.scanC, plan('cb', bal));
+    } else if(m.famille === 'mono'){
+      // Gris = luminance ITU BT.601 (sstvRgbVersYcc(...)[0], déjà calculée
+      // dans plans.y ci-dessus pour toute famille != 'rgb') — même
+      // convention que le canal Y des familles robot36/robot72/pd.
+      ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
+      scan(m.scan, plan('y', bal));
     } else {                                        // pd
       ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
       scan(m.scan, plan('y', 2 * bal));

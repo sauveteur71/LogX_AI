@@ -47,7 +47,8 @@ FS = 11025
 
 # Tous les modes de la table — un oubli ici laisserait un mode non testé.
 TOUS_MODES = ['M1', 'M2', 'M3', 'M4', 'S1', 'S2', 'S3', 'S4', 'SDX', 'R36', 'R72',
-              'PD50', 'PD90', 'PD120', 'PD160', 'PD180', 'PD240', 'PD290']
+              'PD50', 'PD90', 'PD120', 'PD160', 'PD180', 'PD240', 'PD290',
+              'R8BW', 'R12BW', 'R24BW']
 
 
 @pytest.fixture(scope='module')
@@ -80,14 +81,27 @@ def moteur():
     }
     // Erreur absolue moyenne par composante, sur les lignes effectivement
     // émises (les signaux tronqués n'émettent pas la dernière ligne).
-    function maeSstv(dec, px, l, lignes){
+    // `mono` (famille Robot BW, Lot B2) : le mode ne transmet QUE la
+    // luminance — comparer le gris décodé aux 3 canaux R/G/B ORIGINAUX
+    // indépendamment ferait exploser le MAE par construction (le mode ne
+    // PEUT PAS reproduire la couleur, ce n'est pas un bug de timing). On
+    // compare alors le gris décodé à la luminance ITU BT.601 attendue
+    // (sstvRgbVersYcc, même formule que l'encodeur) — un vrai décalage de
+    // timing/canal continue de faire exploser cette erreur-là.
+    function maeSstv(dec, px, l, lignes, mono){
       var s=0, n=0;
       for(var y=0;y<lignes;y++) for(var x=0;x<l;x++){
         var i=y*l+x;
-        s += Math.abs(dec.rgba[i*4]-px[i*3])
-           + Math.abs(dec.rgba[i*4+1]-px[i*3+1])
-           + Math.abs(dec.rgba[i*4+2]-px[i*3+2]);
-        n += 3;
+        if(mono){
+          var yAttendu = sstvRgbVersYcc(px[i*3], px[i*3+1], px[i*3+2])[0];
+          s += Math.abs(dec.rgba[i*4] - yAttendu);
+          n += 1;
+        } else {
+          s += Math.abs(dec.rgba[i*4]-px[i*3])
+             + Math.abs(dec.rgba[i*4+1]-px[i*3+1])
+             + Math.abs(dec.rgba[i*4+2]-px[i*3+2]);
+          n += 3;
+        }
       }
       return s/n;
     }
@@ -101,7 +115,7 @@ def moteur():
       var d = sstvDecodeSamples(sig, Object.assign({sampleRate: %d}, optsDec));
       var r = d.resume();
       r.mae = (r.mode === nomMode && r.lignesEmises > 0)
-            ? maeSstv(d, px, m.largeur, r.lignesEmises) : null;
+            ? maeSstv(d, px, m.largeur, r.lignesEmises, m.famille === 'mono') : null;
       return r;
     }""" % (FS, FS))
     return ctx
@@ -211,6 +225,104 @@ def test_timing_martin_scottie_ajoutes_sont_sources(moteur):
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(v['scan'])
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].hauteur" % mode) == v['hauteur']
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].balayages" % mode) == v['hauteur']
+
+
+def test_timing_robot_bw_est_source(moteur):
+    """Fige les VIS/sync/porch/scan/hauteur SOURCES de la nouvelle famille
+    `mono` (Robot 8/12/24 BW, Lot B2).
+
+    Sources croisees (independantes, aucune ne cite l'autre) :
+      - slowrx (windytan/slowrx, modespec.c) -- decodeur tiers en production.
+        Le fichier attribue en commentaire CHAQUE entree a "N7CXI, 2000" mais
+        c'est un intitule de bloc errone pour les 3 modes BW : le PDF N7CXI
+        "Proposal for SSTV Mode Specifications" (recupere via web.archive.org,
+        barberdsp.com etant injoignable directement) NE DEFINIT PAS ces modes
+        -- grep sur le texte extrait (pdftotext) ne trouve que ROBOT 36
+        COLOR / ROBOT 72 COLOR, aucune mention de BW. Verifie moi-meme avant
+        de faire confiance au commentaire du fichier tiers (regle du depot :
+        ne pas reprendre un constat sans le verifier).
+      - pySSTV (dnet/pySSTV, pysstv/grayscale.py) -- 2e decodeur/encodeur
+        tiers en production, implementation independante. Ne definit QUE
+        Robot8BW et Robot24BW (pas de Robot12BW dans ce projet).
+      - WB2OSZ (John Langner, compilation "SSTV Transmission Modes", version
+        mars 1996 -- ANTERIEURE a N7CXI 2000, via docs.preterhuman.net) :
+        table Temps total (s) / Lignes balayees, independante de toute
+        implementation logicielle -- sert de recoupement ARITHMETIQUE (le
+        meme principe que test_le_timing_pd160_est_conforme_a_la_spec_n7cxi
+        et test_timing_martin_scottie_ajoutes_sont_sources) :
+        duree totale = balayages * (sync+porch+scan), doit approcher la
+        duree publiee.
+
+    Valeurs retenues (slowrx x pySSTV, sync=7ms/porch=0 UNIFORME sur les 3
+    modes -- pas les sync=10.0/12.0ms d'une table tierce de sstv-handbook.com
+    consultee en parallele : cette derniere s'est revelee INCOHERENTE avec
+    elle-meme sur la ligne Robot B&W 24 [sync 12 + scan 93 = 105ms, alors que
+    son propre lpm=600 implique 100ms] -- ecartee au profit du couple
+    slowrx/pySSTV qui s'accorde EXACTEMENT et recoupe l'arithmetique WB2OSZ a
+    moins de 0.4% pres, cf. calculs ci-dessous) :
+
+      R8BW  : vis=2,  sync=0.007, porch=0, scan=0.0599   (=0.1871875e-3*320,
+              slowrx PixelTime*ImgWidth), hauteur=120.
+              dureeBalayage=0.0669 ; 120*0.0669=8.028s (WB2OSZ : 8s, +0.35%).
+      R12BW : vis=6,  sync=0.007, porch=0, scan=0.09312  (=0.291e-3*320),
+              hauteur=120. Seule slowrx donne le VIS numerique pour ce mode
+              precis (pySSTV ne l'implemente pas) -- confiance VIS legerement
+              inferieure a R8BW/R24BW, signalee dans le rapport.
+              dureeBalayage=0.10012 ; 120*0.10012=12.014s (WB2OSZ : 12s, +0.12%).
+      R24BW : vis=10, sync=0.007, porch=0, scan=0.09312, hauteur=240.
+              dureeBalayage=0.10012 ; 240*0.10012=24.029s (WB2OSZ : 24s, +0.12%).
+
+    Un scan ou une hauteur devines feraient passer l'aller-retour interne
+    (mannequin, cf. test_vis_et_timing_de_chaque_mode) mais echoueraient ce
+    recoupement arithmetique independant. Non verifie en externe (WAV tiers)
+    -- famille NOUVELLE, cf. rapport Lot B2 pour la tentative de recherche
+    d'un WAV Robot BW tiers."""
+    attendu = {
+        'R8BW':  {'vis': 2,  'sync': 0.007, 'porch': 0, 'scan': 0.0599,  'hauteur': 120},
+        'R12BW': {'vis': 6,  'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'hauteur': 120},
+        'R24BW': {'vis': 10, 'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'hauteur': 240},
+    }
+    for mode, v in attendu.items():
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].famille" % mode) == 'mono'
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].vis" % mode) == v['vis']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].sync" % mode) == pytest.approx(v['sync'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].porch" % mode) == pytest.approx(v['porch'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(v['scan'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].hauteur" % mode) == v['hauteur']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].balayages" % mode) == v['hauteur']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].largeur" % mode) == 320
+
+
+@pytest.mark.parametrize('mode', ['R8BW', 'R12BW', 'R24BW'])
+def test_la_famille_mono_restitue_bien_du_gris(moteur, mode):
+    """La famille `mono` n'a qu'un seul canal luminance -- le décodeur DOIT
+    produire R=G=B sur CHAQUE pixel émis (pas juste « proche », strictement
+    égal : les 3 canaux RGBA sont recopiés depuis la MÊME valeur `v` dans
+    `_emettreBalayage`). Un bug qui permuterait ou décolorerait la sortie
+    (ex. `[v, 0, v]`, ou une confusion de canal) casserait cette égalité
+    stricte sur au moins un pixel -- test structurel, pas un simple MAE."""
+    r = _aller_retour(moteur, mode, {'lignes': 8})
+    assert r['mode'] == mode
+    assert r['lignesEmises'] >= 6
+    # Vérification structurelle directe sur le buffer RGBA du décodeur : on
+    # relance l'aller-retour côté JS pour garder une référence à l'objet
+    # décodeur (allerRetourSstv ne renvoie qu'un résumé JSON côté Python).
+    egal = moteur.eval("""
+    (function(){
+      var m = SSTV_MODES_PAR_NOM[%s];
+      var px = imageTestSstv(m.largeur, m.hauteur);
+      var sig = sstvEncodeSamples({mode: %s, pixels: px, sampleRate: %d, lignes: 8});
+      var d = sstvDecodeSamples(sig, {sampleRate: %d});
+      var n = d.lignesEmises, l = m.largeur, faux = 0;
+      for(var y = 0; y < n; y++){
+        for(var x = 0; x < l; x++){
+          var i = (y*l+x)*4;
+          if(d.rgba[i] !== d.rgba[i+1] || d.rgba[i+1] !== d.rgba[i+2]) faux++;
+        }
+      }
+      return faux;
+    })()""" % (json.dumps(mode), json.dumps(mode), FS, FS))
+    assert egal == 0, '%s : %d pixels avec R != G != B (famille mono)' % (mode, egal)
 
 
 # ─── Aller-retour complet ────────────────────────────────────────────────────
