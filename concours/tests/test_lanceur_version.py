@@ -218,6 +218,33 @@ def test_attendre_abandonne_au_bout_du_delai(monkeypatch):
         'minimisee, c est tout le probleme')
 
 
+def test_attendre_tolere_un_localhost_lent(monkeypatch):
+    """DEFAUT REEL (F4GLD 02/09) : sous un antivirus qui inspecte 127.0.0.1
+    (~2 s/requete, Avast Web Shield), la sonde par defaut (budget 2.0) tombait
+    pile sur la latence -> sonde None -> le lanceur croyait le serveur absent
+    et N'OUVRAIT PAS le navigateur, serveur pourtant demarre. L'attente
+    post-demarrage doit donc passer a sonde_sans_bind un timeout ET un budget
+    GENEREUX, franchement au-dessus de cette latence."""
+    vus = {}
+
+    def faux_sonde(port, *a, **k):
+        vus['timeout'] = k.get('timeout')
+        vus['budget'] = k.get('budget')
+        return '0.9-beta7'
+
+    monkeypatch.setattr(S, 'sonde_sans_bind', faux_sonde)
+    h = _Horloge()
+    code, _ = LI.attendre(port=PORT_TEST, version_locale='0.9-beta7',
+                          horloge=h.maintenant, dormir=h.dormir)
+    assert code == LI.OUVRIR_SEULEMENT
+    # marge nette au-dessus de la latence antivirus mesuree (~2 s) :
+    assert (vus['timeout'] or 0) >= 4.0, 'timeout d attente trop court pour un localhost lent'
+    assert (vus['budget'] or 0) >= 4.0, 'budget d attente trop court pour un localhost lent'
+    # et strictement plus genereux que le defaut de la sonde de pre-controle
+    # (sans quoi le durcissement n aurait rien change au cas qui a echoue) :
+    assert (vus['budget'] or 0) > S._HTTP_BUDGET
+
+
 def test_le_message_d_echec_reste_en_ascii(monkeypatch):
     """Trouvé en l'exécutant pour de vrai : mes guillemets « » ressortaient
     en mojibake dans la console Windows."""
