@@ -312,7 +312,7 @@
       /* Bascule AFFICHAGE OFF : verrou !important qui bat le display:inline
          reposé par le JS des widgets dynamiques (météo, pont WSJT-X). */
       .rcsb-aff-off{display:none!important}
-      #rcsbLayoutDD, #rcsbDisplayDD{position:absolute;top:100%;left:0;z-index:2000;min-width:260px;
+      #rcsbLayoutDD, #rcsbDisplayDD{position:absolute;top:100%;left:0;z-index:10000;min-width:260px;
         background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
         box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px;font-size:13px;white-space:normal}
       #rcsbLayoutDD .rcsb-panel-row,#rcsbLayoutDD .rcsb-layout-row{display:flex;align-items:center;gap:6px;padding:4px 0}
@@ -341,7 +341,7 @@
       #rcsbDisplayDD label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text,#E9ECF5)}
       #rcsbDisplayDD input[type=checkbox]{cursor:pointer;accent-color:var(--accent2,#00D4FF)}
       #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
-      #rcsbUpdateDD{position:absolute;top:100%;right:0;z-index:2000;min-width:280px;
+      #rcsbUpdateDD{position:absolute;top:100%;right:0;z-index:10000;min-width:280px;
         background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
         box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px;font-size:13px;white-space:normal;color:var(--text,#E9ECF5)}
       #rcsbUpdateDD .rcsb-upd-notes{max-height:120px;overflow-y:auto;color:var(--muted,#A9B0C8);
