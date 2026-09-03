@@ -205,3 +205,104 @@ le test rougir, restaurer). Tests structurels, pas de simple présence de chaîn
   atténué par la baseline de non-régression *avant* toute modif DSP.
 - **Timings faux sur nouveaux modes** → atténué par le garde-fou anti-mannequin
   (§5) et le sourçage obligatoire N7CXI.
+
+## 10. Résultats mesurés (Lot A)
+
+Clôture du critère de succès §3 pour le Lot A. Mesures faites avec le banc
+`concours/tests/test_sstv_robustesse.py` (bruit blanc gaussien calibré en SNR,
+graine fixe, aucune dérive/fading injectés sauf mention contraire). Config
+« défauts retenus » = `estimPixel:'ponderee', syncCorrelation:true` (valeurs
+par défaut du constructeur `SstvDecodeur`). Config « historique » (avant tout
+levier A1-A3) = `estimPixel:'moyenne', syncCorrelation:false`.
+
+### A1 — REJETÉ (inerte, prouvé)
+
+Le limiteur d'amplitude avant l'`atan2` du discriminateur a été mesuré
+**mathématiquement inerte** : `atan2(k·y, k·x) = atan2(y, x)` pour tout `k>0`
+— mettre le vecteur I/Q à l'échelle avant l'`atan2` ne change pas la phase
+démodulée. Preuve algébrique + 100 000 vecteurs aléatoires (écart max
+`4.4e-16`) + balayage fin 0.5 dB sur M1/R36/PD90 (courbes identiques au
+centième, décrochage identique à 9 dB). Aucun code de limiteur livré ; seul
+`_lastAmpl` (amplitude I/Q instantanée) a été exposé, consommé par A2.
+
+### A2 — GARDÉ (estimPixel:'ponderee', défaut)
+
+Gain de décrochage AWGN mesuré : **0 dB** sur M1/R36/PD90 (identique à
+'moyenne'). Gardé néanmoins car :
+- Aucune régression en clair (`test_a2_ne_regresse_pas_en_clair`, marge < 1
+  niveau).
+- Bénéfice réel démontré sur signal fabriqué où l'amplitude I/Q s'effondre
+  sur les échantillons faux (cas absent du banc AWGN pur, mais réel en QRM
+  sélectif/fading) : 'ponderee' reste à un pixel proche du vrai (écart ≤ 10)
+  quand 'moyenne' est tirée à mi-chemin (écart ≥ 100) —
+  `test_a2_ponderee_deprioritise_amplitude_effondree`.
+- 'mediane' (alternative) mesurée systématiquement moins bonne sous bruit
+  gaussien — écartée au profit de 'ponderee'.
+
+### A3 — GARDÉ (syncCorrelation:true, défaut)
+
+**Gain de décrochage AWGN : 0 dB**, mesuré sur les 8 modes témoins
+(M1/M2/S1/S2/SDX/R36/R72/PD90 : décrochage à 9 dB dans les deux
+configurations). **Cause racine diagnostiquée** : sur ce banc, le genou de
+décrochage est fixé par l'**acquisition de l'en-tête VIS** (hors périmètre
+A1-A3, qui n'agissent qu'après la détection de mode), et le banc n'injecte
+**aucune dérive d'horloge ni fading** — la synchro de balayage (ce que A3
+corrige) ne peut donc pas se distinguer de l'historique sur ce banc précis.
+Le critère de succès §3 (« abaisser le SNR de décrochage ») **n'est pas
+atteint sur ce banc AWGN pur** — constat honnête, pas de gain de décrochage
+inventé.
+
+**Bénéfice réel mesuré, sous dérive combinée au bruit** (ce que le banc AWGN
+pur ne capture pas) :
+
+- À la dérive proposée initialement dans le brief (3e-4, ~0,03 %, écart
+  typique entre deux cartes son) **seule, à SNR propre (30 dB)** : PAS d'écart
+  significatif entre `syncCorrelation:true` et `:false` — le mécanisme
+  historique (`_recalerSync`, seuil `f<1350`) absorbe déjà cette dérive
+  modeste quand le signal est propre. Mesuré : M1 ON=2.04 / OFF=1.37 (OFF
+  légèrement meilleur), S1 ON=2.05 / OFF=1.52 (OFF légèrement meilleur) — les
+  deux restent très loin sous le seuil d'utilisabilité (25). **Correction
+  d'une hypothèse de cadrage** : le chiffre « MAE<5 (on) vs ~20 (off) »
+  discuté en amont de cette tâche provient en réalité de la contre-épreuve
+  par mutation de `test_a3_option_est_bien_cablee` (`return;` inséré en tête
+  de `_recalerSyncCorr`, c'est-à-dire recalage **totalement désactivé** dans
+  la branche corrélation) — **pas** de la comparaison `syncCorrelation:true`
+  vs `:false` par l'option publique, qui bascule vers le mécanisme seuil
+  historique (lui aussi fonctionnel, pas un « aucun recalage »).
+- En poussant la dérive et en la combinant à du bruit modéré (15 dB), un
+  écart net et reproductible apparaît : à dérive `2e-3` (~0,2 %) et SNR
+  15 dB, `syncCorrelation:true` reste exploitable alors que `:false`
+  dépasse le seuil d'utilisabilité :
+  - **M1** : ON MAE=6.75 (complet, exploitable) vs OFF MAE=34.85 (complet
+    mais **inexploitable**, seuil=25) — écart 28.1 niveaux.
+  - **S1** : ON MAE=6.66 (complet, exploitable) vs OFF MAE=47.41
+    (**inexploitable**) — écart 40.75 niveaux.
+  - Explication : le détecteur seuil instantané perd le suivi quand un
+    échantillon bruité franchit la borne au mauvais endroit sous dérive
+    cumulée ; l'intégrateur d'énergie de la corrélation résiste à ce mode de
+    défaillance. C'est le bénéfice réel de A3 — sous dérive+bruit combinés,
+    pas sous dérive seule à SNR propre.
+- Deux bugs DSP trouvés et corrigés par instrumentation pendant le
+  développement d'A3 (commit `80e5965`) : **double détection sur la traîne**
+  de l'impulsion de corrélation (garde ajoutée : un seul pic retenu par
+  fenêtre de balayage), et **emballement de t0 par rétroaction au bord de
+  fenêtre** (garde monotone `b > _corrDernierBal` : chaque balayage n'est
+  recalé qu'une fois).
+
+### Non-régression des 14 modes
+
+`test_lotA_ne_regresse_aucun_mode_en_clair` (8 familles témoin
+M1/M2/S1/S2/SDX/R36/R72/PD90, config par défaut vs historique, SNR 30 dB) :
+**8/8 PASS**. Suite historique complète `test_sstv_decodeur.py` : **27/27
+PASS**, sans modification — les défauts d'options ne changent pas le
+comportement en clair au-delà des tolérances déjà en place.
+
+### Bilan pour le Lot B
+
+Les leviers A1-A3 sont clos : A1 rejeté (preuve d'inertie), A2 et A3 gardés
+en défaut (aucune régression, bénéfices réels documentés hors du banc AWGN
+pur pour chacun). Le critère « abaisser le SNR de décrochage » du banc AWGN
+reste non atteint et n'est **pas** rouvert dans ce lot (cause racine hors
+périmètre A1-A3, cf. ci-dessus) — décision pour F4GLD au checkpoint : accepter
+ce résultat et passer au Lot B, ou cadrer un lot ciblé sur l'acquisition VIS
+si le décrochage AWGN reste jugé prioritaire.

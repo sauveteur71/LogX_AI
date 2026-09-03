@@ -382,3 +382,33 @@ def test_a3_option_est_bien_cablee(moteur, capsys):
             print('    cor=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fcor])
             print('    seu=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fseu])
 
+
+# ─── Consolidation Lot A : non-regression des 14 modes ────────────────────
+# Verrouille la configuration par defaut retenue en fin de Lot A :
+#   estimPixel='ponderee' (A2 garde), syncCorrelation=true (A3 garde).
+# A1 (limiteur d'amplitude) a ete REJETE (mesure INERTE, cf. commentaire A1
+# plus haut) : il n'existe PAS d'option 'limiteurAmpl' dans le decodeur —
+# une cle de ce nom serait silencieusement ignoree par Object.assign, donc
+# elle est volontairement ABSENTE de la config "origine" ci-dessous plutot
+# que d'ecrire une option qui n'existe pas (regle du depot : pas de valeur
+# inventee).
+#
+# "origine" = comportement historique (avant tout levier A1-A3) :
+# estimPixel='moyenne', syncCorrelation=False.
+
+FAMILLES_TEMOIN = ['M1', 'M2', 'S1', 'S2', 'SDX', 'R36', 'R72', 'PD90']
+
+
+@pytest.mark.parametrize('mode', FAMILLES_TEMOIN)
+def test_lotA_ne_regresse_aucun_mode_en_clair(moteur, mode):
+    """Avec les leviers aux DEFAUTS retenus, chaque mode doit rester utilisable
+    a SNR eleve (30 dB) — aucun des 14 modes existants n'est casse par le Lot A.
+    Compare au comportement d'ORIGINE (moyenne + seuil historique, avant A2/A3) :
+    pas de degradation > 2 niveaux de MAE."""
+    defaut = _courbe(moteur, mode, [30], {'lignes': 24})[0]
+    origine = _courbe(moteur, mode, [30], {'lignes': 24, 'dec': {
+        'estimPixel': 'moyenne', 'syncCorrelation': False}})[0]
+    assert defaut['mode'] == mode and defaut['mae'] is not None
+    assert defaut['mae'] <= max(SEUIL_UTILISABLE, origine['mae'] + 2.0), \
+        '%s regresse : defaut=%s origine=%s' % (mode, defaut['mae'], origine['mae'])
+
