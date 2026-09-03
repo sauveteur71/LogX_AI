@@ -4199,11 +4199,12 @@ if(localStorage.getItem('rc_theme') === null){
     };
   }
 
-  // Horloge « OK » : CONSERVATEUR. On ne désigne l'horloge en cause QUE si une
-  // mesure SNTP explicite (mesurerHorloge/mesureHorloge, voir plus haut) l'a
-  // confirmée mauvaise — jamais sur un décalage encore non mesuré (ce qui
-  // désarmerait une session saine à la moindre latence de chaîne audio, déjà
-  // documentée plus haut comme distincte d'une horloge fausse).
+  // Horloge « OK » pour une SESSION AUTONOME : STRICT (décision F4GLD 03/09,
+  // M3). On exige une mesure SNTP valide ET synchronisée ; une horloge NON
+  // mesurée (ou dont la mesure a échoué) est jugée NON OK → la session ne part
+  // pas / se désarme. Un QSO FT8 en pleine autonomie sans horloge UTC vérifiée
+  // n'est pas acceptable. (Ceci REMPLACE l'ancienne posture « conservatrice »
+  // qui ne désarmait que sur une dérive explicitement mesurée.)
   function _sessionHorlogeOk(){
     // M3 (F4GLD 03/09) : pour une session AUTONOME, l'horloge doit être
     // MESURÉE (SNTP) ET synchronisée. Sans mesure valide, on refuse — pas
