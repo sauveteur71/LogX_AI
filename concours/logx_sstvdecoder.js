@@ -152,6 +152,47 @@ function sstvModeMono(nom, vis, scan, largeur, hauteur){
     ]};
 }
 
+function sstvModeSc2(nom, vis, scan){
+  // Famille `rgb` RÉUTILISÉE (Lot B3, Wraase SC2-120/180) — PAS une nouvelle
+  // famille DSP : structure par ligne identique à Martin/Scottie (synchro +
+  // porch puis 3 canaux couleur dos-à-dos), déjà couverte par la branche
+  // `famille === 'rgb'` de `_emettreBalayage`. Confirmé au niveau du CODE
+  // décodeur réel (pas seulement sa table de constantes) : slowrx
+  // (windytan/slowrx, video.c/GetVideo()) ne spécialise PAS W2120/W2180 dans
+  // son switch(Mode) — contrairement à Robot36/Robot24/Scottie/PD qui ONT
+  // leur propre `case` — ils tombent dans le `default`, la MÊME formule
+  // générique que Martin (ChanStart[0]=Sync+Porch, ChanStart[n]=
+  // ChanStart[n-1]+ChanLen[n-1]+SeptrTime).
+  //
+  // ⚠️ PIÈGE Wraase (signalé au brief) : ordre des canaux R, G, B — PAS
+  // G, B, R comme Martin/Scottie. SOURCE croisée à 3 implémentations/docs
+  // indépendantes : N7CXI (Dayton 2000, section "WRASSE SC2-180", "SCAN
+  // SEQUENCE Red, Green, Blue") × slowrx (modespec.c, `ColorEnc = RGB` pour
+  // W2120/W2180, PAS `GBR` comme M1-M4/S1-SDX ; video.c confirme le mapping
+  // DIRECT canal0→rouge/canal1→vert/canal2→bleu pour `ColorEnc=RGB`, contre
+  // une permutation pour `GBR`) × pySSTV (dnet/pySSTV, color.py,
+  // `WraaseSC2180`/`WraaseSC2120` : `COLOR_SEQ=(Color.red, Color.green,
+  // Color.blue)` pour LES DEUX modes).
+  //
+  // sync=5.5225ms/porch=0.5ms/SEP=0 (pas de séparateur, contrairement à
+  // Martin/Scottie) IDENTIQUES pour SC2-120 et SC2-180 (slowrx : SyncTime/
+  // PorchTime/SeptrTime des 2 entrées W2120/W2180, valeurs identiques ;
+  // pySSTV : SC2-120 hérite SYNC/PORCH de SC2-180 sans les redéfinir).
+  // `scan` (durée de balayage d'un canal, sourcée séparément par mode) : cf.
+  // commentaire détaillé + discordance N7CXI/slowrx documentée dans le bloc
+  // SSTV_MODES plus bas et test_timing_wraase_sc2_est_source.
+  const sync = 0.0055225, porch = 0.0005, sep = 0;
+  return {nom, vis, famille: 'rgb', largeur: 320, hauteur: 256, balayages: 256,
+    lignesParBalayage: 1, decalageDepart: 0,
+    dureeBalayage: sync + porch + 3 * scan,
+    syncDebut: 0, syncDuree: sync, sync, porch, sep, scan,
+    canaux: [
+      {plan: 'r', debut: sync + porch,               duree: scan, rangee: 'bal'},
+      {plan: 'g', debut: sync + porch + scan,         duree: scan, rangee: 'bal'},
+      {plan: 'b', debut: sync + porch + 2 * scan,     duree: scan, rangee: 'bal'},
+    ]};
+}
+
 const SSTV_MODES = {};                     // indexés par code VIS
 const SSTV_MODES_PAR_NOM = {};             // indexés par nom court (M1, S1…)
 for(const [cle, m] of Object.entries({
@@ -238,6 +279,33 @@ for(const [cle, m] of Object.entries({
   R8BW:  sstvModeMono('Robot 8 BW',  2,  0.0599,  160, 120),
   R12BW: sstvModeMono('Robot 12 BW', 6,  0.09312, 160, 120),
   R24BW: sstvModeMono('Robot 24 BW', 10, 0.09312, 320, 240),
+  // Famille `rgb` réutilisée (Lot B3, 03/09/2026) : Wraase SC2-120/180 — cf.
+  // commentaire complet de sstvModeSc2() ci-dessus (décision famille +
+  // ordre des canaux) et test_timing_wraase_sc2_est_source (recoupement
+  // détaillé). Résumé du choix de `scan` par mode (discordance interne à
+  // slowrx entre son champ PixelTime et son champ LineTime, même motif que
+  // M3 au Lot B1 — tranchée en gardant la valeur qui RECONCILIE le mieux
+  // avec le LineTime déclaré, chiffres exacts dans le test dédié) :
+  //   SC2-180 : scan=0.235 (N7CXI "COLOR SCAN TIME 235.000ms" exact — PAS le
+  //             0.23505024 impliqué par le PixelTime de slowrx) — reconcilie
+  //             EXACTEMENT le LineTime slowrx (711.0225ms) et correspond au
+  //             SCAN=235.0 de pySSTV. 256 balayages × 0.7110225 = 182.02 s
+  //             (N7CXI "182 seconds" publié — PAS 180 malgré le nom,
+  //             vérifié).
+  //   SC2-120 : scan=0.1564925 (PixelTime slowrx 0.489039081e-3 × 320 — PAS
+  //             le 0.156 arrondi de pySSTV) — reconcilie le LineTime slowrx
+  //             (475.530018ms) à 30µs près (0.006%), contre 1.5ms d'écart
+  //             (0.32%) avec la valeur pySSTV (qui ajoute par ailleurs des
+  //             impulsions de porch supplémentaires entre canaux pour ce
+  //             mode précis, en rustine d'interopérabilité déclarée
+  //             incertaine par son propre auteur — écartée du modèle
+  //             structurel ici, cf. sstvModeSc2()). 256 × 0.4755000 = 121.73
+  //             s (nom "SC2-120" lui aussi approximatif — vérifié, pas
+  //             supposé).
+  // VIS : SC2-180=55 (0x37), SC2-120=63 (0x3F) — slowrx VISmap[] ET pySSTV
+  // VIS_CODE, 2 sources exactement concordantes pour les 2 modes.
+  SC2_120: sstvModeSc2('Wraase SC2-120', 63, 0.1564925),
+  SC2_180: sstvModeSc2('Wraase SC2-180', 55, 0.235),
 })){
   m.cle = cle;
   SSTV_MODES[m.vis] = m;
@@ -851,6 +919,14 @@ function sstvEncodeSamples({mode = 'M1', pixels, sampleRate = 44100,
       ton(1500, m.sep); scan(m.scan, rgb(bal, 2));
       ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
       scan(m.scan, rgb(bal, 0));
+    } else if(m.nom.startsWith('Wraase')){
+      // SC2-120/180 (Lot B3) : synchro+porch puis R,G,B dos-à-dos, PAS de
+      // séparateur entre canaux (m.sep=0, cf. sstvModeSc2()) — ordre R,G,B
+      // (comp 0/1/2 de `pixels`, RGB entrelacé), pas G,B,R comme Martin.
+      ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
+      scan(m.scan, rgb(bal, 0));           // rouge
+      scan(m.scan, rgb(bal, 1));           // vert
+      scan(m.scan, rgb(bal, 2));           // bleu
     } else if(m.famille === 'robot36'){
       ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
       scan(m.scanY, plan('y', bal));

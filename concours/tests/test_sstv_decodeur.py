@@ -48,7 +48,7 @@ FS = 11025
 # Tous les modes de la table — un oubli ici laisserait un mode non testé.
 TOUS_MODES = ['M1', 'M2', 'M3', 'M4', 'S1', 'S2', 'S3', 'S4', 'SDX', 'R36', 'R72',
               'PD50', 'PD90', 'PD120', 'PD160', 'PD180', 'PD240', 'PD290',
-              'R8BW', 'R12BW', 'R24BW']
+              'R8BW', 'R12BW', 'R24BW', 'SC2_120', 'SC2_180']
 
 
 @pytest.fixture(scope='module')
@@ -340,6 +340,136 @@ def test_la_famille_mono_restitue_bien_du_gris(moteur, mode):
       return faux;
     })()""" % (json.dumps(mode), json.dumps(mode), FS, FS))
     assert egal == 0, '%s : %d pixels avec R != G != B (famille mono)' % (mode, egal)
+
+
+def test_timing_wraase_sc2_est_source(moteur):
+    """Fige les VIS/sync/porch/scan/dimensions/ORDRE DE CANAUX SOURCES de la
+    nouvelle famille Wraase SC2-120/180 (Lot B3) -- PAS une nouvelle famille
+    DSP : ce sont des modes RGB sequentiels dont la structure par ligne
+    (synchro+porch puis 3 canaux couleur dos-a-dos) est IDENTIQUE a celle deja
+    geree par la branche `famille === 'rgb'` de `_emettreBalayage` (verifie
+    contre le code source REEL du decodeur slowrx, pas seulement sa table de
+    constantes -- cf. ci-dessous). D'ou `famille: 'rgb'` reutilisee, fabrique
+    dediee `sstvModeSc2()` (pas de nouvelle branche decodeur/encodeur generique,
+    seulement un ajout au chemin encodeur miroir de Martin/Scottie).
+
+    Sources croisees (independantes) :
+      - slowrx (windytan/slowrx, modespec.c) -- entrees W2120/W2180 :
+        SyncTime=5.5225ms, PorchTime=0.5ms, SeptrTime=0 (IDENTIQUES et SANS
+        separateur pour les deux modes, contrairement a Martin/Scottie qui en
+        ont un), PixelTime x ImgWidth(320) donne scan=156.4925ms (W2120) /
+        235.05024ms (W2180), ColorEnc=RGB (PAS GBR comme Martin/Scottie).
+      - slowrx (video.c, GetVideo()) -- verifie au niveau du CODE, pas
+        seulement de la table : le switch(Mode) qui construit la grille de
+        pixels NE special-case PAS W2120/W2180 (pas de `case W2120:`/
+        `case W2180:` -- contrairement a R36/R24/Scottie/PD qui ONT leur
+        propre case) : ils tombent dans le `default`, la MEME formule
+        generique que Martin (ChanStart[0]=Sync+Porch,
+        ChanStart[n]=ChanStart[n-1]+ChanLen[n-1]+SeptrTime) -- confirme
+        structurellement que SC2 est un simple RGB sequentiel generique, pas
+        une famille DSP a part. Et pour `ColorEnc=RGB`, video.c mappe
+        DIRECTEMENT canal0->p[0](rouge affiche), canal1->p[1](vert),
+        canal2->p[2](bleu) -- pas de permutation comme pour `GBR`
+        (canal0->p[1], canal1->p[2], canal2->p[0]) : confirme l'ordre R,G,B.
+      - N7CXI (JL Barber, "Proposal for SSTV Mode Specifications", Dayton SSTV
+        forum 2000, recupere via web.archive.org car barberdsp.com injoignable
+        en direct, texte extrait par pdftotext et lu moi-meme) -- section
+        "WRASSE SC2-180" EXPLICITE : VIS CODE 55d, "SCAN SEQUENCE Red, Green,
+        Blue", NUMBER OF LINES 256, "COLOR SCAN TIME 235.000ms (.7344ms/pixel
+        @ 320 pixels/line)", sync=5.5225ms/porch=0.500ms (table decalee d'une
+        ligne dans l'extraction PDF -- meme artefact que pour Robot36/Martin
+        dans ce meme document, verifie par recoupement avec les valeurs
+        CONNUES de ces modes avant d'appliquer le decalage a SC2). Duree
+        totale publiee 182s (PAS 180s malgre le nom "SC2-180" -- verifie, pas
+        suppose, cf. piege du nom explicitement signale au brief).
+        N7CXI NE DOCUMENTE PAS SC2-120 en detail (pas de section dediee, table
+        de timing absente) -- seule mention : Appendix B affirme (a tort,
+        voir discordance ci-dessous) que SC2-120 utilise un encodage Y/R-Y/B-Y.
+      - pySSTV (dnet/pySSTV, pysstv/color.py, classes WraaseSC2180/
+        WraaseSC2120 -- 2e decodeur/encodeur tiers en production, verifie par
+        `import` direct des constantes de classe installees, pas un resume) :
+        VIS_CODE=0x37=55/0x3f=63 (EXACT, confirme le VISmap de slowrx :
+        0011.0111 -> position 7 ligne "3" et 0011.1111 -> position 15 ligne
+        "3" de VISmap[]) ; COLOR_SEQ=(Color.red, Color.green, Color.blue) pour
+        LES DEUX modes (3e source independante pour l'ordre des canaux) ;
+        SYNC=5.5225/PORCH=0.5 identiques a slowrx pour les deux modes ;
+        WIDTH=320/HEIGHT=256 identiques a slowrx pour les deux modes.
+
+    DISCORDANCE rencontree et resolue (documentee plutot que lissee, regle du
+    depot "STOP si discordant") : le PDF N7CXI (Appendix B, "Y, R-Y, B-Y Color
+    Encoding") affirme que SC2-120 utilise un encodage YCrCb comme Robot/PD --
+    ce qui CONTREDIT slowrx (`.ColorEnc = RGB` pour W2120, PAS `YUV` comme
+    R36/R72/PD qui ont bien ce tag dans le MEME fichier) et pySSTV (RGB direct,
+    `pixel[color.value]`, aucune conversion YCbCr). Resolue en faveur de
+    RGB-direct par un TROISIEME element decisif, pas une simple majorite de
+    vote : le commentaire de l'auteur de pySSTV DANS LE CODE SOURCE de
+    `WraaseSC2120` dit texto avoir teste cette meme affirmation ("there are
+    'authoritative' sounding documents that will tell you SC-2 120 uses red
+    and blue channels that have half the line width of the green channel...
+    this is utter bunkum. The line width is the same for all three channels")
+    -- verification empirique publiee par un implementeur tiers qui a
+    explicitement debunke l'hypothese YCrCb/sous-echantillonnee en testant le
+    decodage reel. Combine a `ColorEnc=RGB` (pas special-case dans le code
+    slowrx reel, verifie ci-dessus) et COLOR_SEQ=(r,g,b) de pySSTV pour LES
+    DEUX modes, la preponderance va a RGB-direct.
+
+    Choix de `scan` (recoupement documente honnetement, meme pattern que M3
+    au Lot B1 -- champs internes discordants d'une SOURCE, tranches par
+    reconciliation avec le champ independant LineTime de CETTE MEME source) :
+      SC2-180 : scan=0.235 (N7CXI "235.000ms" exact, PAS 0.23505024 implique
+        par PixelTime de slowrx) -- car sync+porch+3*0.235 = 0.7110225s
+        reconcilie EXACTEMENT le LineTime publie par slowrx (0.711022500s,
+        4 sedecimales), confirme par pySSTV SCAN=235.0 (valeur ronde qui
+        EST la valeur N7CXI, pas un simple arrondi grossier).
+        256*0.7110225=182.02s ~= 182s publie N7CXI (+0.01%).
+      SC2-120 : scan=0.1564925 (slowrx PixelTime(0.489039081e-3)*ImgWidth(320),
+        PAS le SCAN=156.0 arrondi de pySSTV) -- car sync+porch+3*0.1564925 =
+        0.4755000s reconcilie le LineTime publie par slowrx (0.475530018s) a
+        30 microsecondes pres (0.0063%), contre 1.5ms d'ecart (0.32%) avec le
+        SCAN=156.0 de pySSTV. pySSTV lui-meme ajoute des impulsions de porch
+        SUPPLEMENTAIRES avant chaque canal pour SC2-120 specifiquement, avec
+        un commentaire d'incertitude explicite de son auteur ("Not sure why...
+        Go figure") -- ecarte comme rustine d'interop cote ENCODEUR envers
+        d'autres decodeurs, pas comme partie du modele structurel choisi ici
+        (qui suit le code de decodage REEL de slowrx, formule generique
+        sans impulsion supplementaire, cf. ci-dessus).
+        256*0.4755000=121.73s ; le nom "SC2-120" est donc lui aussi approximatif
+        (~121.7s, pas 120s pile) -- verifie, pas suppose.
+
+    Pas de separateur entre canaux (sep=0, SeptrTime slowrx=0 pour les DEUX
+    modes -- absent de `after_channel` de pySSTV WraaseSC2180 qui renvoie []).
+
+    Un scan/ordre-de-canal devine ferait passer l'aller-retour interne
+    (mannequin partiel, cf. test_vis_et_timing_de_chaque_mode) pour une
+    mutation de `scan` (encodeur/decodeur relisent le meme objet mute) mais
+    PAS pour une permutation de canaux (l'image de test a des degrades R/G/B
+    DISTINCTS, cf. mutation demontree dans le rapport) -- ce test dedie
+    verrouille les deux independamment de ce que le round-trip attrape ou non.
+    Validation externe (WAV pySSTV tiers) : voir rapport -- reussie pour les
+    deux modes (VIS + ordre de canaux confirmes par un encodeur totalement
+    independant)."""
+    attendu = {
+        'SC2_120': {'vis': 63, 'sync': 0.0055225, 'porch': 0.0005, 'scan': 0.1564925,
+                    'largeur': 320, 'hauteur': 256},
+        'SC2_180': {'vis': 55, 'sync': 0.0055225, 'porch': 0.0005, 'scan': 0.235,
+                    'largeur': 320, 'hauteur': 256},
+    }
+    for mode, v in attendu.items():
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].famille" % mode) == 'rgb'
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].vis" % mode) == v['vis']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].sync" % mode) == pytest.approx(v['sync'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].porch" % mode) == pytest.approx(v['porch'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(v['scan'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].largeur" % mode) == v['largeur']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].hauteur" % mode) == v['hauteur']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].balayages" % mode) == v['hauteur']
+        # PIEGE Wraase (explicitement signale au brief) : ordre des canaux
+        # R,G,B -- PAS G,B,R comme Martin/Scottie. 3 sources independantes
+        # (N7CXI texte "Red, Green, Blue", slowrx video.c mapping ColorEnc=RGB,
+        # pySSTV COLOR_SEQ=(red,green,blue)) verrouillees ici structurellement.
+        ordre = moteur.eval("SSTV_MODES_PAR_NOM['%s'].canaux.map(c => c.plan).join(',')" % mode)
+        assert ordre == 'r,g,b', 'ordre de canaux %s pour %s (attendu r,g,b)' % (ordre, mode)
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].sep" % mode) == 0
 
 
 # ─── Aller-retour complet ────────────────────────────────────────────────────
