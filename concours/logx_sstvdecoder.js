@@ -157,12 +157,18 @@ function sstvYccVersRgb(y, cr, cb){
 // (onLigne) au fil de la réception. États : leader → vis-start → vis-bits →
 // image → retour à leader (prêt pour l'image suivante).
 class SstvDecodeur {
-  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat} = {}){
+  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee'} = {}){
     this.sampleRate = sampleRate;
     this.onDebutImage = onDebutImage || (() => {});
     this.onLigne = onLigne || (() => {});
     this.onFinImage = onFinImage || (() => {});
     this.onEtat = onEtat || (() => {});
+    // A2 : reduction d'une cellule de pixel a une valeur unique.
+    // 'moyenne' = comportement historique (branche off pour l'A/B) ;
+    // 'mediane' = mediane des frequences de la cellule ;
+    // 'ponderee' = moyenne ponderee par l'amplitude I/Q instantanee
+    // (_lastAmpl), qui deprioritise les echantillons a I/Q effondre.
+    this._estimPixel = estimPixel;
     // Amplitude I/Q instantanée du dernier échantillon (mise à jour dans _freq).
     // Levier A1 (« limiteur » : normaliser le vecteur I/Q avant l'atan2 du
     // discriminateur) a été MESURÉ INERTE et REJETÉ : atan2(k·y,k·x)=atan2(y,x)
@@ -212,6 +218,8 @@ class SstvDecodeur {
     this._plans = null;
     this._balayage = 0;
     this._cellCle = -1; this._cellSomme = 0; this._cellCompte = 0;
+    this._cellSommePoids = 0;           // A2 ponderee : somme des amplitudes
+    this._cellFreqs = [];               // A2 mediane : frequences de la cellule
     this._cellPlan = null; this._cellIdx = 0;
     this._basDebut = -1;                // début du passage sous 1350 Hz en cours
     this.rgba = null;                   // image RGBA complète (remplie ligne à ligne)
@@ -427,13 +435,40 @@ class SstvDecodeur {
       this._finaliserCellule();
       this._cellCle = cle; this._cellPlan = plan; this._cellIdx = idx;
       this._cellSomme = 0; this._cellCompte = 0;
+      this._cellSommePoids = 0;
+      if(this._estimPixel === 'mediane') this._cellFreqs.length = 0;
     }
-    if(cle !== -1){ this._cellSomme += f; this._cellCompte++; }
+    if(cle !== -1){
+      this._cellCompte++;
+      if(this._estimPixel === 'ponderee'){
+        const w = this._lastAmpl;       // deprioritise les echantillons a I/Q effondre
+        this._cellSomme += f * w; this._cellSommePoids += w;
+      } else if(this._estimPixel === 'mediane'){
+        this._cellFreqs.push(f);
+      } else {
+        this._cellSomme += f;           // 'moyenne' : comportement historique
+      }
+    }
   }
 
   _finaliserCellule(){
     if(this._cellCle === -1 || !this._cellCompte || !this._cellPlan) return;
-    const fMoy = this._cellSomme / this._cellCompte;
+    let fMoy;
+    if(this._estimPixel === 'ponderee'){
+      // Repli sur la moyenne simple si tous les poids sont ~nuls (silence
+      // total) : _cellSomme accumule alors f*w (pas f), donc ce repli n'est
+      // PAS la moyenne des f — acceptable car il ne joue qu'a amplitude
+      // quasi nulle (silence), jamais en signal etabli.
+      fMoy = this._cellSommePoids > 1e-9
+           ? this._cellSomme / this._cellSommePoids
+           : this._cellSomme / this._cellCompte;
+    } else if(this._estimPixel === 'mediane'){
+      const a = this._cellFreqs.slice().sort((x, y) => x - y);
+      const n = a.length;
+      fMoy = n % 2 ? a[(n - 1) >> 1] : (a[n/2 - 1] + a[n/2]) / 2;
+    } else {
+      fMoy = this._cellSomme / this._cellCompte;
+    }
     this._cellPlan[this._cellIdx] = sstvClamp255((fMoy - SSTV_NOIR) / SSTV_PENTE);
     this._cellCle = -1; this._cellCompte = 0;
   }

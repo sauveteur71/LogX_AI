@@ -217,3 +217,31 @@ def test_a1_lastampl_suit_l_amplitude_du_signal(moteur):
     ratio = a2 / a1
     assert 1.8 <= ratio <= 2.2, \
         '_lastAmpl ne suit pas l\'amplitude : A->%.5f 2A->%.5f ratio=%.3f' % (a1, a2, ratio)
+
+
+# ─── A2 : estimation de frequence pixel robuste (mediane / ponderee) ──────
+
+def test_a2_ne_regresse_pas_en_clair(moteur):
+    """A SNR eleve, l'estimateur robuste ne doit pas degrader le MAE (>1 niveau)
+    vs la moyenne historique."""
+    for mode in ['M1', 'R36', 'PD90']:
+        rob = _courbe(moteur, mode, [30], {'lignes': 16, 'dec': {'estimPixel': 'ponderee'}})[0]
+        moy = _courbe(moteur, mode, [30], {'lignes': 16, 'dec': {'estimPixel': 'moyenne'}})[0]
+        assert rob['mae'] is not None and moy['mae'] is not None
+        assert rob['mae'] <= moy['mae'] + 1.0, '%s rob=%s moy=%s' % (mode, rob['mae'], moy['mae'])
+
+
+def test_a2_option_est_bien_cablee(moteur, capsys):
+    """Les trois estimateurs ne donnent pas tous le meme resultat sous bruit —
+    sinon l'option est morte. Journalise le gain de chaque variante."""
+    base = {'lignes': 24}
+    moy = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'moyenne'}))
+    med = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'mediane'}))
+    pon = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'ponderee'}))
+    empreinte = lambda c: [None if p['mae'] is None else round(p['mae'],1) for p in c]
+    assert empreinte(moy) != empreinte(pon) or empreinte(moy) != empreinte(med), \
+        'estimPixel sans effet — option morte ?'
+    with capsys.disabled():
+        print('\nA2 R36 decro moy=%s med=%s pon=%s' % (
+            _snr_decrochage(moy), _snr_decrochage(med), _snr_decrochage(pon)))
+
