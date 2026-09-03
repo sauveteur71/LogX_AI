@@ -14,6 +14,7 @@ la STRUCTURE du source) :
       qu'il est LE critère pour choisir qui appeler. Ajouté au rendu + stocké.
 """
 import os
+import re
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FT8 = os.path.join(BASE, 'logx_ft8.html')
@@ -22,6 +23,14 @@ FT8 = os.path.join(BASE, 'logx_ft8.html')
 def _src():
     with open(FT8, encoding='utf-8') as f:
         return f.read()
+
+
+def _sans_commentaires(txt):
+    """Retire blocs /* */ et lignes //. Sans ça, un mot présent dans un
+    commentaire explicatif satisfait une assertion censée viser le CODE."""
+    sans_bloc = re.sub(r'/\*.*?\*/', ' ', txt, flags=re.S)
+    return '\n'.join(l for l in sans_bloc.split('\n')
+                     if not l.strip().startswith('//'))
 
 
 # ── (d) plus aucun token fantôme --fg (illisible en mode jour) ───────────────
@@ -120,3 +129,43 @@ def test_vumetre_rx_present_et_alimente():
     assert 'function majNiveauRx(' in src, "fonction majNiveauRx absente"
     assert 'majNiveauRx(dataArray, nBins)' in src, \
         "le vu-mètre n'est pas alimenté par boucleWaterfall"
+
+
+# ── (e) axe du waterfall non tronqué (labels centrés, axe rehaussé) ──────────
+
+def test_axe_waterfall_non_tronque():
+    """« Il manque des bouts sous le waterfall » (même en plein écran = clip
+    FIXE) : l'axe de 16 px coupait le bas des labels (baseline alphabétique à
+    0.75 h). Axe rehaussé (22 px) + baseline CENTRÉE -> labels entiers."""
+    src = _src()
+    assert 'canvas#axisCanvas{width:100%;height:22px' in src, "l'axe du waterfall n'a pas été rehaussé"
+    i = src.index('function dessinerAxe(')
+    corps = src[i:src.index('\n  }', i)]
+    assert "textBaseline = 'middle'" in corps, "dessinerAxe ne centre pas verticalement les labels"
+    assert 'h*0.5)' in corps, "labels pas dessinés au centre vertical de l'axe"
+
+
+# ── (b) indicatif relu sans recharger + invalidation TX si changement ───────
+
+def test_identite_relue_au_focus():
+    """La page relit l'indicatif quand elle redevient visible / reprend le
+    focus : plus de « CQ TM6KJS » figé jusqu'à un F5."""
+    src = _src()
+    assert "addEventListener('visibilitychange'" in src, "pas de relecture à la visibilité"
+    assert "window.addEventListener('focus'" in src, "pas de relecture au focus"
+
+
+def test_changement_indicatif_invalide_l_emission():
+    """tx-human-consent : un changement d'indicatif (identité station) doit
+    INVALIDER une émission armée/programmée (désarmement via onArmChange), pas
+    la laisser partir avec l'ancien indicatif sans nouvelle validation."""
+    src = _src()
+    i = src.index('async function chargerIdentite(')
+    # DÉPOUILLER les commentaires : « onArmChange » apparaît aussi dans un pavé
+    # explicatif de la fonction — sans ça, retirer le CODE d'invalidation
+    # laisserait le test vert (le mot survit dans le commentaire).
+    corps = _sans_commentaires(src[i:i + 1700])
+    assert 'const ancienCall = myCall' in corps, "chargerIdentite ne mémorise pas l'ancien indicatif"
+    assert 'ancienCall !== myCall' in corps, "aucune détection de changement d'indicatif"
+    assert 'onArmChange()' in corps, \
+        "un changement d'indicatif n'appelle pas onArmChange() : émission non invalidée (tx-human-consent violé)"

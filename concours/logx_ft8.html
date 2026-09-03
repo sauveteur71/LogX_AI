@@ -170,8 +170,8 @@ button.danger.on{background:var(--red);border-color:var(--red);color:#2a0008}
 .toggle-arm input{width:15px;height:15px;accent-color:var(--red)}
 .toggle-arm.armed{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.10)}
 
-canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
-canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);cursor:crosshair}
+canvas#waterCanvas{width:100%;height:180px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
+canvas#axisCanvas{width:100%;height:22px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:crosshair}
 
 /* (g) Vu-mètre de niveau audio RX (référence WSJT-X). Couleurs SÉMANTIQUES de
    la charte (suivent jour/nuit) : orange=trop bas, vert=bon, rouge=saturé. */
@@ -914,6 +914,7 @@ if(localStorage.getItem('rc_theme') === null){
   // ─── Identité station (CONFIG) ───────────────────────────────────────────
   let myCall = '', myGrid = '', myContest = '';
   async function chargerIdentite(){
+    const ancienCall = myCall;
     try{
       const r = await fetch('/config');
       if(!r.ok) return;
@@ -928,9 +929,30 @@ if(localStorage.getItem('rc_theme') === null){
       myContest = c.contest || '';
       document.getElementById('myCallDisp').textContent = myCall || '—';
       document.getElementById('myGridDisp').textContent = myGrid || '—';
-    }catch(e){}
+    }catch(e){ return; }
+    // (b) tx-human-consent : un changement d'indicatif = changement d'IDENTITÉ
+    // station. Toute émission préparée/programmée/en séquence portait l'ANCIEN
+    // indicatif — l'émettre après coup sans nouvelle validation est interdit.
+    // On INVALIDE donc : désarmement (chemin existant onArmChange, qui stoppe la
+    // séquence et annule le programmé) et regénération du message affiché.
+    // (ancienCall vide au tout premier chargement -> pas de fausse invalidation.)
+    if(ancienCall && myCall && ancienCall !== myCall){
+      const box = document.getElementById('armTx');
+      if(box && box.checked){ box.checked = false; if(window.onArmChange) window.onArmChange(); }
+      else { try{ seqArreter('indicatif-change'); }catch(e){} try{ annulerEmissionsProgrammees(); }catch(e){} }
+      const champ = document.getElementById('txText');
+      if(champ && champ.value && champ.value.includes(ancienCall)){
+        champ.value = champ.value.split(ancienCall).join(myCall);
+      }
+    }
   }
   chargerIdentite();
+  // (b) Relire l'identité quand la page redevient visible / reprend le focus :
+  // un changement d'indicatif dans CONFIG est pris en compte SANS recharger la
+  // page (avant, la page gardait l'indicatif lu au chargement — « CQ TM6KJS »
+  // figé jusqu'à un F5, signalé par F4GLD 03/09).
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) chargerIdentite(); });
+  window.addEventListener('focus', () => chargerIdentite());
 
   // ─── Géodésie (colonne droite) ────────────────────────────────────────────
   // Même formule que locLL()/bearing() dans logx_logbook.js — dupliquée ici
@@ -1544,9 +1566,14 @@ if(localStorage.getItem('rc_theme') === null){
     g.font = (10*(window.devicePixelRatio||1)) + 'px ' + getComputedStyle(document.body).fontFamily;
     g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#A9B0C8';
     g.textAlign = 'center';
+    // Baseline CENTRÉE (et non alphabétique à 0.75 h) : sur un axe court, la
+    // baseline alphabétique poussait le bas des chiffres sous le bord du canvas
+    // -> labels tronqués (« il manque des bouts sous le waterfall », F4GLD 03/09,
+    // reproduit même en plein écran = clip FIXE, pas un débordement de fenêtre).
+    g.textBaseline = 'middle';
     for(let i=0;i<=6;i++){
       const hz = WF_MAX_HZ * i / 6;
-      g.fillText(hz>=1000?(hz/1000).toFixed(1)+'k':Math.round(hz), (i/6)*w, h*0.75);
+      g.fillText(hz>=1000?(hz/1000).toFixed(1)+'k':Math.round(hz), (i/6)*w, h*0.5);
     }
     // Repère du ton TX actuel (#ft8Tone0) — retour visuel immédiat après un
     // clic sur le waterfall (voir clicWaterfall()), même logique que le
