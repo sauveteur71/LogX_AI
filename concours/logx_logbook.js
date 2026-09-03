@@ -456,7 +456,7 @@ function applyUsageModeToLogbook(mode){
 }
 
 // ─── ACTIVATION POTA/SOTA/IOTA/WWFF/ARLHS/WCA ────────────────────────────────
-const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44, ARLHS:2, WCA:50};
+const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44, ARLHS:2, WCA:50, LLOTA:10};
 let activationProgram = '';
 let myActivationRef = '';
 let activationTimer = null;
@@ -2930,7 +2930,7 @@ function refsToMySig(q){
   return q;
 }
 // Programmes proposés : source = logx_activation.PROGRAM_SPECS (jamais de mémoire).
-const REF_PROGRAMS = ['POTA','SOTA','WWFF','IOTA','WCA','ARLHS'];
+const REF_PROGRAMS = ['POTA','SOTA','WWFF','IOTA','WCA','ARLHS','LLOTA'];
 function collectRefs(containerId){
   const box = document.getElementById(containerId);
   if(!box) return [];

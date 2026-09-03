@@ -61,6 +61,25 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
   bases permanentes ci-dessus couvrent l'essentiel ; ILLW (entrées annuelles)
   reste un chantier distinct à rouvrir plus tard si besoin.
 
+### LLOTA — Lakes and Lagoons On The Air
+- **Base protégée / non confirmée** : `https://llota.app/` refuse l'accès
+  automatisé (HTTP 403). Explorateur `https://llota.app/referencias.html`,
+  doc `https://llota.app/documentacion.html`, règles
+  `https://llota.app/reglas.html` (non récupérées).
+- Modèle : **validation syntaxique SEULE** (v1) — ni bulk ni lookup par-réf,
+  aucune coordonnée. Réf « CL-0001 » (`^[A-Z]{2}-\d{4,}$` : préfixe pays 2
+  lettres + tiret + 4 chiffres ou plus ; `CL` = exemple public, pas une liste
+  ni « la France »). Enrichissement `MY_SIG=LLOTA`/`MY_SIG_INFO` par le canal
+  générique (pas de tag ADIF dédié). LLOTA reste **hors** `PROGRAMMES`/
+  dispatcher (aucun lookup muet).
+- ⚠️ **Valeurs PROVISOIRES, à confirmer au règlement** (rapportées par F4GLD,
+  site inaccessible en accès automatisé) : min **10 QSO** ; distance au bord
+  **200 m** ; surface **400 m²**. Configurables, jamais bloquantes ; seul le
+  min QSO est modélisé en v1 (distance/surface hors périmètre).
+- Statut : **intégré (validation syntaxique)**. Règlement détaillé non vérifié —
+  accès automatisé refusé (HTTP 403), ce qui ne prouve **pas** l'absence de
+  règles, d'API, ni que ces valeurs soient officielles.
+
 ## Registre machine
 
 ```json
@@ -88,7 +107,17 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
      "website": "https://illw.net/", "rules": "https://illw.net/index.php/guidelines",
      "entries": "https://illw.net/index.php/entrants-list-YYYY",
      "model": "annual_event_entries", "type": "annual_event",
-     "status": "todo", "permanent_reference_database": false}
+     "status": "todo", "permanent_reference_database": false},
+    {"program_code": "LLOTA", "name": "Lakes and Lagoons On The Air",
+     "website": "https://llota.app/", "explorer": "https://llota.app/referencias.html",
+     "rules": "https://llota.app/reglas.html",
+     "model": "syntactic_only", "type": "protected_water_bodies_unconfirmed",
+     "reference_pattern": "^[A-Z]{2}-[0-9]{4,}$",
+     "min_qso": 10, "min_qso_status": "provisional",
+     "distance_m": 200, "distance_status": "provisional",
+     "area_m2": 400, "area_status": "provisional",
+     "status": "integrated_syntactic_only", "rules_status": "unverified_http_403",
+     "catalogue": false, "api": false, "permanent_reference_database": false}
   ]
 }
 ```

@@ -101,6 +101,21 @@ PROGRAM_SPECS = {
     'DMF': {'name': 'Diplôme des Moulins de France', 'sig': 'DMF',
             'ref_re': r'^DMF[- ]?(?:\d{1,4}|2[AB])[-.]\d{1,6}$', 'min_qso': 100,
             'p2p': 'Moulin-to-Moulin', 'example': 'DMF01.001', 'format_provisoire': True},
+    # LLOTA (Lakes and Lagoons On The Air) — programme XOTA « plans d'eau »
+    # (lacs, lagunes, réservoirs, barrages), https://llota.app/ . Référence
+    # « XX-nnnn » : préfixe pays 2 lettres + tiret + 4 chiffres ou plus
+    # (ex. CL-0001 ; CL = exemple public, PAS une liste ni « la France »).
+    # ⚠️ VALEURS PROVISOIRES (rapportées par F4GLD, règlement officiel NON
+    # confirmé : llota.app refuse l'accès automatisé, HTTP 403 — ce qui ne
+    # prouve pas qu'elles soient officielles) : seuil retenu 10 QSO. La distance
+    # au bord (200 m) et la surface (400 m²) ne sont PAS modélisées en v1.
+    # Base protégée -> validation SYNTAXIQUE seule : pas de catalogue ni de
+    # lookup distant, donc LLOTA reste HORS de PROGRAMMES (logx_ref_info.js) et
+    # du dispatcher. Pas de champ ADIF dédié -> mécanisme générique SIG/SIG_INFO
+    # (comme WCA/ARLHS/GMA/WWBOTA).
+    'LLOTA': {'name': 'Lakes and Lagoons On The Air', 'sig': 'LLOTA',
+              'ref_re': r'^[A-Z]{2}-\d{4,}$', 'min_qso': 10,
+              'p2p': 'Lake-to-Lake', 'example': 'CL-0001', 'format_provisoire': True},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
