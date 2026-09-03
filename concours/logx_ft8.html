@@ -4199,14 +4199,19 @@ if(localStorage.getItem('rc_theme') === null){
     };
   }
 
-  // Horloge « OK » : CONSERVATEUR. On ne désigne l'horloge en cause QUE si une
-  // mesure SNTP explicite (mesurerHorloge/mesureHorloge, voir plus haut) l'a
-  // confirmée mauvaise — jamais sur un décalage encore non mesuré (ce qui
-  // désarmerait une session saine à la moindre latence de chaîne audio, déjà
-  // documentée plus haut comme distincte d'une horloge fausse).
+  // Horloge « OK » pour une SESSION AUTONOME : STRICT (décision F4GLD 03/09,
+  // M3). On exige une mesure SNTP valide ET synchronisée ; une horloge NON
+  // mesurée (ou dont la mesure a échoué) est jugée NON OK → la session ne part
+  // pas / se désarme. Un QSO FT8 en pleine autonomie sans horloge UTC vérifiée
+  // n'est pas acceptable. (Ceci REMPLACE l'ancienne posture « conservatrice »
+  // qui ne désarmait que sur une dérive explicitement mesurée.)
   function _sessionHorlogeOk(){
-    return !(mesureHorloge && mesureHorloge.ok
-             && Math.abs(mesureHorloge.ecart_s) >= HORLOGE_SAINE_S);
+    // M3 (F4GLD 03/09) : pour une session AUTONOME, l'horloge doit être
+    // MESURÉE (SNTP) ET synchronisée. Sans mesure valide, on refuse — pas
+    // d'émission FT8 fiable sans horloge UTC sûre. (Plus strict que l'ancienne
+    // version, qui laissait passer une horloge non mesurée.)
+    return !!(mesureHorloge && mesureHorloge.ok
+              && Math.abs(mesureHorloge.ecart_s) < HORLOGE_SAINE_S);
   }
 
   function _sessionEtatRadio(){
@@ -4257,10 +4262,19 @@ if(localStorage.getItem('rc_theme') === null){
   // trace côté serveur (fire-and-forget : une trace ratée ne doit jamais
   // empêcher/défaire l'armement, cohérent avec journal_session côté serveur
   // qui ne lève jamais).
-  window.sessionAutonomeArmer = function(){
+  window.sessionAutonomeArmer = async function(){
     if(typeof LogxFt8Session === 'undefined') return;
     if(!rigActif){
       _sessionAfficherEtat(Tf("Impossible d'armer : radio non pilotée (CAT). Vérifie CONFIG > RADIO."), 'err');
+      return;
+    }
+    // M3 (F4GLD 03/09) : l'horloge UTC DOIT être mesurée (SNTP) et synchronisée
+    // AVANT d'armer — le FT8 exige une horloge sûre, et une session autonome ne
+    // doit jamais démarrer sur une horloge non vérifiée. On mesure ici (cache
+    // 5 min) et on refuse si absente/échec/dérive.
+    const _h = await mesurerHorloge();
+    if(!(_h && _h.ok && Math.abs(_h.ecart_s) < HORLOGE_SAINE_S)){
+      _sessionAfficherEtat(Tf("Impossible d'armer : horloge UTC non synchronisée. Active/relance la mesure SNTP (CONFIG > RADIO) — une session autonome exige une horloge sûre."), 'err');
       return;
     }
     const empreinte = _sessionEmpreinteRadio();
