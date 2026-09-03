@@ -157,8 +157,27 @@ def test_armement_consulte_txArmed():
     reste silencieuse (envoyerMessage refuse sur `!txArmed`) sans que l'opérateur
     comprenne pourquoi. On assère la STRUCTURE (référence dans le CODE, pas un
     commentaire) et on confine au corps de la fonction."""
-    corps = _corps(r'window\.sessionAutonomeArmer = function\(\)\{.*?\n  \};')
+    corps = _corps(r'window\.sessionAutonomeArmer = (?:async )?function\(\)\{.*?\n  \};')
     assert corps, "corps de sessionAutonomeArmer non extractible"
     sans = _sans_commentaires(corps)
     assert 'txArmed' in sans, \
         "sessionAutonomeArmer ne consulte pas txArmed (rappel M4 absent)"
+
+
+# ── 5. (M3) L'armement exige une horloge SNTP synchronisée ──────────────────
+
+def test_armement_exige_horloge_synchronisee():
+    """M3 (F4GLD 03/09) : une session autonome ne doit JAMAIS démarrer sur une
+    horloge non vérifiée. sessionAutonomeArmer doit être async, mesurer
+    l'horloge (mesurerHorloge) AVANT de créer la session, et refuser sinon."""
+    src = _src()
+    assert 'window.sessionAutonomeArmer = async function(' in src, \
+        "sessionAutonomeArmer doit être async (pour await mesurerHorloge)"
+    corps = _corps(r'window\.sessionAutonomeArmer = async function\(\)\{.*?\n  \};')
+    assert corps, "corps de sessionAutonomeArmer non extractible"
+    sans = _sans_commentaires(corps)
+    assert 'mesurerHorloge' in sans, \
+        "sessionAutonomeArmer ne mesure pas l'horloge avant d'armer (M3)"
+    # la mesure d'horloge doit PRÉCÉDER la création de session (refus en amont)
+    assert sans.index('mesurerHorloge') < sans.index('creerSession'), \
+        "la mesure/refus d'horloge doit précéder creerSession"
