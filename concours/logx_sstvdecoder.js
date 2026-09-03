@@ -157,12 +157,29 @@ function sstvYccVersRgb(y, cr, cb){
 // (onLigne) au fil de la réception. États : leader → vis-start → vis-bits →
 // image → retour à leader (prêt pour l'image suivante).
 class SstvDecodeur {
-  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee'} = {}){
+  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee', syncCorrelation = true} = {}){
     this.sampleRate = sampleRate;
     this.onDebutImage = onDebutImage || (() => {});
     this.onLigne = onLigne || (() => {});
     this.onFinImage = onFinImage || (() => {});
     this.onEtat = onEtat || (() => {});
+    // A3 : recalage de t0 par CORRELATION plutot que par seuil instantane.
+    // `false` = comportement historique bit-a-bit (seuil f<1350 + _recalerSync,
+    //   conserves intacts pour la mesure A/B) ;
+    // `true` (defaut) = le pic d'une energie glissante a 1200 Hz sur une fenetre
+    //   = duree de sync du mode pilote le recalage (_recalerSyncCorr). Un
+    //   integrateur moyenne le bruit : l'impulsion de synchro ressort la ou le
+    //   seuil instantane la manque des qu'un echantillon bruite remonte au-dessus.
+    // Levier principal contre le decrochage AWGN (spec §3) — A1 rejete (inerte),
+    // A2 sans effet sur bruit blanc pur ; A3 attaque le vrai mode d'echec (sync).
+    this._syncCorrelation = syncCorrelation;
+    this._corrRingC = null; this._corrRingS = null;   // contributions cos/sin (x·e^{-jωn})
+    this._corrCos = 0; this._corrSin = 0;              // sommes glissantes sur la fenetre
+    this._corrIdx = 0; this._corrN = 0;                // curseur d'anneau, taille de fenetre
+    this._corrW = 0; this._corrPh = 0;                 // ω=2π·1200/fs, phase courante repliee
+    this._corrPic = 0; this._corrPicN = -1;            // max d'energie suivi + son echantillon
+    this._corrBal = -1;                                // balayage dont la fenetre de sync est suivie
+    this._corrDernierBal = -1;                         // dernier balayage recale (garde monotone)
     // A2 : reduction d'une cellule de pixel a une valeur unique.
     // 'moyenne' = comportement historique (branche off pour l'A/B) ;
     // 'mediane' = mediane des frequences de la cellule ;
@@ -263,7 +280,7 @@ class SstvDecodeur {
       if(this._etat === 'leader')          this._chercherLeader(f);
       else if(this._etat === 'vis-start')  this._verifierStart(f);
       else if(this._etat === 'vis-bits')   this._lireBitsVis(f);
-      else                                 this._decoderImage(f);
+      else                                 this._decoderImage(f, samples[i]);
     }
   }
 
@@ -364,6 +381,19 @@ class SstvDecodeur {
     this._balayage = 0;
     this._cellCle = -1; this._cellSomme = 0; this._cellCompte = 0;
     this._basDebut = -1;
+    // A3 : fenetre de correlation dimensionnee sur la duree de sync du mode
+    // (nCorr echantillons), une fois le mode connu. Anneaux + accumulateurs
+    // remis a zero a chaque nouvelle image.
+    if(this._syncCorrelation){
+      const nCorr = Math.max(3, Math.round(mode.syncDuree * fs));
+      this._corrN = nCorr;
+      this._corrRingC = new Float32Array(nCorr);
+      this._corrRingS = new Float32Array(nCorr);
+      this._corrCos = 0; this._corrSin = 0; this._corrIdx = 0;
+      this._corrW = 2 * Math.PI * SSTV_SYNC / fs;
+      this._corrPh = 0; this._corrPic = 0; this._corrPicN = -1;
+      this._corrBal = -1; this._corrDernierBal = -1;
+    }
     this.lignesEmises = 0;
     this._complete = false;
     this._etat = 'image';
@@ -391,16 +421,94 @@ class SstvDecodeur {
     this._t0 += Math.max(-borne, Math.min(borne, err * 0.5));
   }
 
-  _decoderImage(f){
+  // A3 : énergie glissante à 1200 Hz sur une fenêtre = durée de sync du mode.
+  // On corrèle le signal BRUT x contre e^{-jωn} (Goertzel/DFT-bin glissant :
+  // |Σ x·e^{-jωn}|² sur la fenêtre) plutôt que de seuiller la fréquence
+  // démodulée f — un intégrateur moyenne le bruit, l'impulsion de synchro
+  // (seule composante 1200 Hz du balayage, le noir étant à 1500) ressort là où
+  // le seuil instantané la manque.
+  //
+  // L'énergie de la fenêtre finissant à l'échantillon n est maximale quand la
+  // fenêtre est CENTRÉE sur l'impulsion : ce centre vaut `picN = n - nCorr/2`.
+  // On cherche le MAX de cette énergie UNIQUEMENT dans la fenêtre où la synchro
+  // du balayage courant est ATTENDUE (± la même borne de ±2,5 ms que
+  // _recalerSyncCorr), en s'appuyant sur la table de timing du mode. Cela borne
+  // la recherche à un seul pic par balayage (pas de double-détection sur la
+  // traîne de l'impulsion, pas de faux pic pris dans le balayage lui-même) et
+  // le recalage n'est appliqué qu'à la sortie de cette fenêtre.
+  _suivreCorr(x){
+    const c = Math.cos(this._corrPh), s = Math.sin(this._corrPh);
+    this._corrPh += this._corrW;
+    if(this._corrPh > 2 * Math.PI) this._corrPh -= 2 * Math.PI;
+    const kc = x * c, ks = x * s;
+    const i = this._corrIdx;
+    this._corrCos += kc - this._corrRingC[i];      // ajoute l'entrant, retire le sortant (fenêtre glissante)
+    this._corrSin += ks - this._corrRingS[i];
+    this._corrRingC[i] = kc; this._corrRingS[i] = ks;
+    this._corrIdx = (i + 1) % this._corrN;
+    const ener = this._corrCos * this._corrCos + this._corrSin * this._corrSin;
+
+    const fs = this.sampleRate, m = this._mode;
+    const picN = this._n - (this._corrN >> 1);      // centre de la fenêtre courante
+    const relP = (picN - this._t0) / fs;
+    const attenduDansBal = m.syncDebut + m.syncDuree / 2;
+    const b = Math.round((relP - attenduDansBal) / m.dureeBalayage);
+    const delta = relP - (b * m.dureeBalayage + attenduDansBal);   // écart au centre de sync attendu
+    // Garde MONOTONE `b > _corrDernierBal` : chaque balayage n'est recalé
+    // qu'UNE fois. Sans elle, le +½écart appliqué à t0 décale le bord de
+    // fenêtre et réinclut le même picN, ce qui refait feu tous les ~10
+    // échantillons et emballe t0 (positive feedback au bord de fenêtre).
+    if(b >= 0 && b < m.balayages && b > this._corrDernierBal && Math.abs(delta) <= 0.0025){
+      if(b !== this._corrBal){ this._corrBal = b; this._corrPic = 0; this._corrPicN = -1; }
+      if(ener > this._corrPic){ this._corrPic = ener; this._corrPicN = picN; }
+    } else {
+      this._flushCorr();                // sortie de fenêtre : recale sur le max collecté
+    }
+  }
+
+  // Applique le pic d'énergie collecté sur la fenêtre de sync du balayage
+  // courant (s'il y en a un), marque ce balayage comme traité (garde monotone)
+  // puis réarme le suivi pour le balayage suivant.
+  _flushCorr(){
+    if(this._corrBal >= 0 && this._corrPicN >= 0 && this._corrPic > 0){
+      this._recalerSyncCorr(this._corrPicN);
+      this._corrDernierBal = this._corrBal;
+    }
+    this._corrBal = -1; this._corrPic = 0; this._corrPicN = -1;
+  }
+
+  // Recalage par corrélation (A3) : même logique de bornage que _recalerSync
+  // (associer le pic au balayage le plus proche, appliquer la moitié de l'écart,
+  // borner à ±1 ms) mais `nPic` (échantillon du max d'énergie 1200 Hz) sert de
+  // centre au lieu de (basDebut+n)/2, et la fenêtre de durée [0,5× ; 2,5×] est
+  // supprimée — la sélectivité fréquentielle de la corrélation la remplace.
+  _recalerSyncCorr(nPic){
+    const fs = this.sampleRate, m = this._mode;
+    const centreRel = (nPic - this._t0) / fs;
+    const attenduDansBal = m.syncDebut + m.syncDuree / 2;
+    const b = Math.round((centreRel - attenduDansBal) / m.dureeBalayage);
+    if(b < 0 || b >= m.balayages) return;
+    const err = nPic - (this._t0 + (b * m.dureeBalayage + attenduDansBal) * fs);
+    if(Math.abs(err) > 0.0025 * fs) return;
+    const borne = 0.001 * fs;
+    this._t0 += Math.max(-borne, Math.min(borne, err * 0.5));
+  }
+
+  _decoderImage(f, raw){
     const fs = this.sampleRate, m = this._mode;
 
-    // Suivi des impulsions 1200 Hz pour le recalage. Le noir est à 1500 Hz :
-    // seuls la synchro (et du bruit franc) descendent sous 1350.
-    if(f < 1350){
-      if(this._basDebut < 0) this._basDebut = this._n;
-    } else if(this._basDebut >= 0){
-      this._recalerSync();
-      this._basDebut = -1;
+    if(this._syncCorrelation){
+      // A3 : recalage piloté par le pic de corrélation d'énergie 1200 Hz.
+      this._suivreCorr(raw || 0);
+    } else {
+      // Historique : suivi des impulsions 1200 Hz par seuil instantané. Le noir
+      // est à 1500 Hz : seuls la synchro (et du bruit franc) descendent sous 1350.
+      if(f < 1350){
+        if(this._basDebut < 0) this._basDebut = this._n;
+      } else if(this._basDebut >= 0){
+        this._recalerSync();
+        this._basDebut = -1;
+      }
     }
 
     const rel = (this._n - this._t0) / fs;

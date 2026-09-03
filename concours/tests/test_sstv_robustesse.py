@@ -316,3 +316,69 @@ def test_a2_ponderee_deprioritise_amplitude_effondree(moteur):
         'rester proche du vrai pixel : pon=%.1f (attendu proche de %.0f) — ' \
         'ponderation par _lastAmpl bien cablee ?' % (pon, VRAI)
 
+
+# ─── A3 : synchro par correlation d'energie 1200 Hz ───────────────────────────
+# Le decrochage AWGN vient d'un recalage de t0 rate quand l'impulsion de synchro
+# est noyee dans le bruit : le detecteur historique (seuil instantane f<1350)
+# manque une impulsion des qu'un echantillon bruite remonte au-dessus du seuil.
+# A3 remplace ce seuil instantane par le PIC d'une energie glissante a 1200 Hz
+# integree sur la duree de sync du mode — un integrateur moyenne le bruit et
+# fait ressortir l'impulsion. C'est le levier attendu comme le plus efficace
+# contre le decrochage (spec §3), contrairement a A1 (inerte) et A2 (0 dB AWGN).
+
+# Balayage fin autour du genou de decrochage (~9 dB en baseline, resolution 3 dB
+# trop grossiere pour departager on/off) : pas de 0.5 dB entre 4 et 14 dB.
+SNRS_FINS = [round(4 + 0.5 * k, 1) for k in range(21)]  # 4.0 .. 14.0
+
+
+def test_a3_ne_regresse_pas_en_clair(moteur):
+    """La synchro correlee ne doit pas pencher l'image en clair : MAE a 30 dB
+    non degrade de plus de 1 niveau vs seuil historique, sur une image ENTIERE
+    (le slant se voit sur la duree)."""
+    for mode in ['M1', 'S1']:
+        cor = _courbe(moteur, mode, [30], {'dec': {'syncCorrelation': True}})[0]
+        seu = _courbe(moteur, mode, [30], {'dec': {'syncCorrelation': False}})[0]
+        assert cor['complete'] and seu['complete']
+        assert cor['mae'] <= seu['mae'] + 1.0, '%s cor=%s seu=%s' % (mode, cor['mae'], seu['mae'])
+
+
+def test_a3_option_est_bien_cablee(moteur, capsys):
+    """Liveness de la branche correlation. DEUX assertions :
+
+    1. Sous bruit, l'empreinte differe du seuil historique — sinon l'option est
+       morte (branche jamais prise). Garde FAIBLE a elle seule : elle est aussi
+       satisfaite si _recalerSyncCorr ne fait RIEN (la branche correlation ne
+       recale alors pas du tout, ce qui differe deja du recalage historique).
+
+    2. Garde FORTE : sous derive d'horloge (0,03 %, ecart courant entre cartes
+       son), la synchro correlee DOIT recaler t0 pour empecher le slant —
+       l'image reste complete et exploitable (MAE << le slant). Contre-epreuve
+       par mutation (2026-09-03) : `return;` en tete de _recalerSyncCorr fait
+       passer ce MAE de ~2 a ~20 (34 ms de derive cumulee sur M1) -> ROUGIT ;
+       restaure -> vert. C'est CETTE assertion qui prouve que le recalage A3
+       agit, pas seulement qu'il existe.
+
+    Mesure en prime le gain de decrochage A3 sur un balayage FIN (0.5 dB) autour
+    du genou, pour M1 et S1."""
+    cor = _courbe(moteur, 'M1', SNRS_DB, {'lignes': 48, 'dec': {'syncCorrelation': True}})
+    seu = _courbe(moteur, 'M1', SNRS_DB, {'lignes': 48, 'dec': {'syncCorrelation': False}})
+    emp = lambda c: [None if p['mae'] is None else round(p['mae'], 1) for p in c]
+    assert emp(cor) != emp(seu), 'syncCorrelation sans effet — option morte ?'
+
+    drift = FS * (1 - 3e-4)   # decodeur ~0,03 % plus lent que l'encodeur -> slant sans recalage
+    cd = _courbe(moteur, 'M1', [30], {'dec': {'syncCorrelation': True, 'sampleRate': drift}})[0]
+    assert cd['complete'] and cd['mae'] is not None and cd['mae'] < 5.0, \
+        'A3 ne recale pas t0 sous derive — _recalerSyncCorr inerte ? complete=%s mae=%s' % (
+            cd['complete'], cd['mae'])
+    with capsys.disabled():
+        print('\nA3 M1 decro cor=%s seu=%s' % (_snr_decrochage(cor), _snr_decrochage(seu)))
+        # Balayage fin (0.5 dB) pour departager on/off au genou, M1 et S1.
+        for mode in ['M1', 'S1']:
+            fcor = _courbe(moteur, mode, SNRS_FINS, {'lignes': 48, 'dec': {'syncCorrelation': True}})
+            fseu = _courbe(moteur, mode, SNRS_FINS, {'lignes': 48, 'dec': {'syncCorrelation': False}})
+            dcor, dseu = _snr_decrochage(fcor), _snr_decrochage(fseu)
+            gain = None if (dcor is None or dseu is None) else round(dseu - dcor, 1)
+            print('A3 %-3s FIN decro cor=%s seu=%s  gain=%s dB' % (mode, dcor, dseu, gain))
+            print('    cor=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fcor])
+            print('    seu=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fseu])
+
