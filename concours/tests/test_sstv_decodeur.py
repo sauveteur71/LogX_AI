@@ -259,28 +259,45 @@ def test_timing_robot_bw_est_source(moteur):
     elle-meme sur la ligne Robot B&W 24 [sync 12 + scan 93 = 105ms, alors que
     son propre lpm=600 implique 100ms] -- ecartee au profit du couple
     slowrx/pySSTV qui s'accorde EXACTEMENT et recoupe l'arithmetique WB2OSZ a
-    moins de 0.4% pres, cf. calculs ci-dessous) :
+    moins de 0.4% pres, cf. calculs ci-dessous). NB : `scan` (DUREE d'une
+    ligne) provient de slowrx/pySSTV ; `largeur` (nombre de PIXELS par ligne)
+    est sourcee SEPAREMENT (pySSTV WIDTH + resolution sstv-handbook), car le
+    recoupement scan*largeur est invariant par produit et ne peut pas trancher
+    le partage largeur/temps-par-pixel -- defaut trouve en revue (largeur
+    figee a 320 pour les 3 alors que R8BW/R12BW font 160) :
 
-      R8BW  : vis=2,  sync=0.007, porch=0, scan=0.0599   (=0.1871875e-3*320,
-              slowrx PixelTime*ImgWidth), hauteur=120.
+      R8BW  : vis=2,  sync=0.007, porch=0, scan=0.0599 (=0.1871875e-3*320,
+              slowrx PixelTime*ImgWidth ; DUREE, cf. pySSTV SCAN=60ms/160px),
+              largeur=160 (pySSTV Robot8BW.WIDTH=160 + sstv-handbook
+              "160x120" -- 2 sources), hauteur=120.
               dureeBalayage=0.0669 ; 120*0.0669=8.028s (WB2OSZ : 8s, +0.35%).
-      R12BW : vis=6,  sync=0.007, porch=0, scan=0.09312  (=0.291e-3*320),
-              hauteur=120. Seule slowrx donne le VIS numerique pour ce mode
-              precis (pySSTV ne l'implemente pas) -- confiance VIS legerement
-              inferieure a R8BW/R24BW, signalee dans le rapport.
-              dureeBalayage=0.10012 ; 120*0.10012=12.014s (WB2OSZ : 12s, +0.12%).
-      R24BW : vis=10, sync=0.007, porch=0, scan=0.09312, hauteur=240.
+      R12BW : vis=6,  sync=0.007, porch=0, scan=0.09312 (=0.291e-3*320 ;
+              = sstv-handbook "Scan line 93ms" a 0.13%), largeur=160
+              (sstv-handbook "Robot B&W 12 : 160x120" -- SOURCE UNIQUE, pySSTV
+              ne l'implemente pas ; corrobore par la resolution identique a
+              BW8 dans la meme table + WB2OSZ "120 lignes"), hauteur=120.
+              Seule slowrx donne le VIS pour ce mode (pySSTV muet ;
+              pedrokv.com donne VIS=8 mais source auto-contradictoire, cf.
+              rapport). Confiance la plus basse des 3 (VIS + largeur a source
+              unique, pas de WAV externe).
+              dureeBalayage=0.10012 ; 120*0.10012=12.014s (WB2OSZ : 12s,+0.12%).
+      R24BW : vis=10, sync=0.007, porch=0, scan=0.09312, largeur=320 (pySSTV
+              Robot24BW.WIDTH=320 + sstv-handbook "320x240" -- 2 sources),
+              hauteur=240.
               dureeBalayage=0.10012 ; 240*0.10012=24.029s (WB2OSZ : 24s, +0.12%).
 
-    Un scan ou une hauteur devines feraient passer l'aller-retour interne
+    Un scan/largeur/hauteur devines feraient passer l'aller-retour interne
     (mannequin, cf. test_vis_et_timing_de_chaque_mode) mais echoueraient ce
-    recoupement arithmetique independant. Non verifie en externe (WAV tiers)
-    -- famille NOUVELLE, cf. rapport Lot B2 pour la tentative de recherche
-    d'un WAV Robot BW tiers."""
+    recoupement independant -- c'est CE test (pas la validation externe) qui
+    protege `largeur` en CI. R8BW/R24BW decodes une fois depuis un WAV pySSTV
+    tiers (MAE degrade 3.3/1.6 ; le MAE est peu sensible a `largeur`, qui
+    fixe la densite d'echantillonnage de sortie et non le timing -- cf.
+    rapport Lot B2, section fix) ; run manuel NON committe, NON re-jouable en
+    CI. R12BW non verifie en externe (pySSTV muet)."""
     attendu = {
-        'R8BW':  {'vis': 2,  'sync': 0.007, 'porch': 0, 'scan': 0.0599,  'hauteur': 120},
-        'R12BW': {'vis': 6,  'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'hauteur': 120},
-        'R24BW': {'vis': 10, 'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'hauteur': 240},
+        'R8BW':  {'vis': 2,  'sync': 0.007, 'porch': 0, 'scan': 0.0599,  'largeur': 160, 'hauteur': 120},
+        'R12BW': {'vis': 6,  'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'largeur': 160, 'hauteur': 120},
+        'R24BW': {'vis': 10, 'sync': 0.007, 'porch': 0, 'scan': 0.09312, 'largeur': 320, 'hauteur': 240},
     }
     for mode, v in attendu.items():
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].famille" % mode) == 'mono'
@@ -288,9 +305,9 @@ def test_timing_robot_bw_est_source(moteur):
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].sync" % mode) == pytest.approx(v['sync'])
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].porch" % mode) == pytest.approx(v['porch'])
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(v['scan'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].largeur" % mode) == v['largeur']
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].hauteur" % mode) == v['hauteur']
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].balayages" % mode) == v['hauteur']
-        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].largeur" % mode) == 320
 
 
 @pytest.mark.parametrize('mode', ['R8BW', 'R12BW', 'R24BW'])

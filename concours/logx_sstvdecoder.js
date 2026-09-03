@@ -122,20 +122,28 @@ function sstvModePd(nom, vis, scan, largeur, hauteur){
       {plan: 'y',  debut: sync + porch + 3 * scan, duree: scan, rangee: 'double1'},
     ]};
 }
-function sstvModeMono(nom, vis, scan, hauteur){
+function sstvModeMono(nom, vis, scan, largeur, hauteur){
   // Famille `mono` (Robot 8/12/24 BW, Lot B2) : sync PUIS un seul balayage
   // luminance — pas de porch ni de séparateur (mode monochrome, un seul
   // canal). sync=7ms/porch=0 sont UNIFORMES sur les 3 modes de la famille —
   // SOURCE : slowrx (windytan/slowrx, modespec.c — SyncTime=7e-3,
   // PorchTime=0 pour R8BW/R12BW/R24BW) × pySSTV (dnet/pySSTV,
   // pysstv/grayscale.py — SYNC=7 pour Robot8BW/Robot24BW, ce dernier
-  // n'implémentant pas Robot12BW). `scan`/`hauteur` sourcés par mode, cf.
-  // bloc SSTV_MODES plus bas et test_timing_robot_bw_est_source (recoupement
-  // arithmétique contre la durée totale publiée par WB2OSZ 1996, source
-  // antérieure et indépendante des deux implémentations logicielles
-  // ci-dessus).
+  // n'implémentant pas Robot12BW). `scan` (DURÉE de balayage, indépendante
+  // du nombre de pixels), `largeur` et `hauteur` sourcés par mode, cf. bloc
+  // SSTV_MODES plus bas et test_timing_robot_bw_est_source.
+  //
+  // ⚠️ `largeur` EST paramétré (pas figé à 320) : R8BW/R12BW font 160 px de
+  // large, seul R24BW fait 320 — cf. commentaires par mode ci-dessous. Une
+  // première version figeait 320 partout (défaut trouvé en revue) : le
+  // recoupement `scan × largeur` ne pouvait PAS le détecter car il est
+  // invariant par produit (160×0.375ms = 320×0.1875ms = 60ms) — seule la
+  // largeur "fil" réelle, sourcée séparément, tranche le partage
+  // largeur/temps-par-pixel. Même piège de "doublage d'affichage" que la
+  // hauteur des M3/M4 (slowrx normalise `ImgWidth=320` dans son buffer
+  // d'affichage pour les 3, ce n'est pas la largeur transmise).
   const sync = 0.007, porch = 0;
-  return {nom, vis, famille: 'mono', largeur: 320, hauteur, balayages: hauteur,
+  return {nom, vis, famille: 'mono', largeur, hauteur, balayages: hauteur,
     lignesParBalayage: 1, decalageDepart: 0,
     dureeBalayage: sync + porch + scan,
     syncDebut: 0, syncDuree: sync, sync, porch, scan,
@@ -191,26 +199,45 @@ for(const [cle, m] of Object.entries({
   PD290: sstvModePd('PD290', 94, 0.2288,   800, 616),
   // Famille `mono` (Lot B2, 03/09/2026) : Robot 8/12/24 BW — sync + UN SEUL
   // balayage luminance (rendu gris R=G=B), pas de porch ni de séparateur.
-  // SOURCES croisées (détail complet dans le commentaire de
-  // sstvModeMono() et test_timing_robot_bw_est_source) : slowrx
-  // (windytan/slowrx, modespec.c) × pySSTV (dnet/pySSTV, grayscale.py —
-  // R8BW/R24BW seulement) × recoupement arithmétique contre la durée totale
-  // publiée par WB2OSZ (John Langner, compilation "SSTV Transmission Modes",
-  // mars 1996 — antérieure à N7CXI 2000, qui ne définit PAS ces modes BW :
-  // vérifié par grep sur le texte du PDF N7CXI lui-même, le commentaire
-  // "// N7CXI, 2000" présent dans modespec.c pour ces 3 entrées est un
-  // intitulé de bloc erroné). scan/hauteur = PixelTime(slowrx) × 320 :
-  //   R8BW  : 0.1871875e-3×320=0.0599 ; hauteur=120 (slowrx NumLines, WB2OSZ
-  //           "8 sec / 120 lignes" : 120×0.0669=8.028s, +0.35%).
-  //   R12BW : 0.291e-3×320=0.09312 ; hauteur=120 (WB2OSZ "12 sec / 120
-  //           lignes" : 120×0.10012=12.014s, +0.12% — VIS=6 slowrx SEUL,
-  //           pySSTV ne définit pas ce mode, confiance légèrement
-  //           inférieure signalée dans le rapport Lot B2).
-  //   R24BW : 0.291e-3×320=0.09312 ; hauteur=240 (slowrx+pySSTV, WB2OSZ
-  //           "24 sec / 240 lignes" : 240×0.10012=24.029s, +0.12%).
-  R8BW:  sstvModeMono('Robot 8 BW',  2,  0.0599,  120),
-  R12BW: sstvModeMono('Robot 12 BW', 6,  0.09312, 120),
-  R24BW: sstvModeMono('Robot 24 BW', 10, 0.09312, 240),
+  // SOURCES croisées (détail complet dans le commentaire de sstvModeMono()
+  // et test_timing_robot_bw_est_source) : slowrx (windytan/slowrx,
+  // modespec.c) × pySSTV (dnet/pySSTV, grayscale.py — R8BW/R24BW seulement)
+  // × sstv-handbook.com (BruXy/sstv-handbook, sstv/bw_mode.ctex, table
+  // "Parameters of black and white SSTV modes") × recoupement arithmétique
+  // contre la durée totale publiée par WB2OSZ (John Langner, compilation
+  // "SSTV Transmission Modes", mars 1996 — antérieure à N7CXI 2000, qui ne
+  // définit PAS ces modes BW : vérifié par grep sur le texte du PDF N7CXI
+  // lui-même, le commentaire "// N7CXI, 2000" présent dans modespec.c pour
+  // ces 3 entrées est un intitulé de bloc erroné).
+  //
+  // `scan` = DURÉE de balayage d'une ligne entière (indépendante du nombre
+  // de pixels). `largeur` = nombre de pixels transmis PAR ligne (largeur
+  // "fil"), sourcé SÉPARÉMENT car le recoupement scan×largeur est invariant
+  // par produit et ne peut pas le déduire :
+  //   R8BW  : scan=0.0599 (slowrx PixelTime 0.1871875e-3 × ImgWidth 320 ;
+  //           = pySSTV SCAN 60 ms à 0.17% près, DURÉE cohérente) ;
+  //           largeur=160 (pySSTV Robot8BW.WIDTH=160 × sstv-handbook
+  //           "Robot B&W 8 : 160×120" — 2 sources) ; hauteur=120 (slowrx
+  //           NumLines, pySSTV HEIGHT, WB2OSZ "8 sec / 120 lignes").
+  //           dureeBalayage=0.0669 → 120×0.0669=8.028s (WB2OSZ 8s, +0.35%).
+  //   R12BW : scan=0.09312 (slowrx PixelTime 0.291e-3 × 320 ; = sstv-handbook
+  //           "Scan line 93.0 ms" à 0.13% près) ; largeur=160 (sstv-handbook
+  //           "Robot B&W 12 : 160×120" — SOURCE UNIQUE directe, pySSTV
+  //           n'implémente pas ce mode ; corroboré structurellement : même
+  //           ligne de résolution que BW8 dans la table, et WB2OSZ "120
+  //           lignes" identique à BW8) ; hauteur=120 (slowrx, WB2OSZ).
+  //           dureeBalayage=0.10012 → 120×0.10012=12.014s (WB2OSZ 12s,+0.12%).
+  //           VIS=6 slowrx SEUL (pedrokv.com donne VIS=8, mais source
+  //           auto-contradictoire — cf. rapport). Confiance la plus basse
+  //           des 3 (VIS + largeur à source unique, pas de WAV externe).
+  //   R24BW : scan=0.09312 (slowrx 0.291e-3 × 320 ; = pySSTV SCAN 93 ms) ;
+  //           largeur=320 (pySSTV Robot24BW.WIDTH=320 × sstv-handbook
+  //           "Robot B&W 24 : 320×240" — 2 sources) ; hauteur=240 (slowrx,
+  //           pySSTV, WB2OSZ). dureeBalayage=0.10012 → 240×0.10012=24.029s
+  //           (WB2OSZ 24s, +0.12%).
+  R8BW:  sstvModeMono('Robot 8 BW',  2,  0.0599,  160, 120),
+  R12BW: sstvModeMono('Robot 12 BW', 6,  0.09312, 160, 120),
+  R24BW: sstvModeMono('Robot 24 BW', 10, 0.09312, 320, 240),
 })){
   m.cle = cle;
   SSTV_MODES[m.vis] = m;
