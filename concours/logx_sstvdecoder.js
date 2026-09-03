@@ -163,6 +163,15 @@ class SstvDecodeur {
     this.onLigne = onLigne || (() => {});
     this.onFinImage = onFinImage || (() => {});
     this.onEtat = onEtat || (() => {});
+    // Amplitude I/Q instantanée du dernier échantillon (mise à jour dans _freq).
+    // Levier A1 (« limiteur » : normaliser le vecteur I/Q avant l'atan2 du
+    // discriminateur) a été MESURÉ INERTE et REJETÉ : atan2(k·y,k·x)=atan2(y,x)
+    // pour k>0, donc mettre chaque vecteur à l'échelle avant l'atan2 ne change
+    // rien à la phase (gain nul prouvé, 0.5 dB de résolution sur M1/R36/PD90).
+    // On garde SEULEMENT l'exposition de _lastAmpl : le levier A2 (estimation
+    // de pixel pondérée par l'amplitude) s'en sert pour dépriorer les
+    // échantillons à I/Q effondré.
+    this._lastAmpl = 0;
 
     // Détecteur de fréquence en quadrature, centré entre le bit VIS le plus
     // bas (1100 Hz) et le blanc (2300 Hz). Le filtre I/Q (~800 Hz) doit
@@ -226,6 +235,10 @@ class SstvDecodeur {
     this._Q += (x * s - this._Q) * a;
     this._I2 += (this._I - this._I2) * a;
     this._Q2 += (this._Q - this._Q2) * a;
+    // Amplitude I/Q instantanée du vecteur d'étage 2 — exposée pour le levier
+    // A2 (pondération pixel). N'influe PAS sur le discriminateur ci-dessous
+    // (atan2 est invariant à l'échelle du vecteur : cf. A1 rejeté, constructeur).
+    this._lastAmpl = Math.hypot(this._I2, this._Q2);
     const dphi = Math.atan2(this._I2 * this._Qp - this._Q2 * this._Ip,
                             this._Q2 * this._Qp + this._I2 * this._Ip);
     const f = this._fc + dphi * this.sampleRate / (2 * Math.PI);

@@ -176,3 +176,44 @@ def test_baseline_snr_decrochage_actuel(moteur, mode, capsys):
         print('\nBASELINE %-6s decrochage=%s dB  courbe=%s' % (
             mode, _snr_decrochage(c),
             [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in c]))
+
+
+# ─── A1 : REJETE (limiteur d'amplitude avant discriminateur) ───────────────
+# Le levier A1 du plan (normaliser le vecteur I/Q avant l'atan2 du
+# discriminateur) a ete MESURE INERTE : atan2(k*y, k*x) = atan2(y, x) pour
+# k>0, donc mettre chaque vecteur a l'echelle avant l'atan2 ne change PAS la
+# phase demodulee. Gain nul prouve (algebre + 100000 vecteurs aleatoires,
+# ecart max 4.4e-16 ; sweep fin 0.5 dB sur M1/R36/PD90, courbes identiques au
+# centieme, decrochage identique a 9 dB). Rejet acte (spec §3 « gain chiffre
+# ou rejet »). SEUL livrable garde : l'exposition de `_lastAmpl` (amplitude
+# I/Q instantanee), consommee par le levier A2 (estimation de pixel ponderee).
+# Le test ci-dessous verrouille ce contrat dont A2 depend.
+
+def _lastampl_pour_tonalite(moteur, ampl, freq=1900, nEch=4096):
+    """Pousse une tonalite pure d'amplitude `ampl` a `freq` Hz dans un decodeur
+    frais, laisse le filtre I/Q s'etablir, et renvoie `_lastAmpl` (amplitude
+    I/Q instantanee du dernier echantillon). Traverse la frontiere py_mini_racer
+    via un scalaire JSON. `freq` est prise dans la bande utile du detecteur
+    (leader 1900 Hz) pour que le vecteur I/Q soit bien etabli."""
+    js = (
+        'var _d = new SstvDecodeur({sampleRate: FS});'
+        'var _w = 2*Math.PI*%s/FS, _n = %d;'
+        'for(var _i=0; _i<_n; _i++){ _d._freq(%s * Math.sin(_w*_i)); }'
+        '_d._lastAmpl;'
+    ) % (json.dumps(freq), int(nEch), json.dumps(ampl))
+    return float(moteur.eval(js))
+
+
+def test_a1_lastampl_suit_l_amplitude_du_signal(moteur):
+    """Contrat pour A2 : `_lastAmpl` reflete l'amplitude I/Q instantanee et
+    croit ~proportionnellement a l'amplitude du signal d'entree. Une tonalite
+    a 2A doit produire un `_lastAmpl` ~2x celui a A (le filtre I/Q est lineaire,
+    le rapport est donc conserve a la tolerance numerique pres). Si ce test est
+    rouge, la ponderation par amplitude d'A2 n'a aucun sens."""
+    a1 = _lastampl_pour_tonalite(moteur, 0.25)
+    a2 = _lastampl_pour_tonalite(moteur, 0.50)
+    assert a1 > 1e-6, '_lastAmpl nul a amplitude A — non peuple ?'
+    assert a2 > 1e-6, '_lastAmpl nul a amplitude 2A — non peuple ?'
+    ratio = a2 / a1
+    assert 1.8 <= ratio <= 2.2, \
+        '_lastAmpl ne suit pas l\'amplitude : A->%.5f 2A->%.5f ratio=%.3f' % (a1, a2, ratio)
