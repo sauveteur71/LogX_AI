@@ -8,9 +8,16 @@ selectivite, fading correle). Il chiffre une robustesse RELATIVE (lever on vs
 off, avant vs apres) sur un canal bruit-blanc — suffisant pour decider
 « gain chiffre ou rejet » de chaque lever, pas pour certifier une perf terrain.
 
-BASELINE CHIFFREE (2026-09-03, avant tout levier DSP A1-A3) — sortie REELLE de
+BASELINE CHIFFREE (2026-09-03) — sortie REELLE de
 `python -m pytest concours/tests/test_sstv_robustesse.py::test_baseline_snr_decrochage_actuel -v -s`,
-balayage {snr, mode, lignes, mae, utilisable} sur 24 lignes, SEUIL_UTILISABLE=25 :
+balayage {snr, mode, lignes, mae, utilisable} sur 24 lignes, SEUIL_UTILISABLE=25.
+ATTENTION (relabel du 2026-09-03, revue finale) : ce test tourne avec la
+config DECODEUR PAR DEFAUT (estimPixel='ponderee', syncCorrelation=true —
+_courbe() ne passe aucun `opts.dec`) — ce ne sont PAS des chiffres "avant tout
+levier DSP" au sens d'un decodeur nu. A2 (estimation ponderee) et la
+correlation de synchro sont deja les reglages par defaut du decodeur au
+moment ou ce banc a ete ecrit ; ces chiffres refletent donc l'etat DEFAUT
+(post-Lot-A) du decodeur, pas une mesure pre-lever :
 
 BASELINE M1     decrochage=9 dB  courbe=[(30, 1.3), (27, 1.6), (24, 2.1), (21, 2.8), (18, 3.8), (15, 5.2), (12, 7.1), (9, 9.7), (6, None), (3, None), (0, None)]
 BASELINE M2     decrochage=9 dB  courbe=[(30, 2.0), (27, 2.3), (24, 2.8), (21, 3.5), (18, 4.6), (15, 6.1), (12, 8.2), (9, 11.2), (6, None), (3, None), (0, None)]
@@ -26,9 +33,12 @@ balayage ou le MAE reste encore sous le seuil (25) pour chacun d'eux ; a 6 dB
 tous echouent deja (mode ou MAE invalide). Le vrai point de decrochage de
 chaque mode est donc quelque part entre 6 et 9 dB, plus fin que la resolution
 de ce balayage a 3 dB pres — un balayage resserre dans cette plage serait
-necessaire pour les departager. Ce chiffre sert de reference AVANT les
-leviers A1-A3 ; les taches suivantes mesurent le gain (dB gagnes sur ce
-decrochage, ou sur un balayage plus fin) avec le meme banc.
+necessaire pour les departager. Ce chiffre sert de reference pour l'etat
+DEFAUT actuel du decodeur (A2/A3 deja adoptes en defaut, cf. ATTENTION
+ci-dessus) ; les taches A1-A3 ci-dessous documentent le gain chiffre ou le
+rejet mesure de chaque option DSP par rapport a ses ALTERNATIVES (moyenne vs
+ponderee vs mediane, seuil instantane vs correlation) — pas par rapport a un
+decodeur nu, avec le meme banc.
 """
 import json
 import os

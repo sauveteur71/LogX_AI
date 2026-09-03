@@ -508,6 +508,35 @@ def test_le_bruit_n_empeche_pas_le_decodage(moteur):
     assert r['mae'] < 20, 'MAE avec bruit : %s' % r['mae']
 
 
+# ─── Encodeur : garde sur famille inconnue ───────────────────────────────────
+
+def test_sstvEncodeSamples_leve_sur_une_famille_non_geree(moteur):
+    """Revue finale (2026-09-03) : le dernier maillon du dispatch de
+    sstvEncodeSamples était un `else` nu qui encodait N'IMPORTE QUEL mode non
+    reconnu comme PD — une future famille `rgb` mal matchée par
+    startsWith('Martin'/'Scottie'/'Wraase') se serait mal encodée EN SILENCE.
+    On injecte un mode bidon de famille 'zzz' dans SSTV_MODES_PAR_NOM : le
+    dispatch ne doit matcher AUCUNE branche connue et donc lever, pas
+    retomber sur le chemin PD."""
+    js = """(function(){
+      SSTV_MODES_PAR_NOM['ZZZ_TEST'] = {
+        nom: 'ZZZ_TEST', famille: 'zzz',
+        largeur: 2, hauteur: 2, balayages: 1,
+        decalageDepart: 0, dureeBalayage: 0.01
+      };
+      var px = new Uint8ClampedArray(2 * 2 * 3);
+      var threw = false, msg = '';
+      try {
+        sstvEncodeSamples({mode: 'ZZZ_TEST', pixels: px, sampleRate: 11025,
+                            lignes: 1, visCode: 0});
+      } catch(e) { threw = true; msg = String(e.message || e); }
+      return JSON.stringify({threw: threw, msg: msg});
+    })()"""
+    r = json.loads(moteur.eval(js))
+    assert r['threw'] is True, 'famille inconnue encodee en silence (pas de garde) : %r' % r
+    assert 'famille non g' in r['msg'] and 'zzz' in r['msg'], r['msg']
+
+
 # ─── Rejet des en-têtes invalides ────────────────────────────────────────────
 
 def test_un_code_vis_inconnu_est_rejete(moteur):

@@ -893,13 +893,18 @@ function sstvEncodeSamples({mode = 'M1', pixels, sampleRate = 44100,
   ton(parite ? 1100 : 1300, 0.030);
   ton(1200, 0.030);
 
-  // Plans YCrCb pour Robot/PD, calculés une fois.
+  // Plans YCrCb pour Robot/PD, calculés une fois. `mono` (Robot BW) ne
+  // transmet que Y — ne pas allouer cr/cb pour cette famille (elle n'appelle
+  // jamais plan('cr'/'cb', ...) plus bas, cf. la branche mono du dispatch).
   let plans = null;
   if(m.famille !== 'rgb'){
-    plans = {y: new Float32Array(l * h), cr: new Float32Array(l * h), cb: new Float32Array(l * h)};
+    const mono = m.famille === 'mono';
+    plans = mono ? {y: new Float32Array(l * h)}
+                 : {y: new Float32Array(l * h), cr: new Float32Array(l * h), cb: new Float32Array(l * h)};
     for(let i = 0; i < l * h; i++){
       const [y, cr, cb] = sstvRgbVersYcc(pixels[i * 3], pixels[i * 3 + 1], pixels[i * 3 + 2]);
-      plans.y[i] = y; plans.cr[i] = cr; plans.cb[i] = cb;
+      plans.y[i] = y;
+      if(!mono){ plans.cr[i] = cr; plans.cb[i] = cb; }
     }
   }
   const rgb = (rangee, comp) => x => pixels[(rangee * l + x) * 3 + comp];
@@ -950,12 +955,17 @@ function sstvEncodeSamples({mode = 'M1', pixels, sampleRate = 44100,
       // convention que le canal Y des familles robot36/robot72/pd.
       ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
       scan(m.scan, plan('y', bal));
-    } else {                                        // pd
+    } else if(m.famille === 'pd'){
       ton(SSTV_SYNC, m.sync); ton(1500, m.porch);
       scan(m.scan, plan('y', 2 * bal));
       scan(m.scan, planMoy('cr', 2 * bal, 2 * bal + 1));
       scan(m.scan, planMoy('cb', 2 * bal, 2 * bal + 1));
       scan(m.scan, plan('y', 2 * bal + 1));
+    } else {
+      // Garde : toute famille future non reconnue par ce dispatch doit
+      // ÉCHOUER BRUYAMMENT plutôt que de retomber en silence sur le chemin
+      // PD (c'était l'ancien `else` nu) — revue finale du 2026-09-03.
+      throw new Error('sstvEncodeSamples : famille non gérée — ' + m.famille);
     }
   }
   ton(1900, queue);
