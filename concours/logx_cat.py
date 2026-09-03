@@ -1549,6 +1549,10 @@ def _friendly_open_error(port, exc):
                  "il ne doit en rester qu'UN. "
                  "(3) Si ton interface expose plusieurs ports COM (fréquent avec "
                  "microHAM), choisis-en un autre. "
+                 "Si tu viens d'ÉTEINDRE puis rallumer le PC, écarte la cause "
+                 "(2) : aucun serveur ne survit à un redémarrage — cherche "
+                 "plutôt un logiciel lancé au démarrage de Windows (WSJT-X, "
+                 "microHAM Router…). "
                  "Plus rare : le pilote USB vient à peine de relâcher le port — "
                  "réessaie dans quelques secondes.")
     elif ('filenotfounderror' in low or 'cannot find the file' in low

@@ -1157,7 +1157,8 @@ def test_ensure_connected_retente_apres_acces_refuse_transitoire():
 def test_ensure_connected_abandonne_apres_echec_persistant():
     """Le port reste réellement pris au-delà du budget de retries : l'échec
     doit toujours remonter (pas de boucle infinie), avec le message enrichi
-    qui évoque explicitement un redémarrage récent de LogX AI."""
+    qui garde le dernier recours « réessaie dans quelques secondes » (cas où
+    le pilote USB relâche le port en retard)."""
     cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
            'cat_model': 'IC-7300', 'cat_port': 'COM4'}
 
@@ -1177,7 +1178,7 @@ def test_ensure_connected_abandonne_apres_echec_persistant():
     try:
         st = cat.get_state(cfg)
         assert st['ok'] is False
-        assert 'vient tout juste de se fermer' in st['error']
+        assert 'réessaie dans quelques secondes' in st['error']
         assert factory.calls == 1 + len(cat._OPEN_RETRY_DELAYS)
     finally:
         cat._open_serial = original_open
