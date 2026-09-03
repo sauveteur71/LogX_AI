@@ -128,12 +128,16 @@ h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-sp
 .mini-title{font-family:var(--font-display);font-size:12px;font-weight:900;color:var(--accent2);margin-bottom:8px;letter-spacing:.3px}
 .stat-row{display:flex;justify-content:space-between;gap:8px;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:3px 0}
 .stat-row b{color:var(--text);font-weight:400}
-.cq-list{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-.cq-item{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;
-  padding:6px 8px;border-radius:5px;background:var(--bg3);cursor:pointer;border:1px solid transparent}
+.cq-list{max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.cq-item{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:var(--font-mono);font-size:13px;
+  padding:8px 10px;border-radius:5px;background:var(--bg3);cursor:pointer;border:1px solid transparent}
 .cq-item:hover{border-color:var(--accent2)}
 .cq-item .call{color:var(--yellow);font-weight:700}
-.cq-item .meta{color:var(--muted);font-size:10.5px;white-space:nowrap}
+.cq-item .meta{color:var(--muted);font-size:11px;white-space:nowrap;display:flex;gap:7px;align-items:baseline}
+.cq-item .snr{font-weight:700;font-variant-numeric:tabular-nums}
+.cq-item .snr.fort{color:var(--green)}      /* signal fort : facile à travailler */
+.cq-item .snr.faible{color:var(--muted)}    /* proche du seuil de décodage */
+.cq-item .snr.moyen{color:var(--text)}
 .vide-mini{color:var(--muted);font-size:11.5px;font-style:italic}
 .sel-empty{color:var(--muted);font-size:11.5px;font-style:italic}
 .sel-call{font-family:var(--font-mono);font-size:16px;color:var(--yellow);font-weight:700;letter-spacing:.5px;margin-bottom:6px}
@@ -212,7 +216,7 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .copilote-file .cf-wrap.cf-neuf{border-color:rgba(var(--green-rgb,87,184,95),.6)}
 .copilote-file .cf-wrap.cf-manuel{border-color:var(--accent);background:rgba(var(--accent-rgb),.18)}
 .copilote-file .cf-item{font-family:var(--font-mono);font-size:12px;cursor:pointer;
-  padding:4px 4px 4px 9px;border:none;background:transparent;color:var(--fg,#E9E6DF)}
+  padding:4px 4px 4px 9px;border:none;background:transparent;color:var(--text)}
 .copilote-file .cf-wrap.cf-neuf .cf-item{color:var(--green)}
 .copilote-file .cf-wrap.cf-manuel .cf-item{color:var(--accent)}
 .copilote-file .cf-x{border:none;background:transparent;cursor:pointer;color:var(--muted);
@@ -229,14 +233,14 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .tx-audit .tx-audit-tete{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;
   cursor:pointer;color:var(--muted);background:transparent;border:1px solid var(--border);
   border-radius:8px;padding:6px 10px;width:100%;text-align:left;display:flex;align-items:center;gap:6px}
-.tx-audit .tx-audit-tete:hover{border-color:var(--accent);color:var(--fg,#E9E6DF)}
+.tx-audit .tx-audit-tete:hover{border-color:var(--accent);color:var(--text)}
 .tx-audit .tx-audit-tete:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tx-audit .tx-audit-chevron{display:inline-block;transition:transform .12s}
 .tx-audit.ouvert .tx-audit-chevron{transform:rotate(90deg)}
 .tx-audit .tx-audit-corps{border:1px solid var(--border);border-top:none;
   border-radius:0 0 8px 8px;background:var(--bg2);max-height:180px;overflow-y:auto}
 .tx-audit .tx-audit-liste{display:flex;flex-direction:column}
-.tx-audit .ta-l{font-family:var(--font-mono);font-size:11px;color:var(--fg,#E9E6DF);
+.tx-audit .ta-l{font-family:var(--font-mono);font-size:11px;color:var(--text);
   padding:4px 10px;border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tx-audit .ta-l:first-child{border-top:none}
 .tx-audit .ta-vide{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:8px 10px}
@@ -1053,11 +1057,21 @@ if(localStorage.getItem('rc_theme') === null){
     // en priorité (une station qui n'a pas re-CQ depuis longtemps a peut-être
     // déjà un correspondant).
     const entrees = Array.from(cqSeen.entries()).sort((a,b) => b[1].ts - a[1].ts).slice(0, 40);
-    conteneur.innerHTML = entrees.map(([call, info]) => `
+    conteneur.innerHTML = entrees.map(([call, info]) => {
+      // SNR de la station (dB, réf. 2500 Hz — l'unité des reports FT8) : c'est
+      // ce qui aide à choisir qui appeler. Code couleur par force du signal ;
+      // absent si la mesure n'a pas été possible.
+      let snrHtml = '';
+      if(typeof info.snr === 'number' && isFinite(info.snr)){
+        const cls = info.snr >= -8 ? 'fort' : (info.snr <= -18 ? 'faible' : 'moyen');
+        snrHtml = `<span class="snr ${cls}">${info.snr >= 0 ? '+' : ''}${info.snr.toFixed(0)} dB</span>`;
+      }
+      return `
       <div class="cq-item" data-call="${escFt8(call)}" title="Clic : préparer la réponse — Double-clic : préparer ET envoyer">
         <span class="call">${escFt8(call)}</span>
-        <span class="meta">${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>
-      </div>`).join('');
+        <span class="meta"><span>${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>${snrHtml}</span>
+      </div>`;
+    }).join('');
     conteneur.querySelectorAll('.cq-item').forEach(el => {
       const messageCq = () => {
         const call = el.dataset.call;
@@ -2442,7 +2456,7 @@ if(localStorage.getItem('rc_theme') === null){
       correspondant.parite = pariteDuCreneau(slotMs);
     }
     if(call) indicatifsUniques.add(call);
-    if(estCQ && call){ cqSeen.set(call, {freqHz, grid, ts: slotMs}); rendreCqList(); }
+    if(estCQ && call){ cqSeen.set(call, {freqHz, grid, ts: slotMs, snr: snrDb}); rendreCqList(); }
     majStatsSession();
   }
 
