@@ -73,7 +73,7 @@ body.day-mode .rcb-cat{color:#F8F6EF}                 /* texte clair sur cuivre-
 .rcb-cat.rcb-mults{background:var(--purple)}
 .rcb-track{flex:1 1 auto;overflow:hidden;position:relative;height:100%}
 .rcb-move{display:inline-flex;align-items:center;height:100%;white-space:nowrap;
-  will-change:transform;animation:rcb-defile 46s linear infinite}
+  will-change:transform;animation:rcb-defile 80s linear infinite}
 .rcb-row:hover .rcb-move{animation-play-state:paused}  /* PAUSE AU SURVOL */
 @keyframes rcb-defile{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .rcb-item{display:inline-flex;align-items:center;padding:0 26px;height:100%;
