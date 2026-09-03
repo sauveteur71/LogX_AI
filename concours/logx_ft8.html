@@ -173,6 +173,16 @@ button.danger.on{background:var(--red);border-color:var(--red);color:#2a0008}
 canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
 canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);cursor:crosshair}
 
+/* (g) Vu-mètre de niveau audio RX (référence WSJT-X). Couleurs SÉMANTIQUES de
+   la charte (suivent jour/nuit) : orange=trop bas, vert=bon, rouge=saturé. */
+.rx-niveau-wrap{min-width:170px}
+.rx-niveau{height:12px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);overflow:hidden}
+.rx-niveau-barre{height:100%;border-radius:6px;transition:width .1s linear,background .2s}
+.rx-niveau-barre.bas{background:var(--orange)}
+.rx-niveau-barre.bon{background:var(--green)}
+.rx-niveau-barre.satur{background:var(--red)}
+.rx-niveau-val{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:.5px}
+
 table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px}
 /* L'en-tête reste lisible pendant qu'on fait défiler : sans fond opaque, les
    lignes défileraient PAR-DESSOUS en restant visibles. */
@@ -697,6 +707,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
         <span id="rxStatus" class="tx-status">arrêté</span>
         <span id="rxDiag" class="tx-status expert-only"></span>
+        <!-- (g) Vu-mètre du niveau audio RX (comme WSJT-X) : règle le VOLUME
+             d'ENTRÉE (Windows) pour rester dans le VERT — trop bas = rien ne
+             décode, saturé = décodage sale. Alimenté par boucleWaterfall. -->
+        <label class="rx-niveau-wrap" title="Niveau audio reçu. Règle le volume du microphone (2- USB Audio CODEC) dans les réglages Son de Windows pour que la barre reste dans le vert : trop bas (orange) = pas de décodage, saturé (rouge) = décodage dégradé.">NIVEAU AUDIO RX
+          <div class="rx-niveau"><div class="rx-niveau-barre bon" id="rxNiveauBarre" style="width:0"></div></div>
+          <span class="rx-niveau-val" id="rxNiveauVal">—</span>
+        </label>
       </div>
       <div style="margin-top:12px">
         <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
@@ -1279,16 +1296,39 @@ if(localStorage.getItem('rc_theme') === null){
       const devices = await navigator.mediaDevices.enumerateDevices();
       const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const inputs = devices.filter(d=>d.kind==='audioinput');
+      // data-group : entrée ET sortie d'un MÊME appareil physique (le poste USB)
+      // partagent le même groupId -> sert à l'appairage automatique ci-dessous.
       selIn.innerHTML = '<option value="">— périphérique par défaut —</option>'
-        + inputs.map(d=>`<option value="${d.deviceId}">${esc(d.label||'Entrée audio')}</option>`).join('');
+        + inputs.map(d=>`<option value="${d.deviceId}" data-group="${esc(d.groupId)}">${esc(d.label||'Entrée audio')}</option>`).join('');
       if(HTMLMediaElement.prototype.setSinkId){
         const outputs = devices.filter(d=>d.kind==='audiooutput');
         selOut.innerHTML = '<option value="">— périphérique par défaut —</option>'
-          + outputs.map(d=>`<option value="${d.deviceId}">${esc(d.label||'Sortie audio')}</option>`).join('');
+          + outputs.map(d=>`<option value="${d.deviceId}" data-group="${esc(d.groupId)}">${esc(d.label||'Sortie audio')}</option>`).join('');
       } else {
         selOut.innerHTML = '<option value="">Choix de sortie non supporté par ce navigateur — sortie par défaut</option>';
         selOut.disabled = true;
       }
+      // ── (a) Appairage entrée↔sortie ─────────────────────────────────────
+      // Sur un IC-7300 le poste est "USB Audio CODEC" DES DEUX CÔTÉS : choisir
+      // l'un doit sélectionner l'autre (un seul geste au lieu de deux, et fin de
+      // l'erreur « entrée sur le micro Realtek du PC »). On aligne le pair sur le
+      // MÊME appareil physique via groupId, en silence (pas de dispatch).
+      const apparier = (src, cible) => {
+        const o = src.selectedOptions[0];
+        const grp = o && o.getAttribute('data-group');
+        if(!grp) return;
+        const cible_o = Array.from(cible.options).find(x => x.getAttribute('data-group') === grp);
+        if(cible_o && cible.value !== cible_o.value) cible.value = cible_o.value;
+      };
+      if(!selIn.dataset.cable){
+        selIn.dataset.cable = '1';
+        selIn.addEventListener('change', () => { apparier(selIn, selOut); redemarrerEcoute(); });
+        selOut.addEventListener('change', () => { apparier(selOut, selIn); redemarrerEcoute(); });
+      }
+      // (c) Écoute AUTOMATIQUE dès que les périphériques sont connus — plus de
+      // clic « Écouter » requis (getUserMedia vient d'être autorisé ci-dessus,
+      // donc pas de nouvelle demande de permission).
+      demarrerEcoute();
     }catch(e){
       selIn.innerHTML = '<option value="">Accès micro refusé</option>';
     }
@@ -1402,6 +1442,23 @@ if(localStorage.getItem('rc_theme') === null){
   // Constante partagée : sert aussi à hzDepuisClic() pour le clic-pour-caler,
   // le mapping pixel -> Hz doit rester STRICTEMENT le même des deux côtés.
   const WF_MAX_HZ = 3000;
+  // (g) Vu-mètre de niveau audio RX — comme WSJT-X : aide à régler le VOLUME
+  // d'entrée (Windows) pour rester dans le vert. Calculé GRATUITEMENT depuis le
+  // spectre déjà lu par le waterfall (moyenne des bins de la bande FT8), aucun
+  // relevé analyser supplémentaire.
+  function majNiveauRx(spectre, nBins){
+    const barre = document.getElementById('rxNiveauBarre');
+    if(!barre) return;
+    let somme = 0;
+    for(let i = 0; i < nBins; i++) somme += spectre[i];
+    const avg = somme / Math.max(1, nBins);            // 0..255 (magnitude moyenne)
+    const pct = Math.round((avg / 255) * 100);
+    barre.style.width = pct + '%';
+    // Zones : trop bas (<15 %) -> monter le volume ; saturé (>85 %) -> baisser.
+    barre.className = 'rx-niveau-barre ' + (pct < 15 ? 'bas' : (pct > 85 ? 'satur' : 'bon'));
+    const val = document.getElementById('rxNiveauVal');
+    if(val) val.textContent = Math.round((avg / 255) * 80) + ' dB';   // échelle 0-80, repère WSJT-X
+  }
   function boucleWaterfall(){
     if(!analyser) return;
     // Piège corrigé (gel régulier signalé par F4GLD) : cette fonction se
@@ -1460,6 +1517,7 @@ if(localStorage.getItem('rc_theme') === null){
       g.drawImage(cv, 0, 0, w, h - 1, 0, 1, w, h - 1);
       const nyquist = ctx.sampleRate / 2;
       const nBins = Math.max(1, Math.min(dataArray.length, Math.round((WF_MAX_HZ/nyquist) * dataArray.length)));
+      majNiveauRx(dataArray, nBins);                    // (g) vu-mètre RX
       const ligne = g.createImageData(w, 1);
       for(let x = 0; x < w; x++){
         const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
@@ -2707,25 +2765,40 @@ if(localStorage.getItem('rc_theme') === null){
     ctx = null; source = null; proc = null; sink = null; analyser = null; stream = null;
   }
 
-  window.toggleRx = function(){
+  function _majBoutonRx(etat){
+    // etat : 'actif' (écoute en cours) | 'arrete' | tout autre texte = message
+    // d'erreur affiché dans le statut. Le bouton n'est plus un « démarrer » :
+    // l'écoute démarre TOUTE SEULE (voir demarrerEcoute). Il ne sert qu'à
+    // arrêter (sécurité : arreterRx coupe aussi une séquence en cours) et à
+    // reprendre après un arrêt manuel ou un échec de périphérique.
     const btn = document.getElementById('rxStartBtn');
     const status = document.getElementById('rxStatus');
-    if(rxActif){
-      arreterRx();
-      btn.textContent = '▶ Écouter'; btn.classList.remove('on');
-      status.textContent = 'arrêté';
-      return;
-    }
-    if(rxDemarrageEnCours) return;   // ignore un second clic tant que le démarrage n'est pas résolu
+    if(!btn || !status) return;
+    if(etat === 'actif'){ btn.textContent = '■ Arrêter'; btn.classList.add('on'); status.textContent = 'écoute en cours…'; }
+    else if(etat === 'arrete'){ btn.textContent = '▶ Reprendre l\'écoute'; btn.classList.remove('on'); status.textContent = 'arrêté'; }
+    else { btn.textContent = '▶ Reprendre l\'écoute'; btn.classList.remove('on'); status.textContent = etat; }
+  }
+  // (c) Démarre l'écoute sans exiger de clic. Idempotent : ne relance pas si
+  // déjà active ou déjà en cours de démarrage.
+  function demarrerEcoute(){
+    if(rxActif || rxDemarrageEnCours) return Promise.resolve();
     rxDemarrageEnCours = true;
-    demarrerRx().then(() => {
-      btn.textContent = '■ Arrêter'; btn.classList.add('on');
-      status.textContent = 'écoute en cours…';
-    }).catch(e => {
-      status.textContent = 'périphérique indisponible : ' + e.message;
-    }).finally(() => {
-      rxDemarrageEnCours = false;
-    });
+    return demarrerRx()
+      .then(() => _majBoutonRx('actif'))
+      .catch(e => _majBoutonRx('périphérique indisponible : ' + e.message))
+      .finally(() => { rxDemarrageEnCours = false; });
+  }
+  // Redémarre l'écoute sur le périphérique courant (après un changement de
+  // périphérique d'entrée). Respecte un arrêt VOLONTAIRE : ne relance pas si
+  // l'opérateur avait coupé l'écoute.
+  function redemarrerEcoute(){
+    if(!rxActif) return;
+    arreterRx(); _majBoutonRx('arrete');
+    demarrerEcoute();
+  }
+  window.toggleRx = function(){
+    if(rxActif){ arreterRx(); _majBoutonRx('arrete'); return; }
+    demarrerEcoute();
   };
 
   // ─── TX : arme/désarme, synthèse GFSK, PTT, lecture, log ─────────────────

@@ -62,3 +62,61 @@ def test_cq_list_affiche_le_snr():
     corps = src[i:src.index('\n  }', i)]
     assert 'info.snr' in corps, "rendreCqList n'exploite pas info.snr"
     assert 'class="snr' in corps, "rendreCqList n'émet pas d'élément .snr (SNR non affiché)"
+
+
+# ── (a) appairage entrée/sortie audio par appareil physique (groupId) ────────
+
+def test_options_audio_portent_le_groupid():
+    """Entrée ET sortie doivent porter data-group (le groupId partagé d'un même
+    appareil physique) — sans lui, l'appairage automatique est impossible."""
+    src = _src()
+    assert src.count('data-group="${esc(d.groupId)}"') >= 2, \
+        "les <option> audio (entrée+sortie) ne portent pas data-group"
+
+
+def test_appairage_entree_sortie_sur_changement():
+    """Choisir un périphérique sélectionne l'autre du même appareil : un
+    appairage + des écouteurs de changement sur les deux sélecteurs."""
+    src = _src()
+    assert 'const apparier =' in src, "fonction d'appairage absente"
+    assert "selIn.addEventListener('change'" in src, "pas d'écouteur sur l'entrée"
+    assert "selOut.addEventListener('change'" in src, "pas d'écouteur sur la sortie"
+
+
+# ── (c) écoute automatique, plus de « bouton pour démarrer » ─────────────────
+
+def test_ecoute_demarre_automatiquement():
+    """demarrerEcoute existe ET est appelé au CHARGEMENT des périphériques :
+    l'écoute ne dépend plus d'un clic. On vise l'appel d'auto-démarrage dans le
+    bloc de chargement (repéré par `apparier`, qui n'existe QUE là) — un simple
+    comptage serait satisfait par la définition `demarrerEcoute(){` elle-même."""
+    src = _src()
+    assert 'function demarrerEcoute(' in src, "helper demarrerEcoute absent"
+    # Ancre newline + 6 espaces : c'est l'appel AUTONOME d'auto-démarrage (dans
+    # le try de chargement des périphériques). ATTENTION au piège de sous-chaîne :
+    # `redemarrerEcoute();` CONTIENT `demarrerEcoute();`, et les 2 autres appels
+    # sont indentés de 4 espaces — seul l'auto-start est en `\n      ` (6 espaces).
+    assert '\n      demarrerEcoute();' in src, \
+        "l'appel d'auto-démarrage (demarrerEcoute() au chargement) est absent : écoute non auto"
+
+
+def test_toggle_ne_gate_plus_le_demarrage():
+    """window.toggleRx ne doit plus être un « démarrer » à part entière : quand
+    l'écoute est inactive, il délègue à demarrerEcoute (démarrage auto), pas à
+    l'ancienne séquence de bouton."""
+    src = _src()
+    i = src.index('window.toggleRx = function(){')
+    corps = src[i:src.index('\n  };', i)]
+    assert 'demarrerEcoute()' in corps, "toggleRx ne délègue pas à demarrerEcoute"
+
+
+# ── (g) vu-mètre de niveau audio RX ─────────────────────────────────────────
+
+def test_vumetre_rx_present_et_alimente():
+    """Barre du vu-mètre dans le HTML + fonction de mise à jour + alimentation
+    par la boucle waterfall (sinon la barre resterait figée)."""
+    src = _src()
+    assert 'id="rxNiveauBarre"' in src, "élément du vu-mètre RX absent du HTML"
+    assert 'function majNiveauRx(' in src, "fonction majNiveauRx absente"
+    assert 'majNiveauRx(dataArray, nBins)' in src, \
+        "le vu-mètre n'est pas alimenté par boucleWaterfall"
