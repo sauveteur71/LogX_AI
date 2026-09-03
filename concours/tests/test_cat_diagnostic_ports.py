@@ -235,3 +235,15 @@ def test_un_port_pris_par_un_autre_logiciel_garde_son_message_propre():
     finally:
         cat.list_ports = o_list
     assert 'déjà utilisé' in msg, msg
+
+
+def test_le_message_port_pris_explique_le_serveur_fantome():
+    """Amélioration F4GLD 03/09 : « COM4 occupé alors que je n'ai que LogX ».
+    Deux serveurs LogX ne peuvent pas tenir le port HTTP -> la cause n'est pas
+    « un 2e LogX » mais un serveur python.exe d'une session PRÉCÉDENTE (fermer
+    l'onglet ne l'arrête pas) ou un autre logiciel. Le message doit nommer ce
+    piège ET son remède (Gestionnaire des tâches)."""
+    msg = cat._friendly_open_error('COM4', PermissionError(13, 'Access is denied.'))
+    assert 'python.exe' in msg, msg
+    assert 'Gestionnaire des t' in msg, msg
+    assert "N'ARRÊTE PAS le serveur" in msg, msg
