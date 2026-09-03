@@ -232,16 +232,87 @@ def test_a2_ne_regresse_pas_en_clair(moteur):
 
 
 def test_a2_option_est_bien_cablee(moteur, capsys):
-    """Les trois estimateurs ne donnent pas tous le meme resultat sous bruit —
-    sinon l'option est morte. Journalise le gain de chaque variante."""
+    """Liveness de la branche 'mediane' : sous bruit, elle ne doit pas produire
+    la MEME empreinte que 'moyenne' — sinon cette branche est morte. Assertion
+    INDEPENDANTE (plus de OU), avec son propre message. Journalise le decrochage
+    des trois variantes.
+
+    Pourquoi 'ponderee' n'est PAS gardee ICI : sur ce banc AWGN pur, l'amplitude
+    I/Q ne s'effondre pas de facon informative, donc 'ponderee' ne differe de
+    'moyenne' que d'UN point a ~0.1 MAE pres — marge trop fine (fragile a la
+    derive flottante) pour un garde durable, et exactement le « knife-edge » a
+    ne pas figer. La liveness ROBUSTE de 'ponderee' est verrouillee separement
+    par test_a2_ponderee_deprioritise_amplitude_effondree (signal fabrique,
+    marge > 100 niveaux). La mediane, elle, differe SYSTEMATIQUEMENT de la
+    moyenne sur tout le balayage (efficacite moindre sous bruit gaussien) — la
+    comparaison d'empreinte differe sur plusieurs points, marge robuste ici.
+
+    Ainsi le OU d'origine est remplace par DEUX assertions independantes, une par
+    variante non-historique : mediane ici (banc), ponderee dans le test dedie."""
     base = {'lignes': 24}
     moy = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'moyenne'}))
     med = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'mediane'}))
     pon = _courbe(moteur, 'R36', SNRS_DB, dict(base, dec={'estimPixel':'ponderee'}))
     empreinte = lambda c: [None if p['mae'] is None else round(p['mae'],1) for p in c]
-    assert empreinte(moy) != empreinte(pon) or empreinte(moy) != empreinte(med), \
-        'estimPixel sans effet — option morte ?'
+    assert empreinte(moy) != empreinte(med), \
+        'mediane sans effet vs moyenne — branche morte ?'
     with capsys.disabled():
         print('\nA2 R36 decro moy=%s med=%s pon=%s' % (
             _snr_decrochage(moy), _snr_decrochage(med), _snr_decrochage(pon)))
+
+
+def _pixel_cellule_craftee(moteur, estim):
+    """Pilote le VRAI chemin produit (_demarrerImage -> _decoderImage ->
+    _finaliserCellule) sur UNE cellule de pixel fabriquee, ou l'amplitude I/Q
+    (_lastAmpl) est CORRELEE a l'erreur de frequence : la vraie frequence (blanc,
+    2300 Hz) est portee a pleine amplitude, une frequence fausse (noir, 1500 Hz)
+    a amplitude effondree — le cas que la ponderation A2 est censee exploiter,
+    absent du banc AWGN pur. _n est GELE pour que tous les echantillons tombent
+    dans la meme cellule (canal g, pixel 0 de M1). Ce n'est pas un mannequin :
+    on appelle les vraies methodes du decodeur, la branche de collecte
+    ponderee lit le vrai champ this._lastAmpl. Renvoie la valeur de pixel
+    ecrite (0..255)."""
+    js = (
+        '(function(){'
+        ' var d = new SstvDecodeur({sampleRate:FS, estimPixel:%s});'
+        ' var mode = SSTV_MODES_PAR_NOM["M1"];'
+        ' d._demarrerImage(mode);'
+        ' d._n = Math.round(d._t0 + 0.005600*FS);'
+        ' var pat = [[2300,1.0],[2300,1.0],[2300,1.0],[2300,1.0],[2300,1.0],'
+        '            [1500,0.01],[1500,0.01],[1500,0.01],[1500,0.01],[1500,0.01]];'
+        ' for(var k=0;k<pat.length;k++){ d._lastAmpl=pat[k][1]; d._decoderImage(pat[k][0]); }'
+        ' var plan=d._cellPlan, idx=d._cellIdx;'
+        ' d._finaliserCellule();'
+        ' return plan[idx];'
+        '})()'
+    ) % json.dumps(estim)
+    return float(moteur.eval(js))
+
+
+def test_a2_ponderee_deprioritise_amplitude_effondree(moteur):
+    """Garde ROBUSTE de la branche 'ponderee' (marge > 100 niveaux, insensible a
+    la derive flottante). Dans une cellule ou 5 echantillons portent la vraie
+    frequence (blanc, 2300 Hz -> pixel 255) a pleine amplitude et 5 une frequence
+    fausse (noir, 1500 Hz -> pixel 0) a amplitude effondree (0.01) :
+      - 'moyenne' pese tout pareil -> pixel ~127 (tire loin du vrai par le faux),
+      - 'ponderee' depriorise les echantillons effondres -> pixel ~252 (proche du
+        vrai blanc 255).
+    Ce garde fournit ce que le OU de test_a2_option_est_bien_cablee ne pouvait
+    pas : la detection d'un effondrement de la SEULE branche 'ponderee'.
+
+    Contre-epreuve par mutation (2026-09-03) : forcer `const w = 1;` dans la
+    branche de collecte 'ponderee' de _decoderImage rend 'ponderee' identique a
+    'moyenne' (pixel ~127) -> ce test ROUGIT (pon a 127 ne respecte plus
+    abs(pon-255)<=10). Restaure -> revert au vert. Egalement verifie : un simple
+    passage a la moyenne non ponderee (repli inconditionnel) est capture pareil."""
+    VRAI = 255.0
+    moy = _pixel_cellule_craftee(moteur, 'moyenne')
+    pon = _pixel_cellule_craftee(moteur, 'ponderee')
+    assert abs(moy - VRAI) >= 100, \
+        'moyenne devrait etre tiree loin du vrai pixel par les echantillons a ' \
+        'frequence fausse : moy=%.1f (attendu loin de %.0f)' % (moy, VRAI)
+    assert abs(pon - VRAI) <= 10, \
+        'ponderee devrait ignorer les echantillons a amplitude effondree et ' \
+        'rester proche du vrai pixel : pon=%.1f (attendu proche de %.0f) — ' \
+        'ponderation par _lastAmpl bien cablee ?' % (pon, VRAI)
 
