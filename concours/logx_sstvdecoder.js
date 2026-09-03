@@ -38,9 +38,14 @@ const SSTV_PENTE = (SSTV_BLANC - SSTV_NOIR) / 255;   // Hz par niveau de gris
 //   debut/duree — position dans le balayage ; plan — r/g/b/y/cr/cb ;
 //   rangee — comment convertir l'index de balayage en n° de ligne du plan
 //   ('bal' = même n°, 'demi' = bal/2, 'double0'/'double1' = 2·bal / 2·bal+1).
-function sstvModeMartin(nom, vis, scan){
+function sstvModeMartin(nom, vis, scan, lignes){
+  // `lignes` (optionnel, défaut 256) : M3/M4 transmettent 128 balayages, pas
+  // 256 (image deux fois moins haute, à la MÊME vitesse par ligne que M1/M2
+  // respectivement) — cf. commentaire de sourcing sur le bloc SSTV_MODES plus
+  // bas. Même pattern que sstvModePd(), qui prend déjà `hauteur` en paramètre.
+  lignes = lignes || 256;
   const sync = 0.004862, porch = 0.000572, sep = 0.000572;
-  return {nom, vis, famille: 'rgb', largeur: 320, hauteur: 256, balayages: 256,
+  return {nom, vis, famille: 'rgb', largeur: 320, hauteur: lignes, balayages: lignes,
     lignesParBalayage: 1, decalageDepart: 0,
     dureeBalayage: sync + porch + 3 * (scan + sep),
     syncDebut: 0, syncDuree: sync, sync, porch, sep, scan,
@@ -50,9 +55,12 @@ function sstvModeMartin(nom, vis, scan){
       {plan: 'r', debut: sync + porch + 2 * (scan + sep),     duree: scan, rangee: 'bal'},
     ]};
 }
-function sstvModeScottie(nom, vis, scan){
+function sstvModeScottie(nom, vis, scan, lignes){
+  // `lignes` (optionnel, défaut 256) : S3/S4 transmettent 128 balayages, pas
+  // 256 — même remarque que sstvModeMartin() ci-dessus.
+  lignes = lignes || 256;
   const sync = 0.009, porch = 0.0015, sep = 0.0015;
-  return {nom, vis, famille: 'rgb', largeur: 320, hauteur: 256, balayages: 256,
+  return {nom, vis, famille: 'rgb', largeur: 320, hauteur: lignes, balayages: lignes,
     lignesParBalayage: 1,
     // Une unique impulsion de synchro de 9 ms précède la PREMIÈRE ligne ;
     // ensuite la synchro est AU MILIEU de chaque ligne, juste avant le rouge.
@@ -120,8 +128,36 @@ const SSTV_MODES_PAR_NOM = {};             // indexés par nom court (M1, S1…)
 for(const [cle, m] of Object.entries({
   M1:   sstvModeMartin('Martin M1', 44, 0.146432),
   M2:   sstvModeMartin('Martin M2', 40, 0.073216),
+  // M3/M4 (Lot B1, 03/09/2026) : PAS de simples variantes de VIS de M1/M2 à
+  // hauteur égale — ce sont des versions à 128 balayages (moitié de M1/M2),
+  // à la MÊME vitesse de balayage par ligne que leur mode "parent" (`scan`
+  // identique à M1/M2 respectivement). SOURCE VIS+scan+hauteur : croisement
+  // sstv-handbook.com (OK2MNM, table Martin — VIS 36/32, 128 lignes, durée
+  // publiée 57s/29s, lpm 134.395/264.553) × slowrx (windytan/slowrx,
+  // modespec.c+VISmap[] — seul décodeur tiers en production à définir M3/M4
+  // explicitement : VIS 0x24=36/0x20=32, NumLines=128 confirmés ; LineTime
+  // de M3=446.446ms confirme scan=M1 malgré un PixelTime incohérent dans ce
+  // fichier tiers, probablement une coquille de transcription — écarté au
+  // profit du LineTime, cohérent avec sstv-handbook) × docs.preterhuman.net
+  // (compilation VIS historique WB2OSZ + table durées, note 'c' "128 lignes
+  // dont 120 utiles", même convention que "256 dont 240 utiles" déjà connue
+  // pour M1/M2/S1/S2/DX). Recoupement arithmétique détaillé dans
+  // tests/test_sstv_decodeur.py::test_timing_martin_scottie_ajoutes_sont_sources.
+  M3:   sstvModeMartin('Martin M3', 36, 0.146432, 128),
+  M4:   sstvModeMartin('Martin M4', 32, 0.073216, 128),
   S1:   sstvModeScottie('Scottie S1', 60, 0.13824),
   S2:   sstvModeScottie('Scottie S2', 56, 0.088064),
+  // S3/S4 (Lot B1) : même situation que M3/M4 ci-dessus — 128 balayages,
+  // `scan` identique à S1/S2 respectivement. SOURCE : sstv-handbook.com (VIS
+  // 52/48, 128 lignes, durée publiée 55s/36s, lpm 140.115/216.067) ×
+  // docs.preterhuman.net (VIS WB2OSZ 0x34=52/0x30=48 sur la colonne Scottie
+  // de la table de compilation, durées 55s/36s identiques, note 'c' "128
+  // lignes dont 120 utiles"). slowrx NE définit PAS S3/S4 (absents de son
+  // VISmap[]) — pas de 3e source indépendante pour ces deux-là, seulement 2
+  // qui s'accordent exactement (VIS et durée publiée identiques au chiffre
+  // près) + le recoupement arithmétique (test dédié, cf. M3/M4 ci-dessus).
+  S3:   sstvModeScottie('Scottie S3', 52, 0.13824, 128),
+  S4:   sstvModeScottie('Scottie S4', 48, 0.088064, 128),
   SDX:  sstvModeScottie('Scottie DX', 76, 0.3456),
   R36:  sstvModeRobot36(),
   R72:  sstvModeRobot72(),

@@ -46,7 +46,7 @@ py_mini_racer = pytest.importorskip('py_mini_racer')
 FS = 11025
 
 # Tous les modes de la table — un oubli ici laisserait un mode non testé.
-TOUS_MODES = ['M1', 'M2', 'S1', 'S2', 'SDX', 'R36', 'R72',
+TOUS_MODES = ['M1', 'M2', 'M3', 'M4', 'S1', 'S2', 'S3', 'S4', 'SDX', 'R36', 'R72',
               'PD50', 'PD90', 'PD120', 'PD160', 'PD180', 'PD240', 'PD290']
 
 
@@ -147,6 +147,70 @@ def test_le_timing_pd160_est_conforme_a_la_spec_n7cxi(moteur):
     }
     for mode, scan in attendu.items():
         assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(scan)
+
+
+def test_timing_martin_scottie_ajoutes_sont_sources(moteur):
+    """Fige les VIS/scan/hauteur SOURCES de M3/M4/S3/S4 (Lot B1).
+
+    Sources croisees (3 references independantes) :
+      - sstv-handbook.com (OK2MNM, "List of SSTV modes", table Martin/Scottie) :
+        VIS, duree totale publiee et lpm (lignes/minute) par mode.
+      - slowrx (windytan/slowrx, modespec.c + VISmap[]) — decodeur tiers en
+        production, seul a definir explicitement M3/M4 (pas S3/S4) : VIS
+        0x24/0x20 et NumLines=128 pour M3/M4, confirmes.
+      - docs.preterhuman.net "SSTV Transmission Modes" (compilation VIS de
+        John Langner WB2OSZ + table durees/lignes) : confirme VIS Scottie
+        (0x34=52, 0x30=48) et la structure "128 lignes totales dont 120
+        utiles" (note 'c') pour les 4 modes, coherente avec le "256 dont 240
+        utiles" (note 'b') deja connu de M1/M2/S1/S2/DX.
+
+    Constat structurel (pas seulement une valeur de `scan`) : M3/M4/S3/S4 ne
+    sont PAS de simples variantes de VIS de M1/M2/S1/S2 a hauteur egale — ce
+    sont des versions a MOITIE MOINS DE LIGNES (128 balayages, pas 256), a la
+    MEME vitesse de balayage par ligne que leur mode "parent" (M3=vitesse M1,
+    M4=vitesse M2, S3=vitesse S1, S4=vitesse S2). D'ou `scan` identique au
+    parent mais `hauteur`/`balayages` a 128 — objet du parametre optionnel
+    `lignes` ajoute aux fabriques (defaut 256, comportement M1/M2/S1/S2/SDX
+    inchange).
+
+    Recoupement arithmetique (formule deja utilisee par
+    test_le_timing_pd160_est_conforme_a_la_spec_n7cxi, generalisee ici a
+    partir du lpm publie plutot que de PIXEL*largeur seul, car scan est ici
+    la duree de balayage d'un CANAL entier, pas d'un pixel) :
+      dureeBalayage(Martin)  = sync+porch+3*(scan+sep) avec sync=0.004862,
+        porch=sep=0.000572
+      dureeBalayage(Scottie) = 2*sep+sync+porch+3*scan avec sync=0.009,
+        porch=sep=0.0015
+      lpm_calcule = 60/dureeBalayage ; duree totale ~= 128*dureeBalayage
+        (+ entete VIS ~0.3s, non compte) doit approcher la duree publiee.
+
+      M3 : scan=0.146432 (= M1) -> dureeBalayage=0.446446s -> lpm=134.40
+           (handbook : 134.395) ; 128*0.446446=57.14s (handbook : 57s).
+      M4 : scan=0.073216 (= M2) -> dureeBalayage=0.226798s -> lpm=264.55
+           (handbook : 264.553) ; 128*0.226798=29.03s (handbook : 29s).
+      S3 : scan=0.13824  (= S1) -> dureeBalayage=0.42822s  -> lpm=140.12
+           (handbook : 140.115) ; 128*0.42822=54.81s (handbook : 55s).
+      S4 : scan=0.088064 (= S2) -> dureeBalayage=0.277692s -> lpm=216.07
+           (handbook : 216.067) ; 128*0.277692=35.54s (handbook : 36s).
+
+    Un scan ou une hauteur devines feraient passer l'aller-retour interne
+    (mannequin, cf. test_vis_et_timing_de_chaque_mode) mais echoueraient ce
+    recoupement arithmetique independant contre les 3 sources ci-dessus.
+    Non verifie en externe (WAV tiers) — timings sources
+    N7CXI/sstv-handbook/slowrx + recoupes par la formule ci-dessus (honnetete
+    spec Lot B, §5)."""
+    attendu = {
+        'M3': {'vis': 36, 'scan': 0.146432, 'hauteur': 128},
+        'M4': {'vis': 32, 'scan': 0.073216, 'hauteur': 128},
+        'S3': {'vis': 52, 'scan': 0.13824,  'hauteur': 128},
+        'S4': {'vis': 48, 'scan': 0.088064, 'hauteur': 128},
+    }
+    assert attendu, 'valeurs non sourcees — completer Step 1 avant de valider'
+    for mode, v in attendu.items():
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].vis" % mode) == v['vis']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(v['scan'])
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].hauteur" % mode) == v['hauteur']
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].balayages" % mode) == v['hauteur']
 
 
 # ─── Aller-retour complet ────────────────────────────────────────────────────
