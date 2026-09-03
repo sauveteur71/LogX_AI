@@ -96,6 +96,18 @@ PAS_DEMARRE = 13
 # reseau, peuvent tripler ce chiffre.
 DELAI_DEMARRAGE_S = 40.0
 
+# Budget/timeout de CHAQUE sonde pendant l'attente post-demarrage. GENEREUX a
+# dessein, et INDEPENDANT du defaut de sonde_sans_bind (2.0 s) : un antivirus
+# qui inspecte 127.0.0.1 (Avast Web Shield) peut ajouter ~2 s par requete
+# localhost. Le defaut tombait pile sur cette latence -> la sonde rendait None,
+# le lanceur croyait le serveur absent et N'OUVRAIT PAS le navigateur alors que
+# le serveur tournait. Ici on peut se le permettre : une connexion REFUSEE
+# (serveur pas encore la) echoue immediatement, sans consommer ce budget ; il
+# ne s'applique qu'a un serveur qui REPOND lentement. Le budget GLOBAL de
+# l'attente (DELAI_DEMARRAGE_S) absorbe largement des sondes plus lentes.
+SONDE_ATTENTE_TIMEOUT_S = 6.0
+SONDE_ATTENTE_BUDGET_S = 7.0
+
 # Age maximal du journal d'erreurs pour qu'on le juge lie A CE demarrage.
 # Sans cette borne on afficherait la panne de la semaine derniere comme cause
 # du probleme du jour -- un artefact perime lu comme s'il etait frais.
@@ -219,7 +231,8 @@ def attendre(delai_max=DELAI_DEMARRAGE_S, pas=0.5, port=PORT,
     """
     debut = horloge()
     while True:
-        version = logx_singleton.sonde_sans_bind(port)
+        version = logx_singleton.sonde_sans_bind(
+            port, timeout=SONDE_ATTENTE_TIMEOUT_S, budget=SONDE_ATTENTE_BUDGET_S)
         if version is not None:
             if version and version == version_locale:
                 return OUVRIR_SEULEMENT, ''
