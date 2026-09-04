@@ -241,12 +241,30 @@ acquisition_sous_bruit`, R36) —
 
 Étendu au sweep bas (`lignes=10`) sur M1/S1/R36/PD90 : **on descend à 0 dB**
 partout contre **10 dB** pour off — soit **~8 à 10 dB** de SNR gagnés pour
-l'acquisition du VIS, uniforme entre les 4 familles testées. Sous fading
-Rayleigh plat (`test_f2_option_acq_est_bien_cablee` et task-1-report.md,
-sweep [12,10,8,6,4] dB) : le taux d'acquisition passe de near-zéro (off) à
-0.4-1.0 (on) selon le mode et le taux de fading — le fading lent (0.2 Hz),
-le plus destructeur de la baseline F1, est justement là où le gain compte le
-plus (0 % → 40-80 % selon le mode).
+l'acquisition du VIS, uniforme entre les 4 familles testées.
+
+**Sous fading, le gain est asymétrique — honnêteté par taux** (task-1-report.md,
+sweep [12,10,8,6,4] dB, taux d'acquisition on/off) :
+
+| mode | fading LENT 0.2 Hz on/off | fading RAPIDE 1.0 Hz on/off |
+|------|---------------------------|-----------------------------|
+| M1   | **0.40 / 0.00**           | **0.00 / 0.00**             |
+| S1   | **0.60 / 0.00**           | 0.20 / 0.00                 |
+| R36  | **0.60 / 0.00**           | **0.00 / 0.00**             |
+| PD90 | **0.80 / 0.00**           | 0.20 / 0.00                 |
+
+- **Fading LENT (0.2 Hz)** — le plus destructeur de la baseline F1 : c'est là
+  que F2 compte, l'historique n'acquiert **rien** (0.00) et le robuste récupère
+  **0.40 à 0.80** selon le mode. Vrai gain.
+- **Fading RAPIDE (1.0 Hz)** : F2 est **quasi NIL** — pour **M1 et R36 le gain
+  est exactement nul** (0.00 on = 0.00 off, identique à l'historique) ; S1 et
+  PD90 ne récupèrent qu'un mince 0.20. Les creux rapides sont trop courts et
+  trop profonds pour que l'intégration ~10 ms de l'énergie les traverse.
+
+Donc **la généralisation « 0.4-1.0 selon le taux » serait fausse** : le plancher
+réel sous fading rapide est **0.00** pour la moitié des modes testés. F2
+robustifie l'acquisition sous AWGN et sous fading **lent**, pas sous fading
+rapide.
 
 **Décomposition honnête du gain** (task-2-report.md) : la quasi-totalité du
 gain vient du **leader par énergie glissante (F2a) + start par énergie + bits
@@ -299,6 +317,27 @@ SNR/mode, bien au-dessus du seuil 0.35).
 
 **Décision : GARDÉ, défaut ON** — gain réel et sans contrepartie sous fading
 rapide, honnêtement inefficace (mais pas régressif) sous fading lent.
+
+### 12.2bis Complémentarité F2/F3 — la ligne de fond honnête
+
+Les deux leviers se répartissent le terrain de façon presque exactement
+complémentaire, et **aucun ne couvre le cas le plus dur** :
+
+| Canal | F2 (acquisition VIS) | F3 (image sous fade) |
+|---|---|---|
+| AWGN pur | **~8-10 dB** de gain | nul (par construction, pas de creux) |
+| Fading LENT (0.2 Hz) | **0 → 0.4-0.8** (vrai gain) | **NIL** (moyenne causale suit le creux) |
+| Fading RAPIDE (1.0 Hz) | **NIL** (M1/R36 = 0.00 ; S1/PD90 = 0.20) | **+0.4 à +1.7 MAE** (vrai gain) |
+
+- **F2 aide l'AWGN et le fading LENT** (les creux prolongés font échouer la
+  décision par seuil instantané, que l'énergie intègre).
+- **F3 aide le fading RAPIDE** (les creux courts et profonds sont détectables
+  par le ratio amplitude/moyenne, et le sample-and-hold recopie la dernière
+  bonne ligne).
+- **Le cas le plus dur reste sans réponse** : l'ACQUISITION VIS sous fading
+  LENT ET profond — F2 la récupère partiellement (0.4-0.8) mais pas
+  entièrement, et F3 (image) n'entre en jeu qu'APRÈS l'acquisition. Un fading
+  lent qui noie l'en-tête VIS reste le mur du chantier.
 
 ### 12.3 F1 — Banc de fading : livrable d'instrumentation
 
