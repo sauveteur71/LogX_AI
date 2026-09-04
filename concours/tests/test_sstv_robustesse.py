@@ -39,6 +39,51 @@ ci-dessus) ; les taches A1-A3 ci-dessous documentent le gain chiffre ou le
 rejet mesure de chaque option DSP par rapport a ses ALTERNATIVES (moyenne vs
 ponderee vs mediane, seuil instantane vs correlation) — pas par rapport a un
 decodeur nu, avec le meme banc.
+
+NOTE (2026-09-04, constatee en re-executant `test_baseline_snr_decrochage_actuel`
+sur cette branche AVANT toute modif de ce chantier F1) : les MAE mesures ici
+sur cette branche different legerement du bloc BASELINE ci-dessus date du
+2026-09-03 (ex. M1 30 dB : 1.6 ici vs 1.3 au 2026-09-03 ; decrochage toujours
+a 9 dB pour tous les modes, donc pas de regression de robustesse). Confirme
+par une execution AVANT toute edition de ce fichier (git stash) : la derive
+preexiste a ce chantier, elle n'est PAS causee par le banc de fading ajoute
+ci-dessous — la cause exacte (evolution du decodeur entre-temps sur cette
+branche) n'a pas ete investiguee, hors perimetre de la tache F1 (« aucune
+modif decodeur »). A noter pour qui rafraichira un jour le bloc BASELINE
+2026-09-03 : ne pas confondre cette derive avec un effet du fading.
+
+BASELINE 2D (SNR x FADING) CHIFFREE (2026-09-04) — sortie REELLE de
+`python -m pytest concours/tests/test_sstv_robustesse.py::test_baseline_2d_actuelle -v -s`,
+balayage {snr, taux de fading Rayleigh plat, mode, acquis (VIS=bon mode), mae},
+24 lignes, config DECODEUR PAR DEFAUT (estimPixel='ponderee',
+syncCorrelation=true — comme le bloc BASELINE ci-dessus). C'est le point de
+depart des mesures A/B de F2/F3 (leviers anti-fading) :
+
+BASELINE M1    fading=0.0Hz : [(30, True, 1.6), (21, True, 3.1), (15, True, 5.4), (12, True, 7.3), (9, True, 10.0), (6, False, None)]
+BASELINE M1    fading=0.2Hz : [(30, True, 1.6), (21, True, 3.0), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE M1    fading=1.0Hz : [(30, True, 2.6), (21, True, 4.5), (15, True, 7.9), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE S1    fading=0.0Hz : [(30, True, 1.5), (21, True, 3.0), (15, True, 5.4), (12, True, 7.4), (9, True, 10.0), (6, False, None)]
+BASELINE S1    fading=0.2Hz : [(30, True, 1.6), (21, True, 3.0), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE S1    fading=1.0Hz : [(30, True, 2.5), (21, True, 4.4), (15, True, 8.0), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE R36   fading=0.0Hz : [(30, True, 8.1), (21, True, 9.7), (15, True, 13.4), (12, True, 16.9), (9, True, 21.9), (6, False, None)]
+BASELINE R36   fading=0.2Hz : [(30, True, 8.1), (21, True, 9.5), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE R36   fading=1.0Hz : [(30, True, 9.4), (21, True, 12.4), (15, True, 19.0), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE PD90  fading=0.0Hz : [(30, True, 2.2), (21, True, 4.9), (15, True, 9.2), (12, True, 12.7), (9, True, 17.5), (6, False, None)]
+BASELINE PD90  fading=0.2Hz : [(30, True, 2.3), (21, True, 4.9), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE PD90  fading=1.0Hz : [(30, True, 4.2), (21, True, 8.0), (15, True, 14.6), (12, False, None), (9, False, None), (6, False, None)]
+
+Lecture : a fading nul (0.0 Hz), la surface retrouve — logiquement — la meme
+courbe que le bloc BASELINE SNR-seul ci-dessus. Le fading LENT (0.2 Hz, QSB
+type quelques secondes de periode) est le plus destructeur des deux taux
+testes : il fait DECROCHER M1/S1/R36/PD90 des 15 dB deja (contre 9 dB sans
+fading), un creux d'enveloppe prolonge suffisant pour perdre l'acquisition
+VIS ou une partie de l'image. Le fading RAPIDE (1.0 Hz) degrade moins que le
+lent a SNR moyen (15 dB encore acquis pour les 4 modes, MAE plus eleve
+qu'a fading nul) mais decroche aussi plus tot que sans fading (12 dB au lieu
+de 9 dB) — les creux, plus courts, sont partiellement moyennes par le
+recepteur mais restent plus destructeurs qu'un canal AWGN pur. Aucun lever
+anti-fading n'existe encore a ce stade (F1 = seulement le banc) ; ces
+chiffres sont la reference « avant » que F2/F3 devront ameliorer.
 """
 import json
 import os
@@ -106,20 +151,48 @@ def moteur():
       }
       return out;
     }
-    // Un point de mesure : encode la mire du mode, bruite au SNR donne, decode
-    // avec les options DSP passees (leviers A1-A3), renvoie la metrique.
+    // Fading Rayleigh PLAT : enveloppe = module d'un processus gaussien complexe
+    // filtre passe-bas au taux de fading (Doppler). Band-limite par un filtre 1 pole
+    // de coupure tauxHz -> correlation temporelle d'un vrai QSB (taux petit = fading
+    // lent). Enveloppe normalisee en puissance moyenne unite (le fading redistribue
+    // la puissance, il ne l'ajoute pas). Graine fixe = reproductible (comme
+    // bruitGaussienSnr). fs = FS injecte cote Python.
+    function fadingRayleighPlat(sig, tauxHz, graine){
+      var s = graine || 1;
+      function g(){
+        s=(s*1103515245+12345)&0x7fffffff; var u1=(s/0x7fffffff)||1e-9;
+        s=(s*1103515245+12345)&0x7fffffff; var u2=(s/0x7fffffff);
+        return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+      }
+      var a = 1 - Math.exp(-2*Math.PI*tauxHz/FS);   // 1 pole a tauxHz
+      var fi=0, fq=0, env=new Float32Array(sig.length), p=0;
+      for(var i=0;i<sig.length;i++){
+        fi += (g()-fi)*a; fq += (g()-fq)*a;         // I/Q gaussiens filtres
+        var e = Math.sqrt(fi*fi+fq*fq);             // enveloppe Rayleigh
+        env[i]=e; p += e*e;
+      }
+      var rms = Math.sqrt(p/sig.length) || 1e-9;
+      var out = new Float32Array(sig.length);
+      for(var i=0;i<sig.length;i++) out[i] = sig[i]*(env[i]/rms);
+      return out;
+    }
+    // Un point de mesure : encode la mire du mode, applique un fading optionnel,
+    // bruite au SNR donne, decode avec les options DSP passees (leviers A1-A3),
+    // renvoie la metrique.
     function mesureSnr(nomMode, snrDb, opts){
       opts = opts || {};
       var m = SSTV_MODES_PAR_NOM[nomMode];
       var px = imageTestSstv(m.largeur, m.hauteur);
       var lignes = opts.lignes || null;
       var sig = sstvEncodeSamples({mode:nomMode, pixels:px, sampleRate:FS, lignes:lignes});
+      if(opts.tauxFading) sig = fadingRayleighPlat(sig, opts.tauxFading, 13);   // fading AVANT le bruit
       sig = bruitGaussienSnr(sig, snrDb, 7);
       var decOpts = Object.assign({sampleRate:FS}, opts.dec||{});
       var d = sstvDecodeSamples(sig, decOpts);
       var r = d.resume();
-      r.snr = snrDb;
-      r.mae = (r.mode===nomMode && r.lignesEmises>0)
+      r.snr = snrDb; r.taux = opts.tauxFading || 0;
+      r.acquis = (r.mode === nomMode);   // le VIS a-t-il ete acquis (bon mode) ?
+      r.mae = (r.acquis && r.lignesEmises>0)
             ? maeSstv(d, px, m.largeur, r.lignesEmises) : null;
       return r;
     }
@@ -146,6 +219,49 @@ def _snr_decrochage(courbe):
     ok = [p['snr'] for p in courbe
           if p['mode'] and p['mae'] is not None and p['mae'] <= SEUIL_UTILISABLE]
     return min(ok) if ok else None
+
+
+def _surface(moteur, mode, snrs, taux_list, opts=None):
+    """Surface (SNR x taux de fading) : chaque point = mesureSnr avec ce fading."""
+    base = opts or {}
+    out = []
+    for t in taux_list:
+        for s in snrs:
+            o = dict(base); o['tauxFading'] = t
+            js = 'JSON.stringify(mesureSnr(%s, %s, %s))' % (
+                json.dumps(mode), json.dumps(s), json.dumps(o))
+            out.append(json.loads(moteur.eval(js)))
+    return out
+
+
+def test_banc_fading_temoin(moteur):
+    """Témoin du modèle de fading : à SNR clair (30 dB), un fading LENT (0.2 Hz)
+    laisse l'image acquise et exploitable ; un fading combiné à un SNR bas
+    dégrade (surface non triviale). Sans ce témoin, un fading cassé (enveloppe
+    constante) se lirait comme une protection parfaite (règle du dépôt)."""
+    pts = _surface(moteur, 'R36', [30], [0, 0.2, 1.0], {'lignes': 16})
+    clair = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0)
+    assert clair['acquis'] and clair['mae'] is not None
+    lent = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0.2)
+    assert lent['acquis'], 'fading lent à SNR clair ne devrait pas empêcher l’acquisition'
+    # le fading DOIT avoir un effet mesurable quelque part (sinon enveloppe inerte)
+    maes = [p['mae'] for p in pts if p['mae'] is not None]
+    assert len(set(round(x, 1) for x in maes)) > 1, 'le fading n’a aucun effet — enveloppe constante ?'
+
+
+@pytest.mark.parametrize('mode', ['M1', 'S1', 'R36', 'PD90'])
+def test_baseline_2d_actuelle(moteur, mode, capsys):
+    """Baseline (SNR x fading) AVANT F2/F3. Assertion lâche : acquis en clair sans
+    fading. Journalise la surface (acquisition + MAE) — point de départ des mesures A/B."""
+    snrs = [30, 21, 15, 12, 9, 6]
+    pts = _surface(moteur, mode, snrs, [0, 0.2, 1.0], {'lignes': 24})
+    clair = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0)
+    assert clair['acquis']
+    with capsys.disabled():
+        for t in [0, 0.2, 1.0]:
+            ligne = [(p['snr'], p['acquis'], None if p['mae'] is None else round(p['mae'], 1))
+                     for p in pts if p['taux'] == t]
+            print('\nBASELINE %-5s fading=%.1fHz : %s' % (mode, t, ligne))
 
 
 def test_le_banc_produit_une_baseline_exploitable(moteur):
