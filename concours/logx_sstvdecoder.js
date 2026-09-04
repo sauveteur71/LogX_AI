@@ -512,8 +512,9 @@ class SstvDecodeur {
       const e1900 = this._eLeader.pousser(raw);
       const e1200 = this._eSync.pousser(raw);
       this._eUn.pousser(raw); this._eZero.pousser(raw);   // maintenir toutes les phases
-      // Peak-hold décroissant du niveau leader (constante de temps ~1 s à FS
-      // usuel) : suit le pic récent d'énergie 1900 pour un seuil AUTO-CALIBRÉ.
+      // Peak-hold décroissant du niveau leader (0.9999^n atteint 1/e à n≈10 000,
+      // soit ~0,23 s à 44,1 kHz) : suit le pic récent d'énergie 1900 pour un seuil
+      // AUTO-CALIBRÉ.
       this._eLeaderPeak = e1900 > this._eLeaderPeak
                         ? e1900 : this._eLeaderPeak * 0.9999;
       // ACCUMULATION du leader par ÉNERGIE : e1900 DOMINE nettement e1200 (gate de
@@ -525,14 +526,21 @@ class SstvDecodeur {
       // sort de la fenêtre — d'où l'acquisition qui tient bien plus bas en SNR.
       //
       // L'ÉDGE leader→start est en revanche daté sur la fréquence INSTANTANÉE
-      // (f<1400), MÊME ancrage temporel que l'historique. Une transition datée sur
-      // le franchissement d'énergie (e1200>2·e1900) arriverait ~0,59·fenêtre trop
-      // tard (l'énergie 1200 doit d'abord remplir la fenêtre glissante) et
-      // décalerait t0 de ~6 ms — au-delà de ce que le recalage A3, borné à ±2,5 ms
-      // par impulsion, peut rattraper : l'image pencherait. On garde donc la
-      // ROBUSTESSE d'énergie pour DÉTECTER le leader et la PRÉCISION de f pour le
-      // DATER. Sous fading plat comme sous bruit, f au bit de start moyenne 1200
-      // (la fréquence est préservée, seule l'amplitude fade), l'edge reste net.
+      // (f<1400) pour MINIMISER le lag de t0. Attention : ce n'est PAS un ancrage
+      // identique à l'historique. Le `else if(f<1400 …)` n'est atteint que quand
+      // le `if(e1900>2·e1200 …)` est FAUX ; or e1900 intègre sur la fenêtre ~10 ms,
+      // donc le gate de dominance reste vrai ~4 ms après la chute réelle du ton →
+      // _visDebut est capturé ~2-3 ms PLUS TARD que la branche OFF (qui, elle, tire
+      // sur le f<1400 instantané ~1-2 ms après la chute). Dater plutôt sur le
+      // franchissement d'énergie e1200>2·e1900 coûterait ~6 ms (l'énergie 1200 doit
+      // d'abord remplir la fenêtre) : le passage à f<1400 RAMÈNE ce lag de ~6 ms à
+      // un résidu de ~2-3 ms, sans l'éliminer. Ce résidu est un OFFSET HORIZONTAL
+      // CONSTANT (pas un slant), absorbé empiriquement par le recalage A3 (±2,5 ms
+      // par impulsion) — d'où l'absence de régression MAE en clair (43/43). On
+      // garde ainsi la ROBUSTESSE d'énergie pour DÉTECTER le leader et la fréquence
+      // instantanée pour le DATER au mieux. Sous fading plat comme sous bruit, f au
+      // bit de start moyenne 1200 (fréquence préservée, seule l'amplitude fade),
+      // l'edge reste net.
       if(e1900 > 2 * e1200 && e1900 > this._eSeuilLeader()){
         this._leaderEch++;
       } else if(f < 1400 && this._leaderEch > 0.1 * this.sampleRate){
