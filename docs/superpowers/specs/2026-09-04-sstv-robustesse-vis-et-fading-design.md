@@ -216,3 +216,124 @@ tacher l'image. Sans régression AWGN ni en clair.
   disponible ici (pas de radio) — honnêteté maintenue.
 - **Aucun gain mesuré** possible pour F2 ou F3 → c'est un résultat valide
   (rejet chiffré, comme A1), pas un échec du chantier.
+
+## 12. Résultats mesurés (VIS + fading)
+
+Bilan de fin de chantier (Task 4, 2026-09-04). Trois leviers livrés, tous
+option-gatés (défaut ON, A/B toggleable), zéro régression mesurée sur les
+14 modes existants. Chiffres tirés directement des sorties `pytest -s` des
+tâches 0-3 (task-0/1/2/3-report.md) et de la consolidation ci-dessous — aucun
+n'est inventé ni extrapolé au-delà de ce qui a tourné sur ce banc.
+
+### 12.1 F2 — Acquisition VIS robuste : le vrai gain du chantier
+
+C'est le levier qui a trouvé le vrai « genou » de robustesse, là où le Lot A
+précédent (A1 limiteur d'amplitude, A2 estimation de pixel) s'était révélé
+inerte sous AWGN pur (A1 rejeté, gain 0 dB mesuré à l'algèbre près ; A2 gain
+mesurable seulement sur un signal fabriqué à amplitude effondrée, pas sur ce
+banc). F2 casse cette série : sur le banc AWGN sans fading (`test_f2b_gain_
+acquisition_sous_bruit`, R36) —
+
+| | SNR minimal encore acquis |
+|---|---|
+| **on** (`acqVisRobuste:true`) | **2 dB** |
+| **off** (historique) | **10 dB** |
+
+Étendu au sweep bas (`lignes=10`) sur M1/S1/R36/PD90 : **on descend à 0 dB**
+partout contre **10 dB** pour off — soit **~8 à 10 dB** de SNR gagnés pour
+l'acquisition du VIS, uniforme entre les 4 familles testées. Sous fading
+Rayleigh plat (`test_f2_option_acq_est_bien_cablee` et task-1-report.md,
+sweep [12,10,8,6,4] dB) : le taux d'acquisition passe de near-zéro (off) à
+0.4-1.0 (on) selon le mode et le taux de fading — le fading lent (0.2 Hz),
+le plus destructeur de la baseline F1, est justement là où le gain compte le
+plus (0 % → 40-80 % selon le mode).
+
+**Décomposition honnête du gain** (task-2-report.md) : la quasi-totalité du
+gain vient du **leader par énergie glissante (F2a) + start par énergie + bits
+VIS doux (F2b)** — la détection intègre le bruit sur ~10 ms au lieu de décider
+sur un seuil de fréquence instantanée. La **correction guidée par la parité**
+(retournement d'UN bit ambigu, gardé par un seuil de confiance `<0.5`) montre
+en revanche un **gain d'acquisition AWGN non mesurable** : neutralisée, elle
+donne des taux d'acquisition quasi identiques (R36/M1/S1, 30 graines,
+1.00/0.97/0.83/0.47/0.13-0.17 dans les deux cas) — le décrochage AWGN vient du
+leader/start, pas d'erreurs de bit isolées. Elle est gardée quand même car
+elle **récupère structurellement un bit réellement ambigu isolé**
+(`test_f2b_correction_parite_recupere_un_bit_ambigu`, cas plausible sous
+fading corrélé plutôt qu'AWGN pur) et n'introduit **aucune régression ni
+aucun faux positif** (0/600 sur stress `pariteFausse`, 0/30 vs 0/30 sur bruit
+pur — task-2-report.md §addendum).
+
+**Garde anti-faux-positif structurellement verrouillée** : un en-tête à
+parité sciemment fausse n'est **jamais** accepté, acquisition robuste ou non
+(`test_f2b_pas_de_faux_positif_vis`, contre-épreuve par mutation faite —
+neutraliser la garde `!pariteOk` fait accepter 3/3 en-têtes corrompus). Sur
+bruit pur (aucun signal SSTV, 30 graines × 3 s), le chemin robuste n'accepte
+**pas plus** de VIS fantômes que l'historique (0/30 des deux côtés).
+
+### 12.2 F3 — Squelch image sous fading : gain modeste, honnête sur sa limite
+
+Gain MAE (off − on, positif = amélioration), fading **rapide** (1 Hz), image
+entière (task-3-report.md §4) :
+
+| Mode | 30 dB | 24 dB | 18 dB |
+|---|---|---|---|
+| M1 | +0.40 | +0.59 | +1.12 |
+| S1 | +0.31 | +0.48 | +0.95 |
+| R36 | +0.24 | +0.73 | +1.70 |
+| PD90 | +0.47 | +0.90 | +1.68 |
+
+Gain **systématiquement positif** (jamais de régression), croissant quand le
+SNR baisse — mais modeste (+0.4 à +1.7 niveau de MAE sur une échelle 0-255).
+
+**Limite honnête** : sous fading **lent** (0.2 Hz) — le taux identifié par la
+baseline F1 comme le PLUS destructeur (il fait décrocher M1/S1/R36/PD90 dès
+15 dB contre 9 dB sans fading) — le squelch est **NIL** : le seuil détecte un
+creux via le ratio `amplitude instantanée / moyenne glissante`, et une moyenne
+causale à `τ=600 ms` suit une déclinaison lente d'enveloppe d'assez près pour
+que le ratio ne descende jamais sous `squelchK=0.35` — le creux n'est jamais
+vu comme un creux. F3 agit sur le fading RAPIDE, pas sur le lent, qui reste le
+cas le plus dur du chantier sans réponse. Sans fading, l'effet est nul et
+strict (`|on−off| < 1e-6` mesuré) : le squelch ne se déclenche jamais en clair
+(marge conçue : le plancher d'amplitude en clair reste à 0.41-0.65 selon
+SNR/mode, bien au-dessus du seuil 0.35).
+
+**Décision : GARDÉ, défaut ON** — gain réel et sans contrepartie sous fading
+rapide, honnêtement inefficace (mais pas régressif) sous fading lent.
+
+### 12.3 F1 — Banc de fading : livrable d'instrumentation
+
+Aucun gain direct à rapporter (F1 est le banc, pas un levier DSP) : il a
+livré `fadingRayleighPlat` (enveloppe Rayleigh band-limitée, 1 pôle à
+`tauxHz`, normalisée en puissance) et le balayage 2D `(SNR × taux de fading)`
+qui a permis de MESURER F2 et F3 ci-dessus, et d'établir que le fading lent
+(0.2 Hz) est plus destructeur que le fading rapide (1.0 Hz) à SNR égal — sans
+ce constat, F3 n'aurait pas pu être évalué sur son vrai point faible.
+
+### 12.4 Non-régression — consolidation finale
+
+`test_consolidation_pas_de_regression` (8 familles témoins M1/M2/S1/S2/SDX/
+R36/R72/PD90, `concours/tests/test_sstv_robustesse.py`) : aux défauts
+(`acqVisRobuste:true`, `squelchFade:true`), chaque mode reste acquis et
+exploitable à 30 dB sans fading, MAE non dégradé de plus de 2 niveaux vs la
+config tout-off historique (`acqVisRobuste:false`, `squelchFade:false`).
+**8/8 vert.** Témoin de mutation fait (forcer `enFade=true` en permanence
+dans `_decoderImage`, simulant une régression F3) : les 8 cas passent au
+ROUGE (MAE PD90 2.2 → 139.1, tous > seuil) — restauré, md5 du décodeur
+identique avant/après (`ffaec56e7a3f2eb191b504fede95f849`), retour au vert
+confirmé.
+
+Suite complète de robustesse (`test_sstv_robustesse.py`) : **47 passed**
+(39 avant Task 4 + 8 nouveaux). Suite historique complète
+(`test_sstv_decodeur.py`, les 43 tests de comportement du décodeur AVANT ce
+chantier) : **43 passed** — inchangée, aucune régression sur les 14 modes
+existants.
+
+### 12.5 Limite globale assumée
+
+Ce banc mesure une robustesse **RELATIVE** (levier on vs off) sur un canal
+synthétique (bruit blanc gaussien + fading Rayleigh plat band-limité), pas
+une performance terrain absolue : pas de bruit impulsionnel, pas de
+sélectivité récepteur, pas de fading Watterson multi-trajet, pas de QRM
+co-canal. **L'essai on-air (F4GLD, radio réelle) reste hors de portée ici**
+(pas de radio disponible pendant ce chantier) et constitue la vraie preuve de
+terrain qui manque encore avant de considérer le sujet clos.

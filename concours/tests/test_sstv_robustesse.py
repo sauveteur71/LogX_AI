@@ -798,3 +798,28 @@ def test_f3_gain_sous_fading_rapide(moteur, mode, capsys):
         gains = [(s, None if o is None or f is None else round(f - o, 2)) for s, o, f in couples]
         print('\nF3 %-5s 1Hz gain MAE (off-on) par SNR: %s' % (mode, gains))
 
+
+# ─── Consolidation finale : non-régression des 8 familles (F2+F3 aux défauts) ──
+# Verrouille la configuration par défaut retenue en fin de chantier F1-F3 :
+#   acqVisRobuste=true (F2, garde), squelchFade=true (F3, garde).
+# Comparaison au comportement historique TOUT-OFF (acqVisRobuste=False,
+# squelchFade=False) — pas au "origine" Lot A (test_lotA_ne_regresse_aucun_mode_en_clair
+# ci-dessus, qui compare a estimPixel/syncCorrelation) : ce test-ci verrouille
+# specifiquement les DEUX leviers de ce chantier (F2/F3), independamment d'A2/A3
+# qui restent a leurs defauts des deux cotes de la comparaison.
+
+FAMILLES = ['M1', 'M2', 'S1', 'S2', 'SDX', 'R36', 'R72', 'PD90']
+
+
+@pytest.mark.parametrize('mode', FAMILLES)
+def test_consolidation_pas_de_regression(moteur, mode):
+    """Aux DÉFAUTS (acqVisRobuste+squelchFade), chaque mode reste acquis et
+    exploitable à 30 dB sans fading, MAE non dégradé de plus de 2 vs le tout-off
+    historique."""
+    defaut = _surface(moteur, mode, [30], [0], {'lignes': 24})[0]
+    orig = _surface(moteur, mode, [30], [0], {'lignes': 24,
+        'dec': {'acqVisRobuste': False, 'squelchFade': False}})[0]
+    assert defaut['acquis'] and defaut['mae'] is not None
+    assert defaut['mae'] <= max(25, orig['mae'] + 2.0), \
+        '%s régresse : defaut=%s orig=%s' % (mode, defaut['mae'], orig['mae'])
+
