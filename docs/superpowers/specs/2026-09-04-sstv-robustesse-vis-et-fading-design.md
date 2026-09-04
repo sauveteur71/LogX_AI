@@ -1,0 +1,218 @@
+# SSTV — Robustesse d'acquisition VIS + banc à fading (QSB)
+
+**Date :** 2026-09-04
+**Auteur :** F4GLD + Claude (brainstorming)
+**Statut :** design validé en cadrage, en attente de relecture spec avant plan d'implémentation
+**Suite de :** `2026-09-03-sstv-robustesse-rx-et-modes-design.md` (Lot A/B) — voir sa §10.
+
+---
+
+## 1. Contexte et motivation
+
+Le Lot A (spec du 03/09) a livré un banc de mesure SNR + trois leviers DSP
+(A1 rejeté inerte, A2/A3). **Constat mesuré et diagnostiqué (§10 du Lot A) :**
+aucun levier n'abaisse le SNR de décrochage sur le banc **AWGN**, pour deux
+raisons structurelles :
+
+1. **Le genou de décrochage est gouverné par l'ACQUISITION de l'en-tête VIS.**
+   Si le VIS ne se décode pas, il n'y a **pas d'image du tout** — le reste
+   (synchro, estimation pixel) ne joue jamais. Or l'acquisition VIS est
+   aujourd'hui **100 % à seuils durs et instantanés** (vérifié dans
+   `logx_sstvdecoder.js`) :
+   - `_chercherLeader` : compte les échantillons dans `|f − 1900| < 75` Hz,
+     exige ≥ 100 ms cumulées ; un craquement décrémente le compteur.
+   - `_verifierStart` : moyenne de `f` sur `[5 ; 25] ms`, accepte si
+     `|moy − 1200| ≤ 100` Hz.
+   - `_lireBitsVis` : 9 créneaux de 30 ms, **décision DURE par bit**
+     (`f < 1200 → 1`), parité paire, bit de stop.
+   Sous bruit, ces décisions instantanées lâchent **avant** tout le reste.
+
+2. **Le banc ne modélise que l'AWGN, pas le FADING (QSB).** Or le symptôme
+   rapporté par F4GLD (« décrochage sur signal faible / QSB ») est en grande
+   partie du **fading** — une variation lente d'amplitude que l'AWGN ne
+   représente pas. On ne peut donc **pas mesurer** la robustesse à ce que
+   l'opérateur vit réellement.
+
+**Objectif de ce chantier :** rendre l'acquisition VIS robuste au bruit,
+modéliser le fading pour pouvoir MESURER, et tenir l'image pendant un
+évanouissement — les trois étant liés (le fading est ce qui fait échouer
+l'acquisition et corrompt l'image).
+
+## 2. Périmètre
+
+**Dans le périmètre (les trois, décision F4GLD) :**
+- **F1 — Banc à fading Rayleigh plat** (préalable à toute mesure honnête).
+- **F2 — Acquisition VIS robuste** (leader/start par énergie-corrélation, bits
+  VIS en décision douce + correction guidée par la parité).
+- **F3 — Image sous fading** (squelch sur l'amplitude : geler le recalage de
+  synchro et tenir le pixel pendant un évanouissement).
+
+**Hors périmètre :**
+- L'émission RF / PTT / CAT (inchangés).
+- Un modèle de fading **sélectif en fréquence** (Watterson multi-trajets) —
+  écarté (§9) : la SSTV est à tonalité unique étroite, un fading **plat**
+  (non sélectif) est le bon modèle.
+- Le filtre adapté sur tout le VIS (un gabarit par mode) — écarté (§9) au
+  profit de l'évolution incrémentale.
+
+**Ordre décidé :** F1 d'abord (sans banc, « c'est mieux » est invérifiable —
+règle du dépôt), puis F2, puis F3.
+
+## 3. F1 — Modèle de fading Rayleigh plat (banc)
+
+**Modèle.** Fading **plat** (non sélectif en fréquence, adapté à la tonalité
+SSTV étroite) à enveloppe **Rayleigh**, band-limité par un **taux de fading**
+(étalement Doppler) réglable :
+
+1. Générer un processus **gaussien complexe** (I et Q gaussiens indépendants),
+   **filtré passe-bas** à `tauxHz` (le taux de fading / Doppler) — c'est ce
+   filtrage qui donne la corrélation temporelle d'un vrai QSB (fading lent =
+   `tauxHz` petit).
+2. Enveloppe = **module** de ce processus (loi de Rayleigh).
+3. **Normaliser** l'enveloppe en puissance moyenne unité (le fading redistribue
+   la puissance dans le temps, il ne l'ajoute pas).
+4. Multiplier le signal réel par l'enveloppe, PUIS ajouter l'AWGN au SNR cible
+   (le fading module le signal ; le bruit du récepteur, lui, est constant).
+
+**Reproductible :** graine fixe (LCG + Box-Muller, comme `bruitGaussienSnr` du
+banc actuel) — un échec se rejoue à l'identique (règle du dépôt).
+
+**Sweep.** La mesure devient à **deux dimensions** : `(SNR × tauxHz)` (ex. SNR
+30→0 dB, taux 0,1 / 0,5 / 1 / 2 Hz). Métrique par point : **acquisition VIS
+réussie (oui/non)** ET **MAE image** sur la portion reçue. Le « décrochage »
+devient une SURFACE, pas une courbe.
+
+**Réutilise** l'infrastructure du banc existant (`test_sstv_robustesse.py` :
+`sstvEncodeSamples`, `bruitGaussienSnr`, `mesureSnr`, `_snr_decrochage`).
+Nouveau : `fadingRayleighPlat(sig, tauxHz, graine)` et une variante de
+`mesureSnr` acceptant un `tauxFading`.
+
+## 4. F2 — Acquisition VIS robuste (approche incrémentale, option-gatée)
+
+Remplacer les décisions **instantanées à seuil** par des décisions **par
+énergie / corrélation sur fenêtre**, en réutilisant le Goertzel corrélé
+introduit par A3. Gaté par une option de constructeur (défaut activé), sur le
+modèle A2/A3, pour rester mesurable A/B et contre-épreuvable par mutation.
+
+- **Leader (1900 Hz)** — au lieu de compter les échantillons `|f − 1900| < 75`,
+  intégrer l'**énergie à 1900 Hz** sur une fenêtre glissante (Goertzel) ;
+  déclarer le leader quand cette énergie est soutenue au-dessus d'un seuil
+  relatif. Robuste au bruit (intègre) et aux craquements (n'effondre pas un
+  compteur instantané).
+- **Bit de start (1200 Hz)** — corrélation d'énergie à 1200 Hz sur la durée du
+  start (30 ms) au lieu d'une moyenne de fréquence seuillée.
+- **9 bits VIS — décision DOUCE.** Par créneau de 30 ms, comparer l'**énergie à
+  1100 Hz** (bit = 1) à l'**énergie à 1300 Hz** (bit = 0) — décider par la plus
+  grande, et conserver une **confiance** (écart normalisé, pondéré par
+  l'amplitude). Puis :
+  - **Correction guidée par la parité** : si la parité paire échoue, **retourner
+    le bit le moins sûr** (la confiance la plus faible) et revérifier —
+    correction d'une erreur unique, très fréquente près du seuil. Si la parité
+    reste fausse après un retournement, rejeter (pas d'invention).
+  - Le bit de **stop** (1200 Hz) reste vérifié (garde anti-faux-positif).
+
+**Ce qui ne change pas :** la machine à états (leader → vis-start → vis-bits →
+image), la table `SSTV_MODES`, le rejet des codes VIS inconnus / parité
+définitivement fausse. On durcit la DÉTECTION, pas la sémantique.
+
+**Critère F2 :** sur le banc (AWGN et fading), l'option abaisse le SNR
+d'**acquisition VIS réussie** d'une marge mesurable, **sans** augmenter le taux
+de faux positifs (un VIS accepté à tort = 2 min de garbage au mauvais timing)
+ni régresser l'acquisition en clair.
+
+## 5. F3 — Tenir l'image pendant un évanouissement (squelch, option-gatée)
+
+Pendant un fade, l'amplitude I/Q (`this._lastAmpl`, exposée par A1) s'effondre :
+la fréquence instantanée devient du bruit, ce qui (a) **corrompt le recalage de
+synchro** (t0 dérive sur du bruit) et (b) **écrit des pixels de bruit**.
+
+Levier (gaté par option, défaut activé) : un **squelch sur `_lastAmpl`** —
+quand l'amplitude passe sous un seuil (relatif à sa moyenne récente) :
+- **geler le recalage de synchro** (`_recalerSyncCorr` / `_recalerSync` ne
+  s'appliquent pas) → t0 est **préservé**, l'image ne penche pas à cause du
+  fade ;
+- **tenir le pixel** : ne pas écrire la valeur bruitée — **conserver la dernière
+  valeur écrite** de cette cellule (repli le plus simple et sans nouvel état
+  d'image) plutôt qu'un point aberrant.
+Récupération **automatique** dès que l'amplitude revient : t0 intact, la synchro
+reprend sur les impulsions suivantes.
+
+`_lastAmpl` est donc enfin PLEINEMENT utile (c'était le seul acquis d'A1) : non
+comme limiteur (inerte, prouvé), mais comme **détecteur d'évanouissement**.
+
+**Critère F3 :** sur le banc fading, à SNR clair mais fading marqué, l'image
+reste exploitable (MAE sous seuil) là où, sans squelch, un fade fait pencher ou
+tacher l'image. Sans régression AWGN ni en clair.
+
+## 6. Stratégie de validation
+
+- **Banc synthétique (F1)** : baseline + non-régression chiffrées sur la
+  surface `(SNR × fading)`, pour F2 et F3.
+- **Méthode (règle du dépôt)** : pour chaque levier, **témoin vert** d'abord,
+  puis **contre-épreuve par mutation** (remettre le défaut, voir rougir,
+  restaurer). Propriétés **structurelles/comportementales**, pas de présence de
+  chaîne.
+- **A/B par option** (comme A2/A3) : chaque levier gaté par une option de
+  constructeur (défaut activé), pour mesurer on vs off et empêcher le test de
+  rôtir après fusion.
+- 🚨 **Piège du faux positif VIS.** Durcir l'acquisition ne doit PAS augmenter
+  les VIS acceptés à tort (parité + stop restent des gardes). Un test dédié
+  vérifie que la correction guidée par la parité **ne valide jamais** un VIS
+  dont la parité était structurellement fausse (pas une simple erreur unique).
+- **Honnêteté (règle du dépôt)** : si un levier n'apporte pas de gain mesuré,
+  il est **rejeté** (comme A1), pas gardé « au cas où ». Le bilan chiffré (comme
+  la §10 du Lot A) dira ce qui marche, avec les chiffres.
+
+## 7. Architecture / fichiers touchés
+
+- `concours/logx_sstvdecoder.js` — options de constructeur pour F2 (acquisition
+  VIS) et F3 (squelch) ; réutilise le Goertzel d'A3 et `_lastAmpl` d'A1. Les
+  fonctions touchées : `_chercherLeader`, `_verifierStart`, `_lireBitsVis`
+  (F2) ; `_decoderImage` / le recalage + `_finaliserCellule` (F3). Branches OFF
+  = comportement historique bit-à-bit (A/B).
+- `concours/tests/test_sstv_robustesse.py` — `fadingRayleighPlat`, sweep 2D
+  `(SNR × fading)`, tests F2 (acquisition) et F3 (image sous fade), garde
+  anti-faux-positif VIS.
+- **Non modifié :** `logx_tx_audio.js`, PTT, CAT, la table des modes.
+
+## 8. Décisions et alternatives écartées
+
+- **Watterson (ITU-R F.1487) — écarté.** Modèle HF de référence mais **sélectif
+  en fréquence** (2 trajets) : surdimensionné pour une tonalité SSTV unique et
+  étroite, et bien plus lourd à implémenter/tester. Le fading **plat** Rayleigh
+  capture le QSB pertinent pour la SSTV.
+- **QSB déterministe sinusoïdal — écarté comme modèle principal**, éventuellement
+  conservé comme cas de non-régression verrouillé simple si utile ; moins
+  réaliste qu'un vrai fading aléatoire band-limité.
+- **Filtre adapté sur tout le VIS (un gabarit par mode) — écarté** au profit de
+  l'évolution incrémentale (énergie + décision douce) : ~14 gabarits +
+  alignement temporel pour un gain incertain sur le gain déjà attendu de la
+  décision douce. Reste une évolution conditionnelle si la mesure le justifie
+  (YAGNI, même doctrine que l'« approche 2 » du Lot A).
+- **Ordre F1 → F2 → F3** : le banc d'abord (mesurer avant de toucher), puis
+  l'acquisition (le genou), puis l'image (ce qui reste une fois qu'on acquiert).
+
+## 9. Séquencement d'implémentation
+
+1. **F1** — `fadingRayleighPlat` + sweep 2D + baseline chiffrée
+   `(SNR × fading)` des modes actuels (aucune modif décodeur).
+2. **F2** — acquisition VIS robuste (option), mesurée : gain d'acquisition
+   chiffré ou rejet, garde anti-faux-positif.
+3. **F3** — squelch image sous fade (option), mesuré : gain image sous fading
+   chiffré ou rejet.
+4. **Consolidation** — non-régression des modes existants (AWGN ET clair) +
+   bilan chiffré (surface `(SNR × fading)`, on vs off), écrit en spec.
+
+## 10. Risques
+
+- **Faux positifs VIS** en durcissant l'acquisition → atténué par le maintien
+  parité + stop et un test anti-faux-positif dédié.
+- **Régression des modes existants** en touchant le front-end commun →
+  atténué par les branches OFF bit-à-bit et la non-régression AWGN/clair avant
+  fusion.
+- **Modèle de fading trop simplifié** → assumé : fading plat Rayleigh, pas
+  Watterson ; le banc chiffre une robustesse RELATIVE (on vs off, avant/après),
+  pas une perf terrain absolue. La vraie validation reste un essai on-air, non
+  disponible ici (pas de radio) — honnêteté maintenue.
+- **Aucun gain mesuré** possible pour F2 ou F3 → c'est un résultat valide
+  (rejet chiffré, comme A1), pas un échec du chantier.
