@@ -968,6 +968,20 @@ class SstvDecodeur {
       // F3 : GEL pendant un creux — on n'alimente pas le suivi de corrélation
       // avec des échantillons effondrés (t0 préservé), pour ne pas laisser un
       // pic de bruit du creux capturer le recalage.
+      //
+      // Effet de bord assumé : sauter _suivreCorr fige aussi la phase de
+      // référence Goertzel _corrPh (elle n'avance que dans _suivreCorr) alors
+      // que _n, lui, continue d'avancer pendant tout le creux. Au retour du
+      // signal, la fenêtre de corrélation mélange donc brièvement des
+      // échantillons d'anneau restés d'AVANT le creux avec une référence dont
+      // la phase a "sauté" par rapport à ce qu'elle aurait été sans gel.
+      // Impact BORNÉ : la recherche du pic reste confinée à la fenêtre de
+      // sync attendue du balayage courant (borne b/attenduDansBal ci-dessous),
+      // la correction appliquée à t0 est elle-même bornée à ±1 ms
+      // (_recalerSyncCorr), et les gardes delta/duree (`Math.abs(delta) <=
+      // 0.0025`, garde monotone b > _corrDernierBal) rejettent les pics
+      // chevauchant un creux. Reste nettement préférable à laisser
+      // _suivreCorr ingérer des échantillons effondrés par le fading.
       if(!enFade) this._suivreCorr(raw || 0);
     } else {
       // Historique : suivi des impulsions 1200 Hz par seuil instantané. Le noir

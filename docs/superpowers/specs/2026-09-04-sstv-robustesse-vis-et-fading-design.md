@@ -301,7 +301,7 @@ entière (task-3-report.md §4) :
 | PD90 | +0.47 | +0.90 | +1.68 |
 
 Gain **systématiquement positif** (jamais de régression), croissant quand le
-SNR baisse — mais modeste (+0.4 à +1.7 niveau de MAE sur une échelle 0-255).
+SNR baisse — mais modeste (+0.24 à +1.7 niveau de MAE sur une échelle 0-255).
 
 **Limite honnête** : sous fading **lent** (0.2 Hz) — le taux identifié par la
 baseline F1 comme le PLUS destructeur (il fait décrocher M1/S1/R36/PD90 dès
@@ -327,7 +327,7 @@ complémentaire, et **aucun ne couvre le cas le plus dur** :
 |---|---|---|
 | AWGN pur | **~8-10 dB** de gain | nul (par construction, pas de creux) |
 | Fading LENT (0.2 Hz) | **0 → 0.4-0.8** (vrai gain) | **NIL** (moyenne causale suit le creux) |
-| Fading RAPIDE (1.0 Hz) | **NIL** (M1/R36 = 0.00 ; S1/PD90 = 0.20) | **+0.4 à +1.7 MAE** (vrai gain) |
+| Fading RAPIDE (1.0 Hz) | **NIL** (M1/R36 = 0.00 ; S1/PD90 = 0.20) | **+0.24 à +1.7 MAE** (vrai gain) |
 
 - **F2 aide l'AWGN et le fading LENT** (les creux prolongés font échouer la
   décision par seuil instantané, que l'énergie intègre).
