@@ -712,3 +712,89 @@ def test_lotA_ne_regresse_aucun_mode_en_clair(moteur, mode):
     assert defaut['mae'] <= max(SEUIL_UTILISABLE, origine['mae'] + 2.0), \
         '%s regresse : defaut=%s origine=%s' % (mode, defaut['mae'], origine['mae'])
 
+
+# ─── F3 : squelch image sous fading (gel du recalage + tenue du pixel) ─────────
+# Pendant un creux de fading, l'amplitude I/Q (_lastAmpl) s'effondre : la
+# frequence instantanee devient du bruit, qui (a) corrompt le recalage de synchro
+# (t0 derive sur du bruit) et (b) ecrit des pixels bruites. F3 detecte le creux
+# (_lastAmpl sous squelchK fois sa moyenne glissante longue) et alors : (a) GELE
+# le recalage (t0 preserve), (b) TIENT le pixel des cellules majoritairement en
+# creux. Option squelchFade (defaut true) ; branche off = comportement historique
+# bit-a-bit (verifie par checksum RGBA complet vs decodeur pre-F3, cf. rapport).
+#
+# CONCEPTION MESUREE (2026-09-04, cf. task-3-report.md) :
+#  - squelchK=0.35 : le seuil doit rester SOUS le plancher de _lastAmpl/moyenne
+#    EN CLAIR (mesure : ~0.61 a 30 dB, ~0.41-0.48 a 15 dB — l'amplitude varie deja
+#    de ~1.5x selon le ton via le filtre I/Q) pour ne JAMAIS declencher sans
+#    fading ; 0.35 garde la marge tout en capturant les creux profonds (ratio->0)
+#    d'un fading rapide.
+#  - squelchTauMs=600 : moyenne plus lente que le fading (coherence ~160 ms a
+#    1 Hz). MESURE : tau 200..1500 ms donne le meme MAE (non critique).
+#  - TENUE = sample-and-hold : on RECOPIE la derniere bonne ligne, on ne laisse
+#    PAS 0. Les plans sont des tableaux FRAIS par image ; ne rien ecrire =
+#    pixel NOIR = PIRE que le bruit sur image claire (mesure : MAE x5, 3.8->22).
+#    Recopier la derniere bonne ligne transforme ce -x5 en gain reel (cf.
+#    test_f3_gain_sous_fading_rapide). C'est la lecture fidele de « tenir le
+#    pixel / garder la derniere valeur ecrite » dans ce codec a plans frais.
+#  - LIMITE mesuree : un fading LENT (0.2 Hz) n'est PAS detecte (la moyenne
+#    causale le suit, le ratio reste haut) — F3 agit sur le fading RAPIDE.
+
+
+def test_f3_option_squelch_est_bien_cablee(moteur, capsys):
+    """squelchFade a un effet réel sous fading (sinon option morte).
+
+    Contre-epreuve par mutation (2026-09-04, Step 5) : forcer `enFade = false`
+    en tete de la detection de creux dans _decoderImage -> le squelch ne se
+    declenche jamais, on == off (MAE 3.77 == 3.77, diff 0.0) -> ce test ROUGIT.
+    Restaure -> vert (on 3.18 vs off 3.77 sous fading 1 Hz a 24 dB, gain ~16 %).
+
+    Ce test protege AUSSI la TENUE du pixel (pas seulement le gel de synchro) :
+    le gel seul (sans la recopie de ligne) donne ~3.7 sous ce point, soit une
+    difference < 0.1 vs off -> insuffisante pour passer le seuil. Il faut donc
+    que la recopie de la derniere bonne ligne (sample-and-hold) soit cablee pour
+    que ce test soit vert."""
+    on  = _surface(moteur, 'M1', [24], [1.0], {'dec': {'squelchFade': True}})[0]
+    off = _surface(moteur, 'M1', [24], [1.0], {'dec': {'squelchFade': False}})[0]
+    with capsys.disabled():
+        print('\nF3 M1 fading=1Hz MAE on=%s off=%s' % (on['mae'], off['mae']))
+    assert (on['mae'] is None) != (off['mae'] is None) or (
+        on['mae'] is not None and off['mae'] is not None and abs(on['mae'] - off['mae']) > 0.1), \
+        'squelchFade sans effet mesurable sous fading — option morte ?'
+
+
+def test_f3_ne_regresse_pas_sans_fading(moteur):
+    """Sans fading (amplitude stable), le squelch ne doit jamais se déclencher :
+    MAE à 30 dB non dégradé vs sans squelch (M1, image entière)."""
+    on  = _surface(moteur, 'M1', [30], [0], {'dec': {'squelchFade': True}})[0]
+    off = _surface(moteur, 'M1', [30], [0], {'dec': {'squelchFade': False}})[0]
+    assert on['acquis'] and off['acquis']
+    assert on['mae'] <= off['mae'] + 1.0, 'squelch actif sans fading : MAE %s vs %s' % (on['mae'], off['mae'])
+
+
+@pytest.mark.parametrize('mode', ['M1', 'S1', 'R36', 'PD90'])
+def test_f3_gain_sous_fading_rapide(moteur, mode, capsys):
+    """Verrouille le SENS du gain : sous fading rapide (1 Hz), le squelch AMELIORE
+    (ou n'aggrave pas) le MAE — jamais une regression comme la tenue naive a 0
+    (qui donnait MAE x5). Et sans fading il n'a AUCUN effet (bit-a-bit).
+
+    Assertion robuste (pas un knife-edge) : marges mesurees de 0.4 a 1.6 niveaux
+    de MAE sous 1 Hz a 18-30 dB, dans le bon sens pour les 4 familles. Journalise
+    les couples on/off pour la mesure honnete du gain."""
+    couples = []
+    for snr in [30, 24, 18]:
+        on  = _surface(moteur, mode, [snr], [1.0], {'dec': {'squelchFade': True}})[0]
+        off = _surface(moteur, mode, [snr], [1.0], {'dec': {'squelchFade': False}})[0]
+        couples.append((snr, on['mae'], off['mae']))
+        if on['mae'] is not None and off['mae'] is not None:
+            assert on['mae'] <= off['mae'] + 0.2, \
+                '%s 1Hz %ddB : squelch REGRESSE le MAE (on=%s off=%s)' % (mode, snr, on['mae'], off['mae'])
+    # sans fading : effet nul (le squelch ne se declenche pas en clair)
+    on0  = _surface(moteur, mode, [30], [0], {'dec': {'squelchFade': True}})[0]
+    off0 = _surface(moteur, mode, [30], [0], {'dec': {'squelchFade': False}})[0]
+    assert abs(on0['mae'] - off0['mae']) < 1e-6, \
+        '%s sans fading : squelch a un effet (%s vs %s) — declenchement en clair ?' % (
+            mode, on0['mae'], off0['mae'])
+    with capsys.disabled():
+        gains = [(s, None if o is None or f is None else round(f - o, 2)) for s, o, f in couples]
+        print('\nF3 %-5s 1Hz gain MAE (off-on) par SNR: %s' % (mode, gains))
+

@@ -357,7 +357,7 @@ EnergieGlissante.prototype.pousser = function(x){
 // (onLigne) au fil de la réception. États : leader → vis-start → vis-bits →
 // image → retour à leader (prêt pour l'image suivante).
 class SstvDecodeur {
-  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee', syncCorrelation = true, acqVisRobuste = true} = {}){
+  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee', syncCorrelation = true, acqVisRobuste = true, squelchFade = true, squelchK = 0.35, squelchTauMs = 600} = {}){
     this.sampleRate = sampleRate;
     this.onDebutImage = onDebutImage || (() => {});
     this.onLigne = onLigne || (() => {});
@@ -395,6 +395,47 @@ class SstvDecodeur {
     // de pixel pondérée par l'amplitude) s'en sert pour dépriorer les
     // échantillons à I/Q effondré.
     this._lastAmpl = 0;
+
+    // F3 : SQUELCH IMAGE SOUS FADING. Pendant un creux d'evanouissement, le
+    // vecteur I/Q s'effondre : la frequence instantanee devient du bruit qui
+    // (a) fait deriver le recalage de t0 sur du bruit et (b) ecrit des pixels
+    // aleatoires. `false` = comportement historique bit-a-bit (branche off pour
+    // la mesure A/B) ; `true` (defaut) = quand _lastAmpl tombe sous `squelchK`
+    // fois sa MOYENNE GLISSANTE LONGUE (reference du niveau recent), on GELE le
+    // recalage (t0 preserve) et on TIENT le pixel des cellules majoritairement
+    // en creux — sample-and-hold : on recopie la derniere bonne ligne au lieu
+    // d'ecrire la frequence bruitee (cf. _finaliserCellule). Seuil RELATIF,
+    // jamais une amplitude absolue (inconnue en reel : AGC, propagation).
+    //
+    // `squelchK` (0.35) et `squelchTauMs` (600 ms) sont CONCUS ET MESURES, pas
+    // inventes — cf. tests/test_sstv_robustesse.py (bloc F3) et rapport de
+    // conception. En resume :
+    //  - la moyenne doit etre PLUS LENTE que le fading pour sieger pres du niveau
+    //    moyen pendant que l'instantane plonge. tau=600 ms > temps de coherence
+    //    d'un fading a 1 Hz (~160 ms) et s'etablit en ~1,3 ligne M1 apres le
+    //    debut d'image. MESURE : tau entre 200 et 1500 ms donne le meme MAE (les
+    //    creux d'un fading rapide sont si profonds — ratio -> 0 — que toute
+    //    moyenne raisonnable les detecte ; un fading LENT, lui, est suivi par la
+    //    moyenne quelle qu'elle soit et n'est PAS detecte, c'est une limite
+    //    intrinseque d'une reference causale).
+    //  - le seuil k doit rester SOUS le plancher de _lastAmpl/moyenne EN CLAIR
+    //    (sans fading), ou l'amplitude varie deja de ~1,5x selon le ton (reponse
+    //    du filtre I/Q : 1500/1900 Hz pres du centre 1700, 1100/2300 Hz aux
+    //    bords) SANS jamais devoir declencher le squelch (non-regression
+    //    critique). MESURE : ce plancher (min de _lastAmpl/_ampliMoy sur l'image
+    //    en clair) vaut ~0,61 a 30 dB et ~0,41-0,48 a 15 dB ; k=0,35 garde une
+    //    marge confortable (aucun declenchement en clair jusqu'a 15 dB) tout en
+    //    capturant les creux profonds du fading rapide.
+    this._squelchFade = squelchFade;
+    this._squelchK = squelchK;
+    // beta d'une EMA de constante de temps squelchTauMs : 1-exp(-1/(tau*fs)).
+    this._ampliBeta = 1 - Math.exp(-1 / (Math.max(1, squelchTauMs) * 0.001 * sampleRate));
+    this._ampliMoy = 0;             // moyenne glissante longue de _lastAmpl (image)
+    this._cellFade = 0;             // echantillons "en creux" de la cellule courante
+    // Diagnostics (lus par le banc de mesure ; n'influent PAS sur le decode) :
+    this._fadeMinRatio = Infinity;  // min de _lastAmpl/_ampliMoy sur l'image
+    this._fadeSamples = 0;          // echantillons image detectes en creux
+    this._imgSamples = 0;           // echantillons image totaux
 
     // Détecteur de fréquence en quadrature, centré entre le bit VIS le plus
     // bas (1100 Hz) et le blanc (2300 Hz). Le filtre I/Q (~800 Hz) doit
@@ -785,6 +826,13 @@ class SstvDecodeur {
     this._balayage = 0;
     this._cellCle = -1; this._cellSomme = 0; this._cellCompte = 0;
     this._basDebut = -1;
+    // F3 : la moyenne d'amplitude s'etablit sur l'IMAGE (pas depuis le leader,
+    // dont le ton 1900 Hz est plus fort que le contenu image et ferait demarrer
+    // le seuil trop haut = faux creux au debut). Depart a 0 : pendant
+    // l'etablissement (~squelchTauMs) le ratio _lastAmpl/_ampliMoy > 1, donc le
+    // squelch ne peut PAS se declencher — sens sur.
+    this._ampliMoy = 0; this._cellFade = 0;
+    this._fadeMinRatio = Infinity; this._fadeSamples = 0; this._imgSamples = 0;
     // A3 : fenetre de correlation dimensionnee sur la duree de sync du mode
     // (nCorr echantillons), une fois le mode connu. Anneaux + accumulateurs
     // remis a zero a chaque nouvelle image.
@@ -901,17 +949,37 @@ class SstvDecodeur {
   _decoderImage(f, raw){
     const fs = this.sampleRate, m = this._mode;
 
+    // F3 : detection de creux de fading. On maintient une moyenne glissante
+    // LONGUE de l'amplitude I/Q (_ampliMoy) et on declare un creux quand
+    // l'instantane tombe sous squelchK fois cette moyenne. enFade=false en
+    // permanence quand l'option est OFF -> branche historique bit-a-bit.
+    let enFade = false;
+    if(this._squelchFade){
+      this._ampliMoy += (this._lastAmpl - this._ampliMoy) * this._ampliBeta;
+      const ratio = this._ampliMoy > 1e-9 ? this._lastAmpl / this._ampliMoy : 1;
+      enFade = ratio < this._squelchK;
+      this._imgSamples++;
+      if(ratio < this._fadeMinRatio) this._fadeMinRatio = ratio;
+      if(enFade) this._fadeSamples++;
+    }
+
     if(this._syncCorrelation){
       // A3 : recalage piloté par le pic de corrélation d'énergie 1200 Hz.
-      this._suivreCorr(raw || 0);
+      // F3 : GEL pendant un creux — on n'alimente pas le suivi de corrélation
+      // avec des échantillons effondrés (t0 préservé), pour ne pas laisser un
+      // pic de bruit du creux capturer le recalage.
+      if(!enFade) this._suivreCorr(raw || 0);
     } else {
       // Historique : suivi des impulsions 1200 Hz par seuil instantané. Le noir
       // est à 1500 Hz : seuls la synchro (et du bruit franc) descendent sous 1350.
-      if(f < 1350){
-        if(this._basDebut < 0) this._basDebut = this._n;
-      } else if(this._basDebut >= 0){
-        this._recalerSync();
-        this._basDebut = -1;
+      // F3 : GEL du recalage pendant un creux (aucun suivi de _basDebut).
+      if(!enFade){
+        if(f < 1350){
+          if(this._basDebut < 0) this._basDebut = this._n;
+        } else if(this._basDebut >= 0){
+          this._recalerSync();
+          this._basDebut = -1;
+        }
       }
     }
 
@@ -948,10 +1016,12 @@ class SstvDecodeur {
       this._cellCle = cle; this._cellPlan = plan; this._cellIdx = idx;
       this._cellSomme = 0; this._cellCompte = 0;
       this._cellSommePoids = 0;
+      this._cellFade = 0;               // F3 : compteur d'echantillons en creux
       if(this._estimPixel === 'mediane') this._cellFreqs.length = 0;
     }
     if(cle !== -1){
       this._cellCompte++;
+      if(enFade) this._cellFade++;      // F3 : cellule majoritairement en creux ?
       if(this._estimPixel === 'ponderee'){
         const w = this._lastAmpl;       // deprioritise les echantillons a I/Q effondre
         this._cellSomme += f * w; this._cellSommePoids += w;
@@ -965,6 +1035,26 @@ class SstvDecodeur {
 
   _finaliserCellule(){
     if(this._cellCle === -1 || !this._cellCompte || !this._cellPlan) return;
+    // F3 : cellule majoritairement en creux de fading -> TENIR le pixel
+    // (sample-and-hold) au lieu d'ecrire la frequence bruitee. On NE calcule PAS
+    // fMoy (le choix A2 moyenne/mediane/ponderee est court-circuite, quel qu'il
+    // soit) : on RECOPIE la valeur de la ligne precedente a la meme colonne
+    // (_cellIdx - largeur) — la « derniere valeur ecrite » de ce point d'image.
+    // Les plans etant des tableaux FRAIS par image (initialises a 0), ne rien
+    // ecrire laisserait un pixel NOIR : sur une image claire c'est PIRE que du
+    // bruit (mesure : MAE x5). Recopier la derniere bonne ligne propage la
+    // derniere information valide a travers tout le creux (si plusieurs lignes
+    // consecutives fadent, chacune recopie la precedente deja tenue -> la
+    // derniere bonne ligne « coule » vers le bas). A la 1re ligne (_cellIdx <
+    // largeur) il n'y a pas de precedente : on laisse le 0 initial. enFade ne
+    // peut valoir true que si squelchFade est ON -> branche off bit-a-bit.
+    if(this._cellFade * 2 > this._cellCompte){
+      if(this._cellIdx >= this._mode.largeur){
+        this._cellPlan[this._cellIdx] = this._cellPlan[this._cellIdx - this._mode.largeur];
+      }
+      this._cellCle = -1; this._cellCompte = 0; this._cellFade = 0;
+      return;
+    }
     let fMoy;
     if(this._estimPixel === 'ponderee'){
       // Repli sur la moyenne simple si tous les poids sont ~nuls (silence
@@ -982,7 +1072,7 @@ class SstvDecodeur {
       fMoy = this._cellSomme / this._cellCompte;
     }
     this._cellPlan[this._cellIdx] = sstvClamp255((fMoy - SSTV_NOIR) / SSTV_PENTE);
-    this._cellCle = -1; this._cellCompte = 0;
+    this._cellCle = -1; this._cellCompte = 0; this._cellFade = 0;
   }
 
   // Un balayage est terminé : assemble et émet la ou les lignes RGBA
