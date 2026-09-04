@@ -547,6 +547,99 @@ def test_f2_ne_regresse_pas_l_acquisition_en_clair(moteur):
         assert on['acquis'] and off['acquis'], '%s : acquisition en clair perdue' % mode
 
 
+# ─── F2b : start par energie + bits VIS doux + correction guidee par la parite ─
+# F2a robustifie le LEADER ; F2b robustifie le START (energie 1200 vs hors-1200)
+# et les BITS VIS (decision douce energie 1100/1300 + confiance), avec correction
+# guidee par la parite (un retournement du bit le moins sur, SEULEMENT s'il est
+# genuinement ambigu). La garde anti-faux-positif (parite + stop) reste dure.
+
+
+def test_f2b_gain_acquisition_sous_bruit(moteur, capsys):
+    """Sous bruit (sans fading), l'acquisition robuste complete (leader+start+bits
+    doux) acquiert le VIS a un SNR plus bas que l'historique. On mesure le SNR le
+    plus bas encore acquis, on vs off."""
+    snrs = [14, 12, 10, 8, 6, 4, 2]
+
+    def snr_min_acquis(dec):
+        pts = _surface(moteur, 'R36', snrs, [0], {'lignes': 10, 'dec': dec})
+        ok = [p['snr'] for p in pts if p['acquis']]
+        return min(ok) if ok else None
+
+    on = snr_min_acquis({'acqVisRobuste': True})
+    off = snr_min_acquis({'acqVisRobuste': False})
+    with capsys.disabled():
+        print('\nF2b R36 SNR min acquis on=%s off=%s' % (on, off))
+    assert on is not None, 'acquisition robuste n’acquiert jamais — cassee ?'
+
+
+def test_f2b_pas_de_faux_positif_vis(moteur):
+    """🚨 Durcir l'acquisition ne doit JAMAIS accepter un VIS a parite
+    structurellement fausse. Un en-tete a parite FAUSSE (pariteFausse) ne doit
+    JAMAIS etre accepte, meme acquisition robuste active, meme sous bruit — la
+    correction guidee par la parite ne corrige qu'UNE erreur GENUINEMENT ambigue,
+    pas un en-tete propre sciemment corrompu.
+
+    Contre-epreuve par mutation (anti-faux-positif) : muter la garde pour accepter
+    malgre `!pariteOk` (p.ex. remplacer `if(!stopOk || !pariteOk)` par
+    `if(!stopOk)` dans la branche acqVisRobuste de _lireBitsVis) -> ce test ROUGIT
+    (l'en-tete a parite fausse est alors demarre). Restaurer -> vert."""
+    ok = moteur.eval("""(function(){
+      var m = SSTV_MODES_PAR_NOM['M1'];
+      var px = imageTestSstv(m.largeur, m.hauteur);
+      var accepte = 0;
+      [30,12,6].forEach(function(snr){
+        var sig = sstvEncodeSamples({mode:'M1', pixels:px, sampleRate:FS, lignes:2, pariteFausse:true});
+        sig = bruitGaussienSnr(sig, snr, 7);
+        var d = sstvDecodeSamples(sig, {sampleRate:FS, acqVisRobuste:true});
+        if(d.resume().mode !== null) accepte++;
+      });
+      return accepte;
+    })()""")
+    assert ok == 0, 'un en-tete a parite fausse a ete accepte (%s/3) — faux positif VIS' % ok
+
+
+def test_f2b_correction_parite_recupere_un_bit_ambigu(moteur):
+    """WIRING de la correction guidee par la parite (cible de mutation).
+
+    On fabrique un en-tete VIS M1 (code 44) PROPRE sauf UN bit de donnee (slot 2,
+    vraie valeur = 1) remplace par un ton 1200 Hz AMBIGU (equidistant de 1100 et
+    1300 -> energies quasi egales, confiance << 0.5, decode a la mauvaise valeur).
+    La parite echoue alors ; la correction retourne le bit LE MOINS SUR (ce bit
+    ambigu) et recupere M1. C'est le SEUL bit ambigu -> une erreur unique,
+    exactement ce que la correction doit reparer.
+
+    Contre-epreuve par mutation (correction parite) : neutraliser le retournement
+    dans la branche acqVisRobuste de _lireBitsVis (p.ex. `if(conf[kmin] < 0.5 &&
+    false)`) -> ce test ROUGIT (mode=None : la parite reste fausse, en-tete rejete).
+    Restaurer -> vert. MESURE (banc AWGN) : cette correction NE deplace PAS le
+    plancher d'acquisition sous bruit blanc (le decrochage vient du leader/start,
+    pas d'erreurs de bit isolees) — gain d'acquisition non mesurable, garde pour
+    la robustesse d'UN bit reellement ambigu (fading correle) et sans regression.
+
+    Le ton ambigu a confiance < 0.5 : ce test exerce AUSSI la branche VRAIE du
+    seuil anti-faux-positif (complement de test_f2b_pas_de_faux_positif_vis, qui
+    verrouille la branche FAUSSE : bits nets -> pas de correction -> rejet)."""
+    mode = moteur.eval("""(function(){
+      // M1 VIS=44 : data bits k0..k6 = [0,0,1,1,0,1,0], parite paire = 1.
+      // Tons : 1=1100, 0=1300, start/stop=1200. Slot 2 (vrai 1100) -> 1200 ambigu.
+      var slots = [1300,1300,1200,1100,1300,1100,1300, 1100, 1200];
+      var fs = FS, amp = 0.5;
+      var seq = [[1900,0.300],[1200,0.010],[1900,0.300],[1200,0.030]];
+      for(var k=0;k<9;k++) seq.push([slots[k],0.030]);
+      seq.push([1900,0.100]);
+      var tot=0; seq.forEach(function(s){ tot+=s[1]; });
+      var out=new Float32Array(Math.ceil(tot*fs)+16), cur=0, tc=0, ph=0;
+      seq.forEach(function(s){
+        tc+=s[1]*fs; var w=2*Math.PI*s[0]/fs;
+        while(cur<tc && cur<out.length){ out[cur++]=amp*Math.sin(ph); ph+=w; if(ph>2*Math.PI) ph-=2*Math.PI; }
+      });
+      return sstvDecodeSamples(out, {sampleRate:FS, acqVisRobuste:true}).resume().mode;
+    })()""")
+    assert mode == 'M1', \
+        'la correction parite ne recupere pas le bit ambigu unique (mode=%s) — ' \
+        'retournement du bit le moins sur bien cable ?' % mode
+
+
 # ─── Consolidation Lot A : non-regression des 14 modes ────────────────────
 # Verrouille la configuration par defaut retenue en fin de Lot A :
 #   estimPixel='ponderee' (A2 garde), syncCorrelation=true (A3 garde).

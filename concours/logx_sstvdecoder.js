@@ -448,6 +448,11 @@ class SstvDecodeur {
     this._visDebut = 0;                 // front leader→1200 (candidat bit de start)
     this._visAcc = 0; this._visCnt = 0;
     this._visSommes = null; this._visComptes = null;
+    // F2b : décision de start par énergie (accumulateurs 1200 vs hors-1200) et
+    // bits VIS par énergie (1100/1300 par créneau + 1200 pour le stop). Utilisés
+    // seulement quand acqVisRobuste ; posés ici pour un état d'objet cohérent.
+    this._startE1200 = 0; this._startEAutre = 0; this._startCnt = 0;
+    this._visE1 = null; this._visE0 = null; this._visES = null;
 
     // Image en cours
     this._mode = null;
@@ -547,6 +552,9 @@ class SstvDecodeur {
         this._etat = 'vis-start'; this._visDebut = this._n;
         this._visAcc = 0; this._visCnt = 0; this._leaderEch = 0;
         this._eLeaderPeak = 0;
+        // F2b : accumulateurs d'énergie du bit de start (décision par énergie
+        // 1200 vs hors-1200 sur la fenêtre [5;25]ms), réarmés à chaque candidat.
+        this._startE1200 = 0; this._startEAutre = 0; this._startCnt = 0;
       } else {
         this._leaderEch = Math.max(0, this._leaderEch - 4);
       }
@@ -590,7 +598,41 @@ class SstvDecodeur {
   // [5 ; 25 ms] : pour la cassure, la moyenne est tirée vers 1900 (le leader
   // a repris dès 10 ms) et le candidat est rejeté — le second leader de
   // 300 ms redonne largement les 100 ms nécessaires avant le vrai start.
-  _verifierStart(f){
+  _verifierStart(f, raw){
+    if(this._acqVisRobuste){
+      // F2b : décision par ÉNERGIE 1200 Hz (le bit de start est un ton 1200 de
+      // 30 ms). On POUSSE le brut dans TOUTES les phases à chaque échantillon —
+      // sans quoi les fenêtres glissantes _eSync/_eUn/_eZero seraient périmées
+      // en entrant dans vis-bits (report critique de la revue de la Tâche 1).
+      const e1900 = this._eLeader.pousser(raw);
+      const e1200 = this._eSync.pousser(raw);
+      const e1100 = this._eUn.pousser(raw);
+      const e1300 = this._eZero.pousser(raw);
+      const fs = this.sampleRate;
+      const tau = this._n - this._visDebut;
+      if(tau >= 0.005 * fs && tau <= 0.025 * fs){
+        // Énergie 1200 vs la plus forte des phases hors-1200 : pour la CASSURE
+        // de 10 ms (leader repris dès 10 ms), e1900 domine sur [5;25] → rejet ;
+        // pour un vrai start de 30 ms, e1200 domine. Intègre le bruit, invariant
+        // au fading plat (toutes les énergies fadent ensemble, le ratio tient).
+        this._startE1200 += e1200;
+        this._startEAutre += Math.max(e1900, e1100, e1300);
+        this._startCnt++;
+      }
+      if(tau >= 0.030 * fs){
+        const startOk = this._startCnt > 0 && this._startE1200 > this._startEAutre;
+        if(startOk){
+          this._etat = 'vis-bits';
+          this._visE1 = new Float64Array(9);   // énergie 1100 (bit=1) par créneau
+          this._visE0 = new Float64Array(9);   // énergie 1300 (bit=0) par créneau
+          this._visES = new Float64Array(9);   // énergie 1200 (start/stop) par créneau
+        } else {
+          this._etat = 'leader';
+        }
+      }
+      return;
+    }
+    // ── branche OFF : historique bit-à-bit, INCHANGÉE (mesure A/B) ──
     const tau = this._n - this._visDebut;
     const fs = this.sampleRate;
     if(tau >= 0.005 * fs && tau <= 0.025 * fs){ this._visAcc += f; this._visCnt++; }
@@ -610,7 +652,82 @@ class SstvDecodeur {
   // faible d'abord, 1100 Hz = 1, 1300 Hz = 0), parité PAIRE, bit de stop à
   // 1200 Hz. On moyenne le CENTRE de chaque créneau ([5 ; 25 ms]) : les
   // transitions entre créneaux sont adoucies par le filtre I/Q.
-  _lireBitsVis(f){
+  _lireBitsVis(f, raw){
+    if(this._acqVisRobuste){
+      // Pousser TOUTES les phases à chaque échantillon (fenêtres glissantes à
+      // jour) puis accumuler par créneau l'énergie 1100/1300 (bit) et 1200 (stop).
+      const e1200 = this._eSync.pousser(raw);
+      const e1100 = this._eUn.pousser(raw);
+      const e1300 = this._eZero.pousser(raw);
+      this._eLeader.pousser(raw);   // maintenir la phase 1900 alignée
+      const fs = this.sampleRate;
+      const tau = this._n - this._visDebut - Math.round(0.030 * fs);
+      const creneau = Math.floor(tau / (0.030 * fs));
+      if(creneau >= 0 && creneau < 9){
+        const dansCreneau = tau - creneau * 0.030 * fs;
+        if(dansCreneau >= 0.005 * fs && dansCreneau <= 0.025 * fs){
+          this._visE1[creneau] += e1100;
+          this._visE0[creneau] += e1300;
+          this._visES[creneau] += e1200;
+        }
+        return;
+      }
+
+      // Décision DOUCE : bit = 1 si énergie(1100) > énergie(1300). Confiance =
+      // |e1 - e0| / (e1 + e0) (0 = ambigu, 1 = net). L'énergie intègre le bruit
+      // et dépriorise naturellement les échantillons faibles (fading).
+      const bits = [], conf = [];
+      for(let k = 0; k < 9; k++){
+        const e1 = this._visE1[k], e0 = this._visE0[k];
+        bits.push(e1 > e0 ? 1 : 0);
+        conf.push(Math.abs(e1 - e0) / ((e1 + e0) || 1e-12));
+      }
+      let code = 0, uns = 0;
+      for(let k = 0; k < 7; k++){ if(bits[k]){ code |= (1 << k); uns++; } }
+      let bitParite = bits[7];
+      // Stop = énergie 1200 du créneau 8 dominant 1100/1300 (garde dure inchangée).
+      const stopOk = this._visES[8] > this._visE1[8] && this._visES[8] > this._visE0[8];
+      let pariteOk = ((uns + bitParite) % 2) === 0;
+      // Correction guidée par la parité : si la parité PAIRE échoue, retourner le
+      // bit LE MOINS SÛR (confiance minimale) parmi les 8 (7 données + parité) et
+      // revérifier UNE fois. Ne corrige qu'UNE erreur unique ; au-delà, rejet.
+      //
+      // 🚨 GARDE ANTI-FAUX-POSITIF (propriété la plus importante du fichier) : la
+      // correction n'est TENTÉE que si le bit le moins sûr est GENUINEMENT ambigu
+      // (confiance < SEUIL). Un en-tête PROPRE à parité structurellement fausse
+      // (tous les bits nets, aucune ambiguïté) N'EST JAMAIS "réparé" en un code
+      // valide — la parité reste fausse → rejet. Sans ce seuil, un seul
+      // retournement du bit de parité "réparerait" un en-tête sciemment corrompu
+      // à SNR clair (le bit le moins sûr y est arbitraire), ce qui est un faux
+      // positif interdit. Verrouillé par test_f2b_pas_de_faux_positif_vis. Le
+      // seuil (0.5) sépare largement la confiance d'un bit propre (≈0.8-1.0,
+      // mesurée) d'un bit réellement noyé par le bruit (≈0, cas où la correction
+      // apporte le gain d'acquisition).
+      if(!pariteOk){
+        let kmin = 0; for(let k = 1; k < 8; k++) if(conf[k] < conf[kmin]) kmin = k;
+        if(conf[kmin] < 0.5){
+          bits[kmin] ^= 1;
+          code = 0; uns = 0;
+          for(let k = 0; k < 7; k++){ if(bits[k]){ code |= (1 << k); uns++; } }
+          bitParite = bits[7];
+          pariteOk = ((uns + bitParite) % 2) === 0;
+        }
+      }
+      const mode = SSTV_MODES[code];
+      this._etat = 'leader';
+      if(!stopOk || !pariteOk){
+        this.onEtat('En-tête VIS invalide (parité ou stop) — on attend le suivant');
+        return;
+      }
+      this._dernierVis = code;
+      if(!mode){
+        this.onEtat('Mode SSTV non géré (VIS ' + code + ')');
+        return;
+      }
+      this._demarrerImage(mode);
+      return;
+    }
+    // ── branche OFF : historique bit-à-bit, INCHANGÉE (mesure A/B) ──
     const fs = this.sampleRate;
     const tau = this._n - this._visDebut - Math.round(0.030 * fs);
     const creneau = Math.floor(tau / (0.030 * fs));
