@@ -509,6 +509,44 @@ def test_a3_option_est_bien_cablee(moteur, capsys):
             print('    seu=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fseu])
 
 
+# ─── F2a : acquisition VIS robuste — energie glissante + leader par energie ───
+# Le decrochage SSTV est verrouille par l'ACQUISITION de l'en-tete VIS (Lot A) :
+# _chercherLeader/_verifierStart/_lireBitsVis decident sur des SEUILS de frequence
+# INSTANTANEE, qui echouent en premier sous bruit. F2a remplace la decision de
+# LEADER par une decision d'ENERGIE glissante (bin DFT) : integre le bruit,
+# invariante au fading PLAT (le rapport e1900/e1200 est preserve quand l'enveloppe
+# multiplie les deux bins pareillement). Mesure A/B : acquisition on (acqVisRobuste)
+# vs off (historique bit-a-bit).
+
+
+def _taux_acquisition(moteur, mode, snrs, taux, dec):
+    """Fraction des points (sur les SNR donnes, a ce taux de fading) ou le VIS est
+    acquis (bon mode). Mesure directe et mutation-sensible de la robustesse
+    d'acquisition."""
+    pts = _surface(moteur, mode, snrs, [taux], {'lignes': 12, 'dec': dec})
+    return sum(1 for p in pts if p['acquis']) / max(1, len(pts))
+
+
+def test_f2_option_acq_est_bien_cablee(moteur, capsys):
+    """L'option acqVisRobuste a un effet reel sur l'acquisition (sinon option
+    morte). Journalise le taux d'acquisition on vs off."""
+    snrs = [12, 10, 8, 6, 4]
+    on  = _taux_acquisition(moteur, 'R36', snrs, 0.0, {'acqVisRobuste': True})
+    off = _taux_acquisition(moteur, 'R36', snrs, 0.0, {'acqVisRobuste': False})
+    with capsys.disabled():
+        print('\nF2 R36 acquisition on=%.2f off=%.2f' % (on, off))
+    assert on != off, 'acqVisRobuste sans effet sur l’acquisition — option morte ?'
+
+
+def test_f2_ne_regresse_pas_l_acquisition_en_clair(moteur):
+    """A SNR clair, l'acquisition robuste ne doit pas rater ce que l'historique
+    acquiert : au moins aussi bon a 30 dB sans fading."""
+    for mode in ['M1', 'S1', 'R36', 'PD90']:
+        on  = _surface(moteur, mode, [30], [0], {'lignes': 12, 'dec': {'acqVisRobuste': True}})[0]
+        off = _surface(moteur, mode, [30], [0], {'lignes': 12, 'dec': {'acqVisRobuste': False}})[0]
+        assert on['acquis'] and off['acquis'], '%s : acquisition en clair perdue' % mode
+
+
 # ─── Consolidation Lot A : non-regression des 14 modes ────────────────────
 # Verrouille la configuration par defaut retenue en fin de Lot A :
 #   estimPixel='ponderee' (A2 garde), syncCorrelation=true (A3 garde).
