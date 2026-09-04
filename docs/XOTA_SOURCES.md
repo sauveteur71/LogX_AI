@@ -62,23 +62,29 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
   reste un chantier distinct à rouvrir plus tard si besoin.
 
 ### LLOTA — Lakes and Lagoons On The Air
-- **Base protégée / non confirmée** : `https://llota.app/` refuse l'accès
-  automatisé (HTTP 403). Explorateur `https://llota.app/referencias.html`,
-  doc `https://llota.app/documentacion.html`, règles
-  `https://llota.app/reglas.html` (non récupérées).
-- Modèle : **validation syntaxique SEULE** (v1) — ni bulk ni lookup par-réf,
-  aucune coordonnée. Réf « CL-0001 » (`^[A-Z]{2}-\d{4,}$` : préfixe pays 2
-  lettres + tiret + 4 chiffres ou plus ; `CL` = exemple public, pas une liste
-  ni « la France »). Enrichissement `MY_SIG=LLOTA`/`MY_SIG_INFO` par le canal
-  générique (pas de tag ADIF dédié). LLOTA reste **hors** `PROGRAMMES`/
-  dispatcher (aucun lookup muet).
-- ⚠️ **Valeurs PROVISOIRES, à confirmer au règlement** (rapportées par F4GLD,
-  site inaccessible en accès automatisé) : min **10 QSO** ; distance au bord
-  **200 m** ; surface **400 m²**. Configurables, jamais bloquantes ; seul le
-  min QSO est modélisé en v1 (distance/surface hors périmètre).
-- Statut : **intégré (validation syntaxique)**. Règlement détaillé non vérifié —
-  accès automatisé refusé (HTTP 403), ce qui ne prouve **pas** l'absence de
-  règles, d'API, ni que ces valeurs soient officielles.
+- **Base protégée, règles désormais confirmées** : `https://llota.app/` refuse
+  l'accès automatisé (HTTP 403), mais le **règlement officiel**
+  (`https://llota.app/reglas.html`) a été récupéré manuellement et fourni par
+  F4GLD le **2026-09-04**. Explorateur `https://llota.app/referencias.html`,
+  doc `https://llota.app/documentacion.html` (toujours 403 en automatisé).
+- Modèle : **validation syntaxique SEULE** (v1) — la base restant 403 en accès
+  automatisé, ni bulk ni lookup par-réf, aucune coordonnée.
+- **Format CONFIRMÉ** « **LLxx-nnnn** » (`^LL[A-Z]{2}-\d{4,}$`) = préfixe
+  « LL » + code pays LLOTA (2 lettres) + tiret + 4+ chiffres. Imposé par le
+  règlement (reglas.html, « LLCL-xxxx ») ET vérifié sur une vraie référence le
+  2026-09-04 : **LLNZ-0359** (Lac Huro, Nouvelle-Zélande ; NZ = code pays LLOTA,
+  pas le DXCC ZL). ⚠️ Une recherche secondaire donnait par erreur la forme nue
+  « CL-0001 »/« EI-0183 » (inférence sans accès au catalogue 403) — écartée,
+  contredite par la référence réelle. Enrichissement `MY_SIG=LLOTA`/
+  `MY_SIG_INFO` par le canal générique (pas de tag ADIF dédié). LLOTA reste
+  **hors** `PROGRAMMES`/dispatcher (base toujours 403, aucun lookup).
+- ✅ **Valeurs CONFIRMÉES au règlement** (reglas.html, 2026-09-04) : min
+  **10 QSO** ; distance au bord **200 m** (ou /MM depuis un navire au-dessus de
+  l'eau) ; surface minimale **400 m²**. Configurables, jamais bloquantes ; seul
+  le min QSO est modélisé en v1 (distance/surface documentées, hors périmètre).
+- Statut : **intégré (validation syntaxique)**. Règlement confirmé ; l'accès
+  automatisé reste refusé (403) → toujours pas de catalogue ni de lookup distant
+  tant qu'une source machine citable n'est pas disponible.
 
 ## Registre machine
 
@@ -111,12 +117,12 @@ sauf SOTA (hebdomadaire, choix antérieur). POTA/WWFF historiques restent à 30 
     {"program_code": "LLOTA", "name": "Lakes and Lagoons On The Air",
      "website": "https://llota.app/", "explorer": "https://llota.app/referencias.html",
      "rules": "https://llota.app/reglas.html",
-     "model": "syntactic_only", "type": "protected_water_bodies_unconfirmed",
-     "reference_pattern": "^[A-Z]{2}-[0-9]{4,}$",
-     "min_qso": 10, "min_qso_status": "provisional",
-     "distance_m": 200, "distance_status": "provisional",
-     "area_m2": 400, "area_status": "provisional",
-     "status": "integrated_syntactic_only", "rules_status": "unverified_http_403",
+     "model": "syntactic_only", "type": "protected_water_bodies",
+     "reference_pattern": "^LL[A-Z]{2}-[0-9]{4,}$",
+     "min_qso": 10, "min_qso_status": "confirmed",
+     "distance_m": 200, "distance_status": "confirmed",
+     "area_m2": 400, "area_status": "confirmed",
+     "status": "integrated_syntactic_only", "rules_status": "confirmed_2026-09-04_official_rules",
      "catalogue": false, "api": false, "permanent_reference_database": false}
   ]
 }

@@ -8,14 +8,17 @@ pas de branche dispatcher, pas de lookup distant, pas de table de coordonnées.
 LLOTA n'a PAS de champ ADIF dédié -> mécanisme générique SIG/SIG_INFO (comme
 WCA/ARLHS/GMA/WWBOTA).
 
-Valeurs métier (min 10 QSO ; 200 m ; 400 m²) = PROVISOIRES et configurables,
-rapportées par F4GLD, NON confirmées au règlement officiel (un HTTP 403 ne
-prouve pas qu'elles sont officielles). Seul le min_qso est modélisé en v1 ;
-distance/surface sont hors périmètre v1 (documentées, non bloquantes).
+Valeurs métier (min 10 QSO ; 200 m du bord ; 400 m² de surface minimale) =
+CONFIRMÉES au règlement officiel (reglas.html, texte fourni par F4GLD le
+2026-09-04 ; le site reste inaccessible en accès automatisé, HTTP 403, mais les
+règles sont maintenant sourcées). Seul le min_qso est modélisé en v1 ;
+distance/surface restent hors périmètre v1 (documentées, non bloquantes).
 
-Format de référence retenu : `^[A-Z]{2}-\\d{4,}$` (ex. CL-0001) — 2 lettres de
-préfixe pays, tiret, 4 chiffres ou plus. À confirmer au règlement. Le préfixe
-CL est un EXEMPLE public, pas une liste exhaustive ni « français ».
+Format de référence CONFIRMÉ : `^LL[A-Z]{2}-\\d{4,}$` = préfixe « LL » + code
+pays LLOTA (2 lettres) + tiret + 4+ chiffres. Le règlement (reglas.html) l'imposait
+(« LLCL-xxxx ») et une VRAIE référence l'a confirmé le 2026-09-04 : **LLNZ-0359**
+(Lac Huro, Nouvelle-Zélande). Une recherche secondaire donnait par erreur la forme
+nue « CL-0001 » (inférence sans accès au catalogue) — écartée par la réf réelle.
 """
 import os
 import re
@@ -40,24 +43,27 @@ def test_llota_present_dans_program_specs():
     spec = act.PROGRAM_SPECS['LLOTA']
     assert spec['name'] == 'Lakes and Lagoons On The Air'
     assert spec['sig'] == 'LLOTA'
-    assert spec['min_qso'] == 10             # provisoire, rapporté F4GLD, à confirmer
+    assert spec['min_qso'] == 10             # confirmé au règlement officiel (reglas.html)
     assert 'adif_tag' not in spec            # pas de tag ADIF dédié -> SIG générique
 
 
 def test_llota_reference_valide():
-    assert act.validate_ref('LLOTA', 'CL-0001')
-    assert act.validate_ref('LLOTA', 'FR-1234')
-    assert act.validate_ref('LLOTA', 'US-00001')       # 5 chiffres : {4,} l'accepte
+    # Format confirmé LLxx-nnnn = préfixe LL + code pays (2 lettres) + tiret + 4+ chiffres.
+    assert act.validate_ref('LLOTA', 'LLNZ-0359')       # VRAIE réf (Lac Huro, NZ), vérifiée
+    assert act.validate_ref('LLOTA', 'LLCL-0001')       # Chili (exemple du règlement)
+    assert act.validate_ref('LLOTA', 'LLFR-1234')       # France
+    assert act.validate_ref('LLOTA', 'LLUS-00001')      # 5 chiffres : {4,} l'accepte
     # normalisation commune (strip/upper) : la saisie brute passe aussi
-    assert act.validate_ref('LLOTA', ' cl-0001 ')
+    assert act.validate_ref('LLOTA', ' llnz-0359 ')
 
 
 def test_llota_reference_invalide():
-    assert not act.validate_ref('LLOTA', 'C-0001')     # préfixe 1 lettre
-    assert not act.validate_ref('LLOTA', 'CL-001')     # 3 chiffres (< 4)
-    assert not act.validate_ref('LLOTA', 'CL0001')     # tiret manquant
-    assert not act.validate_ref('LLOTA', 'CL-ABCD')    # partie numérique non chiffrée
-    assert not act.validate_ref('LLOTA', 'CLX-0001')   # préfixe 3 lettres
+    assert not act.validate_ref('LLOTA', 'CL-0001')    # forme nue SANS préfixe LL (inférence erronée)
+    assert not act.validate_ref('LLOTA', 'LLC-0001')   # code pays 1 lettre après LL
+    assert not act.validate_ref('LLOTA', 'LLNZ-035')   # 3 chiffres (< 4)
+    assert not act.validate_ref('LLOTA', 'LLNZ0359')   # tiret manquant
+    assert not act.validate_ref('LLOTA', 'LLNZ-ABCD')  # partie numérique non chiffrée
+    assert not act.validate_ref('LLOTA', 'LLNZX-0359') # LL + 3 lettres
 
 
 # ─── Garde-fou d'architecture : syntactic-only (pas de lookup muet) ──────────
