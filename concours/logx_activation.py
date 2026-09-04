@@ -102,20 +102,23 @@ PROGRAM_SPECS = {
             'ref_re': r'^DMF[- ]?(?:\d{1,4}|2[AB])[-.]\d{1,6}$', 'min_qso': 100,
             'p2p': 'Moulin-to-Moulin', 'example': 'DMF01.001', 'format_provisoire': True},
     # LLOTA (Lakes and Lagoons On The Air) — programme XOTA « plans d'eau »
-    # (lacs, lagunes, réservoirs, barrages), https://llota.app/ . Référence
-    # « XX-nnnn » : préfixe pays 2 lettres + tiret + 4 chiffres ou plus
-    # (ex. CL-0001 ; CL = exemple public, PAS une liste ni « la France »).
-    # ⚠️ VALEURS PROVISOIRES (rapportées par F4GLD, règlement officiel NON
-    # confirmé : llota.app refuse l'accès automatisé, HTTP 403 — ce qui ne
-    # prouve pas qu'elles soient officielles) : seuil retenu 10 QSO. La distance
-    # au bord (200 m) et la surface (400 m²) ne sont PAS modélisées en v1.
-    # Base protégée -> validation SYNTAXIQUE seule : pas de catalogue ni de
-    # lookup distant, donc LLOTA reste HORS de PROGRAMMES (logx_ref_info.js) et
-    # du dispatcher. Pas de champ ADIF dédié -> mécanisme générique SIG/SIG_INFO
-    # (comme WCA/ARLHS/GMA/WWBOTA).
+    # (lacs, lagunes, réservoirs, barrages), https://llota.app/ .
+    # Format de référence CONFIRMÉ « LLxx-nnnn » : préfixe « LL » + code pays
+    # LLOTA (2 lettres) + tiret + 4 chiffres ou plus. Le règlement (reglas.html)
+    # l'imposait (« LLCL-xxxx ») et une VRAIE référence l'a confirmé le
+    # 2026-09-04 : LLNZ-0359 (Lac Huro, Nouvelle-Zélande ; NZ = code pays LLOTA,
+    # pas le DXCC ZL). NB : une recherche secondaire donnait par erreur la forme
+    # nue « CL-0001 » (inférence sans accès au catalogue 403) — écartée, contredite
+    # par la référence réelle.
+    # Valeurs CONFIRMÉES au règlement (reglas.html) + recoupées sur la fiche
+    # LLNZ-0359 : 10 QSO min, 200 m du bord (« Activation Zone within 0.2km »),
+    # 400 m² surface min. Seul min_qso modélisé en v1 ; distance/surface
+    # documentées mais non modélisées. Base protégée (403) -> validation
+    # SYNTAXIQUE seule : pas de catalogue ni de lookup, LLOTA reste HORS de
+    # PROGRAMMES et du dispatcher. Pas de tag ADIF dédié -> SIG/SIG_INFO générique.
     'LLOTA': {'name': 'Lakes and Lagoons On The Air', 'sig': 'LLOTA',
-              'ref_re': r'^[A-Z]{2}-\d{4,}$', 'min_qso': 10,
-              'p2p': 'Lake-to-Lake', 'example': 'CL-0001', 'format_provisoire': True},
+              'ref_re': r'^LL[A-Z]{2}-\d{4,}$', 'min_qso': 10,
+              'p2p': 'Lake-to-Lake', 'example': 'LLNZ-0359', 'format_provisoire': False},
 }
 
 # Table dérivée programme -> tag ADIF dédié (source unique pour l'export ; le
