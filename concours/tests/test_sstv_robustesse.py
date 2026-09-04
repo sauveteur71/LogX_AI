@@ -598,6 +598,49 @@ def test_f2b_pas_de_faux_positif_vis(moteur):
     assert ok == 0, 'un en-tete a parite fausse a ete accepte (%s/3) — faux positif VIS' % ok
 
 
+def test_f2b_pas_de_faux_positif_sur_bruit_pur(moteur, capsys):
+    """🚨 SOAK anti-faux-positif sur BRUIT PUR (aucun signal SSTV). Concern de
+    revue : sur du bruit qui atteint la decision de bits, la parite est impaire
+    ~50 % du temps et le bit le moins sur est souvent < 0.5 -> la correction
+    retourne et retablit la parite, ~doublant le taux de parite-OK vs la branche
+    OFF. L'acceptation exige EN PLUS stopOk (1200 Hz dominant au creneau 8), un
+    code de mode VALIDE, et le franchissement des gardes d'energie leader/start.
+    On MESURE que le chemin robuste n'accepte PAS PLUS de VIS fantomes que OFF.
+
+    Faux-VIS = image parasite (affichage RX seulement, pas d'emission) : c'est de
+    la QUALITE de decode, pas une faille — mais la culture du depot veut la mesure
+    faite. Si robuste-on egale OFF a ~0, c'est clos ; sinon il faudrait durcir."""
+    js = """(function(dec){
+      // bruit gaussien PUR, sans aucun signal (silence bruite), longueur realiste.
+      function bruitPur(n, graine){
+        var s = graine||1, out = new Float32Array(n), spare = null;
+        for(var i=0;i<n;i++){
+          var g;
+          if(spare!==null){ g=spare; spare=null; }
+          else { s=(s*1103515245+12345)&0x7fffffff; var u1=(s/0x7fffffff)||1e-9;
+                 s=(s*1103515245+12345)&0x7fffffff; var u2=(s/0x7fffffff);
+                 var mag=Math.sqrt(-2*Math.log(u1)); g=mag*Math.cos(2*Math.PI*u2);
+                 spare=mag*Math.sin(2*Math.PI*u2); }
+          out[i] = 0.5*g;
+        }
+        return out;
+      }
+      var n = Math.round(FS*3), faux = 0;
+      for(var sd=1; sd<=30; sd++){
+        var d = sstvDecodeSamples(bruitPur(n, sd), Object.assign({sampleRate:FS}, dec));
+        if(d.resume().mode !== null) faux++;
+      }
+      return faux;
+    })"""
+    on = int(moteur.eval(js + '({acqVisRobuste:true})'))
+    off = int(moteur.eval(js + '({acqVisRobuste:false})'))
+    with capsys.disabled():
+        print('\nF2b bruit pur 3s x30 graines : faux VIS on=%d off=%d' % (on, off))
+    assert on <= off, \
+        'le chemin robuste accepte PLUS de VIS fantomes sur bruit pur que OFF ' \
+        '(on=%d off=%d) — durcir la correction' % (on, off)
+
+
 def test_f2b_correction_parite_recupere_un_bit_ambigu(moteur):
     """WIRING de la correction guidee par la parite (cible de mutation).
 
