@@ -326,12 +326,38 @@ function sstvYccVersRgb(y, cr, cb){
           sstvClamp255((298.082 * (y - 16) + 516.412 * (cb - 128)) / 256)];
 }
 
+// ─── Énergie glissante à UNE fréquence (bin DFT sur fenêtre glissante) ───────
+// Généralise le Goertzel corrélé d'A3 (_suivreCorr, image-scoped) en composant
+// AUTONOME et paramétré : plusieurs instances tournent pendant l'ACQUISITION VIS
+// (leader 1900, sync/start 1200, bits 1100/1300), AVANT qu'une image existe —
+// là où les buffers _corr* d'A3 (dimensionnés et remis à zéro à _demarrerImage)
+// sont inutilisables. On corrèle le signal BRUT x contre e^{-jωn} sur une fenêtre
+// glissante de `nFenetre` échantillons et on renvoie l'énergie |Σ x·e^{-jωn}|²
+// NORMALISÉE par la fenêtre : pour une tonalité pure d'amplitude A au bin, elle
+// vaut A²/4 quel que soit nFenetre — un intégrateur qui moyenne le bruit et rend
+// une décision d'énergie comparable d'une instance à l'autre.
+function EnergieGlissante(freqHz, nFenetre, sampleRate){
+  this.w = 2 * Math.PI * freqHz / sampleRate; this.ph = 0;
+  this.n = Math.max(3, nFenetre | 0);
+  this.ringC = new Float32Array(this.n); this.ringS = new Float32Array(this.n);
+  this.sc = 0; this.ss = 0; this.idx = 0;
+}
+EnergieGlissante.prototype.pousser = function(x){
+  const c = Math.cos(this.ph), s = Math.sin(this.ph);
+  this.ph += this.w; if(this.ph > 2 * Math.PI) this.ph -= 2 * Math.PI;
+  const kc = x * c, ks = x * s, i = this.idx;
+  this.sc += kc - this.ringC[i]; this.ss += ks - this.ringS[i];   // ajoute l'entrant, retire le sortant
+  this.ringC[i] = kc; this.ringS[i] = ks;
+  this.idx = (i + 1) % this.n;
+  return (this.sc * this.sc + this.ss * this.ss) / (this.n * this.n);   // énergie normalisée
+};
+
 // ─── Décodeur ────────────────────────────────────────────────────────────────
 // Consomme des blocs d'échantillons audio (pousser), produit des lignes RGBA
 // (onLigne) au fil de la réception. États : leader → vis-start → vis-bits →
 // image → retour à leader (prêt pour l'image suivante).
 class SstvDecodeur {
-  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee', syncCorrelation = true} = {}){
+  constructor({sampleRate = 44100, onDebutImage, onLigne, onFinImage, onEtat, estimPixel = 'ponderee', syncCorrelation = true, acqVisRobuste = true, squelchFade = true, squelchK = 0.35, squelchTauMs = 600} = {}){
     this.sampleRate = sampleRate;
     this.onDebutImage = onDebutImage || (() => {});
     this.onLigne = onLigne || (() => {});
@@ -370,6 +396,47 @@ class SstvDecodeur {
     // échantillons à I/Q effondré.
     this._lastAmpl = 0;
 
+    // F3 : SQUELCH IMAGE SOUS FADING. Pendant un creux d'evanouissement, le
+    // vecteur I/Q s'effondre : la frequence instantanee devient du bruit qui
+    // (a) fait deriver le recalage de t0 sur du bruit et (b) ecrit des pixels
+    // aleatoires. `false` = comportement historique bit-a-bit (branche off pour
+    // la mesure A/B) ; `true` (defaut) = quand _lastAmpl tombe sous `squelchK`
+    // fois sa MOYENNE GLISSANTE LONGUE (reference du niveau recent), on GELE le
+    // recalage (t0 preserve) et on TIENT le pixel des cellules majoritairement
+    // en creux — sample-and-hold : on recopie la derniere bonne ligne au lieu
+    // d'ecrire la frequence bruitee (cf. _finaliserCellule). Seuil RELATIF,
+    // jamais une amplitude absolue (inconnue en reel : AGC, propagation).
+    //
+    // `squelchK` (0.35) et `squelchTauMs` (600 ms) sont CONCUS ET MESURES, pas
+    // inventes — cf. tests/test_sstv_robustesse.py (bloc F3) et rapport de
+    // conception. En resume :
+    //  - la moyenne doit etre PLUS LENTE que le fading pour sieger pres du niveau
+    //    moyen pendant que l'instantane plonge. tau=600 ms > temps de coherence
+    //    d'un fading a 1 Hz (~160 ms) et s'etablit en ~1,3 ligne M1 apres le
+    //    debut d'image. MESURE : tau entre 200 et 1500 ms donne le meme MAE (les
+    //    creux d'un fading rapide sont si profonds — ratio -> 0 — que toute
+    //    moyenne raisonnable les detecte ; un fading LENT, lui, est suivi par la
+    //    moyenne quelle qu'elle soit et n'est PAS detecte, c'est une limite
+    //    intrinseque d'une reference causale).
+    //  - le seuil k doit rester SOUS le plancher de _lastAmpl/moyenne EN CLAIR
+    //    (sans fading), ou l'amplitude varie deja de ~1,5x selon le ton (reponse
+    //    du filtre I/Q : 1500/1900 Hz pres du centre 1700, 1100/2300 Hz aux
+    //    bords) SANS jamais devoir declencher le squelch (non-regression
+    //    critique). MESURE : ce plancher (min de _lastAmpl/_ampliMoy sur l'image
+    //    en clair) vaut ~0,61 a 30 dB et ~0,41-0,48 a 15 dB ; k=0,35 garde une
+    //    marge confortable (aucun declenchement en clair jusqu'a 15 dB) tout en
+    //    capturant les creux profonds du fading rapide.
+    this._squelchFade = squelchFade;
+    this._squelchK = squelchK;
+    // beta d'une EMA de constante de temps squelchTauMs : 1-exp(-1/(tau*fs)).
+    this._ampliBeta = 1 - Math.exp(-1 / (Math.max(1, squelchTauMs) * 0.001 * sampleRate));
+    this._ampliMoy = 0;             // moyenne glissante longue de _lastAmpl (image)
+    this._cellFade = 0;             // echantillons "en creux" de la cellule courante
+    // Diagnostics (lus par le banc de mesure ; n'influent PAS sur le decode) :
+    this._fadeMinRatio = Infinity;  // min de _lastAmpl/_ampliMoy sur l'image
+    this._fadeSamples = 0;          // echantillons image detectes en creux
+    this._imgSamples = 0;           // echantillons image totaux
+
     // Détecteur de fréquence en quadrature, centré entre le bit VIS le plus
     // bas (1100 Hz) et le blanc (2300 Hz). Le filtre I/Q (~800 Hz) doit
     // laisser passer ±600 Hz de bande de base : plus étroit, les transitions
@@ -396,12 +463,37 @@ class SstvDecodeur {
     this._fRing = new Float32Array(nMoy);
     this._fIdx = 0; this._fSomme = 0;
 
+    // F2a : ACQUISITION VIS par ÉNERGIE glissante (bin DFT) plutôt que par seuils
+    // de fréquence INSTANTANÉE. `false` = comportement historique bit-à-bit
+    //   (_chercherLeader sur |f-1900|<75, conservé intact pour la mesure A/B) ;
+    // `true` (défaut) = le leader est détecté par une énergie 1900 Hz soutenue qui
+    //   DOMINE l'énergie 1200 Hz (intègre le bruit ; invariant au fading PLAT, où
+    //   e1900 ET e1200 chutent ensemble en laissant leur rapport intact).
+    // Fenêtre ~10 ms (deux tiers d'un bit VIS de 30 ms : compromis intégration/
+    // réactivité). Estimateurs créés seulement si l'option est active (rien ne
+    // coûte en OFF). _eSync/_eUn/_eZero sont posés ici pour être CONSOMMÉS par
+    // F2b (bits VIS souples) — ne pas les renommer.
+    this._acqVisRobuste = acqVisRobuste;
+    if(acqVisRobuste){
+      const nAcq = Math.max(3, Math.round(0.010 * sampleRate));
+      this._eLeader = new EnergieGlissante(1900, nAcq, sampleRate);   // leader/VIS 1900
+      this._eSync   = new EnergieGlissante(1200, nAcq, sampleRate);   // sync/start/stop 1200
+      this._eUn     = new EnergieGlissante(1100, nAcq, sampleRate);   // bit = 1
+      this._eZero   = new EnergieGlissante(1300, nAcq, sampleRate);   // bit = 0
+      this._eLeaderPeak = 0;   // peak-hold décroissant de e1900 (niveau du leader reçu)
+    }
+
     this._n = 0;                        // index d'échantillon global
     this._etat = 'leader';
     this._leaderEch = 0;                // échantillons de leader 1900 Hz cumulés
     this._visDebut = 0;                 // front leader→1200 (candidat bit de start)
     this._visAcc = 0; this._visCnt = 0;
     this._visSommes = null; this._visComptes = null;
+    // F2b : décision de start par énergie (accumulateurs 1200 vs hors-1200) et
+    // bits VIS par énergie (1100/1300 par créneau + 1200 pour le stop). Utilisés
+    // seulement quand acqVisRobuste ; posés ici pour un état d'objet cohérent.
+    this._startE1200 = 0; this._startEAutre = 0; this._startCnt = 0;
+    this._visE1 = null; this._visE0 = null; this._visES = null;
 
     // Image en cours
     this._mode = null;
@@ -451,9 +543,9 @@ class SstvDecodeur {
     for(let i = 0; i < samples.length; i++){
       const f = this._freq(samples[i]);
       this._n++;
-      if(this._etat === 'leader')          this._chercherLeader(f);
-      else if(this._etat === 'vis-start')  this._verifierStart(f);
-      else if(this._etat === 'vis-bits')   this._lireBitsVis(f);
+      if(this._etat === 'leader')          this._chercherLeader(f, samples[i]);
+      else if(this._etat === 'vis-start')  this._verifierStart(f, samples[i]);
+      else if(this._etat === 'vis-bits')   this._lireBitsVis(f, samples[i]);
       else                                 this._decoderImage(f, samples[i]);
     }
   }
@@ -461,7 +553,55 @@ class SstvDecodeur {
   // Leader : au moins 100 ms de 1900 Hz avant d'accepter un front vers
   // 1200 Hz. Le compteur DÉCROÎT sur les échantillons hors tolérance au lieu
   // de repartir de zéro : un craquement ne doit pas faire perdre le leader.
-  _chercherLeader(f){
+  _chercherLeader(f, raw){
+    if(this._acqVisRobuste){
+      const e1900 = this._eLeader.pousser(raw);
+      const e1200 = this._eSync.pousser(raw);
+      this._eUn.pousser(raw); this._eZero.pousser(raw);   // maintenir toutes les phases
+      // Peak-hold décroissant du niveau leader (0.9999^n atteint 1/e à n≈10 000,
+      // soit ~0,23 s à 44,1 kHz) : suit le pic récent d'énergie 1900 pour un seuil
+      // AUTO-CALIBRÉ.
+      this._eLeaderPeak = e1900 > this._eLeaderPeak
+                        ? e1900 : this._eLeaderPeak * 0.9999;
+      // ACCUMULATION du leader par ÉNERGIE : e1900 DOMINE nettement e1200 (gate de
+      // sélectivité, invariant au fading plat et rejetant le bruit blanc qui ne
+      // privilégie aucun bin), ET porte une énergie cohérente avec son pic récent
+      // (_eSeuilLeader, floor relatif anti-silence). C'est le vrai levier : le
+      // compteur monte sur une DÉCISION D'ÉNERGIE intégrée là où le seuil de f
+      // instantané (±75 Hz, branche OFF) décroche dès qu'un échantillon bruité
+      // sort de la fenêtre — d'où l'acquisition qui tient bien plus bas en SNR.
+      //
+      // L'ÉDGE leader→start est en revanche daté sur la fréquence INSTANTANÉE
+      // (f<1400) pour MINIMISER le lag de t0. Attention : ce n'est PAS un ancrage
+      // identique à l'historique. Le `else if(f<1400 …)` n'est atteint que quand
+      // le `if(e1900>2·e1200 …)` est FAUX ; or e1900 intègre sur la fenêtre ~10 ms,
+      // donc le gate de dominance reste vrai ~4 ms après la chute réelle du ton →
+      // _visDebut est capturé ~2-3 ms PLUS TARD que la branche OFF (qui, elle, tire
+      // sur le f<1400 instantané ~1-2 ms après la chute). Dater plutôt sur le
+      // franchissement d'énergie e1200>2·e1900 coûterait ~6 ms (l'énergie 1200 doit
+      // d'abord remplir la fenêtre) : le passage à f<1400 RAMÈNE ce lag de ~6 ms à
+      // un résidu de ~2-3 ms, sans l'éliminer. Ce résidu est un OFFSET HORIZONTAL
+      // CONSTANT (pas un slant), absorbé empiriquement par le recalage A3 (±2,5 ms
+      // par impulsion) — d'où l'absence de régression MAE en clair (43/43). On
+      // garde ainsi la ROBUSTESSE d'énergie pour DÉTECTER le leader et la fréquence
+      // instantanée pour le DATER au mieux. Sous fading plat comme sous bruit, f au
+      // bit de start moyenne 1200 (fréquence préservée, seule l'amplitude fade),
+      // l'edge reste net.
+      if(e1900 > 2 * e1200 && e1900 > this._eSeuilLeader()){
+        this._leaderEch++;
+      } else if(f < 1400 && this._leaderEch > 0.1 * this.sampleRate){
+        this._etat = 'vis-start'; this._visDebut = this._n;
+        this._visAcc = 0; this._visCnt = 0; this._leaderEch = 0;
+        this._eLeaderPeak = 0;
+        // F2b : accumulateurs d'énergie du bit de start (décision par énergie
+        // 1200 vs hors-1200 sur la fenêtre [5;25]ms), réarmés à chaque candidat.
+        this._startE1200 = 0; this._startEAutre = 0; this._startCnt = 0;
+      } else {
+        this._leaderEch = Math.max(0, this._leaderEch - 4);
+      }
+      return;
+    }
+    // ── branche OFF : historique bit-à-bit, INCHANGÉE (mesure A/B) ──
     if(Math.abs(f - 1900) < 75){
       this._leaderEch++;
     } else if(f < 1400 && this._leaderEch > 0.1 * this.sampleRate){
@@ -474,12 +614,66 @@ class SstvDecodeur {
     }
   }
 
+  // Seuil d'énergie pour valider un échantillon de leader. PAS une constante
+  // magique liée à l'amplitude reçue (inconnue en réel : AGC, propagation) mais
+  // un seuil RELATIF au peak-hold décroissant de l'énergie 1900 Hz (_eLeaderPeak),
+  // qui s'auto-calibre sur n'importe quel niveau de signal. Le rejet du BRUIT est
+  // porté par le gate de sélectivité e1900>2*e1200 (le bruit blanc ne privilégie
+  // pas 1900 sur 1200) et par la décroissance -4 du compteur ; ce floor n'exige
+  // que la cohérence du leader avec son propre pic récent, SANS le rejeter dans
+  // les creux de fading PLAT (où e1900 ET e1200 chutent ensemble, laissant le
+  // RATIO — donc le gate — intact). Fraction 1/16 (~ -12 dB) : choisie basse
+  // exprès pour tolérer des creux jusqu'à ~12 dB sous le pic tout en écartant le
+  // régime silence/cold-start (e1900 ≈ 0). MESURÉ (balayage de fraction, banc
+  // F2a, R36) : à 1/2 le floor rejette les creux de fading et l'acquisition sous
+  // QSB lent (0,2 Hz) tombe à 0 ; à 1/4 et en dessous (1/8, 1/16, 1/32, 0) elle
+  // est identique (0,60) — le gate de ratio porte alors la décision, le floor
+  // n'est plus limitant. 1/16 retenu : franchement dans la zone plate, marge
+  // confortable au-dessus du régime silence.
+  _eSeuilLeader(){
+    return this._eLeaderPeak * 0.0625;
+  }
+
   // Le front vers 1200 Hz peut être la CASSURE de 10 ms au milieu de
   // l'en-tête, pas le bit de start (30 ms). On ne juge que sur la fenêtre
   // [5 ; 25 ms] : pour la cassure, la moyenne est tirée vers 1900 (le leader
   // a repris dès 10 ms) et le candidat est rejeté — le second leader de
   // 300 ms redonne largement les 100 ms nécessaires avant le vrai start.
-  _verifierStart(f){
+  _verifierStart(f, raw){
+    if(this._acqVisRobuste){
+      // F2b : décision par ÉNERGIE 1200 Hz (le bit de start est un ton 1200 de
+      // 30 ms). On POUSSE le brut dans TOUTES les phases à chaque échantillon —
+      // sans quoi les fenêtres glissantes _eSync/_eUn/_eZero seraient périmées
+      // en entrant dans vis-bits (report critique de la revue de la Tâche 1).
+      const e1900 = this._eLeader.pousser(raw);
+      const e1200 = this._eSync.pousser(raw);
+      const e1100 = this._eUn.pousser(raw);
+      const e1300 = this._eZero.pousser(raw);
+      const fs = this.sampleRate;
+      const tau = this._n - this._visDebut;
+      if(tau >= 0.005 * fs && tau <= 0.025 * fs){
+        // Énergie 1200 vs la plus forte des phases hors-1200 : pour la CASSURE
+        // de 10 ms (leader repris dès 10 ms), e1900 domine sur [5;25] → rejet ;
+        // pour un vrai start de 30 ms, e1200 domine. Intègre le bruit, invariant
+        // au fading plat (toutes les énergies fadent ensemble, le ratio tient).
+        this._startE1200 += e1200;
+        this._startEAutre += Math.max(e1900, e1100, e1300);
+        this._startCnt++;
+      }
+      if(tau >= 0.030 * fs){
+        const startOk = this._startCnt > 0 && this._startE1200 > this._startEAutre;
+        if(startOk){
+          this._etat = 'vis-bits';
+          this._visE1 = new Float64Array(9);   // énergie 1100 (bit=1) par créneau
+          this._visE0 = new Float64Array(9);   // énergie 1300 (bit=0) par créneau
+          this._visES = new Float64Array(9);   // énergie 1200 (start/stop) par créneau
+        } else {
+          this._etat = 'leader';
+        }
+      }
+      return;
+    }
+    // ── branche OFF : historique bit-à-bit, INCHANGÉE (mesure A/B) ──
     const tau = this._n - this._visDebut;
     const fs = this.sampleRate;
     if(tau >= 0.005 * fs && tau <= 0.025 * fs){ this._visAcc += f; this._visCnt++; }
@@ -499,7 +693,82 @@ class SstvDecodeur {
   // faible d'abord, 1100 Hz = 1, 1300 Hz = 0), parité PAIRE, bit de stop à
   // 1200 Hz. On moyenne le CENTRE de chaque créneau ([5 ; 25 ms]) : les
   // transitions entre créneaux sont adoucies par le filtre I/Q.
-  _lireBitsVis(f){
+  _lireBitsVis(f, raw){
+    if(this._acqVisRobuste){
+      // Pousser TOUTES les phases à chaque échantillon (fenêtres glissantes à
+      // jour) puis accumuler par créneau l'énergie 1100/1300 (bit) et 1200 (stop).
+      const e1200 = this._eSync.pousser(raw);
+      const e1100 = this._eUn.pousser(raw);
+      const e1300 = this._eZero.pousser(raw);
+      this._eLeader.pousser(raw);   // maintenir la phase 1900 alignée
+      const fs = this.sampleRate;
+      const tau = this._n - this._visDebut - Math.round(0.030 * fs);
+      const creneau = Math.floor(tau / (0.030 * fs));
+      if(creneau >= 0 && creneau < 9){
+        const dansCreneau = tau - creneau * 0.030 * fs;
+        if(dansCreneau >= 0.005 * fs && dansCreneau <= 0.025 * fs){
+          this._visE1[creneau] += e1100;
+          this._visE0[creneau] += e1300;
+          this._visES[creneau] += e1200;
+        }
+        return;
+      }
+
+      // Décision DOUCE : bit = 1 si énergie(1100) > énergie(1300). Confiance =
+      // |e1 - e0| / (e1 + e0) (0 = ambigu, 1 = net). L'énergie intègre le bruit
+      // et dépriorise naturellement les échantillons faibles (fading).
+      const bits = [], conf = [];
+      for(let k = 0; k < 9; k++){
+        const e1 = this._visE1[k], e0 = this._visE0[k];
+        bits.push(e1 > e0 ? 1 : 0);
+        conf.push(Math.abs(e1 - e0) / ((e1 + e0) || 1e-12));
+      }
+      let code = 0, uns = 0;
+      for(let k = 0; k < 7; k++){ if(bits[k]){ code |= (1 << k); uns++; } }
+      let bitParite = bits[7];
+      // Stop = énergie 1200 du créneau 8 dominant 1100/1300 (garde dure inchangée).
+      const stopOk = this._visES[8] > this._visE1[8] && this._visES[8] > this._visE0[8];
+      let pariteOk = ((uns + bitParite) % 2) === 0;
+      // Correction guidée par la parité : si la parité PAIRE échoue, retourner le
+      // bit LE MOINS SÛR (confiance minimale) parmi les 8 (7 données + parité) et
+      // revérifier UNE fois. Ne corrige qu'UNE erreur unique ; au-delà, rejet.
+      //
+      // 🚨 GARDE ANTI-FAUX-POSITIF (propriété la plus importante du fichier) : la
+      // correction n'est TENTÉE que si le bit le moins sûr est GENUINEMENT ambigu
+      // (confiance < SEUIL). Un en-tête PROPRE à parité structurellement fausse
+      // (tous les bits nets, aucune ambiguïté) N'EST JAMAIS "réparé" en un code
+      // valide — la parité reste fausse → rejet. Sans ce seuil, un seul
+      // retournement du bit de parité "réparerait" un en-tête sciemment corrompu
+      // à SNR clair (le bit le moins sûr y est arbitraire), ce qui est un faux
+      // positif interdit. Verrouillé par test_f2b_pas_de_faux_positif_vis. Le
+      // seuil (0.5) sépare largement la confiance d'un bit propre (≈0.8-1.0,
+      // mesurée) d'un bit réellement noyé par le bruit (≈0, cas où la correction
+      // apporte le gain d'acquisition).
+      if(!pariteOk){
+        let kmin = 0; for(let k = 1; k < 8; k++) if(conf[k] < conf[kmin]) kmin = k;
+        if(conf[kmin] < 0.5){
+          bits[kmin] ^= 1;
+          code = 0; uns = 0;
+          for(let k = 0; k < 7; k++){ if(bits[k]){ code |= (1 << k); uns++; } }
+          bitParite = bits[7];
+          pariteOk = ((uns + bitParite) % 2) === 0;
+        }
+      }
+      const mode = SSTV_MODES[code];
+      this._etat = 'leader';
+      if(!stopOk || !pariteOk){
+        this.onEtat('En-tête VIS invalide (parité ou stop) — on attend le suivant');
+        return;
+      }
+      this._dernierVis = code;
+      if(!mode){
+        this.onEtat('Mode SSTV non géré (VIS ' + code + ')');
+        return;
+      }
+      this._demarrerImage(mode);
+      return;
+    }
+    // ── branche OFF : historique bit-à-bit, INCHANGÉE (mesure A/B) ──
     const fs = this.sampleRate;
     const tau = this._n - this._visDebut - Math.round(0.030 * fs);
     const creneau = Math.floor(tau / (0.030 * fs));
@@ -557,6 +826,13 @@ class SstvDecodeur {
     this._balayage = 0;
     this._cellCle = -1; this._cellSomme = 0; this._cellCompte = 0;
     this._basDebut = -1;
+    // F3 : la moyenne d'amplitude s'etablit sur l'IMAGE (pas depuis le leader,
+    // dont le ton 1900 Hz est plus fort que le contenu image et ferait demarrer
+    // le seuil trop haut = faux creux au debut). Depart a 0 : pendant
+    // l'etablissement (~squelchTauMs) le ratio _lastAmpl/_ampliMoy > 1, donc le
+    // squelch ne peut PAS se declencher — sens sur.
+    this._ampliMoy = 0; this._cellFade = 0;
+    this._fadeMinRatio = Infinity; this._fadeSamples = 0; this._imgSamples = 0;
     // A3 : fenetre de correlation dimensionnee sur la duree de sync du mode
     // (nCorr echantillons), une fois le mode connu. Anneaux + accumulateurs
     // remis a zero a chaque nouvelle image.
@@ -673,17 +949,51 @@ class SstvDecodeur {
   _decoderImage(f, raw){
     const fs = this.sampleRate, m = this._mode;
 
+    // F3 : detection de creux de fading. On maintient une moyenne glissante
+    // LONGUE de l'amplitude I/Q (_ampliMoy) et on declare un creux quand
+    // l'instantane tombe sous squelchK fois cette moyenne. enFade=false en
+    // permanence quand l'option est OFF -> branche historique bit-a-bit.
+    let enFade = false;
+    if(this._squelchFade){
+      this._ampliMoy += (this._lastAmpl - this._ampliMoy) * this._ampliBeta;
+      const ratio = this._ampliMoy > 1e-9 ? this._lastAmpl / this._ampliMoy : 1;
+      enFade = ratio < this._squelchK;
+      this._imgSamples++;
+      if(ratio < this._fadeMinRatio) this._fadeMinRatio = ratio;
+      if(enFade) this._fadeSamples++;
+    }
+
     if(this._syncCorrelation){
       // A3 : recalage piloté par le pic de corrélation d'énergie 1200 Hz.
-      this._suivreCorr(raw || 0);
+      // F3 : GEL pendant un creux — on n'alimente pas le suivi de corrélation
+      // avec des échantillons effondrés (t0 préservé), pour ne pas laisser un
+      // pic de bruit du creux capturer le recalage.
+      //
+      // Effet de bord assumé : sauter _suivreCorr fige aussi la phase de
+      // référence Goertzel _corrPh (elle n'avance que dans _suivreCorr) alors
+      // que _n, lui, continue d'avancer pendant tout le creux. Au retour du
+      // signal, la fenêtre de corrélation mélange donc brièvement des
+      // échantillons d'anneau restés d'AVANT le creux avec une référence dont
+      // la phase a "sauté" par rapport à ce qu'elle aurait été sans gel.
+      // Impact BORNÉ : la recherche du pic reste confinée à la fenêtre de
+      // sync attendue du balayage courant (borne b/attenduDansBal ci-dessous),
+      // la correction appliquée à t0 est elle-même bornée à ±1 ms
+      // (_recalerSyncCorr), et les gardes delta/duree (`Math.abs(delta) <=
+      // 0.0025`, garde monotone b > _corrDernierBal) rejettent les pics
+      // chevauchant un creux. Reste nettement préférable à laisser
+      // _suivreCorr ingérer des échantillons effondrés par le fading.
+      if(!enFade) this._suivreCorr(raw || 0);
     } else {
       // Historique : suivi des impulsions 1200 Hz par seuil instantané. Le noir
       // est à 1500 Hz : seuls la synchro (et du bruit franc) descendent sous 1350.
-      if(f < 1350){
-        if(this._basDebut < 0) this._basDebut = this._n;
-      } else if(this._basDebut >= 0){
-        this._recalerSync();
-        this._basDebut = -1;
+      // F3 : GEL du recalage pendant un creux (aucun suivi de _basDebut).
+      if(!enFade){
+        if(f < 1350){
+          if(this._basDebut < 0) this._basDebut = this._n;
+        } else if(this._basDebut >= 0){
+          this._recalerSync();
+          this._basDebut = -1;
+        }
       }
     }
 
@@ -720,10 +1030,12 @@ class SstvDecodeur {
       this._cellCle = cle; this._cellPlan = plan; this._cellIdx = idx;
       this._cellSomme = 0; this._cellCompte = 0;
       this._cellSommePoids = 0;
+      this._cellFade = 0;               // F3 : compteur d'echantillons en creux
       if(this._estimPixel === 'mediane') this._cellFreqs.length = 0;
     }
     if(cle !== -1){
       this._cellCompte++;
+      if(enFade) this._cellFade++;      // F3 : cellule majoritairement en creux ?
       if(this._estimPixel === 'ponderee'){
         const w = this._lastAmpl;       // deprioritise les echantillons a I/Q effondre
         this._cellSomme += f * w; this._cellSommePoids += w;
@@ -737,6 +1049,26 @@ class SstvDecodeur {
 
   _finaliserCellule(){
     if(this._cellCle === -1 || !this._cellCompte || !this._cellPlan) return;
+    // F3 : cellule majoritairement en creux de fading -> TENIR le pixel
+    // (sample-and-hold) au lieu d'ecrire la frequence bruitee. On NE calcule PAS
+    // fMoy (le choix A2 moyenne/mediane/ponderee est court-circuite, quel qu'il
+    // soit) : on RECOPIE la valeur de la ligne precedente a la meme colonne
+    // (_cellIdx - largeur) — la « derniere valeur ecrite » de ce point d'image.
+    // Les plans etant des tableaux FRAIS par image (initialises a 0), ne rien
+    // ecrire laisserait un pixel NOIR : sur une image claire c'est PIRE que du
+    // bruit (mesure : MAE x5). Recopier la derniere bonne ligne propage la
+    // derniere information valide a travers tout le creux (si plusieurs lignes
+    // consecutives fadent, chacune recopie la precedente deja tenue -> la
+    // derniere bonne ligne « coule » vers le bas). A la 1re ligne (_cellIdx <
+    // largeur) il n'y a pas de precedente : on laisse le 0 initial. enFade ne
+    // peut valoir true que si squelchFade est ON -> branche off bit-a-bit.
+    if(this._cellFade * 2 > this._cellCompte){
+      if(this._cellIdx >= this._mode.largeur){
+        this._cellPlan[this._cellIdx] = this._cellPlan[this._cellIdx - this._mode.largeur];
+      }
+      this._cellCle = -1; this._cellCompte = 0; this._cellFade = 0;
+      return;
+    }
     let fMoy;
     if(this._estimPixel === 'ponderee'){
       // Repli sur la moyenne simple si tous les poids sont ~nuls (silence
@@ -754,7 +1086,7 @@ class SstvDecodeur {
       fMoy = this._cellSomme / this._cellCompte;
     }
     this._cellPlan[this._cellIdx] = sstvClamp255((fMoy - SSTV_NOIR) / SSTV_PENTE);
-    this._cellCle = -1; this._cellCompte = 0;
+    this._cellCle = -1; this._cellCompte = 0; this._cellFade = 0;
   }
 
   // Un balayage est terminé : assemble et émet la ou les lignes RGBA
@@ -804,6 +1136,7 @@ class SstvDecodeur {
     this._complete = true;
     this._etat = 'leader';
     this._leaderEch = 0;
+    if(this._acqVisRobuste) this._eLeaderPeak = 0;   // leader suivant : pic frais
     this.onEtat(this._mode.nom + ' — image complète');
     this.onFinImage(this._mode);
   }

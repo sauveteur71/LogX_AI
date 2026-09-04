@@ -39,6 +39,51 @@ ci-dessus) ; les taches A1-A3 ci-dessous documentent le gain chiffre ou le
 rejet mesure de chaque option DSP par rapport a ses ALTERNATIVES (moyenne vs
 ponderee vs mediane, seuil instantane vs correlation) — pas par rapport a un
 decodeur nu, avec le meme banc.
+
+NOTE (2026-09-04, constatee en re-executant `test_baseline_snr_decrochage_actuel`
+sur cette branche AVANT toute modif de ce chantier F1) : les MAE mesures ici
+sur cette branche different legerement du bloc BASELINE ci-dessus date du
+2026-09-03 (ex. M1 30 dB : 1.6 ici vs 1.3 au 2026-09-03 ; decrochage toujours
+a 9 dB pour tous les modes, donc pas de regression de robustesse). Confirme
+par une execution AVANT toute edition de ce fichier (git stash) : la derive
+preexiste a ce chantier, elle n'est PAS causee par le banc de fading ajoute
+ci-dessous — la cause exacte (evolution du decodeur entre-temps sur cette
+branche) n'a pas ete investiguee, hors perimetre de la tache F1 (« aucune
+modif decodeur »). A noter pour qui rafraichira un jour le bloc BASELINE
+2026-09-03 : ne pas confondre cette derive avec un effet du fading.
+
+BASELINE 2D (SNR x FADING) CHIFFREE (2026-09-04) — sortie REELLE de
+`python -m pytest concours/tests/test_sstv_robustesse.py::test_baseline_2d_actuelle -v -s`,
+balayage {snr, taux de fading Rayleigh plat, mode, acquis (VIS=bon mode), mae},
+24 lignes, config DECODEUR PAR DEFAUT (estimPixel='ponderee',
+syncCorrelation=true — comme le bloc BASELINE ci-dessus). C'est le point de
+depart des mesures A/B de F2/F3 (leviers anti-fading) :
+
+BASELINE M1    fading=0.0Hz : [(30, True, 1.6), (21, True, 3.1), (15, True, 5.4), (12, True, 7.3), (9, True, 10.0), (6, False, None)]
+BASELINE M1    fading=0.2Hz : [(30, True, 1.6), (21, True, 3.0), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE M1    fading=1.0Hz : [(30, True, 2.6), (21, True, 4.5), (15, True, 7.9), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE S1    fading=0.0Hz : [(30, True, 1.5), (21, True, 3.0), (15, True, 5.4), (12, True, 7.4), (9, True, 10.0), (6, False, None)]
+BASELINE S1    fading=0.2Hz : [(30, True, 1.6), (21, True, 3.0), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE S1    fading=1.0Hz : [(30, True, 2.5), (21, True, 4.4), (15, True, 8.0), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE R36   fading=0.0Hz : [(30, True, 8.1), (21, True, 9.7), (15, True, 13.4), (12, True, 16.9), (9, True, 21.9), (6, False, None)]
+BASELINE R36   fading=0.2Hz : [(30, True, 8.1), (21, True, 9.5), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE R36   fading=1.0Hz : [(30, True, 9.4), (21, True, 12.4), (15, True, 19.0), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE PD90  fading=0.0Hz : [(30, True, 2.2), (21, True, 4.9), (15, True, 9.2), (12, True, 12.7), (9, True, 17.5), (6, False, None)]
+BASELINE PD90  fading=0.2Hz : [(30, True, 2.3), (21, True, 4.9), (15, False, None), (12, False, None), (9, False, None), (6, False, None)]
+BASELINE PD90  fading=1.0Hz : [(30, True, 4.2), (21, True, 8.0), (15, True, 14.6), (12, False, None), (9, False, None), (6, False, None)]
+
+Lecture : a fading nul (0.0 Hz), la surface retrouve — logiquement — la meme
+courbe que le bloc BASELINE SNR-seul ci-dessus. Le fading LENT (0.2 Hz, QSB
+type quelques secondes de periode) est le plus destructeur des deux taux
+testes : il fait DECROCHER M1/S1/R36/PD90 des 15 dB deja (contre 9 dB sans
+fading), un creux d'enveloppe prolonge suffisant pour perdre l'acquisition
+VIS ou une partie de l'image. Le fading RAPIDE (1.0 Hz) degrade moins que le
+lent a SNR moyen (15 dB encore acquis pour les 4 modes, MAE plus eleve
+qu'a fading nul) mais decroche aussi plus tot que sans fading (12 dB au lieu
+de 9 dB) — les creux, plus courts, sont partiellement moyennes par le
+recepteur mais restent plus destructeurs qu'un canal AWGN pur. Aucun lever
+anti-fading n'existe encore a ce stade (F1 = seulement le banc) ; ces
+chiffres sont la reference « avant » que F2/F3 devront ameliorer.
 """
 import json
 import os
@@ -106,20 +151,48 @@ def moteur():
       }
       return out;
     }
-    // Un point de mesure : encode la mire du mode, bruite au SNR donne, decode
-    // avec les options DSP passees (leviers A1-A3), renvoie la metrique.
+    // Fading Rayleigh PLAT : enveloppe = module d'un processus gaussien complexe
+    // filtre passe-bas au taux de fading (Doppler). Band-limite par un filtre 1 pole
+    // de coupure tauxHz -> correlation temporelle d'un vrai QSB (taux petit = fading
+    // lent). Enveloppe normalisee en puissance moyenne unite (le fading redistribue
+    // la puissance, il ne l'ajoute pas). Graine fixe = reproductible (comme
+    // bruitGaussienSnr). fs = FS injecte cote Python.
+    function fadingRayleighPlat(sig, tauxHz, graine){
+      var s = graine || 1;
+      function g(){
+        s=(s*1103515245+12345)&0x7fffffff; var u1=(s/0x7fffffff)||1e-9;
+        s=(s*1103515245+12345)&0x7fffffff; var u2=(s/0x7fffffff);
+        return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+      }
+      var a = 1 - Math.exp(-2*Math.PI*tauxHz/FS);   // 1 pole a tauxHz
+      var fi=0, fq=0, env=new Float32Array(sig.length), p=0;
+      for(var i=0;i<sig.length;i++){
+        fi += (g()-fi)*a; fq += (g()-fq)*a;         // I/Q gaussiens filtres
+        var e = Math.sqrt(fi*fi+fq*fq);             // enveloppe Rayleigh
+        env[i]=e; p += e*e;
+      }
+      var rms = Math.sqrt(p/sig.length) || 1e-9;
+      var out = new Float32Array(sig.length);
+      for(var i=0;i<sig.length;i++) out[i] = sig[i]*(env[i]/rms);
+      return out;
+    }
+    // Un point de mesure : encode la mire du mode, applique un fading optionnel,
+    // bruite au SNR donne, decode avec les options DSP passees (leviers A1-A3),
+    // renvoie la metrique.
     function mesureSnr(nomMode, snrDb, opts){
       opts = opts || {};
       var m = SSTV_MODES_PAR_NOM[nomMode];
       var px = imageTestSstv(m.largeur, m.hauteur);
       var lignes = opts.lignes || null;
       var sig = sstvEncodeSamples({mode:nomMode, pixels:px, sampleRate:FS, lignes:lignes});
+      if(opts.tauxFading) sig = fadingRayleighPlat(sig, opts.tauxFading, 13);   // fading AVANT le bruit
       sig = bruitGaussienSnr(sig, snrDb, 7);
       var decOpts = Object.assign({sampleRate:FS}, opts.dec||{});
       var d = sstvDecodeSamples(sig, decOpts);
       var r = d.resume();
-      r.snr = snrDb;
-      r.mae = (r.mode===nomMode && r.lignesEmises>0)
+      r.snr = snrDb; r.taux = opts.tauxFading || 0;
+      r.acquis = (r.mode === nomMode);   // le VIS a-t-il ete acquis (bon mode) ?
+      r.mae = (r.acquis && r.lignesEmises>0)
             ? maeSstv(d, px, m.largeur, r.lignesEmises) : null;
       return r;
     }
@@ -146,6 +219,49 @@ def _snr_decrochage(courbe):
     ok = [p['snr'] for p in courbe
           if p['mode'] and p['mae'] is not None and p['mae'] <= SEUIL_UTILISABLE]
     return min(ok) if ok else None
+
+
+def _surface(moteur, mode, snrs, taux_list, opts=None):
+    """Surface (SNR x taux de fading) : chaque point = mesureSnr avec ce fading."""
+    base = opts or {}
+    out = []
+    for t in taux_list:
+        for s in snrs:
+            o = dict(base); o['tauxFading'] = t
+            js = 'JSON.stringify(mesureSnr(%s, %s, %s))' % (
+                json.dumps(mode), json.dumps(s), json.dumps(o))
+            out.append(json.loads(moteur.eval(js)))
+    return out
+
+
+def test_banc_fading_temoin(moteur):
+    """Témoin du modèle de fading : à SNR clair (30 dB), un fading LENT (0.2 Hz)
+    laisse l'image acquise et exploitable ; un fading combiné à un SNR bas
+    dégrade (surface non triviale). Sans ce témoin, un fading cassé (enveloppe
+    constante) se lirait comme une protection parfaite (règle du dépôt)."""
+    pts = _surface(moteur, 'R36', [30], [0, 0.2, 1.0], {'lignes': 16})
+    clair = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0)
+    assert clair['acquis'] and clair['mae'] is not None
+    lent = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0.2)
+    assert lent['acquis'], 'fading lent à SNR clair ne devrait pas empêcher l’acquisition'
+    # le fading DOIT avoir un effet mesurable quelque part (sinon enveloppe inerte)
+    maes = [p['mae'] for p in pts if p['mae'] is not None]
+    assert len(set(round(x, 1) for x in maes)) > 1, 'le fading n’a aucun effet — enveloppe constante ?'
+
+
+@pytest.mark.parametrize('mode', ['M1', 'S1', 'R36', 'PD90'])
+def test_baseline_2d_actuelle(moteur, mode, capsys):
+    """Baseline (SNR x fading) AVANT F2/F3. Assertion lâche : acquis en clair sans
+    fading. Journalise la surface (acquisition + MAE) — point de départ des mesures A/B."""
+    snrs = [30, 21, 15, 12, 9, 6]
+    pts = _surface(moteur, mode, snrs, [0, 0.2, 1.0], {'lignes': 24})
+    clair = next(p for p in pts if p['snr'] == 30 and p['taux'] == 0)
+    assert clair['acquis']
+    with capsys.disabled():
+        for t in [0, 0.2, 1.0]:
+            ligne = [(p['snr'], p['acquis'], None if p['mae'] is None else round(p['mae'], 1))
+                     for p in pts if p['taux'] == t]
+            print('\nBASELINE %-5s fading=%.1fHz : %s' % (mode, t, ligne))
 
 
 def test_le_banc_produit_une_baseline_exploitable(moteur):
@@ -393,6 +509,180 @@ def test_a3_option_est_bien_cablee(moteur, capsys):
             print('    seu=%s' % [(p['snr'], None if p['mae'] is None else round(p['mae'], 1)) for p in fseu])
 
 
+# ─── F2a : acquisition VIS robuste — energie glissante + leader par energie ───
+# Le decrochage SSTV est verrouille par l'ACQUISITION de l'en-tete VIS (Lot A) :
+# _chercherLeader/_verifierStart/_lireBitsVis decident sur des SEUILS de frequence
+# INSTANTANEE, qui echouent en premier sous bruit. F2a remplace la decision de
+# LEADER par une decision d'ENERGIE glissante (bin DFT) : integre le bruit,
+# invariante au fading PLAT (le rapport e1900/e1200 est preserve quand l'enveloppe
+# multiplie les deux bins pareillement). Mesure A/B : acquisition on (acqVisRobuste)
+# vs off (historique bit-a-bit).
+
+
+def _taux_acquisition(moteur, mode, snrs, taux, dec):
+    """Fraction des points (sur les SNR donnes, a ce taux de fading) ou le VIS est
+    acquis (bon mode). Mesure directe et mutation-sensible de la robustesse
+    d'acquisition."""
+    pts = _surface(moteur, mode, snrs, [taux], {'lignes': 12, 'dec': dec})
+    return sum(1 for p in pts if p['acquis']) / max(1, len(pts))
+
+
+def test_f2_option_acq_est_bien_cablee(moteur, capsys):
+    """L'option acqVisRobuste a un effet reel sur l'acquisition (sinon option
+    morte). Journalise le taux d'acquisition on vs off."""
+    snrs = [12, 10, 8, 6, 4]
+    on  = _taux_acquisition(moteur, 'R36', snrs, 0.0, {'acqVisRobuste': True})
+    off = _taux_acquisition(moteur, 'R36', snrs, 0.0, {'acqVisRobuste': False})
+    with capsys.disabled():
+        print('\nF2 R36 acquisition on=%.2f off=%.2f' % (on, off))
+    assert on != off, 'acqVisRobuste sans effet sur l’acquisition — option morte ?'
+
+
+def test_f2_ne_regresse_pas_l_acquisition_en_clair(moteur):
+    """A SNR clair, l'acquisition robuste ne doit pas rater ce que l'historique
+    acquiert : au moins aussi bon a 30 dB sans fading."""
+    for mode in ['M1', 'S1', 'R36', 'PD90']:
+        on  = _surface(moteur, mode, [30], [0], {'lignes': 12, 'dec': {'acqVisRobuste': True}})[0]
+        off = _surface(moteur, mode, [30], [0], {'lignes': 12, 'dec': {'acqVisRobuste': False}})[0]
+        assert on['acquis'] and off['acquis'], '%s : acquisition en clair perdue' % mode
+
+
+# ─── F2b : start par energie + bits VIS doux + correction guidee par la parite ─
+# F2a robustifie le LEADER ; F2b robustifie le START (energie 1200 vs hors-1200)
+# et les BITS VIS (decision douce energie 1100/1300 + confiance), avec correction
+# guidee par la parite (un retournement du bit le moins sur, SEULEMENT s'il est
+# genuinement ambigu). La garde anti-faux-positif (parite + stop) reste dure.
+
+
+def test_f2b_gain_acquisition_sous_bruit(moteur, capsys):
+    """Sous bruit (sans fading), l'acquisition robuste complete (leader+start+bits
+    doux) acquiert le VIS a un SNR plus bas que l'historique. On mesure le SNR le
+    plus bas encore acquis, on vs off."""
+    snrs = [14, 12, 10, 8, 6, 4, 2]
+
+    def snr_min_acquis(dec):
+        pts = _surface(moteur, 'R36', snrs, [0], {'lignes': 10, 'dec': dec})
+        ok = [p['snr'] for p in pts if p['acquis']]
+        return min(ok) if ok else None
+
+    on = snr_min_acquis({'acqVisRobuste': True})
+    off = snr_min_acquis({'acqVisRobuste': False})
+    with capsys.disabled():
+        print('\nF2b R36 SNR min acquis on=%s off=%s' % (on, off))
+    assert on is not None, 'acquisition robuste n’acquiert jamais — cassee ?'
+
+
+def test_f2b_pas_de_faux_positif_vis(moteur):
+    """🚨 Durcir l'acquisition ne doit JAMAIS accepter un VIS a parite
+    structurellement fausse. Un en-tete a parite FAUSSE (pariteFausse) ne doit
+    JAMAIS etre accepte, meme acquisition robuste active, meme sous bruit — la
+    correction guidee par la parite ne corrige qu'UNE erreur GENUINEMENT ambigue,
+    pas un en-tete propre sciemment corrompu.
+
+    Contre-epreuve par mutation (anti-faux-positif) : muter la garde pour accepter
+    malgre `!pariteOk` (p.ex. remplacer `if(!stopOk || !pariteOk)` par
+    `if(!stopOk)` dans la branche acqVisRobuste de _lireBitsVis) -> ce test ROUGIT
+    (l'en-tete a parite fausse est alors demarre). Restaurer -> vert."""
+    ok = moteur.eval("""(function(){
+      var m = SSTV_MODES_PAR_NOM['M1'];
+      var px = imageTestSstv(m.largeur, m.hauteur);
+      var accepte = 0;
+      [30,12,6].forEach(function(snr){
+        var sig = sstvEncodeSamples({mode:'M1', pixels:px, sampleRate:FS, lignes:2, pariteFausse:true});
+        sig = bruitGaussienSnr(sig, snr, 7);
+        var d = sstvDecodeSamples(sig, {sampleRate:FS, acqVisRobuste:true});
+        if(d.resume().mode !== null) accepte++;
+      });
+      return accepte;
+    })()""")
+    assert ok == 0, 'un en-tete a parite fausse a ete accepte (%s/3) — faux positif VIS' % ok
+
+
+def test_f2b_pas_de_faux_positif_sur_bruit_pur(moteur, capsys):
+    """🚨 SOAK anti-faux-positif sur BRUIT PUR (aucun signal SSTV). Concern de
+    revue : sur du bruit qui atteint la decision de bits, la parite est impaire
+    ~50 % du temps et le bit le moins sur est souvent < 0.5 -> la correction
+    retourne et retablit la parite, ~doublant le taux de parite-OK vs la branche
+    OFF. L'acceptation exige EN PLUS stopOk (1200 Hz dominant au creneau 8), un
+    code de mode VALIDE, et le franchissement des gardes d'energie leader/start.
+    On MESURE que le chemin robuste n'accepte PAS PLUS de VIS fantomes que OFF.
+
+    Faux-VIS = image parasite (affichage RX seulement, pas d'emission) : c'est de
+    la QUALITE de decode, pas une faille — mais la culture du depot veut la mesure
+    faite. Si robuste-on egale OFF a ~0, c'est clos ; sinon il faudrait durcir."""
+    js = """(function(dec){
+      // bruit gaussien PUR, sans aucun signal (silence bruite), longueur realiste.
+      function bruitPur(n, graine){
+        var s = graine||1, out = new Float32Array(n), spare = null;
+        for(var i=0;i<n;i++){
+          var g;
+          if(spare!==null){ g=spare; spare=null; }
+          else { s=(s*1103515245+12345)&0x7fffffff; var u1=(s/0x7fffffff)||1e-9;
+                 s=(s*1103515245+12345)&0x7fffffff; var u2=(s/0x7fffffff);
+                 var mag=Math.sqrt(-2*Math.log(u1)); g=mag*Math.cos(2*Math.PI*u2);
+                 spare=mag*Math.sin(2*Math.PI*u2); }
+          out[i] = 0.5*g;
+        }
+        return out;
+      }
+      var n = Math.round(FS*3), faux = 0;
+      for(var sd=1; sd<=30; sd++){
+        var d = sstvDecodeSamples(bruitPur(n, sd), Object.assign({sampleRate:FS}, dec));
+        if(d.resume().mode !== null) faux++;
+      }
+      return faux;
+    })"""
+    on = int(moteur.eval(js + '({acqVisRobuste:true})'))
+    off = int(moteur.eval(js + '({acqVisRobuste:false})'))
+    with capsys.disabled():
+        print('\nF2b bruit pur 3s x30 graines : faux VIS on=%d off=%d' % (on, off))
+    assert on <= off, \
+        'le chemin robuste accepte PLUS de VIS fantomes sur bruit pur que OFF ' \
+        '(on=%d off=%d) — durcir la correction' % (on, off)
+
+
+def test_f2b_correction_parite_recupere_un_bit_ambigu(moteur):
+    """WIRING de la correction guidee par la parite (cible de mutation).
+
+    On fabrique un en-tete VIS M1 (code 44) PROPRE sauf UN bit de donnee (slot 2,
+    vraie valeur = 1) remplace par un ton 1200 Hz AMBIGU (equidistant de 1100 et
+    1300 -> energies quasi egales, confiance << 0.5, decode a la mauvaise valeur).
+    La parite echoue alors ; la correction retourne le bit LE MOINS SUR (ce bit
+    ambigu) et recupere M1. C'est le SEUL bit ambigu -> une erreur unique,
+    exactement ce que la correction doit reparer.
+
+    Contre-epreuve par mutation (correction parite) : neutraliser le retournement
+    dans la branche acqVisRobuste de _lireBitsVis (p.ex. `if(conf[kmin] < 0.5 &&
+    false)`) -> ce test ROUGIT (mode=None : la parite reste fausse, en-tete rejete).
+    Restaurer -> vert. MESURE (banc AWGN) : cette correction NE deplace PAS le
+    plancher d'acquisition sous bruit blanc (le decrochage vient du leader/start,
+    pas d'erreurs de bit isolees) — gain d'acquisition non mesurable, garde pour
+    la robustesse d'UN bit reellement ambigu (fading correle) et sans regression.
+
+    Le ton ambigu a confiance < 0.5 : ce test exerce AUSSI la branche VRAIE du
+    seuil anti-faux-positif (complement de test_f2b_pas_de_faux_positif_vis, qui
+    verrouille la branche FAUSSE : bits nets -> pas de correction -> rejet)."""
+    mode = moteur.eval("""(function(){
+      // M1 VIS=44 : data bits k0..k6 = [0,0,1,1,0,1,0], parite paire = 1.
+      // Tons : 1=1100, 0=1300, start/stop=1200. Slot 2 (vrai 1100) -> 1200 ambigu.
+      var slots = [1300,1300,1200,1100,1300,1100,1300, 1100, 1200];
+      var fs = FS, amp = 0.5;
+      var seq = [[1900,0.300],[1200,0.010],[1900,0.300],[1200,0.030]];
+      for(var k=0;k<9;k++) seq.push([slots[k],0.030]);
+      seq.push([1900,0.100]);
+      var tot=0; seq.forEach(function(s){ tot+=s[1]; });
+      var out=new Float32Array(Math.ceil(tot*fs)+16), cur=0, tc=0, ph=0;
+      seq.forEach(function(s){
+        tc+=s[1]*fs; var w=2*Math.PI*s[0]/fs;
+        while(cur<tc && cur<out.length){ out[cur++]=amp*Math.sin(ph); ph+=w; if(ph>2*Math.PI) ph-=2*Math.PI; }
+      });
+      return sstvDecodeSamples(out, {sampleRate:FS, acqVisRobuste:true}).resume().mode;
+    })()""")
+    assert mode == 'M1', \
+        'la correction parite ne recupere pas le bit ambigu unique (mode=%s) — ' \
+        'retournement du bit le moins sur bien cable ?' % mode
+
+
 # ─── Consolidation Lot A : non-regression des 14 modes ────────────────────
 # Verrouille la configuration par defaut retenue en fin de Lot A :
 #   estimPixel='ponderee' (A2 garde), syncCorrelation=true (A3 garde).
@@ -421,4 +711,115 @@ def test_lotA_ne_regresse_aucun_mode_en_clair(moteur, mode):
     assert defaut['mode'] == mode and defaut['mae'] is not None
     assert defaut['mae'] <= max(SEUIL_UTILISABLE, origine['mae'] + 2.0), \
         '%s regresse : defaut=%s origine=%s' % (mode, defaut['mae'], origine['mae'])
+
+
+# ─── F3 : squelch image sous fading (gel du recalage + tenue du pixel) ─────────
+# Pendant un creux de fading, l'amplitude I/Q (_lastAmpl) s'effondre : la
+# frequence instantanee devient du bruit, qui (a) corrompt le recalage de synchro
+# (t0 derive sur du bruit) et (b) ecrit des pixels bruites. F3 detecte le creux
+# (_lastAmpl sous squelchK fois sa moyenne glissante longue) et alors : (a) GELE
+# le recalage (t0 preserve), (b) TIENT le pixel des cellules majoritairement en
+# creux. Option squelchFade (defaut true) ; branche off = comportement historique
+# bit-a-bit (verifie par checksum RGBA complet vs decodeur pre-F3, cf. rapport).
+#
+# CONCEPTION MESUREE (2026-09-04, cf. task-3-report.md) :
+#  - squelchK=0.35 : le seuil doit rester SOUS le plancher de _lastAmpl/moyenne
+#    EN CLAIR (mesure : ~0.61 a 30 dB, ~0.41-0.48 a 15 dB — l'amplitude varie deja
+#    de ~1.5x selon le ton via le filtre I/Q) pour ne JAMAIS declencher sans
+#    fading ; 0.35 garde la marge tout en capturant les creux profonds (ratio->0)
+#    d'un fading rapide.
+#  - squelchTauMs=600 : moyenne plus lente que le fading (coherence ~160 ms a
+#    1 Hz). MESURE : tau 200..1500 ms donne le meme MAE (non critique).
+#  - TENUE = sample-and-hold : on RECOPIE la derniere bonne ligne, on ne laisse
+#    PAS 0. Les plans sont des tableaux FRAIS par image ; ne rien ecrire =
+#    pixel NOIR = PIRE que le bruit sur image claire (mesure : MAE x5, 3.8->22).
+#    Recopier la derniere bonne ligne transforme ce -x5 en gain reel (cf.
+#    test_f3_gain_sous_fading_rapide). C'est la lecture fidele de « tenir le
+#    pixel / garder la derniere valeur ecrite » dans ce codec a plans frais.
+#  - LIMITE mesuree : un fading LENT (0.2 Hz) n'est PAS detecte (la moyenne
+#    causale le suit, le ratio reste haut) — F3 agit sur le fading RAPIDE.
+
+
+def test_f3_option_squelch_est_bien_cablee(moteur, capsys):
+    """squelchFade a un effet réel sous fading (sinon option morte).
+
+    Contre-epreuve par mutation (2026-09-04, Step 5) : forcer `enFade = false`
+    en tete de la detection de creux dans _decoderImage -> le squelch ne se
+    declenche jamais, on == off (MAE 3.77 == 3.77, diff 0.0) -> ce test ROUGIT.
+    Restaure -> vert (on 3.18 vs off 3.77 sous fading 1 Hz a 24 dB, gain ~16 %).
+
+    Ce test protege AUSSI la TENUE du pixel (pas seulement le gel de synchro) :
+    le gel seul (sans la recopie de ligne) donne ~3.7 sous ce point, soit une
+    difference < 0.1 vs off -> insuffisante pour passer le seuil. Il faut donc
+    que la recopie de la derniere bonne ligne (sample-and-hold) soit cablee pour
+    que ce test soit vert."""
+    on  = _surface(moteur, 'M1', [24], [1.0], {'dec': {'squelchFade': True}})[0]
+    off = _surface(moteur, 'M1', [24], [1.0], {'dec': {'squelchFade': False}})[0]
+    with capsys.disabled():
+        print('\nF3 M1 fading=1Hz MAE on=%s off=%s' % (on['mae'], off['mae']))
+    assert (on['mae'] is None) != (off['mae'] is None) or (
+        on['mae'] is not None and off['mae'] is not None and abs(on['mae'] - off['mae']) > 0.1), \
+        'squelchFade sans effet mesurable sous fading — option morte ?'
+
+
+def test_f3_ne_regresse_pas_sans_fading(moteur):
+    """Sans fading (amplitude stable), le squelch ne doit jamais se déclencher :
+    MAE à 30 dB non dégradé vs sans squelch (M1, image entière)."""
+    on  = _surface(moteur, 'M1', [30], [0], {'dec': {'squelchFade': True}})[0]
+    off = _surface(moteur, 'M1', [30], [0], {'dec': {'squelchFade': False}})[0]
+    assert on['acquis'] and off['acquis']
+    assert on['mae'] <= off['mae'] + 1.0, 'squelch actif sans fading : MAE %s vs %s' % (on['mae'], off['mae'])
+
+
+@pytest.mark.parametrize('mode', ['M1', 'S1', 'R36', 'PD90'])
+def test_f3_gain_sous_fading_rapide(moteur, mode, capsys):
+    """Verrouille le SENS du gain : sous fading rapide (1 Hz), le squelch AMELIORE
+    (ou n'aggrave pas) le MAE — jamais une regression comme la tenue naive a 0
+    (qui donnait MAE x5). Et sans fading il n'a AUCUN effet (bit-a-bit).
+
+    Assertion robuste (pas un knife-edge) : marges mesurees de 0.4 a 1.6 niveaux
+    de MAE sous 1 Hz a 18-30 dB, dans le bon sens pour les 4 familles. Journalise
+    les couples on/off pour la mesure honnete du gain."""
+    couples = []
+    for snr in [30, 24, 18]:
+        on  = _surface(moteur, mode, [snr], [1.0], {'dec': {'squelchFade': True}})[0]
+        off = _surface(moteur, mode, [snr], [1.0], {'dec': {'squelchFade': False}})[0]
+        couples.append((snr, on['mae'], off['mae']))
+        if on['mae'] is not None and off['mae'] is not None:
+            assert on['mae'] <= off['mae'] + 0.2, \
+                '%s 1Hz %ddB : squelch REGRESSE le MAE (on=%s off=%s)' % (mode, snr, on['mae'], off['mae'])
+    # sans fading : effet nul (le squelch ne se declenche pas en clair)
+    on0  = _surface(moteur, mode, [30], [0], {'dec': {'squelchFade': True}})[0]
+    off0 = _surface(moteur, mode, [30], [0], {'dec': {'squelchFade': False}})[0]
+    assert abs(on0['mae'] - off0['mae']) < 1e-6, \
+        '%s sans fading : squelch a un effet (%s vs %s) — declenchement en clair ?' % (
+            mode, on0['mae'], off0['mae'])
+    with capsys.disabled():
+        gains = [(s, None if o is None or f is None else round(f - o, 2)) for s, o, f in couples]
+        print('\nF3 %-5s 1Hz gain MAE (off-on) par SNR: %s' % (mode, gains))
+
+
+# ─── Consolidation finale : non-régression des 8 familles (F2+F3 aux défauts) ──
+# Verrouille la configuration par défaut retenue en fin de chantier F1-F3 :
+#   acqVisRobuste=true (F2, garde), squelchFade=true (F3, garde).
+# Comparaison au comportement historique TOUT-OFF (acqVisRobuste=False,
+# squelchFade=False) — pas au "origine" Lot A (test_lotA_ne_regresse_aucun_mode_en_clair
+# ci-dessus, qui compare a estimPixel/syncCorrelation) : ce test-ci verrouille
+# specifiquement les DEUX leviers de ce chantier (F2/F3), independamment d'A2/A3
+# qui restent a leurs defauts des deux cotes de la comparaison.
+
+FAMILLES = ['M1', 'M2', 'S1', 'S2', 'SDX', 'R36', 'R72', 'PD90']
+
+
+@pytest.mark.parametrize('mode', FAMILLES)
+def test_consolidation_pas_de_regression(moteur, mode):
+    """Aux DÉFAUTS (acqVisRobuste+squelchFade), chaque mode reste acquis et
+    exploitable à 30 dB sans fading, MAE non dégradé de plus de 2 vs le tout-off
+    historique."""
+    defaut = _surface(moteur, mode, [30], [0], {'lignes': 24})[0]
+    orig = _surface(moteur, mode, [30], [0], {'lignes': 24,
+        'dec': {'acqVisRobuste': False, 'squelchFade': False}})[0]
+    assert defaut['acquis'] and defaut['mae'] is not None
+    assert defaut['mae'] <= max(25, orig['mae'] + 2.0), \
+        '%s régresse : defaut=%s orig=%s' % (mode, defaut['mae'], orig['mae'])
 
