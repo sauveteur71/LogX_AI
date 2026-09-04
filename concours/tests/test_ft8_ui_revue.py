@@ -169,3 +169,64 @@ def test_changement_indicatif_invalide_l_emission():
     assert 'ancienCall !== myCall' in corps, "aucune détection de changement d'indicatif"
     assert 'onArmChange()' in corps, \
         "un changement d'indicatif n'appelle pas onArmChange() : émission non invalidée (tx-human-consent violé)"
+
+
+# ── (suivi) liste CQ : distance + cap de chaque station ──────────────────────
+
+def test_cq_list_affiche_distance_et_cap():
+    """Chaque CQ de la liste montre sa distance (km) et son cap, calculés depuis
+    sa grille et la nôtre — même utilité que le SNR pour choisir qui appeler.
+    Structure (commentaires dépouillés) : rendreCqList géolocalise info.grid ET
+    myGrid, puis en tire distanceKm + capDeg, et émet un élément .cqdx."""
+    src = _sans_commentaires(_src())
+    i = src.index('function rendreCqList(')
+    corps = src[i:src.index('\n  }', i)]
+    assert 'gridVersLatLon(info.grid)' in corps, "rendreCqList ne géolocalise pas la grille du CQ"
+    assert 'gridVersLatLon(myGrid)' in corps, "rendreCqList n'utilise pas notre grille (myGrid)"
+    assert 'distanceKm(' in corps and 'capDeg(' in corps, "distance/cap non calculés pour les CQ"
+    assert 'class="cqdx' in corps, "aucun élément distance/cap (.cqdx) émis dans l'item CQ"
+
+
+# ── (suivi) décodes : marquage « nouveau DXCC » avec cache anti-storm ────────
+
+def test_decodes_marquent_nouveau_dxcc_avec_cache():
+    """Les décodages d'une entité DXCC jamais confirmée sont marqués (classe
+    dxcc-neuf), en plus des couleurs CQ/pour-moi/nous. Détection via /dxcc/besoin
+    (même endpoint que le copilote) mais MISE EN CACHE par indicatif : une requête
+    par indicatif jamais vu, JAMAIS une par décodage — sinon une bande chargée
+    noierait le serveur. Le cache DOIT être consulté avant tout fetch."""
+    src = _sans_commentaires(_src())
+    assert 'dxcc-neuf' in src, 'aucune classe dxcc-neuf'
+    m = re.search(r'function _verifierDxccNeufDecode\([^)]*\)\{(.*?)\n  \}', src, re.S)
+    assert m, '_verifierDxccNeufDecode introuvable'
+    corps = m.group(1)
+    assert '_dxccNeufCache.has(' in corps, \
+        "cache non consulté avant fetch : risque d'une requête /dxcc/besoin PAR décodage"
+    assert "'jamais_confirme'" in corps, 'critère « nouveau DXCC » (jamais_confirme) absent'
+    assert '/dxcc/besoin?call=' in corps, 'endpoint /dxcc/besoin non appelé'
+    assert 'tr.dataset.call' in src, 'les lignes de décodage ne portent pas data-call (re-marquage impossible)'
+
+
+# ── (suivi) panneau des 6 messages standard Tx1-6, clic = PRÉPARE ────────────
+
+def test_panneau_tx_standard_prepare_sans_emettre():
+    """Panneau des 6 messages standard FT8 (Tx1-6 + CQ). Les messages sont
+    construits par seqTexte (le générateur du séquenceur, pas réinventés) pour la
+    cible sélectionnée. Un CLIC PRÉPARE le message (remplit txText) et N'ÉMET
+    PAS : l'émission reste le chemin unique « Activer l'émission » + Envoyer, pas
+    un 2e chemin d'armement (tx-human-consent)."""
+    src = _sans_commentaires(_src())
+    assert 'id="txStdMsgs"' in src, 'conteneur du panneau Tx1-6 absent du HTML'
+    m = re.search(r'function messagesTxStandard\([^)]*\)\{(.*?)\n  \}', src, re.S)
+    assert m, 'messagesTxStandard introuvable'
+    corps = m.group(1)
+    assert 'seqTexte(' in corps, 'les 6 messages ne réutilisent pas seqTexte (risque de divergence de format)'
+    assert '_selCall' in corps, "le panneau n'utilise pas la cible sélectionnée _selCall"
+    m2 = re.search(r'function preparerMessageTx\([^)]*\)\{(.*?)\n  \}', src, re.S)
+    assert m2, 'preparerMessageTx introuvable'
+    prep = m2.group(1)
+    assert "getElementById('txText')" in prep and '.value' in prep, 'ne remplit pas le champ txText'
+    for interdit in ('repondreEtEnvoyer', 'envoyerMessage(', 'jouerForme', 'pttOn('):
+        assert interdit not in prep, \
+            'preparerMessageTx déclenche une émission (%s) — doit seulement PRÉPARER (tx-human-consent)' % interdit
+    assert 'rendreMessagesTx()' in src, 'le panneau n\'est jamais (re)rendu'

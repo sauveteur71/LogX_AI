@@ -135,6 +135,15 @@ h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-sp
 .cq-item .call{color:var(--yellow);font-weight:700}
 .cq-item .meta{color:var(--muted);font-size:11px;white-space:nowrap;display:flex;gap:7px;align-items:baseline}
 .cq-item .snr{font-weight:700;font-variant-numeric:tabular-nums}
+.cq-item .cqdx{font-variant-numeric:tabular-nums;white-space:nowrap}
+/* (suivi) Panneau des 6 messages standard FT8 (Tx1-6) — clic = PRÉPARE. */
+.txstd-barre{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.txstd{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);font-size:11px;
+  padding:4px 8px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);cursor:pointer;text-align:left}
+.txstd:hover{border-color:var(--accent2)}
+.txstd .txstd-lbl{color:var(--accent2);font-weight:700}
+.txstd .txstd-txt{color:var(--muted);font-variant-numeric:tabular-nums}
 .cq-item .snr.fort{color:var(--green)}      /* signal fort : facile à travailler */
 .cq-item .snr.faible{color:var(--muted)}    /* proche du seuil de décodage */
 .cq-item .snr.moyen{color:var(--text)}
@@ -199,6 +208,11 @@ table.decodes tr.nous td{color:var(--accent2);font-weight:700}
    ligne gagne le repère « c'est LUI que je travaille ». */
 table.decodes tr.qso-actif td{background:rgba(var(--accent-rgb),.16);font-weight:700}
 table.decodes tr.qso-actif td:first-child{box-shadow:inset 3px 0 0 var(--accent2)}
+/* (suivi) « nouveau DXCC » : entité pas encore confirmée. Marqueur (bord gauche
+   + losange) qui se SUPERPOSE à la couleur CQ/pour-moi/nous du texte, sans la
+   remplacer — une station CQ d'un nouveau pays reste jaune ET marquée. */
+table.decodes tr.dxcc-neuf td:first-child{box-shadow:inset 3px 0 0 var(--purple)}
+table.decodes tr.dxcc-neuf td:last-child::before{content:'◆ ';color:var(--purple);font-weight:700}
 table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .vide{color:var(--muted);font-size:12.5px;font-style:italic;padding:10px 0}
 
@@ -589,6 +603,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
                 style="display:none" title="Repasser la radio en écoute (Échap)">■ STOP ÉMISSION</button>
         <span class="tx-status" id="txStatus"></span>
       </div>
+      <!-- (suivi) Messages standard FT8 (Tx1-6 + CQ), façon WSJT-X. Un clic
+           PRÉPARE le message dans le champ ci-dessus — il N'ÉMET PAS : l'émission
+           reste « Activer l'émission » + Envoyer, pas un 2e chemin d'armement.
+           Calculés pour la station sélectionnée (clic sur un décodage / un CQ). -->
+      <div id="txStdMsgs" class="txstd-barre" title="Clic : remplir le champ d'émission avec ce message standard (n'émet pas)"></div>
       <!-- MODE D'ENVOI — JAMAIS expert-only, et pour deux raisons opposées qui
            vont dans le même sens : c'est le réglage qui décide si la station
            émet toute seule (personne ne doit pouvoir le subir sans le voir),
@@ -945,6 +964,7 @@ if(localStorage.getItem('rc_theme') === null){
         champ.value = champ.value.split(ancienCall).join(myCall);
       }
     }
+    rendreMessagesTx();   // (suivi) refléter l'identité (myCall/grille) dans le panneau Tx1-6
   }
   chargerIdentite();
   // (b) Relire l'identité quand la page redevient visible / reprend le focus :
@@ -1074,6 +1094,7 @@ if(localStorage.getItem('rc_theme') === null){
       html += '<div class="vide-mini">Pas de grille dans ce message.</div>';
     }
     el.innerHTML = html;
+    rendreMessagesTx();   // (suivi) recalcule le panneau Tx1-6 pour la nouvelle cible
   }
   function escFt8(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1105,10 +1126,19 @@ if(localStorage.getItem('rc_theme') === null){
         const cls = info.snr >= -8 ? 'fort' : (info.snr <= -18 ? 'faible' : 'moyen');
         snrHtml = `<span class="snr ${cls}">${info.snr >= 0 ? '+' : ''}${info.snr.toFixed(0)} dB</span>`;
       }
+      // (suivi) Distance + cap depuis NOTRE grille (myGrid) : même utilité que
+      // le SNR pour choisir qui appeler. Absent si l'une des deux grilles manque
+      // (une station qui CQ sans grille, ou pas de locator en CONFIG).
+      let dxHtml = '';
+      const _moi = gridVersLatLon(myGrid), _lui = gridVersLatLon(info.grid);
+      if(_moi && _lui){
+        const _km = distanceKm(_moi, _lui), _deg = capDeg(_moi, _lui);
+        dxHtml = `<span class="cqdx">${_km} km · ${_deg}° ${cardinal(_deg)}</span>`;
+      }
       return `
       <div class="cq-item" data-call="${escFt8(call)}" title="Clic : préparer la réponse — Double-clic : préparer ET envoyer">
         <span class="call">${escFt8(call)}</span>
-        <span class="meta"><span>${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>${snrHtml}</span>
+        <span class="meta"><span>${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>${dxHtml}${snrHtml}</span>
       </div>`;
     }).join('');
     conteneur.querySelectorAll('.cq-item').forEach(el => {
@@ -2370,6 +2400,36 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){}
   }
 
+  // (suivi) Coloriage « nouveau DXCC » de TOUS les décodages (pas seulement la
+  // file copilote). Même endpoint/critère que _marquerNouveauDxcc, mais MIS EN
+  // CACHE par indicatif : sur une bande chargée les décodages défilent vite, une
+  // requête /dxcc/besoin par décodage noierait le serveur. Une seule requête par
+  // indicatif jamais vu ; les lignes déjà à l'écran pour cet indicatif sont
+  // re-marquées quand la réponse arrive. Enhancement en ligne : hors ligne ->
+  // pas de marque (ne bloque jamais).
+  const _dxccNeufCache = new Map();   // CALL (maj) -> true(nouveau) | false(connu / en cours)
+  function _marquerDxccNeufLignes(call){
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(call) : call;
+    document.querySelectorAll('#decodesBody tr[data-call="' + sel + '"]')
+      .forEach(function(tr){ tr.classList.add('dxcc-neuf'); });
+  }
+  function _verifierDxccNeufDecode(call){
+    const c = (call || '').toUpperCase();
+    if(!c) return;
+    if(_dxccNeufCache.has(c)){ if(_dxccNeufCache.get(c)) _marquerDxccNeufLignes(c); return; }
+    _dxccNeufCache.set(c, false);   // « en cours » : empêche un 2e fetch pour cet indicatif
+    try{
+      const bande = (typeof rigFreqKhz === 'number' && rigFreqKhz) ? bandeDepuisKhz(rigFreqKhz) : '';
+      fetch('/dxcc/besoin?call=' + encodeURIComponent(c) + '&band=' + encodeURIComponent(bande||'') + '&mode=FT8')
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(j){
+          const neuf = !!(j && j.besoin && j.raison === 'jamais_confirme');
+          _dxccNeufCache.set(c, neuf);
+          if(neuf) _marquerDxccNeufLignes(c);
+        }).catch(function(){});
+    }catch(e){}
+  }
+
   // Prend la station suivante de la file (priorité : manuel > nouveau DXCC >
   // FIFO) et PROPOSE l'appel initial. Propose-only : émission dans le callback.
   function _prendreSuivantFile(){
@@ -2514,6 +2574,10 @@ if(localStorage.getItem('rc_theme') === null){
     // ─── Colonne gauche : compteurs + liste des CQ entendus ────────────────
     compteurDecodages++;
     const {call, grid} = extraireStation(text);
+    // (suivi) marque la ligne « nouveau DXCC » si l'entité n'est pas confirmée.
+    // data-call permet de re-marquer cette ligne (et les autres du même
+    // indicatif) quand la réponse asynchrone de /dxcc/besoin arrive.
+    if(call){ tr.dataset.call = call.toUpperCase(); _verifierDxccNeufDecode(call); }
     // Panneau « QSO en cours » (demande F4GLD 22/08/2026) : cloné depuis la
     // ligne déjà construite ci-dessus (mêmes cellules/mise en forme, pas une
     // 2e règle qui pourrait diverger) -- si ce décodage vient de la station du
@@ -4836,6 +4900,50 @@ if(localStorage.getItem('rc_theme') === null){
     // jamais son carré.
     const g = seqGrille4();
     return g ? (tete + g) : (etat.cible + ' ' + myCall);
+  }
+
+  // ─── (suivi) Panneau des 6 messages standard Tx1-6 ───────────────────────
+  // RÉUTILISE seqTexte (le générateur du séquenceur) pour ne JAMAIS diverger du
+  // format réellement émis. Un clic PRÉPARE le message dans txText — il N'ÉMET
+  // PAS : l'émission reste le chemin unique « Activer l'émission » + Envoyer,
+  // pas une 2e porte d'armement (tx-human-consent).
+  function messagesTxStandard(){
+    const cible = (_selCall || '').toUpperCase();
+    const g = seqGrille4();
+    const cq = 'CQ ' + (myCall || '') + (g ? ' ' + g : '');
+    if(!cible) return [{lbl: 'CQ', msg: cq}];   // sans cible, seul l'appel CQ a un sens
+    // Report par défaut (SEQ_RST_DEFAUT) : le décodeur ne rend pas de vrai SNR
+    // émettable ; le report reste éditable dans le champ avant d'envoyer.
+    const etat = {cible: cible, snrCible: SEQ_RST_DEFAUT};
+    return [
+      {lbl: 'Tx1', msg: seqTexte(etat, 'TX1')},
+      {lbl: 'Tx2', msg: seqTexte(etat, 'TX2')},
+      {lbl: 'Tx3', msg: seqTexte(etat, 'TX3')},
+      {lbl: 'Tx4', msg: seqTexte(etat, 'TX4')},
+      {lbl: 'Tx5', msg: seqTexte(etat, 'TX5')},
+      {lbl: 'CQ',  msg: cq},
+    ];
+  }
+  function preparerMessageTx(msg){
+    // PRÉPARE seulement. majBoutonEnvoyer ne fait que rafraîchir l'état
+    // activé/désactivé du bouton Envoyer — aucune émission.
+    const champ = document.getElementById('txText');
+    if(!champ) return;
+    champ.value = msg;
+    champ.focus();
+    if(typeof majBoutonEnvoyer === 'function') majBoutonEnvoyer();
+  }
+  function rendreMessagesTx(){
+    const box = document.getElementById('txStdMsgs');
+    if(!box) return;
+    box.innerHTML = messagesTxStandard().map(function(m){
+      return '<button type="button" class="txstd" data-msg="' + escFt8(m.msg) + '">'
+           + '<span class="txstd-lbl">' + m.lbl + '</span>'
+           + '<span class="txstd-txt">' + escFt8(m.msg) + '</span></button>';
+    }).join('');
+    box.querySelectorAll('.txstd').forEach(function(b){
+      b.addEventListener('click', function(){ preparerMessageTx(b.dataset.msg); });
+    });
   }
 
   // ─── Lecture d'un créneau ────────────────────────────────────────────────
