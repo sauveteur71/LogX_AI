@@ -30,7 +30,10 @@ def _fn(nom):
         # Forme déclarée : [async] function nom(...){...}
         m = re.search(r'\n\s*(async\s+)?function ' + re.escape(nom) + r'\s*\(', src)
         assert m, 'fonction %s introuvable' % nom
-        prefix = ('async ' if m.group(1) else '') + 'function'
+        # GARDER le nom : le corps repris ci-dessous démarre à la parenthèse des
+        # paramètres (sans le nom). Sans lui, on produirait `function(...){}` —
+        # une fonction ANONYME, invalide comme instruction (JSParseException).
+        prefix = ('async ' if m.group(1) else '') + 'function ' + nom
     i = src.index('function', m.start())
     j = src.index('{', i)
     prof = 0
@@ -65,7 +68,13 @@ def _ctx():
     racer = pytest.importorskip('py_mini_racer')
     c = racer.MiniRacer()
     c.eval(_HARNESS)
-    c.eval(_fn('toggleRx'))   # définit window.toggleRx
+    # La garde de ré-entrance (rxDemarrageEnCours) a migré de toggleRx vers
+    # demarrerEcoute le 03/09 (revue UI FT8 : l'écoute démarre TOUTE SEULE, plus
+    # sur un clic). toggleRx délègue désormais à demarrerEcoute, qui délègue à
+    # _majBoutonRx — on extrait donc les trois pour tester le VRAI chemin.
+    c.eval(_fn('_majBoutonRx'))    # maj bouton/statut (utilise le document factice)
+    c.eval(_fn('demarrerEcoute'))  # PORTE la garde rxActif || rxDemarrageEnCours
+    c.eval(_fn('toggleRx'))        # définit window.toggleRx, délègue à demarrerEcoute
     return c
 
 
