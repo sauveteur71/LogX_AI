@@ -15,6 +15,20 @@ poussé.
 
 ### Corrigé
 
+- **FT8 — indicatif relu sans recharger la page, et waterfall complet.** Un
+  changement d'indicatif dans CONFIG est désormais pris en compte au retour sur la
+  page (avant : figé jusqu'à un F5) et **invalide toute émission armée ou
+  programmée** (sécurité : l'identité station a changé, une nouvelle validation est
+  requise avant d'émettre). Les libellés de fréquence sous la chute d'eau, tronqués
+  en bas du canevas, sont de nouveau entiers.
+
+- **SSTV — fiabilité du décodeur.** Deux défauts du traitement du signal corrigés :
+  double-détection d'une impulsion de synchro sur sa traînée (image secouée), et
+  emballement du recalage d'horloge en bord de fenêtre. Ajout d'un banc de mesure
+  SNR reproductible et d'options de démodulation (estimateur de pixel robuste,
+  synchro par corrélation) évaluées par la mesure — sans régression des modes
+  existants.
+
 - **Contraste du badge « fil IA » en mode jour / haut-contraste.** Le compteur
   `.fil-count` (◈ IA) affichait un texte sombre fixe sur un fond `accent2` ;
   en mode jour (et haut-contraste jour) `accent2` devient le cuivre-encre sombre
@@ -38,6 +52,13 @@ poussé.
 
 ### Modifié
 
+- **FT8 — page d'émission plus simple à régler.** Appairage automatique de
+  l'entrée et de la sortie audio du **même appareil physique** (fini l'entrée qui
+  tombe sur le micro du PC au lieu du CODEC USB de la radio) ; l'**écoute démarre
+  toute seule** dès que les périphériques sont connus (plus de clic « Écouter »
+  obligatoire) ; le **SNR de chaque station** est affiché dans la liste des CQ,
+  code couleur par force du signal — c'est lui qui aide à choisir qui appeler.
+
 - **Alerte « à vérifier » : les QSO importés ne noient plus les QSO saisis.**
   Après l'import d'un ancien carnet (parfois des dizaines de milliers de QSO
   hérités d'un autre logiciel), la validation signalait tout d'un bloc (« 19650 à
@@ -55,6 +76,18 @@ poussé.
   demande d'accès à l'API (voir `docs/sota_demande_autorisation_api.md`).
 
 ### Ajouté
+
+- **SSTV — 9 nouveaux modes reçus et émis (23 au total).** Martin **M3/M4**,
+  Scottie **S3/S4**, la nouvelle famille **Robot monochrome** (8/12/24 N&B) et la
+  nouvelle famille **Wraase** (SC2-120/180) rejoignent les 14 modes existants —
+  tous décodés **et** encodés dans le navigateur, avec reconnaissance automatique
+  du mode à la réception (en-tête VIS). Timings sourcés sur la spécification N7CXI
+  (Dayton 2000) et recoupés (MMSSTV, sstv-handbook, pySSTV).
+
+- **FT8 — vu-mètre de niveau audio RX.** Une barre 0-80 dB (repère WSJT-X),
+  alimentée par la chute d'eau, permet de régler le volume d'entrée sans quitter la
+  page : trop bas (orange) = rien ne décode, bon (vert), saturé (rouge) = décodage
+  dégradé.
 
 - **Référentiel DFCF (forts & châteaux) — recherche par référence/nom.** À la
   saisie d'une réf. DFCF (chasse ou expédition), LogX affiche le **nom du

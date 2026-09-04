@@ -14,6 +14,8 @@ Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de 
 - 🗺️ **Aides « départements » (concours REF THF/HF)** : grille 00-99 en un clic, panneau « départements à faire » trié par proximité de fréquence ou par rareté, et stations de départements manquants surlignées sur le band map — un clic **QSY sur leur fréquence + pré-remplit le QSO**.
 - 📇 **Saisie assistée** : prénom, drapeau et locator du correspondant auto-remplis (base interne puis internet, corrigeables) ; heure de fin du QSO automatique.
 - 📴 **Autonomie « zone blanche » renforcée** : cartes (Leaflet) et graphiques (Chart.js) désormais **embarqués localement** — plus aucune dépendance CDN, l'application charge et fonctionne sans Internet.
+- 🖼️ **SSTV enrichie** : 9 modes supplémentaires (Martin M3/M4, Scottie S3/S4, Robot 8/12/24 N&B, Wraase SC2-120/180) portant à **23 le nombre de modes reçus et émis** dans le navigateur, avec détection automatique du mode (en-tête VIS).
+- 🎚️ **FT8 plus simple à régler** : appairage automatique entrée/sortie audio du **même appareil**, écoute qui **démarre toute seule**, **vu-mètre de niveau RX** (repère WSJT-X, pour régler le volume d'entrée), et **SNR affiché** dans la liste des CQ pour choisir qui appeler.
 
 ### Déjà apporté par la série 1.1
 
@@ -40,6 +42,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - **Wait & Pounce** en FT8/FT4 : appel automatique sur ce que LogX sait déjà — entité jamais travaillée, entité non confirmée LoTW sur ce créneau bande × mode, carré neuf, nouveau multiplicateur. Quatre niveaux activables séparément, du simple signalement à l'appel sans personne devant la radio, avec durée maximale, plafonds et coupe-circuit.
 - Band map, bandscope, chute d'eau, **décodeur CW** ; clusters DX multi-sources, RBN, PSK Reporter, balises NCDXF/IBP.
 - **FT8 et RTTY natifs dans le navigateur** : décodage/émission sans WSJT-X/JTDX/MSHV ni logiciel tiers, chacun dans sa propre fenêtre détachable — clic sur un indicatif décodé pour le renvoyer directement dans le carnet.
+- **SSTV native dans le navigateur** : réception **et** émission d'images sans MMSSTV ni RX-SSTV, **23 modes** (Martin M1-M4, Scottie S1-S4/DX, Robot 36/72 couleur et 8/12/24 N&B, PD50-290, Wraase SC2-120/180), mode reconnu automatiquement à la réception (en-tête VIS).
 - **Panadapter** : spectre + chute d'eau depuis l'audio de réception (universel, zéro matériel), le scope CI-V natif des Icom (IC-7300/7610/9700/705/7851, large bande), ou le flux IQ d'un serveur TCI (Flex/SunSDR).
 - **VOACAP point-à-point** : vrai moteur de prévision de propagation (NTIA/ITS) entre votre station et n'importe quel point du globe, intégré au carnet et à la carte.
 - Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, fichiers d'historique par concours), DXCC/pays.
@@ -60,7 +63,7 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **1.2-beta1** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 a apporté le FT8/RTTY natifs, VOACAP et la protection du carnet ; la série 1.2 ajoute le copilote FT8/CW/SSB, les aides « départements » et l'autonomie hors-ligne complète. Utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
+Version courante : **1.2-beta8** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 a apporté le FT8/RTTY natifs, VOACAP et la protection du carnet ; la série 1.2 ajoute le copilote FT8/CW/SSB, les aides « départements », l'autonomie hors-ligne complète, l'enrichissement SSTV (23 modes) et une page FT8 plus simple à régler. Utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
 
 Couverture : **plus de 10 000 tests automatiques** rejoués à chaque modification par l'intégration continue. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
