@@ -39,7 +39,7 @@ def _src():
     # hourChartBar) a été extraite vers logx_hour_chart.js. On concatène pour
     # que la règle bandeauxRythmeMasques() reste comptée sur les 3 fonctions.
     src = ''
-    for _nom in ('logx_logbook.js', 'logx_hour_chart.js', 'logx_prefill_setup.js'):
+    for _nom in ('logx_logbook.js', 'logx_hour_chart.js', 'logx_prefill_setup.js', 'logx_stats_bars.js'):
         with open(os.path.join(CONCOURS, _nom), encoding='utf-8') as f:
             src += f.read() + '\n'
     return src
