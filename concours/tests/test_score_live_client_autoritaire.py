@@ -34,6 +34,9 @@ AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
 # EV-7 41e increment : drawHourChart() (appelee par updateStats) extraite vers
 # logx_hour_chart.js -- chargee avant logbook.js, portee globale.
 HOUR_CHART_JS_PATH = os.path.join(BASE, 'logx_hour_chart.js')
+# EV-7 43e increment : updateOpStats/updateBandRecap (appelees par updateStats)
+# extraites vers logx_stats_bars.js -- chargees avant logbook.js, portee globale.
+STATS_BARS_JS_PATH = os.path.join(BASE, 'logx_stats_bars.js')
 
 _DOM_PREAMBLE = r"""
 var __store = {};
@@ -117,7 +120,7 @@ def _real_source():
     parts = []
     for path in (RULES_JS_PATH, HARDWARE_JS_PATH, DXCC_JS_PATH, CALLBOOK_JS_PATH, LOOKUP_JS_PATH, ESM_CALLBOT_JS_PATH,
                  VOICE_KEYER_JS_PATH, LOCATOR_REVERSE_JS_PATH, MACROS_JS_PATH,
-                 FILTRE_SPOTS_JS_PATH, OUTILS_DIVERS_JS_PATH, AUDIO_RECORDER_JS_PATH, HOUR_CHART_JS_PATH, JS_PATH):
+                 FILTRE_SPOTS_JS_PATH, OUTILS_DIVERS_JS_PATH, AUDIO_RECORDER_JS_PATH, HOUR_CHART_JS_PATH, STATS_BARS_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             parts.append(f.read())
     return '\n'.join(parts)
