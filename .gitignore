@@ -97,3 +97,8 @@ concours/websdr_etat_cures.json
 # sans chdir ecrirait ici. Filet de securite pour que ca ne salisse jamais le
 # depot — la vraie protection reste le monkeypatch.chdir(tmp_path) cote tests.
 concours/sauvegardes/
+
+# Repertoire de travail Superpowers/SDD (briefs, rapports, diffs de revue,
+# progress ledgers). Scratch de session, jamais suivi — .superpowers/sdd/
+# ignorait deja tout (`*`), on etend la regle a tout le dossier racine.
+.superpowers/
