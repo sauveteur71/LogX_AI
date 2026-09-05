@@ -51,6 +51,13 @@ CW_PANEL2_AUDIO_JS_PATH = os.path.join(BASE, 'logx_cw_panel2_audio.js')
 # EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
+# EV-7 37e incrément : TOUT l'enregistreur audio par QSO (constantes REC_*,
+# état recEnabled/_recStream..., et les 22 fonctions _recMimeType()..
+# captureQsoAudioClip()) a été extrait de logx_logbook.js vers ce fichier.
+# logx_logbook.js appelle encore initAudioRecorderPanel() au TOP-LEVEL -> ce
+# fichier doit être chargé AVANT logx_logbook.js (même portée globale), comme
+# le <script> dans logx_logbook.html.
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
 
 
 def _read(path):
@@ -65,11 +72,11 @@ def test_pas_de_qso_director():
 
 
 def test_briques_enregistreur_presentes_dans_le_js():
-    """EV-7 30e incrément : loadAudioInputDevices() vit désormais dans
-    logx_cw_panel2_audio.js (fichier chargé en <script> AVANT logx_logbook.js,
-    même portée globale) -- on cherche sur les deux fichiers pour ce marqueur
-    précis, les autres restent dans le coeur."""
-    js = _read(JS_PATH)
+    """EV-7 37e incrément : les fonctions de l'enregistreur vivent désormais
+    dans logx_audio_recorder.js (extrait de logx_logbook.js, chargé en <script>
+    AVANT lui, même portée globale). loadAudioInputDevices() est, elle, dans
+    logx_cw_panel2_audio.js (30e incrément)."""
+    rec = _read(AUDIO_RECORDER_JS_PATH)
     for marker in (
         'function startAudioRecorder', 'function stopAudioRecorder',
         'async function toggleAudioRecorder', 'async function captureQsoAudioClip',
@@ -77,7 +84,7 @@ def test_briques_enregistreur_presentes_dans_le_js():
         'function _encodeWavFromBuffers', 'function _floatChannelsToWav',
         'function _recClipName', 'function _recSaveClip', 'function chooseRecDir',
     ):
-        assert marker in js, f'{marker!r} manquant dans logx_logbook.js'
+        assert marker in rec, f'{marker!r} manquant dans logx_audio_recorder.js'
     assert 'async function loadAudioInputDevices' in _read(CW_PANEL2_AUDIO_JS_PATH)
 
 
@@ -86,10 +93,10 @@ def test_pas_de_flux_continu_sans_decoupage_en_segments():
     n'est pas rejouable (seul le tout premier fragment porte l'en-tête du
     conteneur) — la fonctionnalité DOIT redémarrer périodiquement le
     MediaRecorder pour produire des segments autonomes décodables un par un."""
-    js = _read(JS_PATH)
-    assert 'REC_SEGMENT_MS' in js
-    assert '_recRestartSegment' in js
-    assert 'setInterval(_recRestartSegment' in js
+    rec = _read(AUDIO_RECORDER_JS_PATH)
+    assert 'REC_SEGMENT_MS' in rec
+    assert '_recRestartSegment' in rec
+    assert 'setInterval(_recRestartSegment' in rec
 
 
 def test_capture_clip_branchee_dans_les_trois_chemins_de_succes_submitQSO():
@@ -107,10 +114,10 @@ def test_capture_clip_branchee_dans_les_trois_chemins_de_succes_submitQSO():
 def test_capture_clip_ignoree_si_desactivee():
     """Garde-fou explicite en tête de captureQsoAudioClip : ne rien faire
     (ni ouverture de flux, ni notification) si l'enregistreur est éteint."""
-    js = _read(JS_PATH)
-    start = js.index('async function captureQsoAudioClip')
-    end = js.index('\n}', start)
-    body = js[start:end]
+    rec = _read(AUDIO_RECORDER_JS_PATH)
+    start = rec.index('async function captureQsoAudioClip')
+    end = rec.index('\n}', start)
+    body = rec[start:end]
     assert 'if(!recEnabled || !_recStream) return;' in body
 
 
@@ -128,9 +135,9 @@ def test_wav_pas_de_concatenation_naive_de_conteneurs():
     """Piège connu : concaténer plusieurs fichiers WebM/Ogg bout à bout ne
     rejoue souvent que le premier auprès du lecteur — le code doit décoder
     chaque segment en PCM (decodeAudioData) puis ré-encoder un seul WAV."""
-    js = _read(JS_PATH)
-    assert 'decodeAudioData' in js
-    assert "type: 'audio/wav'" in js
+    rec = _read(AUDIO_RECORDER_JS_PATH)
+    assert 'decodeAudioData' in rec
+    assert "type: 'audio/wav'" in rec
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -251,6 +258,7 @@ def _real_source(rev=None):
     if rev is None:
         return (_read(RULES_JS_PATH) + '\n' + _read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
                 + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(FILTRE_SPOTS_JS_PATH) + '\n'
+                + _read(AUDIO_RECORDER_JS_PATH) + '\n'
                 + _read(JS_PATH))
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],

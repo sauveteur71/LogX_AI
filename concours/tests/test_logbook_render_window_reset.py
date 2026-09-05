@@ -42,6 +42,9 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
+# EV-7 37e incrément : appel TOP-LEVEL initAudioRecorderPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
 
 # ─── DOM minimal ──────────────────────────────────────────────────────────────
 # logx_logbook.js est un script de page (pas un module) : il référence document/
@@ -133,6 +136,8 @@ def _real_source(rev=None):
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()

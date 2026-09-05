@@ -42,6 +42,9 @@ LOCATOR_REVERSE_JS_PATH = os.path.join(BASE, 'logx_locator_reverse.js')
 MACROS_JS_PATH = os.path.join(BASE, 'logx_macros.js')
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 OUTILS_DIVERS_JS_PATH = os.path.join(BASE, 'logx_outils_divers.js')
+# EV-7 37e incrément : initAudioRecorderPanel() appelée au TOP-LEVEL de
+# logx_logbook.js -- logx_audio_recorder.js (qui la définit) chargé avant.
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
 
 _DOM_PREAMBLE = r"""
 var __store = {};
@@ -126,7 +129,7 @@ def _real_source():
     parts = []
     for path in (RULES_JS_PATH, HARDWARE_JS_PATH, DXCC_JS_PATH, CALLBOOK_JS_PATH, LOOKUP_JS_PATH, ESM_CALLBOT_JS_PATH,
                  VOICE_KEYER_JS_PATH, LOCATOR_REVERSE_JS_PATH, MACROS_JS_PATH,
-                 FILTRE_SPOTS_JS_PATH, OUTILS_DIVERS_JS_PATH, JS_PATH):
+                 FILTRE_SPOTS_JS_PATH, OUTILS_DIVERS_JS_PATH, AUDIO_RECORDER_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             parts.append(f.read())
     return '\n'.join(parts)

@@ -129,8 +129,9 @@ def test_LES_MESSAGES_QUI_CITENT_LA_SECTION_ONT_SUIVI():
 
 def test_le_mot_DESACTIVATION_n_a_pas_ete_emporte():
     """« désactivation » n'a rien à voir : c'est l'arrêt d'un enregistreur.
-    Un remplacement trop large l'aurait avalé au passage."""
-    assert 'désactivation volontaire' in _lire('logx_logbook.js')
+    Un remplacement trop large l'aurait avalé au passage. (EV-7 37e incrément :
+    l'enregistreur — et ce message — vit désormais dans logx_audio_recorder.js.)"""
+    assert 'désactivation volontaire' in _lire('logx_audio_recorder.js')
 
 
 def test_l_anglais_garde_le_terme_officiel_des_programmes():

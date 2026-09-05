@@ -161,6 +161,7 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
 # EV-7 35e incrément : updateVersionStatus()/_versionMismatches() ont été
 # extraites vers ce fichier -- ce test appelle directement updateVersionStatus()
 # (voir _checklist_html ci-dessous) et showChecklist() (VERIF_PANEL_JS_PATH)
@@ -269,6 +270,8 @@ def _checklist_html(peer_version, server_version='0.9-beta4'):
     with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(VERSION_BADGE_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
