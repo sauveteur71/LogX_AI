@@ -35,8 +35,14 @@ BANDEAUX = ('bandRecapBar', 'opStatsBar', 'hourChartBar')
 
 
 def _src():
-    with open(JS_PATH, encoding='utf-8') as f:
-        return f.read()
+    # EV-7 41e incrément : la 3e fonction de rendu (drawHourChart, barre
+    # hourChartBar) a été extraite vers logx_hour_chart.js. On concatène pour
+    # que la règle bandeauxRythmeMasques() reste comptée sur les 3 fonctions.
+    src = ''
+    for _nom in ('logx_logbook.js', 'logx_hour_chart.js'):
+        with open(os.path.join(CONCOURS, _nom), encoding='utf-8') as f:
+            src += f.read() + '\n'
+    return src
 
 
 # ─── La règle est-elle à UN seul endroit ? ───────────────────────────────────
