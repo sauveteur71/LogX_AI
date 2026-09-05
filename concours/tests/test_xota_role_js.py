@@ -98,8 +98,10 @@ def test_cablage_logbook():
     i = js.index('function chaserModeActif(')
     corps = js[i:js.index('\n}', i)]
     assert 'LogxXotaRole' in corps and 'roleConfig' in corps
-    # bascule 1-geste présente et re-applique la visibilité
-    assert 'function basculerRoleXota(' in js and 'renderXotaRoleSwitch(' in js
+    # bascule 1-geste présente et re-applique la visibilité (EV-7 38e incrément :
+    # basculerRoleXota/renderXotaRoleSwitch vivent dans logx_activation_ui.js)
+    act = _lire('logx_activation_ui.js')
+    assert 'function basculerRoleXota(' in act and 'renderXotaRoleSwitch(' in act
 
 
 def test_cablage_accueil():
