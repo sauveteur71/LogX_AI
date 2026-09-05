@@ -1536,14 +1536,25 @@ def _friendly_open_error(port, exc):
     msg = str(exc)
     low = msg.lower()
     if 'permissionerror' in low or 'access is denied' in low or 'permission denied' in low or 'errno 13' in low:
-        cause = (f"{port} est déjà utilisé — par un autre logiciel (WSJT-X, "
-                 "un autre logbook, le microHAM Router/USB Device Router...), "
-                 "ou par une instance de LogX AI qui vient tout juste de se "
-                 "fermer et dont le pilote USB n'a pas encore fini de "
-                 "relâcher le port (rare, réessaie dans quelques secondes). "
-                 "Si le problème persiste : ferme le logiciel en question, "
-                 "ou si ton interface expose plusieurs ports COM (cas "
-                 "fréquent avec microHAM), choisis-en un autre.")
+        cause = (f"{port} est déjà utilisé par un AUTRE programme (un seul "
+                 "logiciel à la fois peut tenir un port COM). Causes fréquentes, "
+                 "dans l'ordre : "
+                 "(1) WSJT-X, JTDX, MSHV, un autre logbook ou le microHAM "
+                 "Router/USB Device Router tient encore le port — ferme-le "
+                 "COMPLÈTEMENT. "
+                 "(2) Une session LogX AI précédente tourne toujours : fermer "
+                 "l'onglet ou la fenêtre du navigateur N'ARRÊTE PAS le serveur "
+                 "(python.exe), qui garde le port. Ouvre le Gestionnaire des "
+                 "tâches et termine les « python.exe »/« wsjtx.exe » en trop — "
+                 "il ne doit en rester qu'UN. "
+                 "(3) Si ton interface expose plusieurs ports COM (fréquent avec "
+                 "microHAM), choisis-en un autre. "
+                 "Si tu viens d'ÉTEINDRE puis rallumer le PC, écarte la cause "
+                 "(2) : aucun serveur ne survit à un redémarrage — cherche "
+                 "plutôt un logiciel lancé au démarrage de Windows (WSJT-X, "
+                 "microHAM Router…). "
+                 "Plus rare : le pilote USB vient à peine de relâcher le port — "
+                 "réessaie dans quelques secondes.")
     elif ('filenotfounderror' in low or 'cannot find the file' in low
           or 'no such file' in low or 'errno 2' in low):
         # « re-choisis le port dans la liste » supposait que l'opérateur

@@ -235,3 +235,29 @@ def test_un_port_pris_par_un_autre_logiciel_garde_son_message_propre():
     finally:
         cat.list_ports = o_list
     assert 'déjà utilisé' in msg, msg
+
+
+def test_le_message_port_pris_explique_le_serveur_fantome():
+    """Amélioration F4GLD 03/09 : « COM4 occupé alors que je n'ai que LogX ».
+    Deux serveurs LogX ne peuvent pas tenir le port HTTP -> la cause n'est pas
+    « un 2e LogX » mais un serveur python.exe d'une session PRÉCÉDENTE (fermer
+    l'onglet ne l'arrête pas) ou un autre logiciel. Le message doit nommer ce
+    piège ET son remède (Gestionnaire des tâches)."""
+    msg = cat._friendly_open_error('COM4', PermissionError(13, 'Access is denied.'))
+    assert 'python.exe' in msg, msg
+    assert 'Gestionnaire des t' in msg, msg
+    assert "N'ARRÊTE PAS le serveur" in msg, msg
+
+
+def test_le_message_ecarte_la_cause_fantome_apres_un_redemarrage_du_pc():
+    """Trou trouvé par F4GLD 03/09 : « je ne comprends pas, j'ai éteint et
+    redémarré le PC ! ». Après un redémarrage à froid, la cause « session
+    LogX précédente » (python.exe fantôme) est IMPOSSIBLE — aucun serveur n'y
+    survit. Le message doit le dire lui-même et rediriger vers un logiciel de
+    démarrage Windows, sinon il envoie chercher un fantôme qui ne peut pas
+    exister."""
+    msg = cat._friendly_open_error('COM4', PermissionError(13, 'Access is denied.'))
+    assert 'rallumer le PC' in msg, msg
+    assert 'au démarrage de Windows' in msg, (
+        "après un redémarrage, le message doit rediriger vers un logiciel "
+        "lancé au démarrage plutôt que vers le serveur fantôme : %r" % msg)
