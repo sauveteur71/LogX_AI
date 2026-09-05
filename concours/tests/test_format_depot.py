@@ -32,9 +32,14 @@ if CONCOURS not in sys.path:
 
 from logx_definitions import CONTEST_DEFINITIONS   # noqa: E402
 
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
-with open(JS, encoding='utf-8') as f:
-    SRC = f.read()
+# EV-7 39e incrément : formatDepot()/contestDepotDefs ont été extraits vers
+# logx_scoring_client.js ; estConcoursThf()/BANDES_THF restent dans logbook.js.
+# On concatène les deux pour ne pas figer où vit chaque brique (même esprit que
+# test_revue_jour_correctifs, qui cherche BANDES_THF dans plusieurs fichiers).
+SRC = ''
+for _nom in ('logx_logbook.js', 'logx_scoring_client.js'):
+    with open(os.path.join(CONCOURS, _nom), encoding='utf-8') as f:
+        SRC += f.read() + '\n'
 
 # Les identifiants des deux listes fautives, tels qu'ils étaient écrits.
 ANCIENNE_LISTE_HF = ['ARRL_DX_SSB', 'CQ_WW_SSB', 'CQ_WPX_CW', 'REF_CDF_HF_SSB']
