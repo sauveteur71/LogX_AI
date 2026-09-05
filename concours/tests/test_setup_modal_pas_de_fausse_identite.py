@@ -51,6 +51,7 @@ def test_prefill_teste_bien_callsign_et_locator_avant_de_masquer_la_modale():
     """Garde-fou de non-régression sur la logique elle-même (pas seulement
     le HTML) : si ce test de complétude disparaissait un jour du fichier
     JS, la protection ci-dessus perdrait tout son sens."""
-    with open(os.path.join(BASE, 'logx_logbook.js'), encoding='utf-8') as f:
+    # EV-7 42e incrément : prefillSetupFromConfig() extraite vers logx_prefill_setup.js.
+    with open(os.path.join(BASE, 'logx_prefill_setup.js'), encoding='utf-8') as f:
         js = f.read()
     assert 'if(callEl.value && locEl.value){' in js
