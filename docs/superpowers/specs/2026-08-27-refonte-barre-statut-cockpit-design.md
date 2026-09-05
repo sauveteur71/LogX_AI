@@ -1,3 +1,11 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Ce design est PÉRIMÉ (livré).** Refonte cockpit — Lot A (version discrète) + B1
+> (blocs bandeau réseau) mergée — **PR #377** (`9339537`) ; spec mergée via **PR #368**.
+> Conservé pour mémoire de conception.
+
+---
+
 # Refonte de la barre de statut « cockpit » — spec de conception
 
 **Date** : 2026-08-27

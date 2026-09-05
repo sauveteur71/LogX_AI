@@ -1,3 +1,13 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Ce design est PÉRIMÉ (livré).** Le copilote/séquenceur FT8 existe et tourne
+> (`concours/logx_ft8_copilote.js`, `logx_ft8_session.js`, `logx_ft8_dsp.js`). Le niveau
+> supervisé décrit ici a ensuite été étendu par les **niveaux 3-4 (session autonome)**
+> — spec `2026-09-02-ft8-copilote-niveaux-3-4-design.md`, `estSessionAutonome`/`appelCQ`
+> (`763ad9e`), plus la revue UI FT8 mergée le 04/09 (`435851b`). Conservé pour mémoire.
+
+---
+
 # Copilote FT8 — niveau « supervisé » du séquenceur (spec, révisée)
 
 **Date :** 2026-08-25

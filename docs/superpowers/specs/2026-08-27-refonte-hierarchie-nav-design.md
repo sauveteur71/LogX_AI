@@ -1,3 +1,11 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Ce design est PÉRIMÉ (livré).** Refonte nav approche A — cœur + menu « Outils ▾ »
+> (10 pages) mergée — **PR #378** (`d226353`) ; spec mergée via **PR #370**. Conservé
+> pour mémoire de conception.
+
+---
+
 # Refonte de la hiérarchie de la barre de navigation — spec de conception
 
 **Date** : 2026-08-27

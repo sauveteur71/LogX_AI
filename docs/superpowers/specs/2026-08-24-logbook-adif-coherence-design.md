@@ -1,3 +1,11 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Ce design est PÉRIMÉ (livré).** Cohérence & complétude ADIF (sous-chantier B,
+> lots 1-5) mergé — **PR #244** (`df6b8e1`), complété ensuite (`time_off` auto **PR #273**,
+> résolution OP1→indicatif réel + STATION_CALLSIGN ADIF). Conservé pour mémoire de conception.
+
+---
+
 # Cohérence & complétude ADIF du LOGBOOK (sous-chantier B) — design
 
 Écrit le 24/08/2026, à la suite du sous-chantier A (refonte saisie). B **mappe en

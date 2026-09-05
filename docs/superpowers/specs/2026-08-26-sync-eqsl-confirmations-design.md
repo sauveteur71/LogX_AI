@@ -1,3 +1,11 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Ce design est PÉRIMÉ (livré).** Synchro descendante des confirmations eQSL +
+> matrice de crédit sourcée (copilote M6) mergée — **PR #348** (`225b5c0`). Conservé
+> pour mémoire de conception.
+
+---
+
 # Synchronisation descendante des confirmations eQSL — Design
 
 **Date** : 2026-08-26 · **Décidé avec** F4GLD · **Maillon copilote** : 6 (agent de synchro)

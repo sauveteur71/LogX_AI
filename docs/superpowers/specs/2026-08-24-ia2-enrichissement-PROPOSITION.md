@@ -1,3 +1,15 @@
+# ✅ FAIT — LIVRÉ DANS MAIN (annoté le 2026-09-05)
+
+> **Cette proposition est PÉRIMÉE.** L'enrichissement déterministe IA-2 a été
+> implémenté et mergé — **PR #247** (`b1f4f9c`). Module `concours/logx_enrichissement.py`
+> (`enrichir(qso, cfg)` : indicatif→COUNTRY/CONT/CQZ/ITUZ/DXCC, locators→DISTANCE/ANT_AZ,
+> config→MY_*), **câblé à l'export** (`logx_export.py:497`, dans `build_adif`, sur une copie
+> — option A du §4.1, non destructif). Tests : `test_enrichissement.py` + `test_enrichissement_export.py`
+> (26 verts, re-vérifiés le 2026-09-05). Le §4 (décisions F4GLD) est tranché tel que recommandé.
+> Conservé pour mémoire de conception.
+
+---
+
 # IA-2 — Enrichissement déterministe du log — PROPOSITION (à valider par F4GLD)
 
 > ⚠️ **PROPOSITION, PAS UN CHANTIER LANCÉ.** Rédigée en travail autonome nocturne
