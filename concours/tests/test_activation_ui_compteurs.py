@@ -9,7 +9,9 @@ import re
 import pytest
 
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# EV-7 38e incrément : refreshActivation() a été extraite de logx_logbook.js vers
+# logx_activation_ui.js (chargée en <script> avant, même portée globale).
+JS = os.path.join(CONCOURS, 'logx_activation_ui.js')
 
 
 def _fn(nom):
