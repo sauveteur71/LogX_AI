@@ -3424,40 +3424,9 @@ function toggleChat(){
 // (EV-7 42e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique dans
 // logx_logbook.html AVANT logx_logbook.js, portee globale partagee.
 
-// ─── ALERTE DOUBLE-BANDE ──────────────────────────────────────────────────────
-function crossBandAlert(call, band){
-  const hint = document.getElementById('crossBandHint');
-  if(!hint) return;
-  if(!call || call.length < 3 || !band){ hint.classList.remove('show'); return; }
-  const hasOnOther  = qsoLog.some(q => q.call === call && q.band !== band);
-  const hasOnCurrent = qsoLog.some(q => q.call === call && q.band === band);
-  if(hasOnOther && !hasOnCurrent){
-    const worked = [...new Set(qsoLog.filter(q=>q.call===call&&q.band!==band).map(q=>BAND_LABELS[q.band]||q.band+' MHz'))];
-    hint.textContent = `📡 Double-bande possible — déjà loggé en ${worked.join(', ')} !`;
-    hint.classList.add('show');
-  } else {
-    hint.classList.remove('show');
-  }
-}
-
-// ─── RAPPEL PÉRIODIQUE ON4KST ─────────────────────────────────────────────────
-let on4kstReminderTimer = null;
-function hideON4KSTReminder(){
-  const el = document.getElementById('on4kstReminder');
-  if(el) el.classList.remove('show');
-}
-function startON4KSTReminder(){
-  if(on4kstReminderTimer) return; // déjà démarré
-  on4kstReminderTimer = setInterval(()=>{
-    const n = new Date();
-    const contestActive = contestStartUTC ? (n >= contestStartUTC && n < contestEndUTC) : (n < contestEndUTC);
-    if(!contestActive) return;
-    const el = document.getElementById('on4kstReminder');
-    if(!el) return;
-    el.classList.add('show');
-    setTimeout(()=>el.classList.remove('show'), 20000); // auto-masquage après 20s
-  }, 10 * 60 * 1000); // toutes les 10 minutes
-}
+// ─── ALERTE DOUBLE-BANDE + RAPPEL ON4KST : extraits vers logx_alertes_rappels.js
+// (EV-7 44e increment, docs/LogX_AI_PRD.md) -- charges en <script> classique dans
+// logx_logbook.html AVANT logx_logbook.js, portee globale partagee.
 
 // RACCOURCI BUREAU (bandeau premier lancement) : extrait vers
 // logx_shortcut_offer.js (EV-7 phase 2, 34e increment,
