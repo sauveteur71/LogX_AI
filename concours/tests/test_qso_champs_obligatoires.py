@@ -49,6 +49,9 @@ MACROS_JS_PATH = os.path.join(BASE, 'logx_macros.js')
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
 OUTILS_DIVERS_JS_PATH = os.path.join(BASE, 'logx_outils_divers.js')
+# EV-7 39e incrément : scoring client (calcPoints/evalPointsFromDef/_brickCtx/...)
+# extrait vers logx_scoring_client.js (chargé avant logbook.js, portée globale).
+SCORING_CLIENT_JS_PATH = os.path.join(BASE, 'logx_scoring_client.js')
 
 # ─── DOM minimal (copie de tests/test_macro_cw_serie_bande.py) ──────────────
 _DOM_PREAMBLE = r"""
@@ -164,7 +167,7 @@ def _real_source():
     parts = []
     for path in (RULES_JS_PATH, HARDWARE_JS_PATH, DXCC_JS_PATH, CALLBOOK_JS_PATH, LOOKUP_JS_PATH, ESM_CALLBOT_JS_PATH,
                  VOICE_KEYER_JS_PATH, LOCATOR_REVERSE_JS_PATH, MACROS_JS_PATH,
-                 FILTRE_SPOTS_JS_PATH, AUDIO_RECORDER_JS_PATH, OUTILS_DIVERS_JS_PATH, JS_PATH):
+                 FILTRE_SPOTS_JS_PATH, AUDIO_RECORDER_JS_PATH, OUTILS_DIVERS_JS_PATH, SCORING_CLIENT_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             parts.append(f.read())
     return '\n'.join(parts)
