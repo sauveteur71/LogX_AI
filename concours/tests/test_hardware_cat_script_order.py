@@ -41,6 +41,7 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
 # logx_logbook.js -- même piège, ReferenceError au parse sans ce fichier.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
 
 # DOM minimal — dérivé de test_edit_qso_mode_hors_concours.py (même besoin :
 # évaluer le VRAI logx_logbook.js en entier sans lever). Différences ici :
@@ -167,6 +168,8 @@ def moteur():
     with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(RULES_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

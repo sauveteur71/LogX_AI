@@ -43,6 +43,7 @@ EDIT_QSO_JS_PATH = os.path.join(BASE, 'logx_edit_qso.js')
 # EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
+AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
 
 # DOM minimal — copié de test_macro_cw_serie_bande.py (même besoin : un
 # Proxy générique pour n'importe quel élément DOM lu/écrit par le script).
@@ -161,6 +162,8 @@ def moteur():
     with open(EDIT_QSO_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
