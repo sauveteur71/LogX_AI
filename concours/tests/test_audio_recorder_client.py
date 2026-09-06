@@ -58,6 +58,7 @@ FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 # fichier doit être chargé AVANT logx_logbook.js (même portée globale), comme
 # le <script> dans logx_logbook.html.
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 
 def _read(path):
@@ -259,6 +260,7 @@ def _real_source(rev=None):
         return (_read(RULES_JS_PATH) + '\n' + _read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
                 + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(FILTRE_SPOTS_JS_PATH) + '\n'
                 + _read(AUDIO_RECORDER_JS_PATH) + '\n'
+                + _read(CLOCK_JS_PATH) + '\n'
                 + _read(JS_PATH))
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],

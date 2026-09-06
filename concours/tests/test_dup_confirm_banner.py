@@ -26,6 +26,7 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 # EV-7 46e increment : la vue partner (broadcastTyping, appele sur onCallInput ;
 # renderPartnerTyping) extraite vers logx_partner_view.js -- chargee avant
 # logbook.js, portee globale.
@@ -109,7 +110,7 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
-    for path in (RULES_JS_PATH, QTC_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH, FILTRE_SPOTS_JS_PATH, AUDIO_RECORDER_JS_PATH, PARTNER_VIEW_JS_PATH, JS_PATH):
+    for path in (RULES_JS_PATH, QTC_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH, FILTRE_SPOTS_JS_PATH, AUDIO_RECORDER_JS_PATH, CLOCK_JS_PATH, PARTNER_VIEW_JS_PATH, JS_PATH):
         with open(path, encoding='utf-8') as f:
             ctx.eval(f.read())
     return ctx
