@@ -51,6 +51,7 @@ EXPORT_ADIF_JS_PATH = os.path.join(BASE, 'logx_export_adif.js')
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 sys.path.insert(0, BASE)
 
 from logx_adif_enums import ADIF_BANDS          # noqa: E402  (table officielle)
@@ -194,6 +195,8 @@ def _source(rev=None):
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(CLOCK_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

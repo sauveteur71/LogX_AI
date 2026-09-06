@@ -44,6 +44,7 @@ EDIT_QSO_JS_PATH = os.path.join(BASE, 'logx_edit_qso.js')
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 # EV-7 39e increment : scoring client (calcPoints/calcDist/... appeles par submitQSO
 # & co) extrait vers logx_scoring_client.js -- charge avant logbook.js, global.
 SCORING_CLIENT_JS_PATH = os.path.join(BASE, 'logx_scoring_client.js')
@@ -167,6 +168,8 @@ def moteur():
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(CLOCK_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(SCORING_CLIENT_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

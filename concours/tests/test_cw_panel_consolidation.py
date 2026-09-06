@@ -65,6 +65,7 @@ FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 # EV-7 37e incrément : initAudioRecorderPanel() appelée au TOP-LEVEL de
 # logx_logbook.js -- logx_audio_recorder.js (qui la définit) chargé avant.
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 
 def _read(path):
@@ -208,6 +209,7 @@ def _make_ctx():
     ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
     ctx.eval(_read(FILTRE_SPOTS_JS_PATH))
     ctx.eval(_read(AUDIO_RECORDER_JS_PATH))
+    ctx.eval(_read(CLOCK_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -288,6 +290,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
     ctx.eval(_read(FILTRE_SPOTS_JS_PATH))
     ctx.eval(_read(AUDIO_RECORDER_JS_PATH))
+    ctx.eval(_read(CLOCK_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 

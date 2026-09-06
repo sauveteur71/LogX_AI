@@ -41,6 +41,7 @@ BANDSCOPE_WATERFALL_JS_PATH = os.path.join(BASE, 'logx_bandscope_waterfall.js')
 # -- ReferenceError au parse sans ce fichier chargé avant.
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 # ─── DOM minimal (voir tests/test_logbook_render_window_reset.py pour la
 # version commentée) + faux canvas 2D : getContext('2d') renvoie un objet qui
@@ -150,6 +151,8 @@ def _real_source(rev=None):
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(CLOCK_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

@@ -27,6 +27,7 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 EDIT_QSO_JS_PATH = os.path.join(BASE, 'logx_edit_qso.js')
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 _DOM_PREAMBLE = r"""
 var __store = {};
@@ -138,6 +139,8 @@ def moteur():
     with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(CLOCK_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

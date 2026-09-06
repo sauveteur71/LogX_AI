@@ -44,6 +44,7 @@ FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 # EV-7 37e incrément : logx_logbook.js appelle initAudioRecorderPanel() au
 # TOP-LEVEL -- ce fichier (qui la définit) doit être chargé AVANT.
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
+CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 # ─── DOM minimal (identique à test_logbook_render_window_reset.py) ───────────
 # logx_logbook.js est un script de page (pas un module) : il référence document/
@@ -136,6 +137,8 @@ def _real_source(rev=None):
         with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(CLOCK_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

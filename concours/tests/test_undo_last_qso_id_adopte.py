@@ -39,6 +39,7 @@ FILTRE_SPOTS_JS = os.path.join(BASE, 'logx_filtre_spots.js')
 # EV-7 37e incrément : initAudioRecorderPanel() appelée au TOP-LEVEL de
 # logx_logbook.js -- logx_audio_recorder.js (qui la définit) chargé avant.
 AUDIO_RECORDER_JS = os.path.join(BASE, 'logx_audio_recorder.js')
+CLOCK_JS = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
 
 _DOM_PREAMBLE = r"""
 var __store = {};
@@ -129,7 +130,7 @@ def _load_ctx():
     ctx.eval(_DOM_PREAMBLE)
     src = ''
     for p in (RULES_JS, ESM_CALLBOT_JS, VOICE_KEYER_JS, EXPORT_EDI_JS, SOAPBOX_JS,
-              FILTRE_SPOTS_JS, AUDIO_RECORDER_JS, LOGBOOK_JS, EDIT_QSO_JS):
+              FILTRE_SPOTS_JS, AUDIO_RECORDER_JS, CLOCK_JS, LOGBOOK_JS, EDIT_QSO_JS):
         with open(p, encoding='utf-8') as f:
             src += '\n' + f.read()
     ctx.eval(src)
