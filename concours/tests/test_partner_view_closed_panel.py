@@ -40,6 +40,9 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37e increment : initAudioRecorderPanel() top-level de logbook.js
 CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : updateClockAndCountdown top-level (cablage)
+# EV-7 49e increment : _reserveBottomSpace (appele par renderPartnerTyping)
+# extrait vers logx_panel_layout.js -- charge avant logbook.js, portee globale.
+PANEL_LAYOUT_JS_PATH = os.path.join(BASE, 'logx_panel_layout.js')
 # EV-7 40e increment : le chat (pollChat, reutilise par la vue partner) extrait
 # vers logx_chat.js -- charge avant logbook.js, portee globale.
 CHAT_JS_PATH = os.path.join(BASE, 'logx_chat.js')
@@ -143,6 +146,8 @@ def _real_source(rev=None):
         with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(CLOCK_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(PANEL_LAYOUT_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(CHAT_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
