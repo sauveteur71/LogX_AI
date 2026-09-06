@@ -122,3 +122,32 @@ function getContestStartUTC(){
   }catch(e){}
   return null; // pas de date de début configurée
 }
+
+// EV-7 52e increment : nextRPHWeekendUTC (calcul du week-end RPH, appele par
+// getContestEndUTC ci-dessus ET par CONTEST_SCHEDULE du coeur) -- rejoint ce module.
+// Calcule dynamiquement le prochain week-end RPH (1er samedi de juillet 14h UTC
+// → dimanche 14h UTC), en basculant sur l'année suivante si celui de l'année en
+// cours est déjà passé. Miroir JS de date_rule='first_saturday_july' défini
+// côté serveur pour REF_RPH (logx_definitions.py / logx_rules.calc_contest_date)
+// — à maintenir en cohérence si cette règle REF change un jour. Remplace une
+// ancienne date figée en dur qui périmait à chaque édition (repli cassé une
+// fois le week-end de l'année passé).
+// Déclarée en `function` (hoisting complet) pour rester utilisable dans
+// CONTEST_SCHEDULE ci-dessous malgré l'ordre d'apparition dans le fichier.
+function nextRPHWeekendUTC(now){
+  now = now || new Date();
+  function firstSaturdayOfJulyUTC(year){
+    const dowJuly1 = new Date(Date.UTC(year, 6, 1)).getUTCDay(); // 0=dim..6=sam
+    const day = 1 + ((6 - dowJuly1 + 7) % 7);
+    return Date.UTC(year, 6, day, 14, 0, 0);
+  }
+  let year  = now.getUTCFullYear();
+  let start = firstSaturdayOfJulyUTC(year);
+  let end   = start + 24*3600*1000;
+  if(end <= now.getTime()){ // édition de cette année déjà terminée → année suivante
+    year += 1;
+    start = firstSaturdayOfJulyUTC(year);
+    end   = start + 24*3600*1000;
+  }
+  return {start: new Date(start), end: new Date(end)};
+}
