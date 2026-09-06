@@ -86,6 +86,9 @@ FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 # EV-7 37e incrément : initAudioRecorderPanel() appelée au TOP-LEVEL de
 # logx_logbook.js -- logx_audio_recorder.js (qui la définit) chargé avant.
 AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
+# EV-7 46e increment : vue partner (broadcastTyping appele sur onCallInput)
+# extraite vers logx_partner_view.js -- chargee avant logbook.js, portee globale.
+PARTNER_VIEW_JS_PATH = os.path.join(BASE, 'logx_partner_view.js')
 # EV-7 39e increment : scoring client (calcPoints/calcDist appeles par le
 # keyer/serie CW) extrait vers logx_scoring_client.js -- charge avant logbook.js.
 SCORING_CLIENT_JS_PATH = os.path.join(BASE, 'logx_scoring_client.js')
@@ -286,9 +289,11 @@ def _real_source(rev=None):
             ar = f.read()
         with open(SCORING_CLIENT_JS_PATH, encoding='utf-8') as f:
             sc = f.read()
+        with open(PARTNER_VIEW_JS_PATH, encoding='utf-8') as f:
+            pv = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return (rules + '\n' + hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n'
-                    + mc + '\n' + fs + '\n' + od + '\n' + ar + '\n' + sc + '\n' + f.read())
+                    + mc + '\n' + fs + '\n' + od + '\n' + ar + '\n' + sc + '\n' + pv + '\n' + f.read())
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
