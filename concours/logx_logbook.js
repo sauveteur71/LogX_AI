@@ -1117,32 +1117,9 @@ function setupDone(){
 }
 
 // ─── CLOCK + COUNTDOWN ───────────────────────────────────────────────────────
-function getContestEndUTC(){
-  let cfg = {};
-  try{ cfg = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
-  if(cfg.contest_end_date && cfg.contest_end_utc){
-    return new Date(`${cfg.contest_end_date}T${cfg.contest_end_utc}Z`);
-  }
-  // Repli RPH dynamique UNIQUEMENT si le concours réellement configuré est
-  // REF_RPH (ou qu'aucun concours n'est encore sélectionné, ex. tout premier
-  // chargement) : plusieurs concours du sélecteur (CS_DATA) n'ont PAS
-  // d'entrée dans CONTEST_SCHEDULE (ex. REF_CHALLENGE_THF, REF_CCD_JAN1...),
-  // donc contest_end_date n'est jamais renseigné pour eux — sans ce garde,
-  // on retombait sur une date RPH sans aucun rapport avec le concours choisi.
-  if(!cfg.contest || cfg.contest === 'REF_RPH'){
-    return nextRPHWeekendUTC().end;
-  }
-  return null; // état neutre explicite : pas de date de fin connue pour ce concours
-}
-function getContestStartUTC(){
-  try{
-    const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
-    if(cfg.contest_start_date && cfg.contest_start_utc){
-      return new Date(`${cfg.contest_start_date}T${cfg.contest_start_utc}Z`);
-    }
-  }catch(e){}
-  return null; // pas de date de début configurée
-}
+// getContestEndUTC/getContestStartUTC : extraits vers logx_clock.js (EV-7 48e
+// increment) -- charges avant logx_logbook.js. L'etat contestEndUTC/contestStartUTC
+// (ci-dessous) reste ici, initialise via ces fonctions globales.
 let contestEndUTC   = getContestEndUTC();
 let contestStartUTC = getContestStartUTC();
 // ─── HORLOGE + COMPTE A REBOURS (affichage) : extrait vers logx_clock.js (EV-7

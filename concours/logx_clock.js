@@ -93,3 +93,32 @@ function updateClockAndCountdown(){
   else if(h < 4)  cd.style.color = '#FFD60A';
   else             cd.style.color = '#FF5030';
 }
+
+// EV-7 48e increment : getContestEndUTC/getContestStartUTC (calcul des bornes
+// de concours, appelees par le cablage du coeur) -- rejoignent ce module clock.
+function getContestEndUTC(){
+  let cfg = {};
+  try{ cfg = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
+  if(cfg.contest_end_date && cfg.contest_end_utc){
+    return new Date(`${cfg.contest_end_date}T${cfg.contest_end_utc}Z`);
+  }
+  // Repli RPH dynamique UNIQUEMENT si le concours réellement configuré est
+  // REF_RPH (ou qu'aucun concours n'est encore sélectionné, ex. tout premier
+  // chargement) : plusieurs concours du sélecteur (CS_DATA) n'ont PAS
+  // d'entrée dans CONTEST_SCHEDULE (ex. REF_CHALLENGE_THF, REF_CCD_JAN1...),
+  // donc contest_end_date n'est jamais renseigné pour eux — sans ce garde,
+  // on retombait sur une date RPH sans aucun rapport avec le concours choisi.
+  if(!cfg.contest || cfg.contest === 'REF_RPH'){
+    return nextRPHWeekendUTC().end;
+  }
+  return null; // état neutre explicite : pas de date de fin connue pour ce concours
+}
+function getContestStartUTC(){
+  try{
+    const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
+    if(cfg.contest_start_date && cfg.contest_start_utc){
+      return new Date(`${cfg.contest_start_date}T${cfg.contest_start_utc}Z`);
+    }
+  }catch(e){}
+  return null; // pas de date de début configurée
+}
