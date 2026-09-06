@@ -89,6 +89,9 @@ AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')
 # EV-7 47e increment : updateClockAndCountdown appele au TOP-LEVEL (cablage
 # reste dans logbook.js) -> logx_clock.js charge avant, portee globale.
 CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')
+# EV-7 50e increment : bcBroadcast (appele sur le chemin de log/keyer) extrait
+# vers logx_broadcast.js -- charge avant logbook.js, portee globale.
+BROADCAST_JS_PATH = os.path.join(BASE, 'logx_broadcast.js')
 # EV-7 46e increment : vue partner (broadcastTyping appele sur onCallInput)
 # extraite vers logx_partner_view.js -- chargee avant logbook.js, portee globale.
 PARTNER_VIEW_JS_PATH = os.path.join(BASE, 'logx_partner_view.js')
@@ -296,9 +299,11 @@ def _real_source(rev=None):
             pv = f.read()
         with open(CLOCK_JS_PATH, encoding='utf-8') as f:
             ck = f.read()
+        with open(BROADCAST_JS_PATH, encoding='utf-8') as f:
+            bc = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return (rules + '\n' + hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n'
-                    + mc + '\n' + fs + '\n' + od + '\n' + ar + '\n' + sc + '\n' + pv + '\n' + ck + '\n' + f.read())
+                    + mc + '\n' + fs + '\n' + od + '\n' + ar + '\n' + sc + '\n' + pv + '\n' + ck + '\n' + bc + '\n' + f.read())
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
