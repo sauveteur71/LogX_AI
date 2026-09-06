@@ -42,6 +42,9 @@ AUDIO_RECORDER_JS_PATH = os.path.join(BASE, 'logx_audio_recorder.js')  # EV-7 37
 # EV-7 40e increment : le chat (pollChat, reutilise par la vue partner) extrait
 # vers logx_chat.js -- charge avant logbook.js, portee globale.
 CHAT_JS_PATH = os.path.join(BASE, 'logx_chat.js')
+# EV-7 46e increment : la vue partner (renderPartnerTyping/broadcastTyping/_isMultiOp)
+# extraite vers logx_partner_view.js -- chargee avant logbook.js, portee globale.
+PARTNER_VIEW_JS_PATH = os.path.join(BASE, 'logx_partner_view.js')
 
 # ─── DOM minimal ──────────────────────────────────────────────────────────────
 # Même modèle que test_logbook_render_window_reset.py, avec UNE différence :
@@ -139,6 +142,8 @@ def _real_source(rev=None):
         with open(AUDIO_RECORDER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(CHAT_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(PARTNER_VIEW_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()
