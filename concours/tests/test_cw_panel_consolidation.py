@@ -69,6 +69,11 @@ CLOCK_JS_PATH = os.path.join(BASE, 'logx_clock.js')  # EV-7 47e increment : upda
 # EV-7 49e increment : _reserveBottomSpace/_majReservesBas extraits vers
 # logx_panel_layout.js -- charge avant logbook.js, portee globale.
 PANEL_LAYOUT_JS_PATH = os.path.join(BASE, 'logx_panel_layout.js')
+# EV-7 54e incrément : updateLastQso()/toggleLastQso() extraits vers
+# logx_last_qso.js -- test_toggle_last_qso_replie_et_deplie() appelle
+# réellement toggleLastQso(), donc ce fichier doit être chargé (même ordre
+# que <script> dans logx_logbook.html, avant logx_logbook.js).
+LAST_QSO_JS_PATH = os.path.join(BASE, 'logx_last_qso.js')
 
 
 def _read(path):
@@ -214,6 +219,7 @@ def _make_ctx():
     ctx.eval(_read(AUDIO_RECORDER_JS_PATH))
     ctx.eval(_read(CLOCK_JS_PATH))
     ctx.eval(_read(PANEL_LAYOUT_JS_PATH))
+    ctx.eval(_read(LAST_QSO_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -296,6 +302,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_read(AUDIO_RECORDER_JS_PATH))
     ctx.eval(_read(CLOCK_JS_PATH))
     ctx.eval(_read(PANEL_LAYOUT_JS_PATH))
+    ctx.eval(_read(LAST_QSO_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 

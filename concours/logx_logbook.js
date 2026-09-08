@@ -2715,30 +2715,6 @@ function renderLog(){
   }).join('');
 }
 
-function updateLastQso(q){
-  const list = document.getElementById('lastQsoList');
-  const div = document.createElement('div');
-  div.className = 'last-qso-item';
-  div.innerHTML = `
-    <span class="lqi-call">${escHtml(q.call)}</span>
-    <span class="lqi-loc">${escHtml(q.locator)||'—'}</span>
-    <span class="lqi-pts">${escHtml(q.points)||0} pts</span>
-    <span class="lqi-op">${escHtml(_resolveOperatorCallsign(q.operator))}</span>
-  `;
-  list.insertBefore(div, list.firstChild);
-  if(list.children.length > 5) list.removeChild(list.lastChild);
-}
-
-// Replié par défaut (le tableau du log liste déjà tout) — même schéma que
-// toggleSoapbox() : classe .collapsed sur le titre + .hidden sur le contenu.
-function toggleLastQso(){
-  const title = document.getElementById('lastQsoToggle');
-  const list  = document.getElementById('lastQsoList');
-  if(!title || !list) return;
-  const collapsed = title.classList.toggle('collapsed');
-  list.classList.toggle('hidden', collapsed);
-}
-
 // ─── ÉDITION QSO ─────────────────────────────────────────────────────────────
 // EV-7 : extrait vers logx_edit_qso.js (chargé en <script> classique avant ce
 // fichier, même portée globale partagée). editQSO/saveEdit/deleteQSO/
