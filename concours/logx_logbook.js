@@ -2888,6 +2888,19 @@ function updateStats(){
 // {clé: valeur}) plutôt que par interpolation directe. trT()/trF() tolèrent
 // aussi l'absence de logx_i18n.js (page qui ne le charge pas, tests JS) en
 // repliant sur le français tel quel (comportement identique à rcT/rcTf en fr).
+//
+// EV-7 — trT/trF/notify RESTENT ICI (cœur), extraction ÉCARTÉE (2026-09-08).
+// Tentée au 55e incrément puis abandonnée : ce sont des primitives appelées
+// partout, et au moins HUIT harnais de test construisent leur propre chaîne
+// logx_logbook.js et exercent un chemin qui appelle notify() (souvent sans
+// nommer trT/trF/notify, donc invisibles à un grep du symbole) —
+// test_notify_dynamic_i18n, test_export_edi_num_sent, test_logbook_render_window_reset,
+// test_qsl_card_designer, test_qso_champs_obligatoires, test_qtc_panel_js,
+// test_undo_last_qso_id_adopte, test_audio_recorder_client. Les sortir casse
+// chacun (ReferenceError: notify is not defined) et impose d'ajouter le
+// nouveau fichier à chaque chaîne, avec fragilité permanente pour tout futur
+// test. Valeur (≈30 lignes) sans rapport avec le coût/risque : c'est de
+// l'infrastructure de cœur, comme adaptivePoll()/playBeep(). Ne pas retenter.
 function trT(fr){ return window.rcT ? window.rcT(fr) : fr; }
 function trF(fr, params){
   if (window.rcTf) return window.rcTf(fr, params);
