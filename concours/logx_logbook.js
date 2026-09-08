@@ -1756,10 +1756,8 @@ function validateLocator(loc){
 // docs/LogX_AI_PRD.md) -- charge en <script> classique dans
 // logx_logbook.html, portee globale partagee.
 
-function focusNext(id){
-  document.getElementById(id)?.focus();
-  document.getElementById(id)?.select();
-}
+// focusNext() consolide dans logx_lookup.js (EV-7 55e incr.) -- son unique
+// appelant selectAC() y vit, aucune autre reference dans le depot.
 
 // ─── BANDEAU DE CONFIRMATION DOUBLON (non bloquant) ──────────────────────────
 // Remplace les dialogues confirm() natifs de submitQSO() (chantier 2, audit

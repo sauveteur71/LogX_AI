@@ -262,6 +262,13 @@ function selectAC(call){
   }
 }
 
+// Deplace le focus vers un champ et selectionne son contenu (consolide
+// depuis logx_logbook.js, EV-7 55e incr. : appele seulement par selectAC).
+function focusNext(id){
+  document.getElementById(id)?.focus();
+  document.getElementById(id)?.select();
+}
+
 function onCallKeydown(e){
   const box = document.getElementById('acBox');
   const open = box && box.style.display !== 'none' && acResults.length;
