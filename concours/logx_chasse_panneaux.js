@@ -54,8 +54,27 @@
     return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${rcT(lbl)}</span>`;
   }
 
+  // Rendu COMPACT de la need-list pour le cockpit d'accueil (fusion incr. 3) :
+  // lecture seule (pas de QSY/rotor, réservés à la vue activité complète).
+  // Réutilise creditBadge/splitBadge/PRIO_COLORS. `opts.max` borne la liste.
+  function renderNeedList(spots, opts){
+    spots = spots || []; opts = opts || {};
+    const max = opts.max || 12;
+    if(!spots.length) return '<div class="ck-need-empty">' + rcT('Aucune cible en direct.') + '</div>';
+    return spots.slice(0, max).map(function(s){
+      return '<div class="ck-need-row' + (s.already_done ? ' ck-need-done' : '') + '">'
+        + '<span class="ck-need-prio" style="background:' + (PRIO_COLORS[s.priority] || 'var(--muted)') + '"></span>'
+        + '<span class="ck-need-call">' + esc(s.call) + '</span>'
+        + '<span class="ck-need-band">' + esc(s.band) + '</span>'
+        + '<span class="ck-need-freq">' + esc(s.freq || '') + '</span>'
+        + creditBadge(s) + splitBadge(s)
+        + '</div>';
+    }).join('');
+  }
+
   global.LogxChassePanneaux = {
     esc: esc, splitBadge: splitBadge, creditBadge: creditBadge,
+    renderNeedList: renderNeedList,
     CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,
   };
 })(typeof window !== 'undefined' ? window : this);
