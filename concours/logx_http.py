@@ -9275,6 +9275,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # sandboxée séparément).
         self.send_header('X-Frame-Options', 'SAMEORIGIN')
         self.send_header('Content-Security-Policy', "frame-ancestors 'self'")
+        # nosniff : force le respect du Content-Type declare (defense en
+        # profondeur ; les fichiers servis ont un type explicite via ALLOWED_EXT).
+        self.send_header('X-Content-Type-Options', 'nosniff')
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi
