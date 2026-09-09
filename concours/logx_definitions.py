@@ -1559,7 +1559,7 @@ def get_scoring_info(contest_id):
     (remplace CONTEST_SCORING.get(contest, CONTEST_SCORING['CUSTOM'])).
 
     CONTEST_SCORING ci-dessus est une table LEGACY écrite à la main qui ne
-    couvre que 18 des 40 concours de CONTEST_DEFINITIONS — chaque concours
+    couvre que 20 des 56 concours de CONTEST_DEFINITIONS — chaque concours
     manquant retombait sur CONTEST_SCORING['CUSTOM'] ('a definir'/'custom'),
     silencieusement transmis à l'IA comme si c'était la vraie règle. Chaque
     entrée de CONTEST_DEFINITIONS porte pourtant déjà un dict 'scoring' à
@@ -1607,11 +1607,13 @@ CONTEST_RULES_URLS = {
 
 # ─── BANDES D'UN CONCOURS ────────────────────────────────────────────────────
 #
-# DÉFAUT RÉEL mesuré le 19/08/2026 : 25 identifiants de CONTEST_SCORING n'ont
-# AUCUNE entrée dans CONTEST_DEFINITIONS, alors que le catalogue client
+# DÉFAUT RÉEL constaté le 19/08/2026 : des identifiants de CONTEST_SCORING
+# n'ont AUCUNE entrée dans CONTEST_DEFINITIONS (22 au 09/09/2026, re-mesuré ;
+# 25 au constat initial — le catalogue a évolué depuis, F8TD et IARU UHF ont
+# depuis reçu une définition), alors que le catalogue client
 # (logx_configuration.js) les propose tous à la sélection. Presque tous sont
-# des concours THF français : les douze CCD mensuels, Challenge THF, Trophée
-# F8TD, Marconi, IARU VHF/UHF/50 MHz, DDFM 50, les quatre TVA.
+# des concours THF français : les onze entrées CCD mensuelles, les quatre TVA,
+# Challenge THF, Marconi, IARU VHF et 50 MHz, DDFM 50.
 #
 # Conséquence : `CONTEST_DEFINITIONS.get(cid, {}).get('bands', [])` rend [].
 # Une douzaine de sites lisent 'bands' de cette façon, tous avec un défaut à
@@ -1637,7 +1639,7 @@ def _bandes_depuis_bareme(texte):
 
     Rend [] dès qu'apparaît une PLAGE (« 144MHz-47GHz ») ou un mot (« HF »,
     « 438MHz+ TVA », « Au choix ») : développer une plage, ce serait DÉCIDER
-    quelles bandes en font partie. Les 10 concours ambigus s'écartent donc
+    quelles bandes en font partie. Les 7 concours ambigus s'écartent donc
     d'eux-mêmes, sans liste noire à tenir à jour."""
     t = (texte or '').strip()
     if not t or '-' in t or '–' in t:
