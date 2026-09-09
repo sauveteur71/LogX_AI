@@ -4720,6 +4720,16 @@ function syncClusterPick(){
 }
 
 // ── Postes détectés en synchro LAN directe (/log/lan/peers) ──────────────────
+function updateLanSyncTokenWarn(){
+  // Avertissement (Option B) : synchro LAN activee SANS jeton d equipe =
+  // /log/lan/export sert le carnet a tout le reseau local. On ne bloque pas
+  // (retro-compat multi-poste), on alerte.
+  var warn=document.getElementById("lanSyncTokenWarn"); if(!warn) return;
+  var en=(document.getElementById("lan_sync_enabled")||{}).value==="1";
+  var tok=(((document.getElementById("lan_sync_token")||{}).value)||"").trim();
+  warn.style.display=(en && !tok)?"":"none";
+}
+
 function refreshLanPeers(){
   var box = document.getElementById('lanPeersBox');
   if(!box) return;
@@ -6139,6 +6149,7 @@ function applyFullConfigToForm(c) {
     });
     fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
     refreshLanPeers();     // postes détectés en synchro LAN directe
+    updateLanSyncTokenWarn(); // Option B : alerte si synchro LAN sans jeton
     buildAlertTypesGrid(); // grille son+voix par type d'alerte (#5)
     transverterRows = Array.isArray(c.transverters) ? c.transverters.map(t => ({
       if: String(t.if || '144'), rf: String(t.rf || '1296'),
