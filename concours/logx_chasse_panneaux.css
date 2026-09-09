@@ -1,0 +1,55 @@
+/* ─── Styles des panneaux de CHASSE, partagés (fusion D2) ────────────────────
+ *
+ * Les fonctions de rendu (logx_chasse_panneaux.js) produisent du HTML avec les
+ * classes .sr-* / .spot-row : sans CES styles sur la page hôte, les spots se
+ * déversent en texte brut (défaut « inexploitable » corrigé le 09/09/2026 —
+ * le JS avait été extrait de logx_chasse.html, pas le CSS). Ce fichier porte
+ * donc les styles réutilisables + la mise en page propre à l'accueil.
+ * Tokens de thème (var(--bg)…, var(--font-mono)…) fournis par logx_theme.css.
+ */
+
+/* ── Lignes de spot (copiées verbatim de logx_chasse.html) ────────────────── */
+.spot-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:5px;font-family:var(--font-mono);font-size:14px}
+.spot-row.sr-mult{border-color:var(--green);background:rgba(0,255,136,.06)}
+.spot-row.sr-done{opacity:.4}
+.sr-prio{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sr-call{width:110px;font-weight:700;color:var(--text);font-size:14px}
+.sr-freq{width:80px;color:var(--accent2)}
+.sr-band{width:56px;color:var(--muted)}
+.sr-credit-badge{font-size:11.5px;letter-spacing:.4px;border-radius:3px;padding:1px 6px;white-space:nowrap;border:1px solid var(--border);color:var(--muted)}
+.sr-credit-badge.cr-atno{color:var(--green);border-color:rgba(0,255,136,.45);font-weight:700}
+.sr-credit-badge.cr-new_band,.sr-credit-badge.cr-new_mode{color:var(--accent2);border-color:rgba(var(--accent-rgb),.45)}
+.sr-credit-badge.cr-new_grid{color:var(--purple);border-color:rgba(191,90,242,.4);font-weight:700}
+.sr-credit-badge.cr-needed_confirm{color:var(--yellow);border-color:rgba(255,214,0,.4)}
+.sr-credit-badge.cr-off{opacity:.4;filter:saturate(.4);font-weight:400}
+.sr-split-badge{font-size:12px;letter-spacing:1px;color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.4);border-radius:3px;padding:1px 6px;white-space:nowrap}
+
+/* Lignes d'ACTIVATEUR (POTA/SOTA/WWFF) : 3 lignes empilées (appeler / lieu / note). */
+.spot-row.sr-act{flex-direction:column;align-items:stretch;gap:2px;padding:6px 12px}
+.sr-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
+.sr-head .sr-call{width:auto;min-width:92px}
+.sr-head .sr-band{width:auto;min-width:40px}
+.sr-qrg{color:var(--accent);font-weight:700}
+.sr-mode{color:var(--yellow);letter-spacing:1px}
+.sr-ref{color:var(--accent2)}
+.sr-place{font-size:12px;line-height:1.35;color:var(--text);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sr-note{font-size:11px;line-height:1.3;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loading,.ck-need-empty{text-align:center;padding:20px;font-family:var(--font-mono);color:var(--muted)}
+
+/* ── Mise en page « cibles en direct » de l'ACTIVITÉ (accueil) ────────────── */
+.xota-panneaux{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+@media(max-width:900px){.xota-panneaux{grid-template-columns:1fr}}
+.xota-pan{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.xota-pan-full{margin-top:16px}
+.xota-pan-h{font-family:var(--font-display);font-weight:900;font-size:13px;color:var(--accent2);letter-spacing:.3px;margin-bottom:8px}
+/* Chaque liste défile SEULE (bornée) plutôt que d'allonger la page à l'infini. */
+.xota-pan .scroll-list{max-height:340px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+
+/* Need-list compacte, dense (plusieurs colonnes si la largeur le permet). */
+.ck-needlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 12px;max-height:320px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+.ck-need-row{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:13px;min-width:0}
+.ck-need-row.ck-need-done{opacity:.4}
+.ck-need-prio{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ck-need-call{font-weight:700;color:var(--text);min-width:80px}
+.ck-need-band{color:var(--muted)}
+.ck-need-freq{color:var(--accent2)}
