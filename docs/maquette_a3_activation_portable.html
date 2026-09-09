@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette A3 — LOG activation portable</title>
+<style>
+:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;--accent:#E8964A;--accent-rgb:232,150,74;--text:#E7E7EA;--muted:#8A8F98;--green:#37C871;--mono:'Share Tech Mono',ui-monospace,monospace;--sans:'Exo 2',system-ui,sans-serif;--disp:'Fraunces',Georgia,serif}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,rgba(var(--accent-rgb),.10),transparent),var(--bg);color:var(--text);font-family:var(--sans);padding:24px;line-height:1.5}
+.wrap{max-width:960px;margin:0 auto}
+.mocklabel{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:4px 10px;display:inline-block;margin-bottom:18px}
+h1{font-family:var(--disp);font-weight:900;letter-spacing:.2px;font-size:26px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+.acc{color:var(--accent)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent),var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.roles{display:flex;gap:10px;margin:6px 0 22px}
+.role{flex:1;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 8px;cursor:pointer;transition:.15s}
+.role .t{font-family:var(--mono);font-size:15px;letter-spacing:.5px}
+.role .h{font-size:12px;color:var(--muted);margin-top:3px}
+.role.on{border-color:var(--accent);background:linear-gradient(180deg,rgba(var(--accent-rgb),.16),rgba(var(--accent-rgb),.04));box-shadow:0 0 0 1px rgba(var(--accent-rgb),.4),0 6px 20px -8px rgba(var(--accent-rgb),.5)}
+.role.on .t{color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}.roles{flex-direction:column}}
+.panel-title{font-family:var(--disp);font-weight:600;font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+label{font-family:var(--mono);font-size:11px;letter-spacing:.8px;color:var(--muted);display:block;margin-bottom:5px}
+.inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:15px;padding:10px 12px}
+.inp::placeholder{color:#565b64}
+.ref-hint{font-size:12px;color:var(--green);margin-top:6px;font-family:var(--mono)}
+.btn{display:block;width:100%;text-align:center;margin-top:12px;padding:12px;border-radius:10px;border:1px solid var(--accent);background:linear-gradient(180deg,rgba(var(--accent-rgb),.2),rgba(var(--accent-rgb),.05));color:var(--accent);font-family:var(--mono);font-size:14px;letter-spacing:.5px;cursor:pointer;text-decoration:none}
+.btn.solid{background:var(--accent);color:#1a1204;border-color:var(--accent);font-weight:700}
+.btn.ghost{border-color:var(--border);background:var(--bg3);color:var(--text)}
+.spots{list-style:none;margin:6px 0 0;padding:0;font-family:var(--mono);font-size:13px}
+.spots li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.spots li:last-child{border:0}
+.spots .p{color:var(--accent)}
+.spots .f{color:var(--muted)}
+.resume{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:12px 16px;margin-bottom:20px}
+.resume .lab{font-size:13px;color:var(--muted)}
+.resume .lab b{color:var(--text);font-family:var(--mono)}
+.foot{color:var(--muted);font-size:12px;margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+.tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--accent);border:1px solid rgba(var(--accent-rgb),.4);border-radius:20px;padding:2px 9px;margin-left:8px;vertical-align:2px}
+</style></head>
+<body><div class="wrap">
+<div class="mocklabel">MAQUETTE JETABLE · non branchée · pour valider l'ergonomie A3</div>
+
+<h1>LOG activation portable <span class="tag">POTA · SOTA · XOTA</span></h1>
+<div class="sub">Que veux-tu faire aujourd'hui ? <span class="acc">Un clic, tout se règle.</span></div>
+
+<div class="resume">
+  <span class="lab">▶ Reprendre : <b>SOTA — F/AB-421 (Mézenc)</b> · commencé il y a 2 j · 14 QSO</span>
+  <a class="btn solid" style="width:auto;margin:0;padding:9px 18px" href="#">Reprendre</a>
+</div>
+
+<div class="card">
+  <div class="roles">
+    <div class="role"><div class="t">Je chasse</div><div class="h">contacter les activateurs</div></div>
+    <div class="role"><div class="t">J'active</div><div class="h">je pars sur le terrain</div></div>
+    <div class="role on"><div class="t">Mixte</div><div class="h">les deux à la fois</div></div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div class="panel-title"><span class="dot"></span> Je pars activer</div>
+      <label>MA RÉFÉRENCE DU JOUR</label>
+      <input class="inp" value="F/AB-421" placeholder="parc, sommet, château…">
+      <div class="ref-hint">✓ SOTA · Mont Mézenc · 1753 m · 10 pts · JN45</div>
+      <a class="btn solid" href="#">Ouvrir le LOGBOOK en mode activation →</a>
+      <a class="btn ghost" href="#">Carte de sortie (PNG à partager)</a>
+    </div>
+    <div>
+      <div class="panel-title"><span class="dot"></span> Je chasse — en direct</div>
+      <ul class="spots">
+        <li><span><span class="p">POTA</span> EA2/…  F4XYZ</span><span class="f">14.285</span></li>
+        <li><span><span class="p">SOTA</span> DL/AL-168  DK1AB</span><span class="f">7.032</span></li>
+        <li><span><span class="p">WWFF</span> ONFF-0221  ON4CD</span><span class="f">14.244</span></li>
+        <li><span><span class="p">WCA</span> F-01234  F5ABC</span><span class="f">7.144</span></li>
+      </ul>
+      <a class="btn" href="#">Ouvrir la CHASSE (toutes les cibles) →</a>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <b>Ce que la maquette illustre (à valider / corriger) :</b> une activité chapeau « activation portable » avec le rôle
+  chasse / activer / mixte en sous-choix (D1) ; un cockpit aiguilleur qui réutilise l'existant — lookup référentiel,
+  mode activation du logbook, carte de sortie PNG, page CHASSE (D2) ; « Reprendre » la dernière session.
+  Bandes portables par défaut & colonnes appliquées à la VUE logbook une fois entré (D3). Carnet unique, rien de nouveau côté serveur (D5).
+  <br><br>Direction graphique reprise de LogX (graphite &amp; cuivre, mono + serif éditoriale). Les polices s'affichent en repli système si non installées — le rendu final utilisera Share Tech Mono / Exo 2 / Fraunces.
+</div>
+</div></body></html>
