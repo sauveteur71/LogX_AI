@@ -1519,6 +1519,15 @@ function _activiteEstVuhf(){
 // filtrable comme les autres par les cases à cocher CONFIG (band_2m/70cm/23cm).
 const VUHF_ACTIVITY_DEFAULT_BANDS = ['144', '432', '1296'];
 
+// Activité « activation portable » (id `iota_pota` : POTA/SOTA/WWFF/châteaux…).
+// QSO occasionnel hors concours : bandes déca SSB/CW courantes + V/UHF portable,
+// plutôt que ALL_BANDS (micro-ondes rares sur le terrain). Même principe que le
+// repli V/UHF ci-dessus ; reste filtrable par les toggles CONFIG.
+function _activiteEstXota(){
+  try{ return localStorage.getItem('logx_activity') === 'iota_pota'; }catch(e){ return false; }
+}
+const XOTA_ACTIVITY_DEFAULT_BANDS = ['7', '14', '21', '28', '50', '144', '432'];
+
 // Bandes actuellement autorisées (concours + toggles) — utilisé par
 // onFreqInput() pour valider une bascule automatique de bande, et par le
 // popup de choix de bande (#bandPickerPopup) pour lister les alternatives.
@@ -1528,7 +1537,9 @@ function renderBandButtons(contest){
   // Bandes du concours (résolues via logx_contest_rules.js), filtrées par
   // les toggles de configuration
   const contestBands = _bandsForContest(contest)
-    || (_activiteEstVuhf() ? VUHF_ACTIVITY_DEFAULT_BANDS : ALL_BANDS);
+    || (_activiteEstVuhf() ? VUHF_ACTIVITY_DEFAULT_BANDS
+        : _activiteEstXota() ? XOTA_ACTIVITY_DEFAULT_BANDS
+        : ALL_BANDS);
 
   // Lire les toggles depuis localStorage pour masquer les bandes décochées
   let toggles = {};
