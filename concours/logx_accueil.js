@@ -77,7 +77,8 @@ function _grille(deja){
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
     '<div class="activity-grid" id="activityGrid"></div>' +
-    '<div id="xotaRoleAccueil"></div>';
+    '<div id="xotaRoleAccueil"></div>' +
+    '<div id="ciblesChasse"></div>';
   // D1 : les rôles ne sont plus rendus d'office ici — ils apparaissent quand on
   // clique la carte « activation portable » (voir _revelerRolesActivation).
   const grid = document.getElementById('activityGrid');
@@ -112,7 +113,31 @@ function _renderXotaRoleAccueil(){
 }
 function _choisirRoleXota(role){
   if(window.LogxXotaRole) LogxXotaRole.setRole(role);
+  // Fusion (incr. 4a) : un rôle qui inclut la CHASSE (chasse/mixte) révèle les
+  // cibles en direct DANS l'activité, sans naviguer ; « activer » pur part au
+  // logbook. Gâté par roleConfig (D1 : les rôles gâtent le contenu chasse).
+  var cfg = (window.LogxXotaRole && LogxXotaRole.roleConfig) ? LogxXotaRole.roleConfig(role) : {};
+  if(cfg.chasse){ _revelerCiblesChasse(); return; }
   window.location.href = 'logx_logbook.html';
+}
+
+// Révèle la need-list « cibles en direct » dans le flux activation (fusion 4a).
+// Rendu délégué au module LogxChassePanneaux (réutilise creditBadge/splitBadge/
+// PRIO_COLORS). `fetch` gardé (absent en DOM de test) ; la partie synchrone
+// (section + entête) reste testable.
+function _revelerCiblesChasse(){
+  var el = document.getElementById('ciblesChasse');
+  if(!el) return;
+  el.innerHTML = '<h2 class="xota-acc-h">Cibles en direct</h2><div id="ckNeedList" class="ck-needlist"></div>';
+  if(typeof fetch !== 'function') return;
+  fetch('/data/spots_ranked')
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .catch(function(){ return {}; })
+    .then(function(data){
+      var host = document.getElementById('ckNeedList'); if(!host) return;
+      var spots = (data && data.spots) || [];
+      host.innerHTML = window.LogxChassePanneaux ? LogxChassePanneaux.renderNeedList(spots, {max:15}) : '';
+    });
 }
 
 // Bandeau défilant d'info ambiante (DXpéditions ≤7j + propagation), affiché
