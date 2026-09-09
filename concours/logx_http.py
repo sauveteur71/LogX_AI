@@ -2643,6 +2643,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Journal TX CW : ce qui est RÉELLEMENT parti à la clé (keyer Phase 1c).
         if path == '/rig/cw/journal':
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             import logx_cw_journal as cwj
             limite = parse_qs(urlparse(self.path).query).get('n', ['50'])[0]
@@ -2652,6 +2654,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Journal d'audit d'émission (consentement « émission unique ») : ce qui
         # a été RÉELLEMENT autorisé+émis + les Stop TX. En mémoire, UTC.
         if path == '/tx/audit':
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             import logx_tx_consent as txc
             limite = parse_qs(urlparse(self.path).query).get('n', ['200'])[0]
@@ -2665,6 +2669,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # que le moteur d'appel/_interet_pounce, jamais une 2e variante). Muet
         # hors ligne côté client -> file en FIFO (offline-first).
         if path == '/dxcc/besoin':
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             import logx_awards as awards
             q = parse_qs(urlparse(self.path).query)
