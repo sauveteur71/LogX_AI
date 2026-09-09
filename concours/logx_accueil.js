@@ -30,7 +30,7 @@ const ACTIVITIES = [
   {id:'concours',  label:'LOG Concours',      hint:'toutes bandes et modes',          icon:_ICO.concours},
   {id:'dxp',       label:'LOG DXp',           hint:'expéditions',                     icon:_ICO.dxp},
   {id:'special',   label:'LOG Call spéciaux', hint:'événements, indicatifs spéciaux', icon:_ICO.special},
-  {id:'iota_pota', label:'LOG IOTA / POTA',   hint:'activations terrain',             icon:_ICO.iota_pota},
+  {id:'iota_pota', label:'LOG activation portable', hint:'POTA · SOTA · WWFF · châteaux…', icon:_ICO.iota_pota},
   {id:'qrp',       label:'LOG QRP',           hint:'faible puissance',                icon:_ICO.qrp},
 ];
 

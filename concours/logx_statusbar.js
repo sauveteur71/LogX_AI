@@ -1790,7 +1790,7 @@
   const ACTIVITY_LABELS = {
     normal:'LOG normal', '6m':'LOG 6 m', vuhf:'LOG V/UHF', shf:'LOG SHF',
     sat:'LOG Satellites', concours:'LOG Concours', dxp:'LOG DXp',
-    special:'LOG Call spéciaux', iota_pota:'LOG IOTA/POTA', qrp:'LOG QRP',
+    special:'LOG Call spéciaux', iota_pota:'LOG activation portable', qrp:'LOG QRP',
   };
   const ACTIVITY_DISPLAY_PRESETS = {
     // Concours = tableau de bord de performance : classement op + rythme + règlements.
