@@ -128,17 +128,31 @@ function _choisirRoleXota(role){
 function _revelerCiblesChasse(){
   var el = document.getElementById('ciblesChasse');
   if(!el) return;
-  el.innerHTML = '<h2 class="xota-acc-h">Cibles en direct</h2><div id="ckNeedList" class="ck-needlist"></div>';
+  // Panneaux d'activation POTA/SOTA/WWFF (format sr-act) + need-list cluster.
+  // WCA (format annonces distinct) et DXpéditions viendront ensuite.
+  el.innerHTML =
+    '<h2 class="xota-acc-h">Cibles en direct</h2>' +
+    '<div class="xota-panneaux">' +
+      '<div class="xota-pan"><div class="xota-pan-h">POTA</div><div id="panPota" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">SOTA</div><div id="panSota" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">WWFF</div><div id="panWwff" class="scroll-list"></div></div>' +
+    '</div>' +
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster</div><div id="ckNeedList" class="scroll-list"></div></div>';
   if(typeof fetch !== 'function') return;
-  fetch('/data/spots_ranked')
-    .then(function(r){ return r.ok ? r.json() : {}; })
-    .catch(function(){ return {}; })
-    .then(function(data){
-      var host = document.getElementById('ckNeedList'); if(!host) return;
-      var spots = (data && data.spots) || [];
-      host.innerHTML = window.LogxChassePanneaux ? LogxChassePanneaux.renderNeedList(spots, {max:15}) : '';
-    });
+  var P = window.LogxChassePanneaux; if(!P) return;
+  _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){ return P.renderNeedList((d && d.spots) || [], {max:15}); });
+  _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); });
+  _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota}); });
+  _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
 }
+// Glue fetch->render d'un panneau (le rendu vient du module, testé à part).
+function _chargerPan(url, hostId, render){
+  fetch(url).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; })
+    .then(function(d){ var h = document.getElementById(hostId); if(h) h.innerHTML = render(d); });
+}
+// Lignes « lieu » par programme (champs vérifiés dans logx_chasse.html).
+function _placePota(s){ var P = window.LogxChassePanneaux; return '<span class="sr-ref">' + P.esc(s.reference) + '</span>' + (s.park_name ? ' · ' + P.esc(s.park_name) : ''); }
+function _placeSota(s){ var P = window.LogxChassePanneaux; return '<span class="sr-ref">' + P.esc(s.reference) + '</span>' + (s.summit_name ? ' · ' + P.esc(s.summit_name) : '') + (s.alt_m ? ' (' + P.esc(s.alt_m) + 'm, ' + P.esc(s.points) + 'pts)' : ''); }
 
 // Bandeau défilant d'info ambiante (DXpéditions ≤7j + propagation), affiché
 // SOUS la grille. Branché SEULEMENT quand la grille est visible (jamais sur une
