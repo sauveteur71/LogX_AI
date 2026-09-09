@@ -396,6 +396,8 @@ select.field-input{cursor:pointer}
 .bm-btn{font-family:var(--font-mono);font-size:16px;padding:6px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;font-weight:600}
 .bm-btn.active{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .bm-btn.active::before{content:'\2713\00a0'}
+/* « + autres… » : action d'ajout de bande, pas une bande -> contour pointillé cuivre, discret. */
+.bm-btn.bm-more{border-style:dashed;border-color:var(--accent2);color:var(--accent2);background:transparent;font-weight:400;font-size:13px}
 
 /* SOURCE DU QSO — voir le commentaire du bloc #posteSourceGroup plus bas.
    Volontairement SANS remplissage plein : une règle background:var(--accent2)
