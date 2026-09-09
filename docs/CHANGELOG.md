@@ -13,6 +13,8 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta9] — 2026-09-09
+
 ### Corrigé
 
 - **FT8 — indicatif relu sans recharger la page, et waterfall complet.** Un
