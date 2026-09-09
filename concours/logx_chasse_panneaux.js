@@ -1,0 +1,61 @@
+// ─── PANNEAUX DE CHASSE — fonctions PURES de rendu de spot ──────────────────
+//
+// Extraites VERBATIM de logx_chasse.html (fusion D2, incr. 1) pour être
+// réutilisées par le cockpit d'accueil sans dupliquer la logique. Aucune
+// dépendance DOM. `rcT` : repli identité si l'i18n (window.rcT) n'est pas
+// chargé — même repli que logx_chasse.html (l.369). CHASSE n'est pas modifiée
+// à cet incrément ; ce module est purement additif.
+(function(global){
+  'use strict';
+
+  // Traduction : dynamique (vérifie window.rcT à chaque appel), pour marcher
+  // même si l'i18n est chargé après ce module.
+  function rcT(s){ return (global && global.rcT) ? global.rcT(s) : s; }
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  const PRIO_COLORS = {1:'var(--green)',2:'var(--red)',3:'var(--orange)',4:'var(--yellow)',5:'var(--muted)',6:'var(--border)'};
+
+  function splitBadge(s){
+    const sp = s.split;
+    if(!sp || !sp.split) return '';
+    if(sp.qsx_khz != null){
+      return `<span class="sr-split-badge" title="${rcT('Écoute (QSX) annoncée dans le commentaire du spot')}">QSX ${esc(sp.qsx_khz.toFixed(1).replace('.', ','))}</span>`;
+    }
+    if(sp.direction){
+      const arrow = sp.direction === 'up' ? '↑' : '↓';
+      const label = sp.direction === 'up' ? 'UP' : 'DOWN';
+      const off = sp.offset_khz != null ? ' ' + esc(sp.offset_khz) : '';
+      return `<span class="sr-split-badge" title="${rcT('Split annoncé dans le commentaire du spot')}">${arrow} ${label}${off}</span>`;
+    }
+    return `<span class="sr-split-badge" title="${rcT('Split annoncé dans le commentaire du spot')}">SPLIT</span>`;
+  }
+
+  // Crédit CHASSE : ce que le spot apporte de NOUVEAU (posé côté serveur par
+  // logx_awards.annoter_credit — atno/new_band/new_mode/needed_confirm). Le
+  // « pourquoi » (credit_raison) + le score partent en title ; le doublon
+  // confirmé et l'entité inconnue n'affichent rien (aucun crédit à signaler).
+  const CREDIT_LABELS = {
+    atno: '🌟 ATNO', new_band: '📻 +BANDE', new_mode: '🎚 +MODE',
+    new_grid: '🗺 +CARRÉ', needed_confirm: '📩 À CONFIRMER',
+  };
+  function creditBadge(s){
+    const cl = s.credit_classe;
+    const lbl = CREDIT_LABELS[cl];
+    if(!lbl) return '';
+    // Objectif décoché -> le serveur neutralise le crédit (score 0). On garde le
+    // badge VISIBLE mais ATTÉNUÉ (classe cr-off) : le fait reste montré (« c'est
+    // un ATNO ») sans être mis en avant, puisque l'opérateur ne le chasse pas.
+    // Choix F4GLD (26/08) : atténuer, pas masquer.
+    const off = !(s.credit_score > 0);
+    const t = (s.credit_raison || '') + (s.credit_score ? ' (+' + s.credit_score + ')' : '')
+            + (off ? ' — objectif désactivé' : '');
+    return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${rcT(lbl)}</span>`;
+  }
+
+  global.LogxChassePanneaux = {
+    esc: esc, splitBadge: splitBadge, creditBadge: creditBadge,
+    CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,
+  };
+})(typeof window !== 'undefined' ? window : this);
