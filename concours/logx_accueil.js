@@ -30,7 +30,7 @@ const ACTIVITIES = [
   {id:'concours',  label:'LOG Concours',      hint:'toutes bandes et modes',          icon:_ICO.concours},
   {id:'dxp',       label:'LOG DXp',           hint:'expéditions',                     icon:_ICO.dxp},
   {id:'special',   label:'LOG Call spéciaux', hint:'événements, indicatifs spéciaux', icon:_ICO.special},
-  {id:'iota_pota', label:'LOG IOTA / POTA',   hint:'activations terrain',             icon:_ICO.iota_pota},
+  {id:'iota_pota', label:'LOG activation portable', hint:'POTA · SOTA · WWFF · châteaux…', icon:_ICO.iota_pota},
   {id:'qrp',       label:'LOG QRP',           hint:'faible puissance',                icon:_ICO.qrp},
 ];
 
@@ -44,7 +44,22 @@ function _pageSuivante(){
 
 function choisirActivite(id){
   try{ localStorage.setItem('logx_activity', id); }catch(e){}
+  // « Activation portable » = carte chapeau (décision F4GLD D1) : au lieu de
+  // partir tout de suite, on révèle le sous-choix de rôle (chasse/activer/mixte)
+  // DANS le flux de l'activité. Les autres activités partent directement.
+  if(id === 'iota_pota'){ _revelerRolesActivation(); return; }
   window.location.href = _pageSuivante();
+}
+
+// Révèle le sous-choix de rôle de l'activité activation portable (carte chapeau,
+// D1) : rend les 3 tuiles (chasse/activer/mixte) dans #xotaRoleAccueil et défile
+// jusqu'à elles. Gardes défensives (classList/scrollIntoView absents en test DOM).
+function _revelerRolesActivation(){
+  _renderXotaRoleAccueil();
+  const el = document.getElementById('xotaRoleAccueil');
+  if(!el) return;
+  if(el.classList && el.classList.add) el.classList.add('xota-roles-actives');
+  if(el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 // « Reprendre » : même geste que l'ancienne redirection immédiate, mais en UN
@@ -63,7 +78,8 @@ function _grille(deja){
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
     '<div class="activity-grid" id="activityGrid"></div>' +
     '<div id="xotaRoleAccueil"></div>';
-  _renderXotaRoleAccueil();
+  // D1 : les rôles ne sont plus rendus d'office ici — ils apparaissent quand on
+  // clique la carte « activation portable » (voir _revelerRolesActivation).
   const grid = document.getElementById('activityGrid');
   grid.innerHTML = ACTIVITIES.map(a =>
     '<button type="button" class="activity-card' + (a.pilote ? ' pilote' : '') + '" onclick="choisirActivite(\'' + a.id + '\')">' +

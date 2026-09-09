@@ -1519,16 +1519,53 @@ function _activiteEstVuhf(){
 // filtrable comme les autres par les cases à cocher CONFIG (band_2m/70cm/23cm).
 const VUHF_ACTIVITY_DEFAULT_BANDS = ['144', '432', '1296'];
 
+// Activité « activation portable » (id `iota_pota` : POTA/SOTA/WWFF/châteaux…).
+// QSO occasionnel hors concours : bandes déca SSB/CW courantes + V/UHF portable,
+// plutôt que ALL_BANDS (micro-ondes rares sur le terrain). Même principe que le
+// repli V/UHF ci-dessus ; reste filtrable par les toggles CONFIG.
+function _activiteEstXota(){
+  try{ return localStorage.getItem('logx_activity') === 'iota_pota'; }catch(e){ return false; }
+}
+const XOTA_ACTIVITY_DEFAULT_BANDS = ['7', '14', '21', '28', '50', '144', '432'];
+
 // Bandes actuellement autorisées (concours + toggles) — utilisé par
 // onFreqInput() pour valider une bascule automatique de bande, et par le
 // popup de choix de bande (#bandPickerPopup) pour lister les alternatives.
 let _currentVisibleBands = [];
+// Bandes ajoutées manuellement via « + autres… » cette session (hors défaut
+// d'activité) : mémoire VOLATILE (perdue au rechargement / changement d'activité),
+// choix F4GLD « reste la session ». Un règlement de concours reste prioritaire :
+// ces bandes ne l'élargissent JAMAIS (voir renderBandButtons).
+let _bandesAjoutees = [];
+
+// « + autres… » : révèle TOUTES les bandes dans le sélecteur pour en ajouter une
+// hors du défaut d'activité (« masquer ≠ bloquer »). Choisir une bande ici
+// l'ajoute à la session via _ajouterBande().
+function _revelerToutesBandes(){
+  const popup = document.getElementById('bandPickerPopup');
+  if(!popup) return;
+  popup.innerHTML = ALL_BANDS.map(b =>
+    `<button type="button" class="bm-btn${b===currentBand?' active':''}" data-val="${b}" onclick="_ajouterBande('${b}')">${BAND_LABELS[b]||b+' MHz'}</button>`
+  ).join('');
+}
+function _ajouterBande(band){
+  if(_bandesAjoutees.indexOf(band) < 0) _bandesAjoutees.push(band);
+  renderBandButtons(currentContest);   // reconstruit le sélecteur, bande incluse
+  pickBand(band);                       // et la sélectionne tout de suite
+}
 
 function renderBandButtons(contest){
   // Bandes du concours (résolues via logx_contest_rules.js), filtrées par
   // les toggles de configuration
-  const contestBands = _bandsForContest(contest)
-    || (_activiteEstVuhf() ? VUHF_ACTIVITY_DEFAULT_BANDS : ALL_BANDS);
+  const _contestFilter = _bandsForContest(contest);
+  let contestBands = _contestFilter
+    || (_activiteEstVuhf() ? VUHF_ACTIVITY_DEFAULT_BANDS
+        : _activiteEstXota() ? XOTA_ACTIVITY_DEFAULT_BANDS
+        : ALL_BANDS);
+  // Bandes ajoutées à la volée (« + autres… ») : union HORS concours seulement.
+  // Un règlement de concours (contestFilter truthy) reste prioritaire, jamais élargi.
+  if(!_contestFilter && _bandesAjoutees.length)
+    contestBands = ALL_BANDS.filter(b => contestBands.indexOf(b) >= 0 || _bandesAjoutees.indexOf(b) >= 0);
 
   // Lire les toggles depuis localStorage pour masquer les bandes décochées
   let toggles = {};
@@ -1545,9 +1582,14 @@ function renderBandButtons(contest){
   _currentVisibleBands = visibleBands;
   const popup = document.getElementById('bandPickerPopup');
   if(popup){
-    popup.innerHTML = visibleBands.map(b =>
+    let _html = visibleBands.map(b =>
       `<button class="bm-btn${b===visibleBands[0]?' active':''}" data-val="${b}" onclick="pickBand('${b}')">${BAND_LABELS[b]||b+' MHz'}</button>`
     ).join('');
+    // Hors concours, s'il reste des bandes non affichées : « + autres… » pour en
+    // ajouter une à la session (« masquer ≠ bloquer »). Absent en concours (règles).
+    if(!_contestFilter && visibleBands.length < ALL_BANDS.length)
+      _html += `<button type="button" class="bm-btn bm-more" onclick="_revelerToutesBandes()" title="Ajouter une autre bande à la session">+ autres…</button>`;
+    popup.innerHTML = _html;
   }
   currentBand = visibleBands[0];
   _setCurrentBandLabel(currentBand);
