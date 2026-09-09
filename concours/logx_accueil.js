@@ -77,7 +77,8 @@ function _grille(deja){
     '<h1>Qu’est-ce que tu fais aujourd’hui ?</h1>' +
     '<p>Choisis ton activité — tu retrouveras toujours l’accès complet ensuite, et ton carnet reste unique quelle que soit la bande ou le mode.</p>' +
     '<div class="activity-grid" id="activityGrid"></div>' +
-    '<div id="xotaRoleAccueil"></div>';
+    '<div id="xotaRoleAccueil"></div>' +
+    '<div id="ciblesChasse"></div>';
   // D1 : les rôles ne sont plus rendus d'office ici — ils apparaissent quand on
   // clique la carte « activation portable » (voir _revelerRolesActivation).
   const grid = document.getElementById('activityGrid');
@@ -112,8 +113,46 @@ function _renderXotaRoleAccueil(){
 }
 function _choisirRoleXota(role){
   if(window.LogxXotaRole) LogxXotaRole.setRole(role);
+  // Fusion (incr. 4a) : un rôle qui inclut la CHASSE (chasse/mixte) révèle les
+  // cibles en direct DANS l'activité, sans naviguer ; « activer » pur part au
+  // logbook. Gâté par roleConfig (D1 : les rôles gâtent le contenu chasse).
+  var cfg = (window.LogxXotaRole && LogxXotaRole.roleConfig) ? LogxXotaRole.roleConfig(role) : {};
+  if(cfg.chasse){ _revelerCiblesChasse(); return; }
   window.location.href = 'logx_logbook.html';
 }
+
+// Révèle la need-list « cibles en direct » dans le flux activation (fusion 4a).
+// Rendu délégué au module LogxChassePanneaux (réutilise creditBadge/splitBadge/
+// PRIO_COLORS). `fetch` gardé (absent en DOM de test) ; la partie synchrone
+// (section + entête) reste testable.
+function _revelerCiblesChasse(){
+  var el = document.getElementById('ciblesChasse');
+  if(!el) return;
+  // Panneaux d'activation POTA/SOTA/WWFF (format sr-act) + need-list cluster.
+  // WCA (format annonces distinct) et DXpéditions viendront ensuite.
+  el.innerHTML =
+    '<h2 class="xota-acc-h">Cibles en direct</h2>' +
+    '<div class="xota-panneaux">' +
+      '<div class="xota-pan"><div class="xota-pan-h">POTA</div><div id="panPota" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">SOTA</div><div id="panSota" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">WWFF</div><div id="panWwff" class="scroll-list"></div></div>' +
+    '</div>' +
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster</div><div id="ckNeedList" class="scroll-list"></div></div>';
+  if(typeof fetch !== 'function') return;
+  var P = window.LogxChassePanneaux; if(!P) return;
+  _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){ return P.renderNeedList((d && d.spots) || [], {max:15}); });
+  _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); });
+  _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota}); });
+  _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
+}
+// Glue fetch->render d'un panneau (le rendu vient du module, testé à part).
+function _chargerPan(url, hostId, render){
+  fetch(url).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; })
+    .then(function(d){ var h = document.getElementById(hostId); if(h) h.innerHTML = render(d); });
+}
+// Lignes « lieu » par programme (champs vérifiés dans logx_chasse.html).
+function _placePota(s){ var P = window.LogxChassePanneaux; return '<span class="sr-ref">' + P.esc(s.reference) + '</span>' + (s.park_name ? ' · ' + P.esc(s.park_name) : ''); }
+function _placeSota(s){ var P = window.LogxChassePanneaux; return '<span class="sr-ref">' + P.esc(s.reference) + '</span>' + (s.summit_name ? ' · ' + P.esc(s.summit_name) : '') + (s.alt_m ? ' (' + P.esc(s.alt_m) + 'm, ' + P.esc(s.points) + 'pts)' : ''); }
 
 // Bandeau défilant d'info ambiante (DXpéditions ≤7j + propagation), affiché
 // SOUS la grille. Branché SEULEMENT quand la grille est visible (jamais sur une

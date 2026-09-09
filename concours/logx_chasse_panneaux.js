@@ -72,9 +72,31 @@
     }).join('');
   }
 
+  // Rendu des lignes d'un panneau d'activation « en direct » (POTA/SOTA/WWFF/WCA,
+  // fusion incr. 4b) : format sr-act commun ; la ligne « lieu » est fournie par
+  // opts.place(s) (park_name / summit_name+alt+pts / …). Champs issus de services
+  // tiers publics -> tout passe par esc(). freq en kHz -> MHz (3 décimales).
+  function renderActivationRows(spots, opts){
+    spots = spots || []; opts = opts || {};
+    const max = opts.max || 30;
+    const place = opts.place || function(s){ return '<span class="sr-ref">' + esc(s.reference || '') + '</span>'; };
+    return spots.slice(0, max).map(function(s){
+      return '<div class="spot-row sr-act">'
+        + '<div class="sr-head">'
+          + '<span class="sr-call">' + esc(s.call) + '</span>'
+          + '<span class="sr-band">' + (esc(s.band) || '—') + '</span>'
+          + (s.freq ? '<span class="sr-qrg">' + (s.freq/1000).toFixed(3) + ' MHz</span>' : '')
+          + (s.mode ? '<span class="sr-mode">' + esc(s.mode) + '</span>' : '')
+        + '</div>'
+        + '<div class="sr-place">' + place(s) + '</div>'
+        + (s.comment ? '<div class="sr-note" title="' + esc(s.comment) + '">' + esc(s.comment) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
   global.LogxChassePanneaux = {
     esc: esc, splitBadge: splitBadge, creditBadge: creditBadge,
-    renderNeedList: renderNeedList,
+    renderNeedList: renderNeedList, renderActivationRows: renderActivationRows,
     CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,
   };
 })(typeof window !== 'undefined' ? window : this);
