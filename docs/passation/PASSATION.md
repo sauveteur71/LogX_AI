@@ -142,7 +142,9 @@ par mutation + md5 + `ruff` + CI verte avant merge, branche par incrément).
 | 3 (3a) | Need-list complète dans le flux de l'activité (`renderNeedList`) | ✅ fait |
 | 4 (4a+4b) | Panneaux d'activation POTA/SOTA/WWFF gâtés par rôle (chasse/mixte révèle, portable pur route direct au logbook) | ✅ fait, mergé localement (commits `a63fcc3`/`952efb7`/`5995b8c`/`b23d42b`, pas de PR GitHub — fusion directe) + correctif CSS `54cb1c8`/`5d3684c` (panneaux sans style = spots en texte brut, corrigé le 09/09) |
 | 4c | Panneaux **WCA/COTA** + **DXpéditions** (lecture seule, mêmes sources que CHASSE : `logx_wca.py`/`logx_dxpeditions.py`) | ✅ fait, PR #464 (10/09/2026) |
-| 4 (reste) | Porter QSY/rotor/FT8/fiche/objectifs dans l'activité — volontairement reporté à une « vue activité complète » pas encore construite (le need-list et les panneaux actuels sont lecture seule, sans QSY) | ⏳ pas fait |
+| 4d | **QSY + pointage antenne** sur la need-list (`/rig/qsy`, `/rotor/point`, boutons gâtés par l'état réel radio/rotor) | ✅ fait, PR #465 (10/09/2026) |
+| 4e | **Profil d'objectifs de chasse** (5 cases ATNO/+bande/+mode/LoTW/VUCC, `/data/operator_goals`, re-fetch de la need-list au changement) | ✅ fait, PR #466 (10/09/2026) |
+| 4 (reste) | Porter la **stratégie pile-up FT8** (`/wsjtx/strategy`) et la **fiche indicatif** (popup calldb+QSY+QRZ) dans l'activité | ⏳ en cours |
 | 5 | Rediriger `logx_chasse.html` vers l'activité + mettre à jour les 13 navs + repointer les hrefs de repli — **seul incrément destructif, après parité complète** | ⏳ pas fait |
 
 **Reste à faire pour clore le chantier** : compléter l'incr. 4 (QSY/rotor/FT8/
