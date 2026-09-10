@@ -113,6 +113,41 @@ def test_qsy_rotor_echappent_indicatif_et_bande_contre_injection_js():
         assert "');" not in oc
 
 
+# ─── Stratégie pile-up FT8 (fusion incr. 4f) ────────────────────────────────
+
+def test_strat_btn_absent_par_defaut():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', mode:'SSB'}])")
+    assert 'strat-btn' not in html
+
+
+def test_strat_btn_present_sur_spot_ft8():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', mode:'FT8'}])")
+    assert 'strat-btn' in html and "ft8Strategy('F4XYZ')" in html
+
+
+def test_strat_btn_present_sur_spot_ft4_insensible_a_la_casse():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', mode:'ft4'}])")
+    assert 'strat-btn' in html
+
+
+def test_strat_btn_absent_sur_autre_mode_numerique():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', mode:'RTTY'}])")
+    assert 'strat-btn' not in html
+
+
+def test_strat_btn_echappe_indicatif_contre_injection_js():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:\"F4X');alert(1);//\", band:'14', mode:'FT8'}])")
+    import re
+    onclicks = re.findall(r'onclick="([^"]*)"', html)
+    strat = [oc for oc in onclicks if oc.startswith('ft8Strategy')]
+    assert strat and 'alert(1)' not in strat[0] and "');" not in strat[0]
+
+
 # ─── jsCall / jsBand ────────────────────────────────────────────────────────
 
 def test_jscall_retire_les_caracteres_dangereux():

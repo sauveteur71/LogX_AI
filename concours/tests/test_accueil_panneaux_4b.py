@@ -39,6 +39,15 @@ def test_expose_qsyto_et_pointto():
     assert ctx.eval('typeof pointTo') == 'function'
 
 
+def test_expose_la_strategie_pileup_ft8():
+    """ft8Strategy et son support de modale/polling (fusion incr. 4f) doivent
+    être des fonctions globales, comme dans logx_chasse.html — c'est elles
+    que le bouton 🧠 rendu par renderNeedList appelle via onclick."""
+    ctx = _make_ctx()
+    for fn in ('ft8Strategy', 'pollStrat', 'renderStrat', 'openStratModal', 'setStratBody', 'closeStrat'):
+        assert ctx.eval('typeof ' + fn) == 'function', fn
+
+
 def test_role_portable_pur_ne_monte_pas_les_panneaux():
     ctx = _make_ctx()
     ctx.eval(STUB_ROLE)

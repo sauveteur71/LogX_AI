@@ -34,7 +34,9 @@ def test_le_css_definit_les_classes_emises_par_le_js():
                 '.sr-credit-badge', '.sr-split-badge',
                 '.xota-panneaux', '.xota-pan', '.xota-pan-h',
                 '.ck-needlist', '.ck-need-row', '.ck-need-call', '.ck-need-prio',
-                '.qsy-btn', '.point-btn', '.xota-qsy-status', '.obj-list', '.obj-item'):
+                '.qsy-btn', '.point-btn', '.xota-qsy-status', '.obj-list', '.obj-item',
+                '.strat-btn', '#stratOverlay', '.strat-box', '.strat-head', '.strat-x',
+                '.strat-verdict', '.strat-raw-title', '.strat-raw'):
         assert cls in css, "classe non stylée dans logx_chasse_panneaux.css : " + cls
 
 

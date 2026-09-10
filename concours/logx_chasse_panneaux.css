@@ -72,3 +72,15 @@
 .obj-list{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 2px 4px}
 .obj-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
 .obj-item input{accent-color:var(--accent2);cursor:pointer}
+
+/* Stratégie pile-up FT8 (fusion incr. 4f, copié verbatim de logx_chasse.html) —
+   purement consultatif, AUCUNE émission. */
+.strat-btn{cursor:pointer;background:transparent;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:13px;color:var(--accent2,#22e0ff)}
+.strat-btn:hover{background:rgba(0,224,255,.12)}
+#stratOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px}
+.strat-box{background:var(--bg2,#12172e);border:1px solid var(--accent2,#22e0ff);border-radius:10px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:14px 18px;font-family:var(--font-mono)}
+.strat-head{display:flex;align-items:center;justify-content:space-between;font-weight:700;color:var(--accent2,#22e0ff);margin-bottom:10px}
+.strat-x{cursor:pointer;background:none;border:0;color:var(--muted,#7a86b6);font-size:18px}
+.strat-verdict{font-size:14px;line-height:1.6}
+.strat-raw-title{margin-top:12px;font-size:11px;color:var(--muted,#7a86b6);text-transform:uppercase;letter-spacing:.5px}
+.strat-raw{font-size:12px;color:var(--muted,#7a86b6);margin-top:4px;line-height:1.5}

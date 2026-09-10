@@ -62,14 +62,15 @@
   }
 
   // Rendu de la need-list pour le cockpit d'accueil ET la vue activité complète
-  // (fusion incr. 3, étendue incr. 4d). QSY/rotor SONT rendus quand
+  // (fusion incr. 3, étendue incr. 4d/4f). QSY/rotor SONT rendus quand
   // opts.rigEnabled/opts.rotorEnabled valent vrai (état lu côté appelant sur
   // /rig/state et /rotor/state, comme logx_chasse.html) — par défaut (opts
   // absent ou faux), lecture seule, comportement du cockpit inchangé. Mêmes
   // conditions par ligne que CHASSE : QSY si s.freq connu, rotor si
   // s.bearing != null (calculé côté serveur sur /data/spots_ranked, même
-  // source que CHASSE). Réutilise creditBadge/splitBadge/PRIO_COLORS.
-  // `opts.max` borne la liste.
+  // source que CHASSE). Bouton stratégie pile-up FT8 (🧠) TOUJOURS affiché sur
+  // un spot FT8/FT4 (purement consultatif, aucune émission — pas de gate opts).
+  // Réutilise creditBadge/splitBadge/PRIO_COLORS. `opts.max` borne la liste.
   function renderNeedList(spots, opts){
     spots = spots || []; opts = opts || {};
     const max = opts.max || 12;
@@ -80,12 +81,14 @@
         ? '<button class="qsy-btn" onclick="qsyTo(' + (Number(s.freq)||0) + ',\'' + jsCall(s.call) + '\')" title="' + rcT('Régler la radio sur') + ' ' + esc(s.freq) + ' kHz">▶ QSY</button>' : '';
       const pointBtn = (rotor && s.bearing != null)
         ? '<button class="point-btn" onclick="pointTo(' + (Number(s.bearing)||0) + ',\'' + jsCall(s.call) + '\',\'' + jsBand(s.band) + '\')" title="' + rcT("Pointer l'antenne sur") + ' ' + Math.round(s.bearing) + '°">🧭 ' + Math.round(s.bearing) + '°</button>' : '';
+      const stratBtn = (s.mode && /ft8|ft4/i.test(s.mode))
+        ? '<button class="strat-btn" onclick="ft8Strategy(\'' + jsCall(s.call) + '\')" title="' + rcT('Stratégie pile-up FT8 : où et quand appeler') + '">🧠</button>' : '';
       return '<div class="ck-need-row' + (s.already_done ? ' ck-need-done' : '') + '">'
         + '<span class="ck-need-prio" style="background:' + (PRIO_COLORS[s.priority] || 'var(--muted)') + '"></span>'
         + '<span class="ck-need-call">' + esc(s.call) + '</span>'
         + '<span class="ck-need-band">' + esc(s.band) + '</span>'
         + '<span class="ck-need-freq">' + esc(s.freq || '') + '</span>'
-        + creditBadge(s) + splitBadge(s) + qsyBtn + pointBtn
+        + creditBadge(s) + splitBadge(s) + qsyBtn + pointBtn + stratBtn
         + '</div>';
     }).join('');
   }
