@@ -7,6 +7,7 @@
 .access_password
 .server_config.json
 .operator_goals.json
+.corbeille.json
 .logx_key
 clef API.txt
 sota_oauth_tokens.json
@@ -31,6 +32,7 @@ concours/.logx_dossier.lock
 .logx_dossier.lock
 concours/.server_config.json
 concours/.operator_goals.json
+concours/.corbeille.json
 concours/.logx_key
 concours/qtc_log.json
 concours/france_departements.geojson

@@ -296,6 +296,11 @@ function itemsMenuLogbook(format){
 
   const suivi = [['📊', 'STATS — rythme et répartition', 'showRatePanel'],
                  ['🏅', 'DIPLÔMES & QSL', 'showAwards'],
+                 // PAS dans MENU_LB_EXPERT_ONLY_FN (comme showRatePanel/showAwards
+                 // au-dessus) : la sûreté n'est pas une fonction avancée, un
+                 // débutant qui supprime un QSO par erreur doit pouvoir se
+                 // rattraper aussi facilement qu'un habitué.
+                 ['🗑️', 'CORBEILLE — restaurer un QSO supprimé', 'showCorbeille'],
                  ['🔎', 'FILTRE AVANCÉ', 'openFilterBuilder'],
                  ['🧬', 'RECHERCHE DE DOUBLONS', 'openDupFinder'],
                  ['🌐', 'RE-RÉSOUDRE (locator/état)', 'openBulkResolve'],
@@ -387,6 +392,79 @@ document.addEventListener('click', e => {
   if(!e.target.closest || !e.target.closest('#lbMenu')) fermerLbMenu();
 });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') fermerLbMenu(); });
+
+// ── CORBEILLE DE QSO (incident du 19/08/2026 : 248 QSO supprimés récupérés à
+// la main par carving SQLite) — GET /log/corbeille + POST /log/corbeille/restore
+// (concours/logx_corbeille.py). PAS expert-only (voir itemsMenuLogbook) : la
+// sûreté d'un débutant compte plus qu'une case de moins dans le menu.
+function _cbEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Texte « il y a … » à partir de deux epochs SECONDES — PURE, testée en V8
+// sans DOM ni fetch (comme _bloc_menu ailleurs dans ce fichier).
+function _cbAge(deletedAtS, nowS){
+  const s = nowS - deletedAtS;
+  if(s < 3600) return 'il y a ' + Math.max(1, Math.round(s / 60)) + ' min';
+  if(s < 86400) return 'il y a ' + Math.round(s / 3600) + ' h';
+  return 'il y a ' + Math.round(s / 86400) + ' j';
+}
+
+// Rendu PUR de la liste (entrées déjà résumées par le serveur, voir
+// logx_corbeille.resume) — testable sans DOM.
+function renderCorbeilleList(entries, nowS){
+  entries = entries || []; nowS = nowS == null ? (Date.now() / 1000) : nowS;
+  if(!entries.length) return '<div class="cb-empty">Corbeille vide.</div>';
+  return entries.map(e =>
+    '<div class="cb-row">'
+    + '<span class="cb-call">' + _cbEsc(e.call || '?') + '</span>'
+    + '<span>' + _cbEsc(e.band || '') + '</span>'
+    + '<span>' + _cbEsc(e.mode || '') + '</span>'
+    + '<span class="cb-age">' + _cbAge(e.deleted_at, nowS) + '</span>'
+    + '<button type="button" class="cb-restore" onclick="restaurerCorbeilleQso(' + JSON.stringify(String(e.id)) + ')">↺ RESTAURER</button>'
+    + '</div>'
+  ).join('');
+}
+
+async function _cbCharger(){
+  const box = document.getElementById('cbList');
+  if(!box) return;
+  try{
+    const r = await fetch('/log/corbeille');
+    const d = await r.json();
+    box.innerHTML = renderCorbeilleList(d.entries || []);
+  }catch(e){
+    box.innerHTML = '<div class="cb-empty">⚠ Impossible de charger la corbeille.</div>';
+  }
+}
+
+function showCorbeille(){
+  const ov = document.getElementById('corbeilleOverlay');
+  if(!ov) return;
+  ov.classList.add('show');
+  document.getElementById('cbList').innerHTML = '<div class="cb-empty">Chargement…</div>';
+  _cbCharger();
+}
+function closeCorbeille(){
+  const ov = document.getElementById('corbeilleOverlay');
+  if(ov) ov.classList.remove('show');
+}
+
+async function restaurerCorbeilleQso(idStr){
+  const id = parseInt(idStr, 10);
+  if(!id) return;
+  try{
+    const r = await fetch('/log/corbeille/restore', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: id})
+    });
+    const d = await r.json();
+    if(!d.ok){ alert(trF('Restauration impossible : {err}', {err: d.error || '?'})); return; }
+    await _cbCharger();     // la liste reflète tout de suite le retrait
+    if(typeof fetchLog === 'function') fetchLog();   // le QSO restauré réapparaît dans le carnet
+  }catch(e){
+    alert(trT('Serveur injoignable — réessaie.'));
+  }
+}
 
 function applyUsageModeToLogbook(mode){
   usageMode = mode || 'contest';
