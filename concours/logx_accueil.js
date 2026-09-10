@@ -136,6 +136,8 @@ function _revelerCiblesChasse(){
       '<div class="xota-pan"><div class="xota-pan-h">POTA</div><div id="panPota" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">SOTA</div><div id="panSota" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">WWFF</div><div id="panWwff" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">WCA / COTA (annoncé)</div><div id="panWca" class="scroll-list"></div></div>' +
+      '<div class="xota-pan"><div class="xota-pan-h">DXpéditions</div><div id="panDx" class="scroll-list"></div></div>' +
     '</div>' +
     '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster</div><div id="ckNeedList" class="scroll-list"></div></div>';
   if(typeof fetch !== 'function') return;
@@ -144,6 +146,8 @@ function _revelerCiblesChasse(){
   _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); });
   _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota}); });
   _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
+  _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); });
+  _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); });
 }
 // Glue fetch->render d'un panneau (le rendu vient du module, testé à part).
 function _chargerPan(url, hostId, render){

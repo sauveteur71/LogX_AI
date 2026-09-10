@@ -94,9 +94,57 @@
     }).join('');
   }
 
+  // Rendu des annonces WCA/COTA (fusion incr. 4c) — PAS des spots confirmés sur
+  // l'air (contrairement à renderActivationRows), contenu 100% textuel écrit par
+  // des correspondants humains -> tout passe par esc(). `it.description` tronquée
+  // à 160 car., même borne que logx_chasse.html.
+  function renderWcaRows(items, opts){
+    items = items || []; opts = opts || {};
+    const max = opts.max || 20;
+    if(!items.length) return '<div class="ck-need-empty">' + rcT("Aucune activation WCA/COTA annoncée.") + '</div>';
+    return items.slice(0, max).map(function(it){
+      return '<div class="spot-row sr-wca">'
+        + '<div class="sr-head"><span class="sr-ref">' + esc(it.reference) + '</span>'
+          + '<span class="sr-place">' + esc(it.title) + '</span></div>'
+        + (it.description ? '<div class="sr-note" title="' + esc(it.description) + '">' + esc(String(it.description).slice(0, 160)) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
+  // Rendu des expéditions DX (fusion incr. 4c) — statut actif/à venir déduit
+  // côté serveur (logx_dxpeditions), badge nouveau-pays/nouvelle-bande déjà
+  // calculé. Version lecture seule (pas de bouton VOACAP interactif, réservé à
+  // la vue activité complète — même choix que renderNeedList pour QSY/rotor).
+  function renderDxRows(list, opts){
+    list = list || []; opts = opts || {};
+    const max = opts.max || 40;
+    if(!list.length) return '<div class="ck-need-empty">' + rcT('Aucune expédition annoncée.') + '</div>';
+    return list.slice(0, max).map(function(e){
+      const actif = e.status === 'active';
+      const statut = actif
+        ? '<span class="sr-mode" style="color:var(--green)">● ACTIVE</span>'
+        : '<span class="sr-mode" style="color:var(--yellow)">' + rcT('À VENIR') + '</span>';
+      const freq = e.freq_khz ? '<span class="sr-qrg">' + (e.freq_khz/1000).toFixed(3) + ' MHz</span>' : '';
+      const mode = e.spot_mode ? '<span class="sr-mode">' + esc(e.spot_mode) + '</span>' : '';
+      const nouveau = e.worked_status === 'new'
+        ? '<span class="sr-mode" style="color:var(--green)">🆕 ' + rcT('nouveau pays') + '</span>'
+        : e.worked_status === 'partial'
+        ? '<span class="sr-mode" style="color:var(--yellow)">◐ ' + rcT('nouvelle bande') + '</span>' : '';
+      return '<div class="spot-row sr-act">'
+        + '<div class="sr-head">'
+          + '<span class="sr-call">' + esc(e.callsign || '?') + '</span>'
+          + statut + freq + mode + nouveau
+        + '</div>'
+        + '<div class="sr-place">' + esc(e.entity || '?') + ' · ' + esc(e.dates || '—') + '</div>'
+        + (e.qsl ? '<div class="sr-note">QSL : ' + esc(e.qsl) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
   global.LogxChassePanneaux = {
     esc: esc, splitBadge: splitBadge, creditBadge: creditBadge,
     renderNeedList: renderNeedList, renderActivationRows: renderActivationRows,
+    renderWcaRows: renderWcaRows, renderDxRows: renderDxRows,
     CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,
   };
 })(typeof window !== 'undefined' ? window : this);
