@@ -1016,9 +1016,10 @@ donc été jeté avant de repartir sur le bon commit.
    par mutation que le reste du dépôt, jamais « en passant » à côté d'un
    autre correctif.
 
-7. ✅ **FAIT — bandeaux défilants (tickers) + adaptation par activité**
-   (branche `feat/tickers-live`, ~20 commits, **NON mergée** — attend la
-   validation navigateur de F4GLD puis le merge). Bandes défilantes sous la nav
+7. ✅ **FAIT ET MERGÉ — PR #379** (2026-08-27, vérifié via `gh pr view 379` le
+   11/09/2026 — contradiction interne corrigée, cette entrée disait encore
+   « NON mergée »). **Bandeaux défilants (tickers) + adaptation par
+   activité.** Bandes défilantes sous la nav
    (accueil / LOGBOOK / CHASSE) : **DX ≤7J**, **PROPAG** (bande courante en
    tête), **SPOTS DX** (opt-in), **MULTS** (concours seulement). Fiche popup au
    clic sur un item actif (entité, fréquence cluster, nom via `/calldb/lookup`,
@@ -1041,12 +1042,11 @@ donc été jeté avant de repartir sur le bon commit.
    « Bandeaux masqués » quand c'est vide par contexte (VHF). Vérifié end-to-end
    en node (rendus HTML inspectés) + suites complètes 100 %.
 
-   Reste : **validation navigateur (2 thèmes) par F4GLD, puis merge.**
-   Documenté : GUIDE_UTILISATEUR §6.9 + CHANGELOG [Non publié].
+   Documenté : GUIDE_UTILISATEUR §6.9.
 
-8. ✅ **FAIT — occupation des bandes multi-postes** (branche `feat/occupation`,
-   NON mergée — attend la validation navigateur de F4GLD puis le merge). Log
-   partagé à distance :
+8. ✅ **FAIT ET MERGÉ — PR #380/#381** (2026-08-27, vérifié via `gh pr view`
+   le 11/09/2026 — même contradiction interne corrigée). **Occupation des
+   bandes multi-postes.** Log partagé à distance :
    activation spéciale type TM6KJS / radioclub / expédition). Question F4GLD
    « partage à distance sur des réseaux internet DIFFÉRENTS » : **OUI, déjà
    possible** via Cloud Sync (dossier partagé) ou MySQL Sync (quasi temps réel,
@@ -1068,12 +1068,9 @@ donc été jeté avant de repartir sur le bon commit.
    ~60 tests. **Vocabulaire** : « activation » banni de l'UI (langage cibiste)
    -> « indicatif spécial ». Plan : `docs/idees/2026-08-27-tm6kjs-multi-postes.md`.
 
-   **RESTE :** validation navigateur (F4GLD, avec 2 instances + LAN, puis un
-   canal distant) -> PR + merge. Ajustements design panneau/assistant avec lui.
-
-9. ✅ **FAIT — HUD « Opportunités » dans le LOGBOOK** (branche
-   `feat/opportunites-hud-logbook`, NON mergée — attend validation navigateur
-   F4GLD). Première brique de la **thèse produit « copilote orienté objectif »**
+9. ✅ **FAIT ET MERGÉ — PR #383** (2026-08-28, vérifié via `gh pr view 383` le
+   11/09/2026 — même contradiction interne corrigée). **HUD « Opportunités »
+   dans le LOGBOOK.** Première brique de la **thèse produit « copilote orienté objectif »**
    (recoupement de 4 analyses IA le 27/08 : boucle décodage→opportunité→décision).
 
    **Le contexte qui compte :** la « need list / score d'opportunité » existait
@@ -1095,8 +1092,69 @@ donc été jeté avant de repartir sur le bon commit.
    repliable (masquer ≠ bloquer). CSS `.opp-*` mutualisé dans `logx_theme.css`
    (bouton accent *outline* — évite le piège fond-plein+texte-sombre du jour).
 
-   **RESTE :** validation navigateur 2 thèmes (jour/nuit) par F4GLD -> PR + merge.
-   Suite possible (validée à part) : remontée sur l'accueil, boucle « après-QSO ».
+   Suite possible (non commencée) : remontée sur l'accueil, boucle « après-QSO ».
+
+#### Nuit du 10→11/09/2026 — corbeille de QSO récupérable (PR #468, item B du roadmap)
+
+Session autonome (F4GLD absent, consigne « avance sans t'arrêter toute la
+nuit »). Répond à l'incident du 19/08/2026 (§ ci-dessous) : la suppression
+d'un QSO était irréversible côté UI, le tombstone existant
+(`logx_storage.mark_qso_deleted`) ne retenant que `{'id','v'}` — vérifié en
+lisant le code AVANT de coder (rien à restaurer avec ça, contrairement à ce
+que le libellé du roadmap laissait supposer).
+
+`logx_corbeille.py` (fonctions pures + persistance atomique dédiée,
+`.corbeille.json`, rétention 30 j + plafond de sécurité) capture la donnée
+COMPLÈTE du QSO à la suppression, branché dans les 2 points de suppression
+existants (`do_DELETE` + fallback POST, `logx_http.py`) en best-effort
+(n'échoue jamais la suppression). `GET /log/corbeille` + `POST
+/log/corbeille/restore` (id TOUJOURS réattribué via `reserve_qso_id_locked` —
+l'id d'origine reste sous tombstone à dessein, anti-résurrection pour un pair
+cloud déjà synchronisé). Entrée de menu LOGBOOK « CORBEILLE », **jamais
+expert-only** (sûreté, pas un outil avancé).
+
+**2 bugs trouvés et corrigés en route (jamais ignorés)** : (1) `alert()`
+ajoutés sans passer par `trT`/`trF` — cassait l'i18n, détecté par
+`test_i18n_dialogues.py`. (2) Les propres tests HTTP fonctionnels du lot
+polluaient `logx_storage.deleted_qsos` (état global du process pytest) entre
+fichiers de test — un test de synchro delta sans rapport
+(`test_log_delta_sync.py`) en souffrait ; fixture corrigée pour isoler cet
+état (`monkeypatch.setattr(storage, 'deleted_qsos', [])`).
+
+Au passage, une deuxième vérification indépendante (au-delà du contrôle
+d'intégrité dépôt/GitHub fait avant chaque merge, demande explicite F4GLD
+« vérifie régulièrement que personne n'injecte des éléments sans ton
+autorisation ») a trouvé une **contradiction interne dans ce document** :
+les items 7/8/9 ci-dessus (bandeaux défilants, occupation multi-postes, HUD
+Opportunités) affirmaient encore « NON mergée, attend validation navigateur
+F4GLD » alors qu'ils sont mergés depuis fin août (PR #379, #380/#381, #383,
+vérifié via `gh pr view`) — corrigé sur place.
+
+**Item roadmap C1 (requêtes langage naturel sur le copilote) : PAS
+commencé**, volontairement. Reconnaissance faite (`logx_fil_ia.js` existe
+mais c'est un flux de notifications passif en LECTURE SEULE, pas une
+interface de question — rien à réutiliser, c'est un vrai chantier neuf) :
+construire une surface de chat qui laisse un LLM interroger le carnet touche
+directement les invariants de sûreté IA du dépôt (`test_invariants_
+securite.py` : 0 écriture QSO par le LLM, 0 action aberrante) et mérite un
+cadrage AVEC F4GLD avant tout code, pas une improvisation nocturne.
+
+**Reconnaissance du backlog faite (fork dédié, 11/09/2026)** : le dépôt est
+étonnamment propre. Les deux fichiers `docs/superpowers/specs/BACKLOG-carte-
+xota-decisions.md` et `BACKLOG-llota-decisions.md` sont déjà marqués « FAIT —
+LIVRÉ DANS MAIN » en tête. Aucun TODO/FIXME réel trouvé dans le code. Le
+seul candidat de valeur restant identifié est les **10 définitions de
+concours ambiguës** (`CONTEST_DEFINITIONS`, section “Ce qui reste ouvert”
+point sur `logx_contest_rules.js`/tests `test_concours_sans_definition.py::
+AMBIGUS_CONNUS`) — mais ça exige de sourcer des règlements REF officiels
+(accès web fiable requis, jamais inventer une plage de bandes) : à tenter
+seulement avec une source vérifiable citée, un concours à la fois.
+
+**Incrément 5 de la fusion CHASSE→activité reste en pause** (voir plus haut) :
+nécessite une décision de F4GLD sur l'ajout d'une nav à l'accueil, pas prise
+cette nuit — point de passage explicite respecté malgré la consigne « avance
+sans t'arrêter », qui ne vaut pas autorisation implicite pour une décision
+d'architecture non discutée.
 
 ---
 
