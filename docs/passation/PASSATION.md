@@ -15,6 +15,11 @@ que montre chaque page) mené étapes 1→4 et FUSIONNÉ — voir la sous-sectio
 dédiée dans la section 1. Un piège de rebase y est consigné (une PR branchée
 avant sa précédente aurait effacé le travail de celle-ci).
 
+**Mise à jour le 10/09/2026** : chantier **fusion CHASSE→activité** (A3/D2,
+reco. « A. Dérouler l'axe activité ») repris et poursuivi — incr. 4c (panneaux
+WCA + DXpéditions) fait et fusionné (PR #464). Voir la nouvelle sous-section
+dédiée dans la section 1, juste après AFFICHAGE.
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -118,6 +123,33 @@ supprimée du même fichier.
 
 > ⚠️ **Le serveur doit être redémarré** pour prendre les correctifs Python.
 > Les fichiers `.html`/`.js` sont relus à chaque requête, pas les `.py`.
+
+#### Chantier fusion CHASSE→activité (A3/D2) — EN COURS (repris le 10/09/2026)
+
+Suite directe de la reco. « A. Dérouler l'axe activité » (déjà l'axe stratégique
+retenu, cf. doctrine en tête de `CLAUDE.md`). Plan détaillé :
+`docs/superpowers/plans/2026-09-09-fusion-chasse-activite.md` (5 incréments,
+tous ADDITIFS sauf le dernier) ; design : `docs/superpowers/specs/2026-09-09-
+activite-activation-portable-design.md`. Méthode inchangée (TDD + contre-épreuve
+par mutation + md5 + `ruff` + CI verte avant merge, branche par incrément).
+
+État au 10/09/2026 :
+
+| Incr. | Contenu | Statut |
+|---|---|---|
+| 1 | Module partagé `logx_chasse_panneaux.js` (fonctions pures de rendu, extraites de CHASSE) | ✅ fait |
+| 2 | Câbler CHASSE elle-même sur le module (refactor invisible) | ⏳ pas fait — non bloquant, CHASSE reste la référence vivante intacte comme prévu par le plan |
+| 3 (3a) | Need-list complète dans le flux de l'activité (`renderNeedList`) | ✅ fait |
+| 4 (4a+4b) | Panneaux d'activation POTA/SOTA/WWFF gâtés par rôle (chasse/mixte révèle, portable pur route direct au logbook) | ✅ fait, mergé localement (commits `a63fcc3`/`952efb7`/`5995b8c`/`b23d42b`, pas de PR GitHub — fusion directe) + correctif CSS `54cb1c8`/`5d3684c` (panneaux sans style = spots en texte brut, corrigé le 09/09) |
+| 4c | Panneaux **WCA/COTA** + **DXpéditions** (lecture seule, mêmes sources que CHASSE : `logx_wca.py`/`logx_dxpeditions.py`) | ✅ fait, PR #464 (10/09/2026) |
+| 4 (reste) | Porter QSY/rotor/FT8/fiche/objectifs dans l'activité — volontairement reporté à une « vue activité complète » pas encore construite (le need-list et les panneaux actuels sont lecture seule, sans QSY) | ⏳ pas fait |
+| 5 | Rediriger `logx_chasse.html` vers l'activité + mettre à jour les 13 navs + repointer les hrefs de repli — **seul incrément destructif, après parité complète** | ⏳ pas fait |
+
+**Reste à faire pour clore le chantier** : compléter l'incr. 4 (QSY/rotor/FT8/
+fiche/objectifs — le plus gros morceau restant, touche le contrôle CAT donc à
+traiter avec soin même si aucune émission n'est concernée), puis l'incr. 5.
+Incr. 2 est optionnel (déduplication pure, zéro valeur utilisateur) — à faire
+seulement s'il devient gênant de maintenir deux copies des fonctions de rendu.
 
 #### Nuit du 24→25/08/2026 — sous-projets ADIF/IA + couverture concours/activités
 
