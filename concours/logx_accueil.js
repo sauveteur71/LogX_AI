@@ -221,6 +221,67 @@ function chargerObjectifs(){
     .catch(function(){ construireObjectifs({}); });   // serveur muet -> tout coché (défaut)
 }
 
+// ── Stratégie pile-up FT8 (fusion 4f, port de logx_chasse.html) ────────────
+// L'IA lit la série des décodages d'UNE DX. Purement CONSULTATIF (aucune
+// émission). Job serveur, récupéré par polling ; affiche le verdict ET les
+// décodages BRUTS utilisés (transparence).
+function ft8Strategy(call){
+  call = (call || '').trim().toUpperCase(); if(!call) return;
+  openStratModal(call, '<div class="loading">⏳ Analyse de la stratégie…</div>');
+  fetch('/wsjtx/strategy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({call:call})})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j.id){ setStratBody('❌ ' + (j.error || 'erreur')); return; }
+      pollStrat(j.id);
+    }).catch(function(e){ setStratBody('❌ ' + e.message); });
+}
+// id de la DERNIÈRE analyse demandée : deux analyses lancées coup sur coup
+// créent deux boucles pollStrat() indépendantes — sans ce garde, celle de la
+// 1re demande, plus lente, pouvait afficher sa réponse APRÈS que le popup ait
+// déjà changé de titre pour la 2e, écrasant le bon résultat avec l'obsolète.
+var _stratActiveId = null;
+function pollStrat(id){
+  _stratActiveId = id;
+  var tick = async function(){
+    if(id !== _stratActiveId) return;   // une analyse plus récente a pris le relais
+    var s;
+    try{ var r = await fetch('/wsjtx/strategy/state?id=' + encodeURIComponent(id)); s = await r.json(); }
+    catch(e){ setTimeout(tick, 2500); return; }
+    if(id !== _stratActiveId) return;
+    if(s.status === 'running'){ setTimeout(tick, 1500); return; }
+    if(s.status === 'done') renderStrat(s);
+    else if(s.status === 'error') setStratBody('❌ ' + (s.error || 'échec'));
+    else setStratBody('⚠️ Analyse introuvable (serveur redémarré ?).');
+  };
+  tick();
+}
+function renderStrat(s){
+  var P = window.LogxChassePanneaux;
+  var esc = P ? P.esc : function(v){ return String(v == null ? '' : v); };
+  var html = '<div class="strat-verdict">' + esc(s.reply || '').replace(/\n/g, '<br>') + '</div>';
+  var dec = s.decodes || [];
+  if(dec.length){
+    html += '<div class="strat-raw-title">Décodages utilisés</div><div class="strat-raw">' +
+      dec.map(function(d){ return 'il y a ' + esc(d.il_y_a_s) + 's · SNR ' + esc(d.snr) + ' dB · ' + esc(d.df) + ' Hz · ' + esc(d.msg); }).join('<br>') + '</div>';
+  }
+  setStratBody(html);
+}
+function openStratModal(call, inner){
+  var ov = document.getElementById('stratOverlay');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'stratOverlay';
+    ov.onclick = function(e){ if(e.target === ov) closeStrat(); };
+    ov.innerHTML = '<div class="strat-box"><div class="strat-head"><span id="stratTitle"></span>' +
+      '<button onclick="closeStrat()" class="strat-x" aria-label="fermer">✕</button></div><div id="stratBody"></div></div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('stratTitle').textContent = '🧠 Stratégie — ' + call;
+  setStratBody(inner);
+  ov.style.display = 'flex';
+}
+function setStratBody(html){ var b = document.getElementById('stratBody'); if(b) b.innerHTML = html; }
+function closeStrat(){ var ov = document.getElementById('stratOverlay'); if(ov) ov.style.display = 'none'; }
+
 // QSY / pointer l'antenne depuis la need-list de l'activité (port de
 // logx_chasse.html, mêmes endpoints — AUCUNE émission, juste régler la
 // fréquence/l'antenne). Statut affiché dans #xotaQsyStatus, repli silencieux
