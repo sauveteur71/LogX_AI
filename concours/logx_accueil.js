@@ -128,8 +128,9 @@ function _choisirRoleXota(role){
 function _revelerCiblesChasse(){
   var el = document.getElementById('ciblesChasse');
   if(!el) return;
-  // Panneaux d'activation POTA/SOTA/WWFF (format sr-act) + need-list cluster.
-  // WCA (format annonces distinct) et DXpéditions viendront ensuite.
+  // Panneaux d'activation POTA/SOTA/WWFF/WCA/DXpéditions (fusion 4b+4c) +
+  // need-list cluster avec QSY/rotor (fusion 4d, endpoints /rig/qsy et
+  // /rotor/point — AUCUNE émission, juste régler la fréquence/l'antenne).
   el.innerHTML =
     '<h2 class="xota-acc-h">Cibles en direct</h2>' +
     '<div class="xota-panneaux">' +
@@ -139,15 +140,58 @@ function _revelerCiblesChasse(){
       '<div class="xota-pan"><div class="xota-pan-h">WCA / COTA (annoncé)</div><div id="panWca" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">DXpéditions</div><div id="panDx" class="scroll-list"></div></div>' +
     '</div>' +
-    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster</div><div id="ckNeedList" class="scroll-list"></div></div>';
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>';
   if(typeof fetch !== 'function') return;
   var P = window.LogxChassePanneaux; if(!P) return;
-  _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){ return P.renderNeedList((d && d.spots) || [], {max:15}); });
   _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); });
   _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota}); });
   _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
   _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); });
   _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); });
+  // Need-list : lit l'état radio/rotor AVANT de rendre (comme logx_chasse.html)
+  // pour savoir si les boutons QSY/rotor doivent apparaître par ligne.
+  Promise.all([
+    fetch('/rig/state').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+    fetch('/rotor/state').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+  ]).then(function(states){
+    var rigEnabled = !!(states[0] && states[0].enabled);
+    var rotorEnabled = !!(states[1] && states[1].enabled);
+    _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){
+      return P.renderNeedList((d && d.spots) || [], {max:15, rigEnabled:rigEnabled, rotorEnabled:rotorEnabled});
+    });
+  });
+}
+
+// QSY / pointer l'antenne depuis la need-list de l'activité (port de
+// logx_chasse.html, mêmes endpoints — AUCUNE émission, juste régler la
+// fréquence/l'antenne). Statut affiché dans #xotaQsyStatus, repli silencieux
+// s'il est absent (ex. rôle changé entre-temps).
+function _afficherStatutQsy(ok, msg){
+  var el = document.getElementById('xotaQsyStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  setTimeout(function(){ el.style.color = ''; }, 4000);
+}
+async function qsyTo(freqKhz, call){
+  try{
+    const r = await fetch('/rig/qsy', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({freq_khz: parseFloat(freqKhz)})
+    });
+    const d = await r.json();
+    _afficherStatutQsy(!!d.ok, d.ok ? ('📻 QSY ' + freqKhz + ' kHz → ' + call) : ('❌ ' + d.error));
+  }catch(e){}
+}
+async function pointTo(az, call, band){
+  try{
+    const r = await fetch('/rotor/point', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({azimuth: parseFloat(az), bande: band || undefined})
+    });
+    const d = await r.json();
+    _afficherStatutQsy(!!d.ok, d.ok ? ('🧭 Antenne → ' + Math.round(az) + '° vers ' + call) : ('❌ ' + d.error));
+  }catch(e){}
 }
 // Glue fetch->render d'un panneau (le rendu vient du module, testé à part).
 function _chargerPan(url, hostId, render){

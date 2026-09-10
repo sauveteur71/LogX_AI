@@ -15,6 +15,13 @@
   function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+  // Indicatif/bande réduits aux caractères valides pour un argument de chaîne
+  // JS imbriquée dans onclick="...'...'" (esc() protège l'attribut HTML, pas
+  // cette chaîne-là — un guillemet simple survit au décodage d'entité et
+  // rouvre la chaîne avant exécution). Extraites verbatim de logx_chasse.html.
+  function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
+  function jsBand(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9.]/g,''); }
+
   const PRIO_COLORS = {1:'var(--green)',2:'var(--red)',3:'var(--orange)',4:'var(--yellow)',5:'var(--muted)',6:'var(--border)'};
 
   function splitBadge(s){
@@ -54,20 +61,31 @@
     return `<span class="sr-credit-badge cr-${esc(cl)}${off ? ' cr-off' : ''}" title="${esc(t)}">${rcT(lbl)}</span>`;
   }
 
-  // Rendu COMPACT de la need-list pour le cockpit d'accueil (fusion incr. 3) :
-  // lecture seule (pas de QSY/rotor, réservés à la vue activité complète).
-  // Réutilise creditBadge/splitBadge/PRIO_COLORS. `opts.max` borne la liste.
+  // Rendu de la need-list pour le cockpit d'accueil ET la vue activité complète
+  // (fusion incr. 3, étendue incr. 4d). QSY/rotor SONT rendus quand
+  // opts.rigEnabled/opts.rotorEnabled valent vrai (état lu côté appelant sur
+  // /rig/state et /rotor/state, comme logx_chasse.html) — par défaut (opts
+  // absent ou faux), lecture seule, comportement du cockpit inchangé. Mêmes
+  // conditions par ligne que CHASSE : QSY si s.freq connu, rotor si
+  // s.bearing != null (calculé côté serveur sur /data/spots_ranked, même
+  // source que CHASSE). Réutilise creditBadge/splitBadge/PRIO_COLORS.
+  // `opts.max` borne la liste.
   function renderNeedList(spots, opts){
     spots = spots || []; opts = opts || {};
     const max = opts.max || 12;
+    const rig = !!opts.rigEnabled, rotor = !!opts.rotorEnabled;
     if(!spots.length) return '<div class="ck-need-empty">' + rcT('Aucune cible en direct.') + '</div>';
     return spots.slice(0, max).map(function(s){
+      const qsyBtn = (rig && s.freq)
+        ? '<button class="qsy-btn" onclick="qsyTo(' + (Number(s.freq)||0) + ',\'' + jsCall(s.call) + '\')" title="' + rcT('Régler la radio sur') + ' ' + esc(s.freq) + ' kHz">▶ QSY</button>' : '';
+      const pointBtn = (rotor && s.bearing != null)
+        ? '<button class="point-btn" onclick="pointTo(' + (Number(s.bearing)||0) + ',\'' + jsCall(s.call) + '\',\'' + jsBand(s.band) + '\')" title="' + rcT("Pointer l'antenne sur") + ' ' + Math.round(s.bearing) + '°">🧭 ' + Math.round(s.bearing) + '°</button>' : '';
       return '<div class="ck-need-row' + (s.already_done ? ' ck-need-done' : '') + '">'
         + '<span class="ck-need-prio" style="background:' + (PRIO_COLORS[s.priority] || 'var(--muted)') + '"></span>'
         + '<span class="ck-need-call">' + esc(s.call) + '</span>'
         + '<span class="ck-need-band">' + esc(s.band) + '</span>'
         + '<span class="ck-need-freq">' + esc(s.freq || '') + '</span>'
-        + creditBadge(s) + splitBadge(s)
+        + creditBadge(s) + splitBadge(s) + qsyBtn + pointBtn
         + '</div>';
     }).join('');
   }
@@ -142,7 +160,7 @@
   }
 
   global.LogxChassePanneaux = {
-    esc: esc, splitBadge: splitBadge, creditBadge: creditBadge,
+    esc: esc, jsCall: jsCall, jsBand: jsBand, splitBadge: splitBadge, creditBadge: creditBadge,
     renderNeedList: renderNeedList, renderActivationRows: renderActivationRows,
     renderWcaRows: renderWcaRows, renderDxRows: renderDxRows,
     CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,
