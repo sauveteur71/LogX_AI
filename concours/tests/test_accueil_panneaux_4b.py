@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Fusion incr. 4b : la vue chasse de l'activité monte les panneaux d'activation
-(POTA/SOTA/WWFF) + la need-list. On fige la STRUCTURE synchrone (conteneurs
-créés au bon endroit) ; le remplissage async (fetch->renderActivationRows) est
-délégué au module, testé ailleurs. Exécute le vrai logx_accueil.js en V8.
+"""Fusion incr. 4b+4c : la vue chasse de l'activité monte les panneaux
+d'activation (POTA/SOTA/WWFF/WCA/DXpéditions) + la need-list. On fige la
+STRUCTURE synchrone (conteneurs créés au bon endroit) ; le remplissage async
+(fetch->render*) est délégué au module, testé ailleurs. Exécute le vrai
+logx_accueil.js en V8.
 """
 import pytest
 
@@ -23,9 +24,10 @@ def test_role_chasse_monte_les_panneaux_activation():
     ctx.eval(STUB_ROLE)
     ctx.eval("_choisirRoleXota('chasse');")
     html = ctx.eval("document.getElementById('ciblesChasse').innerHTML")
-    for cid in ('panPota', 'panSota', 'panWwff', 'ckNeedList'):
+    for cid in ('panPota', 'panSota', 'panWwff', 'panWca', 'panDx', 'ckNeedList'):
         assert cid in html, cid
     assert 'POTA' in html and 'SOTA' in html and 'WWFF' in html
+    assert 'WCA' in html and 'DXp' in html
 
 
 def test_role_portable_pur_ne_monte_pas_les_panneaux():

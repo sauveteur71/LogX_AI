@@ -29,7 +29,7 @@ def test_le_css_definit_les_classes_emises_par_le_js():
     css = _lire('logx_chasse_panneaux.css')
     # Classes réellement produites par renderNeedList / renderActivationRows /
     # la mise en page de _revelerCiblesChasse.
-    for cls in ('.spot-row', '.sr-act', '.sr-head', '.sr-call', '.sr-band',
+    for cls in ('.spot-row', '.sr-act', '.sr-wca', '.sr-head', '.sr-call', '.sr-band',
                 '.sr-qrg', '.sr-mode', '.sr-ref', '.sr-place', '.sr-note',
                 '.sr-credit-badge', '.sr-split-badge',
                 '.xota-panneaux', '.xota-pan', '.xota-pan-h',

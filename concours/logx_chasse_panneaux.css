@@ -26,6 +26,9 @@
 
 /* Lignes d'ACTIVATEUR (POTA/SOTA/WWFF) : 3 lignes empilées (appeler / lieu / note). */
 .spot-row.sr-act{flex-direction:column;align-items:stretch;gap:2px;padding:6px 12px}
+/* Lignes WCA/COTA (annonces, pas des spots confirmés — fusion incr. 4c) : même
+   empilement que sr-act, ligne unique référence+titre au lieu de call/band/freq. */
+.spot-row.sr-wca{flex-direction:column;align-items:stretch;gap:2px;padding:6px 12px}
 .sr-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
 .sr-head .sr-call{width:auto;min-width:92px}
 .sr-head .sr-band{width:auto;min-width:40px}
@@ -37,7 +40,10 @@
 .loading,.ck-need-empty{text-align:center;padding:20px;font-family:var(--font-mono);color:var(--muted)}
 
 /* ── Mise en page « cibles en direct » de l'ACTIVITÉ (accueil) ────────────── */
-.xota-panneaux{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+/* auto-fit plutôt que repeat(3,1fr) fixe (densité, CLAUDE.md) : 5 panneaux
+   depuis l'incr. 4c (POTA/SOTA/WWFF/WCA/DXpéditions) se répartissent sur la
+   largeur dispo au lieu de laisser une 2e rangée à 2 colonnes clairsemée. */
+.xota-panneaux{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:10px}
 @media(max-width:900px){.xota-panneaux{grid-template-columns:1fr}}
 .xota-pan{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .xota-pan-full{margin-top:16px}
