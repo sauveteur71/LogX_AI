@@ -24,10 +24,19 @@ def test_role_chasse_monte_les_panneaux_activation():
     ctx.eval(STUB_ROLE)
     ctx.eval("_choisirRoleXota('chasse');")
     html = ctx.eval("document.getElementById('ciblesChasse').innerHTML")
-    for cid in ('panPota', 'panSota', 'panWwff', 'panWca', 'panDx', 'ckNeedList'):
+    for cid in ('panPota', 'panSota', 'panWwff', 'panWca', 'panDx', 'ckNeedList', 'xotaQsyStatus'):
         assert cid in html, cid
     assert 'POTA' in html and 'SOTA' in html and 'WWFF' in html
     assert 'WCA' in html and 'DXp' in html
+
+
+def test_expose_qsyto_et_pointto():
+    """qsyTo/pointTo (fusion incr. 4d) doivent être des fonctions globales,
+    comme dans logx_chasse.html — c'est elles que les boutons QSY/rotor
+    rendus par renderNeedList appellent via onclick."""
+    ctx = _make_ctx()
+    assert ctx.eval('typeof qsyTo') == 'function'
+    assert ctx.eval('typeof pointTo') == 'function'
 
 
 def test_role_portable_pur_ne_monte_pas_les_panneaux():

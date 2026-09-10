@@ -59,3 +59,11 @@
 .ck-need-call{font-weight:700;color:var(--text);min-width:80px}
 .ck-need-band{color:var(--muted)}
 .ck-need-freq{color:var(--accent2)}
+
+/* Boutons QSY/rotor (fusion incr. 4d, copiés verbatim de logx_chasse.html) —
+   règlent la radio/l'antenne, AUCUNE émission. */
+.qsy-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
+.qsy-btn:hover{background:#C9822E;color:#0A0B18}
+.point-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
+.point-btn:hover{background:var(--purple);color:#0A0B18}
+.xota-qsy-status{font-family:var(--font-mono);font-size:11px;font-weight:400;letter-spacing:0;margin-left:8px}

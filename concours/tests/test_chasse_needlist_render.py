@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""renderNeedList : rendu COMPACT de la need-list (fusion D2, incr. 3), pour le
-cockpit d'accueil. Fonction pure du module logx_chasse_panneaux.js, réutilise
-esc/creditBadge/splitBadge/PRIO_COLORS. Lecture seule : pas de boutons QSY/rotor
-(réservés à la vue activité complète). Exécuté en V8.
+"""renderNeedList : rendu de la need-list (fusion D2, incr. 3 + 4d). Fonction
+pure du module logx_chasse_panneaux.js, réutilise esc/creditBadge/splitBadge/
+PRIO_COLORS. Lecture seule par défaut (cockpit d'accueil) ; les boutons
+QSY/rotor apparaissent seulement si opts.rigEnabled/opts.rotorEnabled valent
+vrai (vue activité complète, état lu côté appelant comme logx_chasse.html).
+Exécuté en V8.
 """
 import os
 
@@ -57,3 +59,68 @@ def test_call_echappe_xss():
     ctx = _ctx()
     html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'<script>', band:'14'}])")
     assert '<script>' not in html and '&lt;script&gt;' in html
+
+
+# ─── QSY / rotor (fusion incr. 4d) ──────────────────────────────────────────
+
+def test_pas_de_qsy_ni_rotor_par_defaut():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', freq:14285, bearing:120}])")
+    assert 'qsy-btn' not in html and 'point-btn' not in html
+
+
+def test_qsy_absent_meme_active_si_pas_de_freq():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14'}], {rigEnabled:true})")
+    assert 'qsy-btn' not in html
+
+
+def test_qsy_present_si_active_et_freq_connue():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', freq:14285}], {rigEnabled:true})")
+    assert 'qsy-btn' in html and "qsyTo(14285,'F4XYZ')" in html
+
+
+def test_rotor_absent_meme_active_si_pas_de_bearing():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14'}], {rotorEnabled:true})")
+    assert 'point-btn' not in html
+
+
+def test_rotor_present_si_active_et_bearing_connu():
+    # L'azimut BRUT part dans l'appel (comme logx_chasse.html) ; seul
+    # l'affichage (🧭 120°) est arrondi.
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', bearing:120.4}], {rotorEnabled:true})")
+    assert 'point-btn' in html and "pointTo(120.4,'F4XYZ','14')" in html and '120°' in html
+
+
+def test_qsy_rotor_echappent_indicatif_et_bande_contre_injection_js():
+    # Le TEXTE AFFICHÉ (esc()) peut légitimement contenir des parenthèses --
+    # seule la valeur imbriquée dans onclick="...'...'" doit être neutralisée
+    # (jsCall/jsBand suppriment guillemets/parenthèses/point-virgule : aucune
+    # évasion possible de la chaîne JS entre apostrophes).
+    import re
+    ctx = _ctx()
+    html = ctx.eval("""window.LogxChassePanneaux.renderNeedList(
+        [{call:\"F4X');alert(1);//\", band:\"14');alert(2);//\", freq:14285, bearing:10}],
+        {rigEnabled:true, rotorEnabled:true}
+    )""")
+    onclicks = re.findall(r'onclick="([^"]*)"', html)
+    assert len(onclicks) == 2
+    for oc in onclicks:
+        assert "alert(1)" not in oc and "alert(2)" not in oc
+        assert "');" not in oc
+
+
+# ─── jsCall / jsBand ────────────────────────────────────────────────────────
+
+def test_jscall_retire_les_caracteres_dangereux():
+    # Le '/' est un caractère VALIDE d'indicatif portable (F4XYZ/P) : conservé.
+    ctx = _ctx()
+    assert ctx.eval("window.LogxChassePanneaux.jsCall(\"F4X');alert(1)//\")") == 'F4Xalert1//'
+
+
+def test_jsband_retire_les_caracteres_dangereux():
+    ctx = _ctx()
+    assert ctx.eval("window.LogxChassePanneaux.jsBand(\"14');alert(1)//\")") == '14alert1'
