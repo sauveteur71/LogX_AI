@@ -2525,6 +2525,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     bump_log_version()
                     mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
+                # Corbeille : capture la donnée COMPLÈTE du QSO pour restauration
+                # (logx_corbeille, distinct du tombstone mark_qso_deleted ci-dessus
+                # qui ne retient que l'id) — best-effort, ne doit JAMAIS faire
+                # échouer la suppression elle-même.
+                try:
+                    import logx_corbeille
+                    logx_corbeille.capturer_et_persister(removed)
+                except Exception:
+                    pass
                 # Le QSO supprimé (id normalement unique) peut avoir un scan QSL
                 # papier attaché (voir /qsl_scan/upload) — sans ce nettoyage, le
                 # fichier restait orphelin sur disque indéfiniment (seul le
@@ -2882,6 +2891,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'version': current_v,
                 'boot': _storage.SERVER_BOOT_ID,
             })
+            return
+
+        # Corbeille de QSO (logx_corbeille) : vue COMPACTE des suppressions
+        # récentes (30 j), pour la restauration après une erreur — même exigence
+        # d'auth que /log/list (données du carnet).
+        if path == '/log/corbeille':
+            if not self._require_auth():
+                return
+            import logx_corbeille
+            entrees = logx_corbeille.charger()
+            self._json({'entries': [logx_corbeille.resume(e) for e in entrees]})
             return
 
         # N° de série suivant pour une bande — allocation SERVEUR (voir
@@ -8314,6 +8334,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     bump_log_version()
                     mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
+                # Corbeille : même capture que do_DELETE (voir logx_corbeille) —
+                # best-effort, ne doit jamais faire échouer la suppression.
+                try:
+                    import logx_corbeille
+                    logx_corbeille.capturer_et_persister(removed)
+                except Exception:
+                    pass
                 # Même nettoyage du scan QSL attaché que dans do_DELETE (voir
                 # /qsl_scan/upload) : ce point d'entrée POST duplique la même
                 # suppression, il ne doit pas laisser de fichier orphelin non plus.
@@ -8323,6 +8350,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         import logx_qsl_scan as qslscan
                         qslscan.delete_scan(scan)
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Corbeille : restaurer un QSO supprimé (body {"id": <qso_id>}). Réutilise
+        # reserve_qso_id_locked (même garantie d'unicité que l'ajout normal, voir
+        # add_qso_to_log). En pratique le QSO restauré reçoit TOUJOURS un id
+        # NEUF : mark_qso_deleted (posé à la suppression) a mis l'id d'origine
+        # sous tombstone, et _used_qso_ids() traite un id tombstoné comme pris —
+        # jamais recyclé, précisément pour qu'un pair cloud déjà synchronisé sur
+        # « cet id est supprimé » ne voie pas un id ressuscité comme un fantôme.
+        # Seules les DONNÉES (call/bande/mode/...) reviennent identiques.
+        if self.path == '/log/corbeille/restore':
+            try:
+                payload = json.loads(body) if body else {}
+                qso_id = int(payload.get('id'))
+            except Exception:
+                self._json({'error': 'id invalide'}, 400)
+                return
+            try:
+                import logx_corbeille
+                qso = logx_corbeille.restaurer_et_persister(qso_id)
+                if qso is None:
+                    self._json({'ok': False, 'error': 'introuvable dans la corbeille (périmé ou déjà restauré ?)'}, 404)
+                    return
+                with log_lock:
+                    qso['id'] = reserve_qso_id_locked(qso.get('id'), shared_log)
+                    shared_log.append(qso)
+                    bump_log_version()
+                    stamp_qso_version(qso)
+                save_log_to_disk()
+                self._json({'ok': True, 'qso': qso})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

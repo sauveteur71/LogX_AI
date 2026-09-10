@@ -661,6 +661,22 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .dup-del{cursor:pointer;color:var(--muted);transition:color .15s;justify-self:end}
 .dup-del:hover{color:var(--red)}
 
+/* CORBEILLE DE QSO — restauration après suppression (incident du 19/08/2026,
+   248 QSO perdus récupérés à la main par carving SQLite). */
+.cb-box{width:560px}
+.cb-list{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;margin-bottom:8px}
+.cb-empty{text-align:center;padding:30px 0;color:var(--muted);font-family:var(--font-mono);font-size:13px}
+.cb-row{display:grid;grid-template-columns:1fr 0.5fr 0.5fr 1fr auto;gap:10px;align-items:center;
+  font-family:var(--font-mono);font-size:12.5px;color:var(--text);padding:7px 9px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:7px}
+.cb-call{font-weight:700}
+.cb-age{color:var(--muted);font-size:11px}
+.cb-restore{cursor:pointer;background:rgba(var(--accent-rgb),.1);border:1px solid var(--accent);
+  border-radius:5px;color:var(--accent);font-family:var(--font-mono);font-size:11px;
+  padding:4px 9px;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+.cb-restore:hover{background:#C9822E;color:#0A0B18}
+.cb-note{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.4}
+
 /* CHAMPS ADIF PERSONNALISÉS (édition QSO) */
 .exf-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center}
 .exf-row input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);
@@ -1368,6 +1384,19 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="flt-count" id="dupCount"></div>
       <button class="export-btn" onclick="dupDeleteAllExceptFirst()" style="color:var(--red);border-color:rgba(255,45,85,.4)">SUPPRIMER TOUS LES DOUBLONS</button>
     </div>
+  </div>
+</div>
+
+<!-- CORBEILLE DE QSO — restauration après suppression. PAS expert-only : la
+     sûreté n'a rien d'un outil avancé, un débutant doit pouvoir se rattraper. -->
+<div class="shortcuts-overlay" id="corbeilleOverlay" onclick="if(event.target===this)closeCorbeille()">
+  <div class="shortcuts-box cb-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h12M6 5V3.5A1.5 1.5 0 0 1 7.5 2h3A1.5 1.5 0 0 1 12 3.5V5M4.5 5l.8 9.5A1.5 1.5 0 0 0 6.8 16h4.4a1.5 1.5 0 0 0 1.5-1.5l.8-9.5"/></svg> CORBEILLE</span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeCorbeille()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+    </div>
+    <div class="cb-note">QSO supprimés ces 30 derniers jours. Restaurer les remet dans le carnet immédiatement.</div>
+    <div class="cb-list" id="cbList"><div class="cb-empty">Chargement…</div></div>
   </div>
 </div>
 
