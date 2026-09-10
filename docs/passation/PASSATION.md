@@ -144,14 +144,34 @@ par mutation + md5 + `ruff` + CI verte avant merge, branche par incrément).
 | 4c | Panneaux **WCA/COTA** + **DXpéditions** (lecture seule, mêmes sources que CHASSE : `logx_wca.py`/`logx_dxpeditions.py`) | ✅ fait, PR #464 (10/09/2026) |
 | 4d | **QSY + pointage antenne** sur la need-list (`/rig/qsy`, `/rotor/point`, boutons gâtés par l'état réel radio/rotor) | ✅ fait, PR #465 (10/09/2026) |
 | 4e | **Profil d'objectifs de chasse** (5 cases ATNO/+bande/+mode/LoTW/VUCC, `/data/operator_goals`, re-fetch de la need-list au changement) | ✅ fait, PR #466 (10/09/2026) |
-| 4 (reste) | Porter la **stratégie pile-up FT8** (`/wsjtx/strategy`) et la **fiche indicatif** (popup calldb+QSY+QRZ) dans l'activité | ⏳ en cours |
-| 5 | Rediriger `logx_chasse.html` vers l'activité + mettre à jour les 13 navs + repointer les hrefs de repli — **seul incrément destructif, après parité complète** | ⏳ pas fait |
+| 4f | **Stratégie pile-up FT8** (bouton 🧠, `/wsjtx/strategy` + polling, modale de résultat, purement consultatif) | ✅ fait, PR #467 (10/09/2026) |
+| 4 (fiche) | **Fiche indicatif** (popup calldb+QSY+QRZ au clic sur un spot actif du bandeau) | ✅ **déjà fournie, rien à porter** — voir constat ci-dessous |
+| 5 | Rediriger `logx_chasse.html` vers l'activité + mettre à jour les 13 navs + repointer les hrefs de repli — **seul incrément destructif, après parité complète** | ⏳ pas fait, **pas commencé — point de passage explicite avant d'y toucher (demande F4GLD)** |
 
-**Reste à faire pour clore le chantier** : compléter l'incr. 4 (QSY/rotor/FT8/
-fiche/objectifs — le plus gros morceau restant, touche le contrôle CAT donc à
-traiter avec soin même si aucune émission n'est concernée), puis l'incr. 5.
-Incr. 2 est optionnel (déduplication pure, zéro valeur utilisateur) — à faire
-seulement s'il devient gênant de maintenir deux copies des fonctions de rendu.
+**🎯 Incrément 4 COMPLET (10/09/2026).** Les 5 items (QSY/rotor/FT8/fiche/
+objectifs) sont tous couverts dans l'activité. Constat fait en préparant le
+portage de la fiche, vérifié en lisant le code (pas supposé) : `logx_bandeau_
+fiche.js` (créé le 03/09/2026, PR #456 « feat(bandeau): fiche + QSY au clic sur
+un spot (accueil + logbook) », **avant** ce chantier de fusion) est un module
+PARTAGÉ déjà chargé sur `logx_accueil.html` (`<script src="logx_bandeau_fiche.
+js">`) et déjà branché sur `#bandeaux` (conteneur déjà présent en HTML). Preuve
+de PARITÉ EXACTE avec CHASSE : CHASSE configure son bandeau avec
+`ids:['dxped','propag']` (`logx_chasse.html`) — **exactement** les mêmes ids
+que `_brancherBandeaux()` dans `logx_accueil.js` (déjà appelé inconditionnellement
+dans `_grille()`, avant même ce chantier). Le bandeau `dxped`
+(`logx_bandeaux_defs.js`, fonction `_dxped`) pose déjà `data-fiche`+`data-call`+
+`data-freq`+`data-band`+`data-mode`+`data-entity`+`data-neuf` sur les items
+ACTIFS (DXpéditions en direct) → CHASSE et l'accueil ont un comportement de
+fiche **strictement identique** (même source de données, mêmes ids de
+bandeau), juste via deux implémentations différentes (CHASSE garde sa fiche
+inline historique par choix de ne pas toucher CHASSE avant l'incr. 5 ;
+l'accueil réutilise le module partagé qui existait déjà). Aucun code écrit
+pour cet item — seulement vérifié et documenté ici.
+
+**Reste à faire pour clore le chantier : uniquement l'incrément 5**
+(redirection + 13 navs). Incr. 2 est optionnel (déduplication pure, zéro
+valeur utilisateur) — à faire seulement s'il devient gênant de maintenir deux
+copies des fonctions de rendu.
 
 #### Nuit du 24→25/08/2026 — sous-projets ADIF/IA + couverture concours/activités
 
