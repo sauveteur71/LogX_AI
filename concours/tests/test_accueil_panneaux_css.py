@@ -34,7 +34,7 @@ def test_le_css_definit_les_classes_emises_par_le_js():
                 '.sr-credit-badge', '.sr-split-badge',
                 '.xota-panneaux', '.xota-pan', '.xota-pan-h',
                 '.ck-needlist', '.ck-need-row', '.ck-need-call', '.ck-need-prio',
-                '.qsy-btn', '.point-btn', '.xota-qsy-status'):
+                '.qsy-btn', '.point-btn', '.xota-qsy-status', '.obj-list', '.obj-item'):
         assert cls in css, "classe non stylée dans logx_chasse_panneaux.css : " + cls
 
 

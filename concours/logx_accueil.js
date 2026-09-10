@@ -125,12 +125,18 @@ function _choisirRoleXota(role){
 // Rendu délégué au module LogxChassePanneaux (réutilise creditBadge/splitBadge/
 // PRIO_COLORS). `fetch` gardé (absent en DOM de test) ; la partie synchrone
 // (section + entête) reste testable.
+// État radio/rotor résolu pour la need-list de l'activité (fusion 4d),
+// mémorisé ici pour que enregistrerObjectifs() (4e) puisse re-rendre sans
+// re-interroger /rig/state et /rotor/state à chaque changement d'objectif.
+var _xotaRigEnabled = false, _xotaRotorEnabled = false;
+
 function _revelerCiblesChasse(){
   var el = document.getElementById('ciblesChasse');
   if(!el) return;
   // Panneaux d'activation POTA/SOTA/WWFF/WCA/DXpéditions (fusion 4b+4c) +
   // need-list cluster avec QSY/rotor (fusion 4d, endpoints /rig/qsy et
-  // /rotor/point — AUCUNE émission, juste régler la fréquence/l'antenne).
+  // /rotor/point — AUCUNE émission, juste régler la fréquence/l'antenne) +
+  // profil d'objectifs de chasse (fusion 4e, pilote les badges de crédit).
   el.innerHTML =
     '<h2 class="xota-acc-h">Cibles en direct</h2>' +
     '<div class="xota-panneaux">' +
@@ -140,6 +146,7 @@ function _revelerCiblesChasse(){
       '<div class="xota-pan"><div class="xota-pan-h">WCA / COTA (annoncé)</div><div id="panWca" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">DXpéditions</div><div id="panDx" class="scroll-list"></div></div>' +
     '</div>' +
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">🎯 Mes objectifs de chasse</div><div id="objectifsList" class="obj-list"></div></div>' +
     '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>';
   if(typeof fetch !== 'function') return;
   var P = window.LogxChassePanneaux; if(!P) return;
@@ -148,18 +155,70 @@ function _revelerCiblesChasse(){
   _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
   _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); });
   _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); });
+  chargerObjectifs();
   // Need-list : lit l'état radio/rotor AVANT de rendre (comme logx_chasse.html)
   // pour savoir si les boutons QSY/rotor doivent apparaître par ligne.
   Promise.all([
     fetch('/rig/state').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
     fetch('/rotor/state').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
   ]).then(function(states){
-    var rigEnabled = !!(states[0] && states[0].enabled);
-    var rotorEnabled = !!(states[1] && states[1].enabled);
-    _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){
-      return P.renderNeedList((d && d.spots) || [], {max:15, rigEnabled:rigEnabled, rotorEnabled:rotorEnabled});
-    });
+    _xotaRigEnabled = !!(states[0] && states[0].enabled);
+    _xotaRotorEnabled = !!(states[1] && states[1].enabled);
+    _rafraichirNeedList();
   });
+}
+
+// Re-fetch + re-rend la need-list (extrait de _revelerCiblesChasse pour être
+// rejoué après un changement d'objectif, fusion 4e) — pas un simple re-rendu :
+// les crédits sont calculés côté SERVEUR à partir du profil d'objectifs, donc
+// il faut relire /data/spots_ranked pour que les badges changent (sinon rien
+// de visible avant le poll suivant).
+function _rafraichirNeedList(){
+  if(typeof fetch !== 'function') return;
+  var P = window.LogxChassePanneaux; if(!P) return;
+  _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){
+    return P.renderNeedList((d && d.spots) || [], {max:15, rigEnabled:_xotaRigEnabled, rotorEnabled:_xotaRotorEnabled});
+  });
+}
+
+// ── Profil d'OBJECTIFS opérateur (fusion 4e, port de logx_chasse.html) ─────
+// Les clés DOIVENT correspondre EXACTEMENT à logx_operator_goals.CLES côté
+// serveur (garde-fou test_accueil_objectifs_ui.py) : sinon cocher/décocher ne
+// piloterait aucun crédit.
+var OBJECTIFS_DEF = [
+  {cle:'dxcc',                       label:'🌟 Nouveaux pays (ATNO)'},
+  {cle:'dxcc_new_band',              label:'📻 Nouvelle bande'},
+  {cle:'dxcc_new_mode',              label:'🎚 Nouveau mode'},
+  {cle:'lotw_confirmation_priority', label:'📩 Confirmations LoTW'},
+  {cle:'vucc',                       label:'🗺 Nouveaux carrés (VUCC)'},
+];
+function construireObjectifs(goals){
+  var box = document.getElementById('objectifsList');
+  if(!box) return;
+  // absent => coché (défaut = objectif actif, comme le serveur)
+  box.innerHTML = OBJECTIFS_DEF.map(function(o){
+    return '<label class="obj-item"><input type="checkbox" data-cle="' + o.cle + '"' + (goals[o.cle] === false ? '' : ' checked') + '> ' + o.label + '</label>';
+  }).join('');
+  var inputs = box.querySelectorAll ? box.querySelectorAll('input[data-cle]') : [];
+  for(var i=0; i<inputs.length; i++) inputs[i].onchange = enregistrerObjectifs;
+}
+function lireObjectifs(){
+  var out = {};
+  var inputs = document.querySelectorAll('#objectifsList input[data-cle]');
+  inputs.forEach(function(inp){ out[inp.dataset.cle] = inp.checked; });
+  return out;
+}
+function enregistrerObjectifs(){
+  var goals = lireObjectifs();
+  fetch('/data/operator_goals', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({goals:goals})})
+    .then(function(r){ return r.json(); })
+    .then(function(){ _rafraichirNeedList(); })   // re-fetch, pas un simple re-rendu (voir commentaire ci-dessus)
+    .catch(function(){});
+}
+function chargerObjectifs(){
+  fetch('/data/operator_goals').then(function(r){ return r.json(); })
+    .then(function(d){ construireObjectifs((d && d.goals) || {}); })
+    .catch(function(){ construireObjectifs({}); });   // serveur muet -> tout coché (défaut)
 }
 
 // QSY / pointer l'antenne depuis la need-list de l'activité (port de

@@ -24,7 +24,7 @@ def test_role_chasse_monte_les_panneaux_activation():
     ctx.eval(STUB_ROLE)
     ctx.eval("_choisirRoleXota('chasse');")
     html = ctx.eval("document.getElementById('ciblesChasse').innerHTML")
-    for cid in ('panPota', 'panSota', 'panWwff', 'panWca', 'panDx', 'ckNeedList', 'xotaQsyStatus'):
+    for cid in ('panPota', 'panSota', 'panWwff', 'panWca', 'panDx', 'ckNeedList', 'xotaQsyStatus', 'objectifsList'):
         assert cid in html, cid
     assert 'POTA' in html and 'SOTA' in html and 'WWFF' in html
     assert 'WCA' in html and 'DXp' in html
