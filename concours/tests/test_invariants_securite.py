@@ -66,6 +66,18 @@ def _post(base, path, obj, token=True):
         return e.code, json.loads(e.read())
 
 
+def _get(base, path, token=True):
+    hdr = {}
+    if token:
+        hdr['X-RC-Token'] = h.AUTH_TOKEN
+    rq = urllib.request.Request(base + path, headers=hdr, method='GET')
+    try:
+        with urllib.request.urlopen(rq, timeout=10) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
 def _poll(base, aid, n=50):
     state = None
     for _ in range(n):
@@ -175,6 +187,24 @@ def test_i2_agent_act_ne_logue_jamais_de_qso(serveur, monkeypatch):
         assert state['action'] and state['action'].get('type') == 'log'  # juste une proposition
     finally:
         _restore_cfg(saved)
+
+
+def test_i2_log_question_ne_peut_jamais_ecrire(serveur, monkeypatch):
+    """C1 (incr. 1, /log/question) est un chemin LECTURE SEULE sur le carnet
+    -- aucune formulation (topic préréglé ou texte libre) ne doit jamais
+    atteindre add_qso_to_log. Rougit si /log/question en vient un jour à
+    écrire (ex. un futur incrément qui ajouterait une action « note ce QSO »
+    sur ce même endpoint sans repasser par une revue de sécurité)."""
+    ecritures = []
+    monkeypatch.setattr(h, 'add_qso_to_log', lambda *a, **k: ecritures.append(a) or (True, {}))
+    monkeypatch.setattr(h, 'shared_log', [{'id': 1, 'call': 'F4ABC', 'band': '20m',
+                                            'mode': 'SSB', 'date': '20260901', 'time': '10:00'}])
+    code, j = _get(serveur, '/log/question?topic=total')
+    assert code == 200 and j.get('ok') is True
+    code, j = _get(serveur, '/log/question?texte=' +
+                    'ai-je%20deja%20travaille%20F4ABC%20%3F')
+    assert code == 200
+    assert ecritures == []                         # AUCUNE écriture au log
 
 
 # ─────────────────────────── I3 — 0 faux crédit diplôme ──────────────────────

@@ -677,6 +677,25 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .cb-restore:hover{background:#C9822E;color:#0A0B18}
 .cb-note{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.4}
 
+/* QUESTIONS SUR LE CARNET (C1, incrément 1) — 0 jeton, 0 appel LLM. */
+.qc-box{width:520px}
+.qc-note{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.4}
+.qc-quick{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.qc-quick button{cursor:pointer;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px}
+.qc-quick button:hover{border-color:var(--accent2)}
+.qc-input-row{display:flex;gap:8px;margin-bottom:12px}
+.qc-input-row input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--font-mono);font-size:13px;padding:8px 10px;outline:none}
+.qc-input-row input:focus{border-color:var(--accent2)}
+.qc-input-row button{cursor:pointer;background:rgba(var(--accent-rgb),.1);border:1px solid var(--accent);
+  border-radius:6px;color:var(--accent);font-family:var(--font-mono);font-size:12px;
+  padding:8px 14px;font-weight:700;white-space:nowrap}
+.qc-input-row button:hover{background:#C9822E;color:#0A0B18}
+.qc-reponse{font-size:13px;color:var(--text);background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;padding:10px 12px;min-height:20px;line-height:1.5}
+.qc-reponse.qc-erreur{color:var(--muted)}
+
 /* CHAMPS ADIF PERSONNALISÉS (édition QSO) */
 .exf-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center}
 .exf-row input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);
@@ -1397,6 +1416,30 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
     <div class="cb-note">QSO supprimés ces 30 derniers jours. Restaurer les remet dans le carnet immédiatement.</div>
     <div class="cb-list" id="cbList"><div class="cb-empty">Chargement…</div></div>
+  </div>
+</div>
+
+<!-- QUESTIONS SUR LE CARNET (C1, incrément 1) — lecture seule, 0 jeton,
+     0 appel LLM. cadrage docs/superpowers/specs/2026-09-11-c1-requetes-
+     langage-naturel-carnet.md, validé par F4GLD (« logbook ») le 11/09/2026. -->
+<div class="shortcuts-overlay" id="carnetQuestionsOverlay" onclick="if(event.target===this)closeCarnetQuestions()">
+  <div class="shortcuts-box qc-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M6.8 7a2.2 2.2 0 1 1 3.4 1.8c-.7.5-1.2.9-1.2 1.9"/><circle cx="9" cy="13.2" r=".2" fill="currentColor"/></svg> QUESTIONS SUR LE CARNET</span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeCarnetQuestions()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+    </div>
+    <div class="qc-note">Questions rapides sur ton carnet, sans appel IA (0 jeton) — d'autres formulations arriveront dans un prochain incrément.</div>
+    <div class="qc-quick">
+      <button type="button" onclick="poserQuestionCarnet('total')">Total QSO</button>
+      <button type="button" onclick="poserQuestionCarnet('par_bande')">Par bande</button>
+      <button type="button" onclick="poserQuestionCarnet('par_mode')">Par mode</button>
+      <button type="button" onclick="poserQuestionCarnet('dernier')">Dernier QSO</button>
+    </div>
+    <div class="qc-input-row">
+      <input type="text" id="qcIndicatifInput" placeholder="Indicatif (ex. F4ABC)" maxlength="16">
+      <button type="button" onclick="poserQuestionCarnet('deja_travaille')">Déjà travaillé ?</button>
+    </div>
+    <div class="qc-reponse" id="qcReponse">Choisis une question ci-dessus.</div>
   </div>
 </div>
 
