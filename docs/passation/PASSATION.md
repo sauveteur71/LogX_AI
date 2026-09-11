@@ -20,6 +20,14 @@ reco. « A. Dérouler l'axe activité ») repris et poursuivi — incr. 4c (pann
 WCA + DXpéditions) fait et fusionné (PR #464). Voir la nouvelle sous-section
 dédiée dans la section 1, juste après AFFICHAGE.
 
+**Mise à jour le 11/09/2026** : chantier fusion CHASSE→activité **CLOS**
+(incréments 1 à 5c tous mergés, #472 pour la trace de clôture ne s'applique
+pas ici — voir #464-#471). Nouveau chantier démarré le même jour après
+cadrage/vérification des licences : **SSDV** (réception d'images
+ballons/satellites), Phase 1 (parseur + assembleur + wrapper sous-processus,
+zéro radio) mergée (PR #472). Voir les deux nouvelles sous-sections dédiées
+dans la section 1.
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -1213,6 +1221,76 @@ d'abord ») pour le dernier incrément, destructif.
   fonctionnel avec ET sans JavaScript (repli `<meta refresh>`), bouton Retour
   ne revient pas sur la page morte (confirmé : `location.replace()` ne pose
   aucune entrée d'historique).
+
+**Le chantier fusion CHASSE→activité est CLOS** (incréments 1 à 5c, PR
+#464-#471, tous mergés, testés, vérifiés en navigateur réel). Le résumé de
+clôture donné à F4GLD le 11/09/2026 couvre l'ensemble : axe = activité
+réellement pratiquée (décision du 19/08, pas un niveau déclaré), module
+partagé (incr. 1), need-list (incr. 3), panneaux d'activation + QSY/rotor/
+objectifs/FT8 (incr. 4a-4f), nav sur l'accueil + entrée directe + redirect
+final (incr. 5a-5c).
+
+### SSDV — réception d'images ballons/satellites (cadrage 11/09/2026)
+
+Demande d'intégration d'une note de recherche externe (pas de F4GLD
+lui-même, style manifestement produit par un autre assistant IA) sur SSDV/
+HamStation. **Doctrine du dépôt appliquée avant tout code** : chaque
+affirmation vérifiable a été recontrôlée via `gh api` — 4 des 7 dépôts cités
+par la note n'ont EN RÉALITÉ aucune licence détectée par GitHub (la note les
+présentait comme une simple zone grise « à vérifier », alors que c'est un
+blocage dur : code tous-droits-réservés par défaut). Voir
+`docs/superpowers/specs/2026-09-11-ssdv-integration-design.md` pour le détail
+complet (licences, stratégie retenue, découpage en phases).
+
+**Stratégie retenue (même patron que VOACAP, PR #16)** : binaire externe
+`ssdv` (fsphil, GPL-3.0, archivé mais stable) appelé en sous-processus non
+modifié — « mere aggregation », n'impose pas la GPL au reste du dépôt.
+Parseur/assembleur réécrits en Python natif depuis le format PUBLIC UKHAS,
+jamais copiés d'un dépôt GPL.
+
+**F4GLD a tranché les 3 questions ouvertes du cadrage (11/09/2026)** :
+binaire **vendorisé** (option A, même patron que `voacapl.exe` — pas une
+dépendance système à installer soi-même), usage **général** (pas seulement
+personnel, oriente les phases suivantes vers un transport générique), portée
+Phase 1 confirmée **sans changement** (« zéro risque »).
+
+**Phase 1 — FAIT et mergée (PR #472, 11/09/2026)** : `concours/logx_ssdv.py`.
+- Parseur d'en-tête de paquet (15 des 256 octets) : offsets relus ligne à
+  ligne contre le vrai code source de `fsphil/ssdv` (`ssdv.c`/`ssdv.h`), PAS
+  déduits de la note reçue. **Une contradiction trouvée et corrigée pendant
+  cette vérification** : une première extraction (via fetch résumé du code)
+  avait inversé `SSDV_TYPE_NORMAL` (0x00, avec FEC Reed-Solomon) et
+  `SSDV_TYPE_NOFEC` (0x01, sans FEC) — recroisé avec une deuxième lecture
+  ciblée (`ssdv_enc_get_packet`/`ssdv_dec_is_packet`) avant d'écrire le
+  moindre test. Le test `test_parser_entete_type_nofec_vs_normal` fige
+  explicitement le sens correct pour que cette inversion ne puisse pas
+  revenir en silence.
+- Codec base-40 de l'indicatif (`-`=0, `0`-`9`=1..10, `A`-`Z`=14..39),
+  aller-retour testé.
+- Assembleur : progression (basée sur le paquet EOI si vu, sinon sur le
+  packet_id max reçu — heuristique documentée dans le code), paquets
+  manquants/dupliqués, complétude (EOI reçu ET aucun trou).
+- Wrapper sous-processus (`encoder`/`decoder`), résolution du binaire par
+  priorité config explicite > vendorisé (`concours/vendor/ssdv/`, **pas
+  encore livré** — obtention/compilation du binaire reste un suivi séparé,
+  non bloquant) > PATH système > `FileNotFoundError` explicite, même patron
+  que `resoudre_jt9()` (`logx_q65_natif.py`).
+- **Portée volontairement limitée** (« zéro risque » voté par F4GLD) : le
+  parseur ne lit QUE l'en-tête, jamais la charge utile ni le FEC — la
+  reconstruction JPEG réelle reste déléguée au binaire externe. Aucune
+  réimplémentation de Reed-Solomon dans ce dépôt.
+- 35 tests, 6 mutations ciblées (inversion NORMAL/NOFEC, ordre d'octets
+  packet_id, largeur/hauteur, décodage base-40, complétude) toutes rougies
+  puis restaurées à l'identique (md5 contrôlé). Un seul test sauté sans
+  binaire vendorisé (`test_integration_reelle_encode_decode_aller_retour`,
+  même patron que `jt9`/`test_q65_natif.py`).
+
+**Phases suivantes NON cadrées** (transport AX.25/APRS, fusion
+multi-stations, suivi de passage satellite, UI temps réel) : à discuter
+séparément avec F4GLD avant tout code, une fois qu'il aura choisi de
+reprendre ce chantier plutôt qu'un autre (C1 — requêtes langage naturel du
+copilote — reste également en simple cadrage, ni l'un ni l'autre en attente
+d'implémentation automatique).
 
 ---
 
