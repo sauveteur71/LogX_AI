@@ -1,6 +1,10 @@
-# SSDV (Slow Scan Digital Video) — spec de cadrage, à valider avant code
+# SSDV (Slow Scan Digital Video) — spec de cadrage
 
-**Date :** 2026-09-11. **Statut : à relire par F4GLD avant tout code.** Écrit
+**Date :** 2026-09-11. **Statut : VALIDÉ par F4GLD (11/09/2026), Phase 1 en
+cours d'implémentation.** Les 3 questions ouvertes du §5 sont tranchées :
+binaire vendorisé (option A, patron `voacapl.exe`), usage général (pas
+seulement personnel), portée Phase 1 confirmée sans changement (« zéro
+risque »). Écrit
 suite à une demande d'intégration d'une note de recherche (visiblement produite
 par un autre assistant IA, pas F4GLD lui-même) sur SSDV/HamStation. Doctrine du
 dépôt appliquée : **rien de cette note n'a été pris pour argent comptant** —
@@ -30,11 +34,31 @@ juridictions, et ne peut pas être réutilisé (même inspiré) sans autorisatio
 licence n'apparaît** (ou qu'un accord explicite n'est obtenu par F4GLD lui-même
 — ni moi ni un agent ne peut négocier ça).
 
-Non vérifié à ce stade (`HYPOTHÈSE À VÉRIFIER`) : le contenu technique détaillé
-de la note (offsets exacts du format de paquet, comportement précis du FEC
-Reed-Solomon, fréquences ERMINAZ, contenu du guide UKHAS) — cohérent avec ce
-qui est publiquement documenté sur SSDV, mais pas relu ligne à ligne contre le
-code source de `fsphil/ssdv` ni contre le guide UKHAS lui-même.
+**Mise à jour (11/09/2026, avant implémentation)** : les offsets du format de
+paquet ont été relus ligne à ligne contre le vrai code source de
+`fsphil/ssdv` (`ssdv.c`/`ssdv.h`, via `gh`/fetch direct du dépôt, pas la note
+reçue) — deux extractions indépendantes, dont une contradiction trouvée et
+résolue (une première lecture inversait `SSDV_TYPE_NORMAL`/`SSDV_TYPE_NOFEC`,
+corrigée en relisant `ssdv_enc_get_packet`/`ssdv_dec_is_packet` directement) :
+
+- Paquet = 256 octets (`SSDV_PKT_SIZE`). En-tête = 15 octets (offsets 0-14) :
+  `[0]` sync `0x55` · `[1]` type = `0x66 + type` (`SSDV_TYPE_NORMAL=0x00` avec
+  FEC Reed-Solomon, `SSDV_TYPE_NOFEC=0x01` sans FEC) · `[2-5]` indicatif encodé
+  base-40 (32 bits) · `[6]` id image · `[7-8]` id paquet (MSB puis LSB) ·
+  `[9]` largeur/16 · `[10]` hauteur/16 · `[11]` fanions : qualité =
+  `((o[11]>>3)&7)^4`, EOI = `(o[11]>>2)&1`, mode MCU = `o[11]&0x03` ·
+  `[12]` décalage MCU · `[13-14]` id MCU (MSB puis LSB).
+- Indicatif base-40 : `-`→0, `0`-`9`→1-10, `A`-`Z`→14-39 (11-13 inutilisés) ;
+  encodage = construction depuis le DERNIER caractère (poids fort = premier
+  caractère de l'indicatif) — le décodage doit donc extraire les chiffres
+  base-40 par divisions/modulos successifs puis les inverser.
+- Charge utile : `256 - 15 (en-tête) - 4 (CRC)` sans FEC, `- 32` de plus
+  (Reed-Solomon) avec FEC — non exploité en Phase 1 (voir §4 : la
+  reconstruction complète reste déléguée au binaire `ssdv`, le parseur Python
+  ne lit QUE l'en-tête pour le suivi/l'affichage, jamais la charge utile ni le
+  FEC, pour rester dans la portée « zéro risque » votée).
+- Fréquences ERMINAZ/contenu détaillé du guide UKHAS : toujours non vérifiés,
+  non nécessaires pour la Phase 1 (aucun transport radio dedans).
 
 ## 2. Stratégie de licence retenue
 
@@ -97,17 +121,23 @@ canal de partage — le mécanisme d'occupation multi-postes LAN/Cloud/MySQL dé
 construit pourrait être réutilisé, à évaluer), suivi de passage satellite,
 UI temps réel.
 
-## 5. Questions ouvertes pour F4GLD
+## 5. Décisions de F4GLD (11/09/2026)
 
-1. **Priorité** : ce chantier passe-t-il devant/après C1 (requêtes langage
-   naturel du copilote, déjà en attente de cadrage) et l'incrément 5c de la
-   fusion CHASSE (rediriger `logx_chasse.html`, en attente de ton feu vert) ?
-2. **Binaire externe** : `ssdv` (fsphil) doit être compilé/vendorisé comment —
-   même patron que `voacapl.exe` (binaire embarqué dans les releases) ou
-   dépendance système que l'utilisateur installe lui-même ?
-3. **Cas d'usage réel** : c'est pour toi (ballons/satellites que tu suis
-   personnellement) ou une demande plus générale ? Ça oriente le Phase 2
-   (quel transport prioriser : AX.25 classique, ou un mode spécifique à ton
-   usage).
-4. Périmètre Phase 1 ci-dessus te convient-il, ou tu veux une portée
-   différente pour le premier incrément ?
+1. **Priorité** : tranchée de fait — 5c (fusion CHASSE) a été fait en premier
+   (mergé), C1 reste en attente de cadrage séparé, SSDV démarre maintenant.
+2. **Binaire externe — Option A retenue** : `ssdv` (fsphil) est **vendorisé**,
+   même patron que `voacapl.exe` (`concours/voacap/win64/`) — binaire
+   embarqué dans les releases, pas une dépendance système à installer par
+   l'utilisateur. Conséquence pour l'implémentation : `logx_ssdv.py` résout
+   un chemin vendorisé (`concours/ssdv/<plateforme>/`, à créer) avant de
+   retomber sur le `PATH` système (utile en dev tant que le binaire n'est pas
+   encore commité — obtention/compilation du binaire lui-même est un suivi
+   séparé, pas bloquant pour la Phase 1 qui ne l'exige pas pour tourner :
+   parseur/assembleur sont testables sur des paquets synthétiques sans lui,
+   les tests d'intégration sous-processus se `skip` si absent, même patron
+   que `test_q65_natif.py` pour `jt9`).
+3. **Cas d'usage — demande générale**, pas seulement l'usage personnel de
+   F4GLD. Oriente la Phase 2 (non cadrée ici) vers un transport générique
+   plutôt qu'un mode spécifique à une pratique individuelle.
+4. **Portée Phase 1 confirmée sans changement** (« zéro risque ») : le
+   découpage du §4 est adopté tel quel.
