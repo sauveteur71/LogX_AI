@@ -30,15 +30,39 @@ publie ses résultats décodés en **UDP** (protocole Qt QDataStream) ;
 (`start_listener`, écouteur en thread de fond, idempotent). LogX AI ne fait
 AUCUNE démodulation audio lui-même pour FT8.
 
-**Proposition : reproduire ce patron pour AX.25/APRS**, avec **Direwolf**
-(`wb2osz/direwolf`, GPL-2.0, actif, vérifié via `gh api` le 11/09/2026 — pas
-supposé) comme équivalent de WSJT-X : c'est le logiciel de référence pour
+**Proposition initiale : reproduire ce patron pour AX.25/APRS**, avec
+**Direwolf** (`wb2osz/direwolf`, GPL-2.0, actif, vérifié via `gh api` le
+11/09/2026) comme équivalent de WSJT-X : logiciel de référence pour
 transformer un flux audio radioamateur en trames AX.25 décodées, standard
-de facto dans la communauté (ballons haute altitude, APRS, packet radio). Il
-expose ses trames décodées via **KISS-sur-TCP** (port 8001 par défaut) ou
-AGW packet engine — LogX AI écouterait ce port, EXACTEMENT comme il écoute
-déjà le port UDP de WSJT-X, sans jamais toucher à l'audio brut ni
-réimplémenter la couche AX.25/HDLC.
+de facto (ballons haute altitude, APRS, packet radio). Il expose ses
+trames décodées via **KISS-sur-TCP** ou AGW packet engine — LogX AI
+écouterait ce port, comme il écoute déjà le port UDP de WSJT-X, sans jamais
+toucher à l'audio brut ni réimplémenter la couche AX.25/HDLC. Port TCP par
+défaut : **VALEUR À SOURCER** (je n'ai pas retrouvé de default documenté en
+cherchant le README/wiki/direwolf.conf du dépôt — pas à assumer, à lire
+dans la config réelle avant tout code).
+
+**Correction (11/09/2026, après relecture demandée par F4GLD) : recherche
+GitHub plus large faite APRÈS cette première proposition, pas avant —
+deux dépôts pertinents manquaient à l'analyse initiale, vérifiés
+maintenant via `gh api`/lecture directe :**
+
+| Dépôt | Licence | Actif | Ce que c'est |
+|---|---|---|---|
+| `hobisatelit/ssdv2sat` | GPL-3.0 | oui (avril 2026), petit projet (7 ★, 0 issue/PR ouverte) | RX/TX complet SSDV↔satellite via radio FM portable. **Utilise Direwolf en interne** pour la couche AX.25 (« Link Layer: AX.25 (managed by Direwolf) »), IL2P en option, entrée KISS-TCP ou carte son. Cible LAPAN-A2/SilverSat/Hades-SA. |
+| `daniestevez/gr-satellites` | GPL-3.0 | très actif (poussé aujourd'hui, 977 ★) | Décodeur GNU Radio générique pour satellites amateurs, entrée IQ brute SDR (pas audio démodulé), sait réassembler des fichiers/images transmis par certains satellites — support SSDV précis non confirmé sans lecture plus approfondie de sa doc dédiée. |
+
+**Ce que ça change** : `ssdv2sat` ne contredit PAS la piste Direwolf — il la
+CONFIRME (il s'appuie sur Direwolf pour la même raison : ne pas
+réimplémenter AX.25). La vraie question devient : **écrire un client KISS
+maison par-dessus Direwolf (contrôle fin, mais code neuf), ou vendoriser/
+appeler `ssdv2sat` en sous-processus comme un bloc déjà assemblé** (moins de
+code neuf, mais dépendance à un projet à 7 étoiles/0 activité communautaire
+visible — risque de maintenance différent de `fsphil/ssdv` ou `direwolf`,
+tous deux nettement plus établis). `gr-satellites` est plus capable mais
+plus lourd (dépendance GNU Radio complète, entrée IQ brute donc un SDR
+requis en plus d'une simple carte son) — probablement disproportionné pour
+un premier incrément.
 
 - **Licence** : même raisonnement déjà appliqué à VOACAP et au binaire
   `ssdv` — Direwolf tourne en processus EXTERNE séparé, LogX AI se connecte
@@ -67,6 +91,10 @@ réimplémenter la couche AX.25/HDLC.
 
 ## 4. Questions ouvertes pour F4GLD
 
+0. **Client KISS maison par-dessus Direwolf, ou réutiliser `ssdv2sat` en
+   sous-processus** (voir §2, correction) ? Le second réduit le code neuf
+   mais dépend d'un projet à faible activité communautaire visible — à
+   trancher avant d'écrire quoi que ce soit.
 1. **Confirmes-tu Direwolf** comme le chemin audio → trame à intégrer (vs.
    un TNC matériel qui parlerait KISS directement sur un port série — dans
    ce cas le client KISS serait le même, seule la source du port change,
