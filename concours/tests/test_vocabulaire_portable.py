@@ -40,14 +40,17 @@ def _lire(nom):
 
 # Les phrases françaises qui sont À LA FOIS dans une page et clés du
 # dictionnaire. C'est exactement l'ensemble où une divergence est silencieuse.
+#
+# Les 7 entrées 'logx_chasse.html' retirées le 11/09/2026 (fusion CHASSE→
+# activité, incr. 5c) : ces phrases (titres de panneaux "STATIONS ... EN
+# DIRECT", messages d'état vide) n'existent PLUS DANS AUCUNE SOURCE — le
+# remplaçant (logx_chasse_panneaux.js::renderActivationRows) utilise des
+# titres plus courts ("POTA", "SOTA"...) posés par le HTML appelant, et n'a
+# actuellement PAS de message d'état vide dédié (panneau silencieusement vide
+# si aucun spot). Les clés i18n correspondantes restent dans logx_i18n.js
+# (orphelines, harmless) -- nettoyage laissé pour un futur lot i18n, hors
+# scope de ce redirect. Suivi dans docs/passation/PASSATION.md.
 PHRASES_TRADUITES = [
-    ('logx_chasse.html', 'STATIONS POTA EN DIRECT'),
-    ('logx_chasse.html', 'STATIONS SOTA EN DIRECT'),
-    ('logx_chasse.html', 'STATIONS WWFF EN DIRECT'),
-    ('logx_chasse.html', "Aucun trafic POTA signalé pour l'instant."),
-    ('logx_chasse.html', "Aucun trafic SOTA signalé pour l'instant."),
-    ('logx_chasse.html', "Aucun trafic WWFF signalé pour l'instant."),
-    ('logx_chasse.html', "Aucun trafic WCA/COTA annoncé pour l'instant."),
 ]
 
 

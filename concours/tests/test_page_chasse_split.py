@@ -1,26 +1,41 @@
 # -*- coding: utf-8 -*-
-"""Separation PROPAG / CHASSE : les cinq panneaux de « cibles de trafic »
-vivent sur logx_chasse.html, plus du tout sur logx_propagation.html.
+"""Separation PROPAG / CHASSE, puis fusion CHASSE -> activité « activation
+portable » (incr. 5c, 11/09/2026, D2 F4GLD « fusion totale »).
 
-Pourquoi figer ca par des tests plutot que se fier a une relecture :
+Historique de ce fichier : il verrouillait d'abord le déménagement des cinq
+panneaux de « cibles de trafic » de PROPAG vers une page CHASSE dédiée
+(11/08/2026). Ce même contenu vient d'être déménagé UNE SECONDE FOIS, de
+CHASSE vers l'activité "activation portable" de l'accueil (fusion CHASSE→
+activité, incréments 1 à 5b, tous mergés et vérifiés en navigateur réel avant
+celui-ci). CHASSE elle-même devient une page de REDIRECTION pure — plus un
+seul octet de son ancien contenu n'y reste.
 
-1) Le piege du getElementById silencieux. Partout dans ce projet, un
-   `document.getElementById(...)` sur un id disparu est garde par un
-   `if (el)` ou avale par un `try/catch` — laisser du JS de chargement
-   POTA/SOTA/WWFF/WCA/cluster sur la page propagation ne produirait AUCUNE
-   erreur visible : juste des requetes reseau inutiles toutes les minutes et
-   du code mort que la relecture suivante croira encore utile. Les tests
-   ci-dessous verifient donc l'ABSENCE du marquage ET l'ABSENCE du code qui
-   l'alimentait.
+Pourquoi figer ça par des tests plutot que se fier a une relecture :
 
-2) Le piege de la barre de navigation dupliquee. La nav est recopiee a la
-   main dans CHAQUE page .html : ajouter une entree sur six pages sur sept
-   donne une navigation qui change d'une page a l'autre, ce qui ne casse rien
-   techniquement et passe donc inapercu en relecture.
+1) Le piège du contenu mort laissé derrière. Rien ne garantit qu'un futur
+   commit ne réintroduise pas par erreur un fragment de l'ancien contenu de
+   CHASSE (copier-coller d'un diff, restauration partielle) : les tests
+   ci-dessous vérifient l'ABSENCE des identifiants/endpoints déjà migrés,
+   comme au premier déménagement (PROPAG->CHASSE).
 
-3) L'i18n fonctionne par correspondance EXACTE du texte francais : un libelle
-   de nav sans entree dans les 7 langues reste en francais au milieu d'une
-   interface traduite, sans la moindre erreur.
+2) Le piège du lien mort. CHASSE reste une URL PUBLIQUE (bookmarks,
+   liens externes, 13 pages qui y pointent dans leur nav) : la page doit
+   TOUJOURS rediriger, jamais rendre un 404 ni un contenu vide.
+
+3) Le piège du bouton Retour. Une redirection posée avec `location.href`
+   (plutôt que `.replace()`) laisse une entrée d'historique morte : Retour
+   ramènerait sur une page qui se redirige aussitôt -- boucle perçue comme un
+   bug par l'utilisateur.
+
+4) Le piège de la barre de navigation dupliquée (toujours valable) : la nav
+   est recopiee a la main dans CHAQUE page .html qui la porte. CHASSE n'en a
+   plus besoin (elle ne s'affiche jamais) -- mais les 13 AUTRES pages, qui
+   pointent toujours vers "logx_chasse.html" dans leur propre nav, doivent
+   rester identiques entre elles.
+
+5) L'i18n fonctionne par correspondance EXACTE du texte francais : le libelle
+   de nav "CHASSE" (utilisé par les 13 autres pages) doit rester traduit dans
+   les 7 langues même si CHASSE elle-même n'affiche plus rien.
 """
 import os
 import re
@@ -29,12 +44,15 @@ CONCOURS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CHASSE = os.path.join(CONCOURS_DIR, 'logx_chasse.html')
 PROPAG = os.path.join(CONCOURS_DIR, 'logx_propagation.html')
+ACCUEIL_JS = os.path.join(CONCOURS_DIR, 'logx_accueil.js')
 I18N = os.path.join(CONCOURS_DIR, 'logx_i18n.js')
 
-# Les pages qui portent la barre de navigation applicative (celles-la et pas
-# d'autres : mobile/wall/scope/panel sont des vues autonomes sans nav).
+# Les pages qui portent la barre de navigation applicative. logx_chasse.html
+# EN EST SORTIE (incr. 5c) : elle ne s'affiche plus jamais, donc plus de nav
+# propre à vérifier -- mais elle reste une CIBLE de la nav des autres pages
+# (voir ORDRE_NAV_ATTENDU, inchangé : aucune des 13 pages n'a été modifiée).
 PAGES_AVEC_NAV = [
-    'logx_accueil.html', 'logx_calendrier.html', 'logx_carte.html', 'logx_chasse.html',
+    'logx_accueil.html', 'logx_calendrier.html', 'logx_carte.html',
     'logx_configuration.html', 'logx_cw.html', 'logx_departements.html',
     'logx_diagnostic.html', 'logx_eme.html', 'logx_logbook.html',
     'logx_modes_numeriques.html', 'logx_propagation.html', 'logx_session.html',
@@ -44,13 +62,9 @@ PAGES_AVEC_NAV = [
 # Ordre de nav fige le 11/08/2026 (reorg nav + fusion PROPAG/FOCUS BANDE) :
 # CONFIG, LOGBOOK, CHASSE, MODE NUMERIQUE, PROPAG, CARTE IA, ZONES TRAVAILLEES
 # (ex-DEPARTEMENTS), PANADAPTER (popout javascript:void(0)), CALENDRIER,
-# WEBSDR, ECOLE CW.
-# Refonte nav approche A (27/08) : le CŒUR (CONFIG·LOGBOOK·CHASSE·PROPAG) reste
-# au 1er niveau ; les 7 autres sont rangés dans le menu « Outils ▾ » (toujours
-# des <a href> DANS le <nav>, donc toujours comptés ici, dans cet ordre). PROPAG
-# a remonté juste après CHASSE (cœur regroupé).
-# Ajout EME (01/09/2026) : entrée « EME » insérée dans le menu Outils juste
-# après WEBSDR (cf. logx_eme.html, page cockpit EME).
+# WEBSDR, ECOLE CW. Refonte nav approche A (27/08) puis EME (01/09) : voir
+# git blame pour le détail historique. INCHANGÉ par l'incr. 5c : les 13 pages
+# pointent toujours vers "logx_chasse.html", qui redirige en interne.
 ORDRE_NAV_ATTENDU = [
     'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
     'logx_propagation.html', 'logx_diagnostic.html', 'logx_session.html',
@@ -59,17 +73,9 @@ ORDRE_NAV_ATTENDU = [
     'logx_eme.html', 'logx_cw.html',
 ]
 
-# Titres exacts des cinq panneaux deplaces (accents compris).
-# Libelles renommes le 30/07/2026 a la demande de l'utilisateur : « activateur »
-# et « activation » ont disparu des ecrans francais, au profit du vocabulaire
-# radioamateur (voir tests/test_vocabulaire_portable.py, qui verrouille aussi la
-# correspondance avec les cles de traduction). Les identifiants DOM ci-dessous
-# n'ont PAS bouge : ils ne sont jamais vus par l'operateur.
-#
-# Prefixe emoji retire le 03/08/2026 (chantier icones monochromes, cf.
-# CLAUDE.md) : chaque titre est desormais precede d'un <svg> plutot que d'un
-# caractere emoji. On verifie le TEXTE, qui n'a pas bouge, plutot que de figer
-# un prefixe decoratif appele a changer a nouveau.
+# Titres des cinq panneaux, DEUX FOIS déménagés : PROPAG -> CHASSE (11/08),
+# puis CHASSE -> l'activité (11/09, ce fichier). Toujours utiles pour vérifier
+# qu'aucun des deux anciens emplacements n'en garde une trace.
 TITRES_DEPLACES = [
     'STATIONS POTA EN DIRECT',
     'STATIONS SOTA EN DIRECT',
@@ -84,7 +90,11 @@ IDS_DEPLACES = [
     'wcaList', 'wcaMeta', 'spotList', 'spotsMeta',
 ]
 
-# Fonctions/endpoints qui alimentaient ces panneaux.
+# Fonctions/endpoints qui alimentaient ces panneaux DANS CHASSE (son ancienne
+# implémentation inline, avant l'incr. 5c). L'activité utilise ses PROPRES
+# noms (renderActivationRows, _revelerCiblesChasse, etc. dans logx_accueil.js
+# + logx_chasse_panneaux.js) -- ces symboles-ci sont donc doublement morts
+# maintenant : ni dans PROPAG, ni dans CHASSE.
 SYMBOLES_DEPLACES = [
     'loadPota', 'loadSota', 'loadWwff', 'loadWca', 'loadSpots', 'renderSpots',
     'setFilter', 'spotsData', 'PRIO_COLORS',
@@ -110,29 +120,91 @@ def _sans_commentaires_html(src):
                      if not l.lstrip().startswith(('//', '*', '/*')))
 
 
-# ── La page CHASSE existe et contient bien les cinq panneaux ────────────────
+# ── CHASSE existe toujours et redirige (incr. 5c) ────────────────────────
 
 def test_page_chasse_existe():
     assert os.path.isfile(CHASSE), 'logx_chasse.html manquante'
 
 
-def test_les_cinq_panneaux_sont_sur_la_page_chasse():
+def test_chasse_redirige_vers_lactivite_en_mode_chasse():
+    """Les deux mécanismes de redirection (meta-refresh ET JS) doivent
+    pointer vers la MÊME destination — logx_accueil.js::init() sait
+    reconnaitre ?chasse=1 et révéler directement les cibles en direct
+    (incr. 5b, déjà mergé et vérifié en navigateur réel)."""
+    src = _lire(CHASSE)
+    assert re.search(
+        r'<meta http-equiv="refresh" content="0;\s*url=logx_accueil\.html\?chasse=1"',
+        src), 'meta-refresh absente ou mal ciblée (marche même sans JS)'
+    assert "location.replace('logx_accueil.html?chasse=1')" in src, (
+        'redirection JS absente ou mal ciblée')
+
+
+def test_chasse_utilise_replace_jamais_href():
+    """.href laisserait une entrée d'historique morte -- Retour ramènerait
+    sur cette page qui se redirige aussitôt (boucle perçue comme un bug)."""
+    src = _lire(CHASSE)
+    assert 'location.href' not in src
+    assert '.replace(' in src
+
+
+def test_chasse_a_un_repli_sans_javascript():
+    """<meta http-equiv=refresh> suffit déjà sans JS, mais un lien explicite
+    reste plus honnête qu'une page blanche si le user-agent ignore aussi le
+    meta-refresh (certains lecteurs d'écran/proxies)."""
+    src = _lire(CHASSE)
+    assert '<noscript>' in src
+    assert 'href="logx_accueil.html?chasse=1"' in src
+
+
+# ── CHASSE ne garde AUCUNE trace de son ancien contenu ───────────────────
+
+def test_chasse_na_plus_les_cinq_panneaux():
     src = _lire(CHASSE)
     for titre in TITRES_DEPLACES:
-        assert titre in src, 'panneau absent de logx_chasse.html : ' + titre
+        assert titre not in src, (
+            'panneau encore présent dans logx_chasse.html (devrait être '
+            'entièrement migré vers activité) : ' + titre)
 
 
-def test_le_js_qui_alimente_les_panneaux_a_suivi():
-    """Deplacer le marquage sans le code donnerait cinq panneaux figes sur
-    « … » : visuellement present, definitivement vide."""
-    src = _lire(CHASSE)
+def test_chasse_na_plus_les_ids_des_panneaux():
+    src = _sans_commentaires_html(_lire(CHASSE))
+    for ident in IDS_DEPLACES:
+        assert ident not in src, (
+            "id encore reference dans logx_chasse.html : %s — page censée "
+            "être un pur redirect" % ident)
+
+
+def test_chasse_na_plus_le_js_ni_les_appels_reseau():
+    src = _sans_commentaires_html(_lire(CHASSE))
     for sym in SYMBOLES_DEPLACES:
-        assert sym in src, 'fonction/variable absente de logx_chasse.html : ' + sym
+        assert sym not in src, 'code mort dans logx_chasse.html : ' + sym
     for url in ENDPOINTS_DEPLACES:
-        assert url in src, 'endpoint absent de logx_chasse.html : ' + url
+        assert url not in src, (
+            'appel reseau orphelin dans logx_chasse.html : ' + url)
 
 
-# ── La page PROPAG n'en garde AUCUNE trace ─────────────────────────────────
+def test_chasse_ne_porte_plus_sa_propre_nav():
+    """La nav applicative (.app-nav) n'a plus de raison d'être ici : la page
+    ne s'affiche jamais assez longtemps pour qu'on clique dedans."""
+    src = _lire(CHASSE)
+    assert 'app-nav' not in src
+
+
+# ── La destination (activité) porte bien le contenu migré ────────────────
+
+def test_lactivite_alimente_bien_les_panneaux_migres():
+    """Non-régression inverse : le contenu n'a pas juste disparu, il vit
+    dans logx_accueil.js (+ logx_chasse_panneaux.js, testés à part) —
+    couverture déjà faite par test_accueil_panneaux_4b.py/test_accueil_
+    redirect_chasse.py ; ici on vérifie juste que les ENDPOINTS attendus
+    sont bien référencés quelque part dans le nouveau chemin."""
+    src = _lire(ACCUEIL_JS)
+    for url in ENDPOINTS_DEPLACES:
+        assert url in src, (
+            'endpoint absent de logx_accueil.js après la fusion : ' + url)
+
+
+# ── PROPAG n'en garde AUCUNE trace non plus (inchangé depuis 11/08) ──────
 
 def test_propagation_n_a_plus_le_marquage_des_panneaux_deplaces():
     src = _lire(PROPAG)
@@ -170,7 +242,7 @@ def test_propagation_garde_ses_propres_panneaux():
         assert reste in src, 'panneau de propagation perdu : ' + reste
 
 
-# ── Navigation : la meme barre partout ─────────────────────────────────────
+# ── Navigation : les 13 AUTRES pages restent identiques entre elles ──────
 
 def _nav(src):
     m = re.search(r'<nav class="app-nav"[^>]*>(.*?)</nav>', src, flags=re.DOTALL)
@@ -213,13 +285,7 @@ def test_ordre_de_nav_fige():
             % (page, ORDRE_NAV_ATTENDU, cibles))
 
 
-def test_la_page_chasse_se_marque_active():
-    nav = _nav(_lire(CHASSE))
-    assert re.search(r'<a href="logx_chasse\.html" class="active"', nav), (
-        "logx_chasse.html doit surligner sa propre entree de nav")
-
-
-# ── i18n : le nouveau libelle existe dans les 7 langues ────────────────────
+# ── i18n : le libelle de nav CHASSE reste traduit (utilise par 13 pages) ──
 
 def _blocs_par_langue(src):
     """Decoupe logx_i18n.js en blocs { langue -> [textes des dictionnaires] }.
@@ -249,111 +315,16 @@ def _traduction(blocs, lang, motif):
 
 
 def test_i18n_libelle_nav_chasse_dans_les_sept_langues():
+    """Le libellé "CHASSE" reste utilisé par les 13 AUTRES pages, même si
+    CHASSE elle-même ne l'affiche plus (elle n'a plus de nav du tout)."""
     blocs = _blocs_par_langue(_lire(I18N))
     for lang in LANGUES:
         val = _traduction(blocs, lang, r"'CHASSE':\s*'([^']+)'")
         assert val, "libelle de nav 'CHASSE' non traduit en " + lang
 
 
-def test_i18n_titre_de_page_chasse_dans_les_sept_langues():
-    blocs = _blocs_par_langue(_lire(I18N))
-    for lang in LANGUES:
-        val = _traduction(blocs, lang, r'"Chasse & Cibles":\s*"([^"]+)"')
-        assert val, "titre de page 'Chasse & Cibles' non traduit en " + lang
+# ── Garde-fous du banc d'essai ─────────────────────────────────────────
 
-
-def test_i18n_ecran_file_de_la_page_chasse_traduit():
-    """Le garde-fou file:// affiche une URL : elle doit pointer vers la BONNE
-    page dans chaque langue, sinon on renvoie l'operateur sur la propagation."""
-    blocs = _blocs_par_langue(_lire(I18N))
-    cle = re.escape('"Ouvre cette page via le serveur : '
-                    'http://127.0.0.1:8080/logx_chasse.html"')
-    for lang in LANGUES:
-        val = _traduction(blocs, lang, cle + r':\s*\n\s*"([^"]+)"')
-        assert val, 'ecran file:// de la page CHASSE non traduit en ' + lang
-        assert 'logx_chasse.html' in val, (
-            'la traduction %s renvoie vers la mauvaise page : %s' % (lang, val))
-
-
-def test_i18n_message_file_de_chasse_est_bien_la_cle_du_dictionnaire():
-    """Le test precedent verifie que la CLE existe — mais il retape la chaine
-    a la main. Si le message de logx_chasse.html derive (une espace, un
-    deux-points), la cle reste presente dans le dictionnaire et le test
-    continue de passer alors que plus rien ne correspond a l'execution :
-    l'i18n fonctionne par correspondance EXACTE. On extrait donc la chaine
-    de la PAGE et on exige qu'elle soit la cle."""
-    page = _lire(CHASSE)
-    m = re.search(r"document\.body\.innerHTML = '<div[^>]*>([^<]+)</div>';", page)
-    assert m, 'garde-fou file:// introuvable dans logx_chasse.html'
-    message = m.group(1)
-    blocs = _blocs_par_langue(_lire(I18N))
-    for lang in LANGUES:
-        val = _traduction(blocs, lang,
-                          re.escape('"' + message + '"') + r':\s*\n\s*"([^"]+)"')
-        assert val, (
-            'le message affiche par logx_chasse.html n\'est pas une cle du '
-            'dictionnaire %s : %r' % (lang, message))
-
-
-def test_i18n_langue_anticipe_le_navigateur_partout():
-    """Les 7 traductions ci-dessus sont INATTEIGNABLES sans ce repli — et
-    jusqu'au 15/08/2026, il etait CONFINE a l'origine file://.
-
-    La langue choisie par l'operateur est rangee dans localStorage sous
-    `rc_lang`, et localStorage est CLOISONNE PAR ORIGINE : `file://` est une
-    origine distincte de `http://127.0.0.1:8080`. Une page ouverte par
-    double-clic ne peut donc PAS lire ce choix — `rc_lang` y vaut toujours
-    null. Mais meme en http:// (le cas NORMAL, CONFIG au tout premier
-    lancement), l'ancien code retombait TOUJOURS sur 'fr' en l'absence de
-    choix explicite, quelle que soit la langue de l'OS/navigateur — genant
-    pour un poste installe hors de France (demande explicite F4GLD,
-    15/08/2026 : « le programme peut etre installe sur un pc en angleterre
-    ou ailleurs »). getLang() anticipe desormais la langue du navigateur
-    PARTOUT (file:// et http://) tant qu'aucun choix explicite n'a ete fait
-    — le selecteur de langue (injectSelector()) reste disponible pour
-    corriger ce choix a tout moment, ce repli n'est jamais bloquant.
-
-    Verifie en navigateur reel (Chrome, file:///…/logx_chasse.html, rc_lang
-    absent) : navigateur allemand -> « Öffne diese Seite über den Server: … »,
-    navigateur russe -> francais, ET desormais en http:// avec navigateur
-    allemand -> allemand aussi (plus de repli force sur le francais)."""
-    src = _lire(I18N)
-    # Corps de getLang() SEUL : le negatif (?!\n  function ) empeche la capture
-    # de deborder sur les fonctions suivantes — sans lui, un getLang() ecrit
-    # sur une seule ligne (la version fautive, justement) ferait capturer tout
-    # le code d'apres et les assertions passeraient sur du texte etranger.
-    corps = re.search(r'\n  function getLang\(\)\s*\{'
-                      r'((?:(?!\n  function )[\s\S])*?)\n  \}', src)
-    assert corps, 'getLang() introuvable (ou reduit a une seule ligne)'
-    corps = corps.group(1)
-    # Plus de branchement conditionnel sur file:// : browserLang() doit etre
-    # le repli UNIVERSEL des que rc_lang est absent, pas reserve a une origine.
-    assert 'location.protocol' not in corps, (
-        "getLang() ne doit plus reserver le repli navigateur a file:// -- "
-        'il doit s appliquer aussi en http:// (tout premier lancement, sur '
-        'un poste dont l OS/navigateur n est pas en francais)')
-    assert 'if (saved) return saved;' in corps, (
-        'un choix deja fait (rc_lang) doit toujours primer sur la detection')
-    assert corps.strip().endswith('return browserLang();'), (
-        "le repli, une fois rc_lang absent, doit etre INCONDITIONNELLEMENT "
-        "browserLang() -- pas de retour sur 'fr' en dur avant lui")
-    # Le repli doit venir de la langue du NAVIGATEUR, pas d'une constante.
-    repli = re.search(r'\n  function browserLang\(\)\s*\{(.*?)\n  \}', src, re.S)
-    assert repli, 'browserLang() introuvable'
-    assert 'navigator' in repli.group(1) and '.languages' in repli.group(1), (
-        'le repli doit lire la langue du navigateur')
-
-
-# ── Mise en page : aucun defilement vertical possible par construction ─────
-
-def test_chasse_ne_peut_pas_defiler_verticalement():
-    """Verifie dans un navigateur reel a 1920x1080 et 1366x768 (scrollHeight
-    == innerHeight dans les deux cas). Ce test fige la construction qui le
-    garantit : body en flex colonne avec overflow:hidden, et chaque liste qui
-    defile dans SON panneau plutot que d'allonger la page."""
-    src = _lire(CHASSE)
-    assert re.search(r'body\{[^}]*overflow:hidden', src), (
-        'body sans overflow:hidden : la page CHASSE peut de nouveau defiler')
-    assert re.search(r'\.container\{[^}]*overflow:hidden', src)
-    assert re.search(r'\.scroll-list\{[^}]*overflow-y:auto', src), (
-        'les listes doivent defiler en interne, pas allonger la page')
+def test_l_extraction_du_nav_est_bien_le_vrai_code():
+    nav = _nav(_lire(os.path.join(CONCOURS_DIR, 'logx_logbook.html')))
+    assert nav is not None and 'logx_chasse.html' in nav

@@ -146,8 +146,13 @@ def test_la_carte_ne_libelle_plus_des_kHz_en_MHz():
 def test_la_page_chasse_reste_en_kHz_et_devient_juste_partout():
     """Elle était la SEULE à supposer des kHz — donc juste en HF et fausse en
     VHF. En imposant le kHz partout, elle devient juste sans être touchée. Ce
-    test verrouille le fait qu'on ne l'a pas « corrigée » par erreur."""
-    src = _lire('logx_chasse.html')
+    test verrouille le fait qu'on ne l'a pas « corrigée » par erreur.
+
+    Retargeté le 11/09/2026 (fusion CHASSE→activité, incr. 5c) : ce rendu ne
+    vit plus dans logx_chasse.html (devenue un pur redirect) mais dans le
+    module partagé logx_chasse_panneaux.js (renderActivationRows), réutilisé
+    par l'activité — même conversion, même garantie, autre emplacement."""
+    src = _lire('logx_chasse_panneaux.js')
     assert '(s.freq/1000).toFixed(3)' in src
 
 
