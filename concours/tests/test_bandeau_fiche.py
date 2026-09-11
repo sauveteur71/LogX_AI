@@ -82,12 +82,15 @@ def test_homeCall_prefixe_et_suffixe_portable():
 def test_les_deux_pages_chargent_le_module():
     """accueil ET logbook doivent charger le module (sinon leur clic bandeau
     retombe sur la navigation qui a produit le bug). CHASSE, elle, ne doit PAS
-    le charger (double handler = double popup)."""
+    le charger : depuis la fusion CHASSE→activité (incr. 5c, 11/09/2026),
+    c'est devenue une page de pur redirect, sans bandeau du tout — plus
+    « elle a sa propre fiche intégrée » (vrai avant cet incrément, plus
+    maintenant), donc rien à câbler ici non plus."""
     for nom in PAGES:
         assert 'src="logx_bandeau_fiche.js"' in _src(nom), \
             nom + " ne charge pas logx_bandeau_fiche.js"
     assert 'src="logx_bandeau_fiche.js"' not in _src('logx_chasse.html'), \
-        "CHASSE ne doit PAS charger le module (elle a sa propre fiche intégrée)"
+        "CHASSE ne doit pas charger le module (elle n'a plus de bandeau du tout)"
 
 
 # ── Structure du handler : intercepte, empêche la navigation, ouvre ──────────

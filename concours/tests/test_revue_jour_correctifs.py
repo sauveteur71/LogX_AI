@@ -136,7 +136,10 @@ def test_le_pilotage_par_bande_ne_tourne_QUE_le_bon_pylone():
 
 @pytest.mark.parametrize('page, fn', [
     ('logx_locator_reverse.js', 'pointAntennaFromCompass'),
-    ('logx_chasse.html', 'pointTo'),
+    # logx_chasse.html -> logx_accueil.js le 11/09/2026 (fusion CHASSE→
+    # activité, incr. 5c) : pointTo() y a été porté à l'identique (incr. 4d,
+    # déjà mergé) — même propriété, autre emplacement.
+    ('logx_accueil.js', 'pointTo'),
 ])
 def test_les_appelants_UI_transmettent_la_bande(page, fn):
     """Sans la bande dans la requête, tout retombe sur le rotor par défaut :

@@ -32,7 +32,6 @@ import re
 CONCOURS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 STATUSBAR = os.path.join(CONCOURS_DIR, 'logx_statusbar.js')
-CHASSE = os.path.join(CONCOURS_DIR, 'logx_chasse.html')
 
 # Rafraichisseurs de la barre de statut qui APPELLENT LE SERVEUR : tous doivent
 # passer par rcPoll (suspendus onglet masque).
@@ -49,9 +48,6 @@ POLLS_RESEAU = [
 # Rafraichisseurs purement locaux : setInterval nu autorise, A CONDITION qu'ils
 # ne fassent aucune requete (verifie plus bas).
 TICKS_LOCAUX = ['refreshCountdown', 'tickBandChange', 'refreshSave']
-
-# Chargeurs periodiques de la page CHASSE (tous font un fetch).
-CHARGEURS_CHASSE = ['loadSpots', 'loadPota', 'loadSota', 'loadWwff', 'loadWca']
 
 
 def lire(chemin):
@@ -140,21 +136,19 @@ def test_les_ticks_locaux_ne_font_aucune_requete():
             "(ou perdre son setInterval nu)" % nom)
 
 
-def test_chasse_n_a_plus_aucun_minuteur_de_chargement_nu():
-    src = lire(CHASSE)
-    for nom in CHARGEURS_CHASSE:
-        assert not re.search(r'setInterval\(\s*' + nom + r'\s*,', src), \
-            "%s : minuteur non suspendu quand l'onglet est masque" % nom
-        assert re.search(r'rcPollOr\(\s*' + nom + r'\s*,', src), \
-            "%s doit etre enregistre via rcPollOr (rcPoll + repli)" % nom
-
-
-def test_chasse_ne_garde_setinterval_que_pour_le_repli():
-    """Le seul setInterval() tolere sur la page est celui du repli utilise
-    quand la barre de statut (donc rcPoll) est absente."""
-    src = lire(CHASSE)
-    occurrences = re.findall(r'setInterval\([^)]*\)', src)
-    assert len(occurrences) == 1, \
-        "setInterval attendu une seule fois (repli), trouve : %r" % occurrences
-    assert 'window.rcPoll ||' in src, \
-        "le repli doit etre conditionne a l'absence de rcPoll"
+# Les deux tests "test_chasse_..." qui vivaient ici ont été retirés le
+# 11/09/2026 (fusion CHASSE→activité, incr. 5c) : logx_chasse.html est
+# devenue un pur redirect (plus aucun loadPota/loadSota/loadWwff/loadWca/
+# loadSpots, donc rien à vérifier ici). Son remplaçant (_revelerCiblesChasse,
+# logx_accueil.js) charge chaque panneau en UNE FOIS au clic (via
+# _chargerPan -> fetch), PAS sur un setInterval périodique — vérifié par
+# `grep -n "setInterval\|rcPoll" logx_accueil.js` : aucune occurrence. Le
+# risque que ces deux tests surveillaient (minuteur non suspendu quand
+# l'onglet est masqué) n'existe donc plus structurellement dans ce chemin.
+#
+# Différence de comportement à noter (pas une régression DE cet incrément :
+# déjà vraie depuis l'incr. 4a qui a construit ce chemin) : la need-list de
+# l'activité ne se rafraîchit plus automatiquement en continu comme le
+# faisait l'ancienne page CHASSE — seulement au chargement / changement de
+# rôle ou d'objectif. Suivi comme amélioration possible dans
+# docs/passation/PASSATION.md, hors scope de ce redirect.

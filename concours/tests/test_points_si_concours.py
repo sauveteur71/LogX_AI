@@ -100,9 +100,16 @@ def test_miroir_javascript_du_logbook_teste_les_deux_conditions():
 def test_pages_ne_montrent_plus_de_points_sans_condition():
     """Garde-fou de non-régression : les emplacements corrigés doivent rester
     conditionnés. Une réécriture qui réintroduirait un '+ pts' inconditionnel
-    sur CHASSE ou le panneau détaché ferait réapparaître le défaut signalé."""
-    for fichier, marqueur in [('logx_chasse.html', 'contestActif'),
-                              ('logx_panel.html', 'contestActif'),
+    sur le panneau détaché ferait réapparaître le défaut signalé.
+
+    logx_chasse.html retiré de cette liste le 11/09/2026 (fusion CHASSE→
+    activité, incr. 5c) : la page est devenue un pur redirect, et son
+    remplaçant (renderNeedList, logx_chasse_panneaux.js) n'affiche AUCUNE
+    valeur de points sur la need-list compacte — rien à conditionner, le
+    risque n'existe plus structurellement (vérifié par grep avant ce
+    retrait : aucune référence à s.value/s.points/contestActif dans le
+    module)."""
+    for fichier, marqueur in [('logx_panel.html', 'contestActif'),
                               ('logx_carte.html', 'contestActif')]:
         with open(os.path.join(CONCOURS, fichier), encoding='utf-8') as f:
             contenu = f.read()
