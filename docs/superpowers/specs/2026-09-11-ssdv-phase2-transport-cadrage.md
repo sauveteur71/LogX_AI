@@ -1,6 +1,11 @@
 # SSDV Phase 2 — transport AX.25/APRS : spec de cadrage
 
-**Date :** 2026-09-11. **Statut : à valider par F4GLD avant tout code.**
+**Date :** 2026-09-11. **Statut : VALIDÉ par F4GLD — Direwolf + client KISS
+maison** (question 0/1 tranchées : PAS de réutilisation de `ssdv2sat` en
+bloc, code neuf par-dessus Direwolf). Questions 2 (banc de test réel) et 3
+(priorité vs suite de C1) non bloquantes, pas encore répondues — le premier
+incrément (client KISS + extraction AX.25, testé sur trames synthétiques,
+comme la Phase 1 sans le binaire réel) ne les requiert pas.
 Phase 1 (parseur d'en-tête + assembleur + wrapper sous-processus, PR #472)
 livrée et mergée — voir `docs/superpowers/specs/2026-09-11-ssdv-integration-
 design.md`, qui listait explicitement les phases suivantes comme NON
@@ -89,7 +94,26 @@ un premier incrément.
   du transport ci-dessus pour exister, cadrage séparé une fois les paquets
   effectivement reçus par un chemin réel.
 
-## 4. Questions ouvertes pour F4GLD
+## 4bis. Format vérifié avant code (11/09/2026)
+
+Format KISS et en-tête AX.25 relus contre des sources faisant autorité
+(spec KISS `ax25.net`, en-têtes `ax25_pad.h` du dépôt `wb2osz/direwolf`
+lui-même — pas la note reçue en début de chantier) :
+
+- **KISS** : trame délimitée par `FEND` (`0xC0`) au début ET à la fin.
+  Échappement : `FEND`→`FESC TFEND` (`0xDB 0xDC`), `FESC`→`FESC TFESC`
+  (`0xDB 0xDD`). Premier octet après le `FEND` d'ouverture = octet de
+  commande (nibble haut = port, nibble bas = commande ; `0x00` = trame de
+  données, le seul cas qui nous concerne).
+- **En-tête AX.25** : champs d'adresse de 7 octets chacun (6 octets
+  d'indicatif ASCII décalé d'1 bit + 1 octet SSID), destination puis
+  source puis 0-2 répéteurs, terminé par le champ dont le **bit 0 du 7e
+  octet vaut 1** (bit d'extension = dernier champ d'adresse). Puis 1 octet
+  de contrôle (`0x03` = trame UI), puis 1 octet PID (`0xF0` = pas de
+  couche 3) SI ET SEULEMENT SI c'est une trame UI. Le reste est le champ
+  INFO — c'est là que vivent les 256 octets SSDV.
+
+## 5. Questions ouvertes pour F4GLD
 
 0. **Client KISS maison par-dessus Direwolf, ou réutiliser `ssdv2sat` en
    sous-processus** (voir §2, correction) ? Le second réduit le code neuf
