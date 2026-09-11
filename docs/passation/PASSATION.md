@@ -1150,11 +1150,69 @@ AMBIGUS_CONNUS`) — mais ça exige de sourcer des règlements REF officiels
 (accès web fiable requis, jamais inventer une plage de bandes) : à tenter
 seulement avec une source vérifiable citée, un concours à la fois.
 
-**Incrément 5 de la fusion CHASSE→activité reste en pause** (voir plus haut) :
-nécessite une décision de F4GLD sur l'ajout d'une nav à l'accueil, pas prise
-cette nuit — point de passage explicite respecté malgré la consigne « avance
-sans t'arrêter », qui ne vaut pas autorisation implicite pour une décision
-d'architecture non discutée.
+**Incrément 5 de la fusion CHASSE→activité — DÉCIDÉ ET COMPLET (matin du
+11/09/2026).** F4GLD a tranché en direct : nav ajoutée à l'accueil (5a),
+entrée directe `?chasse=1` (5b), puis feu vert explicite (« continue avec 5c
+d'abord ») pour le dernier incrément, destructif.
+
+- **5a** (PR #469) : barre de navigation standard sur `logx_accueil.html`
+  (elle en était dépourvue par choix — page minimaliste), + les 3 scripts
+  manquants (`logx_statusbar.js`/`logx_i18n.js`/`logx_search.js`). Piège
+  trouvé ET corrigé : un commentaire CSS contenait `.nav-tools*/.rcb-*` — le
+  `*/` refermait le commentaire prématurément, faisait disparaître
+  `.app-nav{display:flex}` du CSSOM (nav empilée verticalement plein écran,
+  invisible à un `curl`, visible seulement en Chrome réel).
+- **5b** (PR #470) : `logx_accueil.js` reconnaît `?chasse=1` et révèle
+  directement la need-list (`_demarrerDepuisRedirectChasse`), sans passer par
+  la grille ni les clics intermédiaires.
+- **5c** (PR #471) : `logx_chasse.html` devient un pur redirect
+  (`<meta http-equiv=refresh>` + `location.replace()`, jamais `.href` — pas
+  de piège du bouton Retour, vérifié en navigateur réel). Les **13 navs
+  existantes n'ont PAS été touchées** : elles pointent toujours vers
+  `logx_chasse.html`, qui redirige en interne — le choix le plus sûr, évite
+  13 fichiers modifiés pour un gain nul.
+
+  **2 correctifs CSS trouvés EN CASCADE par la suite complète elle-même**,
+  aucun vu en écrivant le stub : `test_css_mutualise.py` a rougi en premier
+  (page sans `<link logx_theme.css>` — corrigé), puis `test_theme_guard_
+  cable.py` a rougi À SON TOUR sur le fichier corrigé (une page qui charge
+  le thème doit AUSSI charger `logx_theme_guard.js`, le détecteur de blocage
+  antivirus — sinon la règle « toujours les deux ensemble » se romprait
+  silencieusement). Chaque correctif a immédiatement fait apparaître le
+  suivant — exactement pourquoi on relance la suite COMPLÈTE après chaque
+  changement plutôt que de se fier au sous-ensemble qu'on pense concerné.
+
+  **Collatéral découvert en réécrivant `test_page_chasse_split.py`** :
+  8 fichiers de test référençaient encore l'ancienne implémentation inline
+  de CHASSE (creditBadge, objectifs, bandeaux, polling). Triage fait un par
+  un, jamais en bloc : 3 fichiers supprimés (strictement redondants avec les
+  tests déjà écrits sur `logx_chasse_panneaux.js`/`logx_accueil.js` pendant
+  la nuit — `test_chasse_affiche_credit.py`, `test_chasse_bandeaux_cablage.
+  py`, `test_chasse_objectifs_ui.py`), 4 tests retargetés vers leur nouvel
+  emplacement (propriété toujours vraie, juste déplacée — fréquence en kHz,
+  transmission de la bande au rotor), 2 tests retirés car la propriété
+  qu'ils protégeaient n'existe structurellement plus dans le nouveau chemin
+  (plus de points affichés sur la need-list compacte, plus de polling
+  périodique — chargement au clic seulement).
+
+  **Deux écarts de comportement trouvés en creusant, PAS des régressions de
+  cet incrément** (déjà vrais depuis les incr. 4a/4b qui ont construit ce
+  chemin, simplement jamais remarqués avant cette relecture exhaustive) :
+  1. L'ancienne CHASSE rafraîchissait ses spots en continu (polling) ; la
+     need-list de l'activité charge une fois (clic rôle / changement
+     d'objectif) et ne se rafraîchit plus toute seule.
+  2. `renderActivationRows` (POTA/SOTA/WWFF) n'a pas de message d'état vide
+     dédié (« Aucun trafic signalé pour l'instant ») — panneau simplement
+     vide si aucun spot, contrairement à l'ancienne CHASSE.
+
+  Ni l'un ni l'autre ne bloque ce redirect (la page marche, juste sans ces
+  deux raffinements) — **améliorations possibles, non cadrées, à discuter
+  avec F4GLD** avant de les traiter.
+
+  Vérifié en navigateur réel (Playwright) : redirect complet CHASSE→activité
+  fonctionnel avec ET sans JavaScript (repli `<meta refresh>`), bouton Retour
+  ne revient pas sur la page morte (confirmé : `location.replace()` ne pose
+  aucune entrée d'historique).
 
 ---
 
