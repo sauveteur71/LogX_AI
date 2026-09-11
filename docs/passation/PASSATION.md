@@ -22,11 +22,12 @@ dédiée dans la section 1, juste après AFFICHAGE.
 
 **Mise à jour le 11/09/2026** : chantier fusion CHASSE→activité **CLOS**
 (incréments 1 à 5c tous mergés, #472 pour la trace de clôture ne s'applique
-pas ici — voir #464-#471). Nouveau chantier démarré le même jour après
-cadrage/vérification des licences : **SSDV** (réception d'images
-ballons/satellites), Phase 1 (parseur + assembleur + wrapper sous-processus,
-zéro radio) mergée (PR #472). Voir les deux nouvelles sous-sections dédiées
-dans la section 1.
+pas ici — voir #464-#471). Deux nouveaux chantiers cadrés le même jour :
+**SSDV** (réception d'images ballons/satellites), Phase 1 mergée (PR #472) ;
+**C1** (questions langage naturel sur le carnet), incrément 1 mergé (PR
+#473, « logbook »). F4GLD a choisi l'ordre C1 puis SSDV — les deux ont
+maintenant un premier incrément livré. Voir les sous-sections dédiées dans
+la section 1.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1287,10 +1288,50 @@ Phase 1 confirmée **sans changement** (« zéro risque »).
 
 **Phases suivantes NON cadrées** (transport AX.25/APRS, fusion
 multi-stations, suivi de passage satellite, UI temps réel) : à discuter
-séparément avec F4GLD avant tout code, une fois qu'il aura choisi de
-reprendre ce chantier plutôt qu'un autre (C1 — requêtes langage naturel du
-copilote — reste également en simple cadrage, ni l'un ni l'autre en attente
-d'implémentation automatique).
+séparément avec F4GLD avant tout code.
+
+### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
+
+F4GLD a tranché l'ordre (« C1 PUIS ssdv ») puis le périmètre (« logbook »,
+réponse à la première question ouverte du cadrage) le 11/09/2026. Cadrage
+complet dans `docs/superpowers/specs/2026-09-11-c1-requetes-langage-naturel-
+carnet.md` : reconnaissance factuelle de trois systèmes voisins existants
+(`/agent/act` pilote la station, Carte IA porte sur la propagation,
+`logx_fil_ia.js` est en lecture seule) — aucun ne couvrait le besoin réel.
+
+**Incrément 1 — FAIT et mergé (PR #473).** Portée délibérément étroite :
+lecture seule, 0 jeton, 0 appel LLM, même raisonnement que le palier
+« Basique » de Carte IA (jeu fixe de questions calculables directement en
+Python, pas un parseur NLP général).
+- `logx_carnet_questions.py` : total QSO, comptage par bande/par mode,
+  dernier QSO, « déjà travaillé cet indicatif ? » (casse/espaces ignorés,
+  trié du plus récent). `extraire_indicatif_deja_travaille()` reconnaît
+  UNIQUEMENT « ... travaillé ... \<INDICATIF\> » (stem `travaill` + token en
+  forme d'indicatif dans une fenêtre de 40 caractères) — documenté comme un
+  motif étroit, jamais présenté comme une compréhension générale du langage.
+- `GET /log/question` (jeton requis). Invariant I2 (0 écriture QSO par le
+  LLM) verrouillé par un test dédié dans `test_invariants_securite.py`.
+- Panneau dans LOGBOOK (menu SUIVI, à côté de CORBEILLE, accessible à
+  tous) : 4 boutons de questions rapides + recherche par indicatif. Réponse
+  assignée via `textContent` (jamais `innerHTML` — le texte peut échoïr
+  l'indicatif fourni par l'utilisateur, verrouillé par un test dédié).
+- Chaque composant (module, endpoint, UI) mutation-testé séparément :
+  témoin vert → mutation → rouge confirmé → restauration (md5 contrôlé à
+  chaque fois). Vérifié en navigateur réel (Playwright) : panneau
+  fonctionnel, réponses correctes.
+- **Une régression trouvée par la suite COMPLÈTE, pas par le sous-ensemble
+  présumé concerné** : un commentaire de code contenait littéralement la
+  sous-chaîne `expert-only` (dans « pas expert-only »), faisant échouer
+  `test_logbookjs_itemsmenulogbook_forme_inchangee_pour_le_test_existant`
+  (qui vérifie qu'aucune entrée de `itemsMenuLogbook()` ne porte ce tag).
+  Reformulé sans changer le sens (« accessible à tous »). Encore un cas où
+  rejouer la suite ENTIÈRE après un changement, pas seulement les tests
+  qu'on pense concernés, a trouvé un défaut réel.
+
+**Incréments suivants NON cadrés** (questions IA complète au-delà des
+agrégats, historique multi-tour) : à discuter séparément avec F4GLD, ni
+l'un ni l'autre en attente d'implémentation automatique — ni les phases
+suivantes de SSDV.
 
 ---
 
