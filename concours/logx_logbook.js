@@ -301,6 +301,11 @@ function itemsMenuLogbook(format){
                  // débutant qui supprime un QSO par erreur doit pouvoir se
                  // rattraper aussi facilement qu'un habitué.
                  ['🗑️', 'CORBEILLE — restaurer un QSO supprimé', 'showCorbeille'],
+                 // C1 incr. 1 (cadrage docs/superpowers/specs/2026-09-11-c1-
+                 // requetes-langage-naturel-carnet.md) : accessible à tous,
+                 // même raisonnement que CORBEILLE juste au-dessus -- consulter
+                 // son propre carnet n'a rien d'une fonction avancée.
+                 ['❓', 'QUESTIONS SUR LE CARNET', 'showCarnetQuestions'],
                  ['🔎', 'FILTRE AVANCÉ', 'openFilterBuilder'],
                  ['🧬', 'RECHERCHE DE DOUBLONS', 'openDupFinder'],
                  ['🌐', 'RE-RÉSOUDRE (locator/état)', 'openBulkResolve'],
@@ -463,6 +468,47 @@ async function restaurerCorbeilleQso(idStr){
     if(typeof fetchLog === 'function') fetchLog();   // le QSO restauré réapparaît dans le carnet
   }catch(e){
     alert(trT('Serveur injoignable — réessaie.'));
+  }
+}
+
+// ─── QUESTIONS SUR LE CARNET (C1, incrément 1) ──────────────────────────────
+// 0 jeton, 0 appel LLM -- docs/superpowers/specs/2026-09-11-c1-requetes-
+// langage-naturel-carnet.md. La réponse est du texte simple renvoyé par le
+// serveur (logx_carnet_questions.repondre) : assignée via textContent, jamais
+// innerHTML -- rien à composer côté client.
+
+function showCarnetQuestions(){
+  const ov = document.getElementById('carnetQuestionsOverlay');
+  if(!ov) return;
+  ov.classList.add('show');
+}
+function closeCarnetQuestions(){
+  const ov = document.getElementById('carnetQuestionsOverlay');
+  if(ov) ov.classList.remove('show');
+}
+
+async function poserQuestionCarnet(topic){
+  const box = document.getElementById('qcReponse');
+  if(!box) return;
+  box.className = 'qc-reponse';
+  box.textContent = 'Recherche…';
+  const params = new URLSearchParams({topic: topic});
+  if(topic === 'deja_travaille'){
+    const input = document.getElementById('qcIndicatifInput');
+    params.set('indicatif', (input && input.value || '').trim());
+  }
+  try{
+    const r = await fetch('/log/question?' + params.toString());
+    const d = await r.json();
+    if(!d.ok){
+      box.className = 'qc-reponse qc-erreur';
+      box.textContent = d.error || 'Question sans réponse.';
+      return;
+    }
+    box.textContent = d.reponse;
+  }catch(e){
+    box.className = 'qc-reponse qc-erreur';
+    box.textContent = trT('Serveur injoignable — réessaie.');
   }
 }
 

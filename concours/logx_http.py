@@ -2650,6 +2650,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'query': q, 'results': logx_search.search(q)})
             return
 
+        # Questions déterministes sur le carnet (C1, incrément 1) : 0 jeton,
+        # 0 appel LLM -- voir docs/superpowers/specs/2026-09-11-c1-requetes-
+        # langage-naturel-carnet.md. Jeton requis (données privées du carnet,
+        # contrairement à /search ci-dessus qui n'expose que du texte UI
+        # public).
+        if path == '/log/question':
+            if not self._require_auth():
+                return
+            from urllib.parse import parse_qs, urlparse
+            import logx_carnet_questions as cq
+            qs = parse_qs(urlparse(self.path).query)
+            topic = qs.get('topic', [''])[0]
+            texte = qs.get('texte', [''])[0]
+            indicatif = qs.get('indicatif', [''])[0]
+            with log_lock:
+                log_copy = list(shared_log)
+            if not topic and texte:
+                trouve = cq.extraire_indicatif_deja_travaille(texte)
+                if trouve:
+                    topic, indicatif = 'deja_travaille', trouve
+                else:
+                    self._json({'ok': False,
+                                 'error': "Question pas encore comprise -- essaie "
+                                          "une des questions rapides ci-dessus."})
+                    return
+            if topic not in cq.TOPICS:
+                self._json({'ok': False, 'error': 'Question inconnue : %r' % topic})
+                return
+            reponse = cq.repondre(log_copy, topic, {'indicatif': indicatif})
+            self._json({'ok': True, 'reponse': reponse, 'topic': topic})
+            return
+
         # Journal TX CW : ce qui est RÉELLEMENT parti à la clé (keyer Phase 1c).
         if path == '/rig/cw/journal':
             if not self._require_auth():
