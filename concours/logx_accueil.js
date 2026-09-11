@@ -342,6 +342,26 @@ function _brancherBandeaux(){
   });
 }
 
+// ── Entrée directe depuis CHASSE (fusion incr. 5b) ──────────────────────────
+// logx_chasse.html redirige ici avec ?chasse=1 (incr. 5c, pas encore fait à
+// cette étape) : on doit atterrir DIRECTEMENT sur les cibles en direct, sans
+// repasser par « Qu'est-ce que tu fais aujourd'hui ? » ni par les 2 clics
+// intermédiaires (carte activité + tuile rôle) — même doctrine « ne pas
+// rallonger le chemin quotidien » que le bouton Reprendre. Le rôle mémorisé
+// est respecté SAUF 'portable' pur (n'affiche pas la chasse, roleConfig) :
+// on le force à 'chasse' plutôt que d'atterrir sur une page vide. 'mixte'
+// (défaut) a déjà chasse:true, rien à changer.
+function _demarrerDepuisRedirectChasse(){
+  try{ localStorage.setItem('logx_activity', 'iota_pota'); }catch(e){}
+  if(window.LogxXotaRole && LogxXotaRole.getRole() === 'portable') LogxXotaRole.setRole('chasse');
+  const nav = document.getElementById('navChasse');
+  if(nav && nav.classList) nav.classList.add('active');
+  const intro = document.getElementById('intro');
+  intro.innerHTML = '<div id="ciblesChasse"></div>';
+  _revelerCiblesChasse();
+  _brancherBandeaux();
+}
+
 // ?changer=1 force le réaffichage de la grille même si une activité est déjà
 // mémorisée -- échappatoire explicite (lien "changer d'activité" ajouté dans
 // CONFIG), « masquer ≠ bloquer l'accès ».
@@ -352,7 +372,9 @@ function _brancherBandeaux(){
   // d'échec, on retombe sur la grille de choix d'activité (repli sûr).
   let deja = null;
   try{ deja = localStorage.getItem('logx_activity'); }catch(e){}
-  const forcer = new URLSearchParams(window.location.search).get('changer') === '1';
+  const params = new URLSearchParams(window.location.search);
+  const forcer = params.get('changer') === '1';
+  if(params.get('chasse') === '1'){ _demarrerDepuisRedirectChasse(); return; }
   // Décision F4GLD (28/08) : plus de redirection AUTOMATIQUE. On affiche le
   // cockpit + un bouton « Reprendre » (retour en UN clic, aucun allongement du
   // chemin quotidien). `?changer=1` masque le bouton (on vient justement changer).
