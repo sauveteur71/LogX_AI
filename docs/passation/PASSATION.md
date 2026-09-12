@@ -1326,12 +1326,51 @@ code.
   structurelle reste dans `parser_entete()` (Phase 1).
 - Test bout-en-bout KISS → AX.25 → SSDV sur trame synthétique, aucun
   matériel requis.
-- **Portée volontairement arrêtée avant le client socket live et
-  l'endpoint HTTP** : les questions 2/3 du cadrage (banc de test radio
-  réel, priorité relative à la suite de C1) restent ouvertes, non
-  bloquantes pour ce socle mais à trancher avant d'aller plus loin
-  (connexion permanente à un port Direwolf = engagement d'infrastructure
-  serveur, pas juste un module pur testable).
+- Ce socle s'arrêtait volontairement avant le client socket live —
+  complété dans la foulée (voir juste en dessous).
+
+**Client KISS live — FAIT et mergé (PR #475, 12/09/2026).** Plan d'action
+donné directement par F4GLD : client TCP, reconnexion robuste, validation
+sur flux simulé.
+- `logx_ssdv_reception.py` : client TCP en thread de fond (patron
+  `start_listener` de `logx_wsjtx.py` adapté — ici LogX AI est CLIENT, pas
+  serveur, donc reconnexion à recul exponentiel 2s→30s obligatoire, WSJT-X
+  étant en UDP où LogX AI écoute passivement). Port par défaut 8001,
+  sourcé depuis les commentaires de configuration du code source de
+  Direwolf lui-même (`kissnet.c`, `KISSPORT 8001 1`) — pas un défaut figé
+  garanti côté Direwolf, l'usage conventionnel du projet, toujours
+  réglable via `config.json`. `_traiter_trame_kiss()` ignore
+  silencieusement tout ce qui n'est pas un paquet SSDV structurellement
+  valide (Direwolf transporte aussi de l'APRS ordinaire sur le même port).
+- **Validation « flux simulé »** (demandée explicitement, pas de matériel
+  radio disponible) : un vrai serveur TCP local tient lieu de Direwolf
+  dans les tests — reconnexion après coupure, trame coupée en deux
+  paquets réseau reconstituée, backoff qui croît et plafonne. Validation
+  « flux radio réel » (carte son + TNC) hors de portée de ce dépôt de
+  code — question 2 du cadrage, reste ouverte.
+- **Contre-épreuve de mutation vacante trouvée et corrigée** : le premier
+  test d'idempotence du démarrage ne vérifiait que le drapeau interne
+  (`_started`), pas le nombre réel de tentatives de connexion — en mutant
+  la garde check-then-set, la suite restait verte. Renforcé pour compter
+  les vrais appels à `socket.create_connection`.
+- 🚨 **Régression réelle trouvée par la suite COMPLÈTE, pas par ce
+  fichier en isolation** : sans `join()` du thread de fond en fin de
+  test, un thread de reconnexion pouvait rester vivant ~1s après un test,
+  entrant en concurrence avec un test HTTP SANS RAPPORT plus loin dans la
+  suite (`test_theme_inline.py`, timeout socket sur son `urlopen(timeout=
+  5)`). Diagnostiqué par une EXPÉRIENCE CONTRÔLÉE (pas une supposition) :
+  suite complète relancée SANS `test_ssdv_reception.py` → verte ; AVEC
+  lui → rouge de façon reproductible deux fois de suite sur le même test
+  sans rapport. Corrigé : `arreter_client_kiss(attendre=True)` rejoint
+  réellement le thread avant de rendre la main, utilisé par le fixture de
+  test. Reflex pour toute suite : un thread de fond qui survit à son test
+  peut casser un test SANS AUCUN RAPPORT bien plus loin dans une suite
+  complète — la contre-épreuve « ça passe en isolation » ne suffit pas
+  quand le défaut est une histoire de ressources partagées entre threads,
+  seule la suite ENTIÈRE, rejouée deux fois, l'a révélé de façon fiable.
+- Pas d'endpoint HTTP dans cet incrément (pas demandé, pas nécessaire
+  pour la validation sur flux simulé) — `kiss_settings()` lit déjà la
+  config pour un futur câblage.
 
 ### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
 
