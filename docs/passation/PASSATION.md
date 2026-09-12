@@ -36,9 +36,13 @@ KISS/Direwolf sur l'écran « Santé de la station » (endpoint
 multi-flux (indicatif, image_id), persistance disque, panneau galerie sur la
 même page (clic sur la tuile SSDV). Voir les deux nouvelles sous-sections
 dédiées dans la section 1, juste après « SSDV Phase 2 — transport AX.25/APRS,
-socle KISS+AX.25 ». **C1** complété d'un 2e incrément le même jour : palier
-IA complet (au-delà des agrégats fixes), historique multi-tour reporté —
-voir « C1 incrément 2 — palier IA complet » juste après la section C1.
+socle KISS+AX.25 ». **C1** complété de DEUX incréments supplémentaires le
+même jour : (2) palier IA complet, (3) historique multi-tour — voir « C1
+incrément 2 » et « C1 incrément 3 » juste après la section C1. **Fusion
+CHASSE→activité** : les 2 écarts de comportement notés au 11/09 (plus de
+rafraîchissement auto, pas de message d'état vide POTA/SOTA/WWFF) corrigés
+— voir « Fusion CHASSE→activité — 2 écarts de comportement corrigés » juste
+après C1 incrément 3.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1630,6 +1634,133 @@ vie »), pas une incohérence involontaire.
 
 **Reste NON cadré** : historique multi-tour (reporté par décision F4GLD
 ci-dessus), aucun autre incrément demandé pour l'instant.
+
+### C1 incrément 3 — historique multi-tour (12/09/2026)
+
+Suite logique demandée par F4GLD directement (« maintenant que le palier
+single-turn tourne ») — pas de cadrage par question à choix cette fois,
+la portée était déjà écrite dans l'incrément 2 (« historique multi-tour
+reporté à un incrément suivant »).
+
+**Conception** : le CLIENT porte l'historique (`carnetHistorique`, module
+JS), pas le serveur — même patron que Carte IA (`conversationHistory`),
+sans persistance `localStorage` (portée : la session de page, remise à
+zéro explicite via un bouton dédié). Le serveur reste sans état : il
+revalide/borne systématiquement ce qu'envoie le client
+(`logx_carnet_questions.valider_historique`) — aucune confiance aveugle
+dans sa forme, filtre role/content + **alternance stricte user/assistant**
+(les API des fournisseurs, Anthropic comprise, rejettent un tour en
+double avec une erreur 400 opaque sinon).
+
+**Nouveauté d'architecture** : `GET /log/question` (topics fixes + texte
+libre sans historique) reste **strictement inchangé**, tests existants
+intacts — l'historique est porté par une **nouvelle route POST**
+(`_do_POST_impl`), une query string GET n'étant pas une forme raisonnable
+pour un tableau. Les deux routes partagent le même helper
+`logx_http._log_question_palier_ia(texte, historique, cfg_snap, log_copy)`
+(GET passe toujours `historique=[]`) — pas de logique dupliquée entre les
+deux chemins.
+
+**Livré :**
+- `logx_carnet_questions.py` : `valider_historique()` (filtre forme +
+  alternance + bornes nombre/longueur) ; `SYSTEME_IA` étendu pour
+  expliquer au modèle que le digest le plus RÉCENT prime sur des tours
+  précédents (un nouveau QSO a pu être loggué entre deux questions).
+- `logx_http.py` : `_log_question_palier_ia()` (helper module-level
+  partagé GET/POST) ; nouvelle route `POST /log/question`.
+- `logx_logbook.js`/`.html` : `carnetHistorique` (borné, 10 tours) ;
+  `poserQuestionLibreCarnet()` bascule en POST, n'alimente l'historique
+  QUE sur un vrai tour IA (`topic==='ia'`, jamais un topic déterministe
+  comme `deja_travaille` reconnu dans le texte libre) ; bouton « Nouvelle
+  conversation (N tours) » — masqué tant qu'aucun tour n'existe, visibilité
+  = intuitivité (rien ne doit laisser croire à une continuité invisible).
+- **Invariant I2 étendu** à la variante POST : nouveau test dédié
+  (`test_invariants_securite.py`) — un historique fourni par le client
+  (potentiellement hostile, rôle `system` injecté) ne doit ni écrire ni
+  atteindre `call_llm_actions`.
+- **Contre-épreuve par mutation sur 6 points structurels** (côté
+  `valider_historique`, `_log_question_palier_ia`, route POST, et JS) :
+  garde d'alternance, retrait d'un dernier tour `user` incomplet, ordre
+  historique+prompt dans les `messages`, validation de l'historique côté
+  route POST, plafond côté client, garde `topic==='ia'` avant d'alimenter
+  la conversation. Les 6 fois, rouge confirmé puis restauration vérifiée
+  par empreinte md5 identique.
+- `ruff`/`node --check` propres, suite complète relancée.
+- Pas de PR GitHub, pas de vérification navigateur réelle — à faire par
+  F4GLD : poser une question, puis une question de suivi (« et en CW ? »),
+  vérifier que le contexte est repris et que le bouton « Nouvelle
+  conversation » apparaît/fonctionne.
+
+### Fusion CHASSE→activité — 2 écarts de comportement corrigés (12/09/2026)
+
+Les 2 écarts notés lors de l'incrément 5c (11/09/2026, non-régressions —
+déjà vrais depuis 4a/4b, simplement jamais corrigés) ont été traités sur
+demande explicite de F4GLD.
+
+**1. Rafraîchissement automatique perdu.** L'ancienne page CHASSE
+(`git show 989d79d~1:concours/logx_chasse.html`, avant qu'elle devienne un
+redirect en 5c) pollait en continu via `rcPollOr` (need-list 60 s, POTA/
+DXpéditions 2 min, SOTA/WWFF 60 s, WCA 5 min — cadences alignées sur le
+cache serveur de chaque source). La fusion avait perdu ce comportement :
+la need-list de l'activité ne se rechargeait plus qu'au clic/changement
+d'objectif. `_demarrerPollingChasse()` (`logx_accueil.js`) reproduit les
+MÊMES 6 cadences, retrouvées en lisant le code historique plutôt
+qu'en inventant un chiffre. Le profil d'objectifs (`chargerObjectifs`)
+n'est délibérément PAS re-pollé — l'ancienne page non plus (« profil
+chargé une fois au démarrage »).
+- Démarré SYNCHRONE (pas dans le `.then()` de la promesse rig/rotor) :
+  `_rafraichirNeedList()` relit `_xotaRigEnabled`/`_xotaRotorEnabled` à
+  CHAQUE appel plutôt qu'une valeur figée à la création du timer, donc rien
+  n'exige d'attendre la résolution de cette promesse avant d'enregistrer
+  les timers — plus simple ET directement testable en V8 sans simuler la
+  résolution d'une chaîne de `Promise.all`.
+- Garde d'idempotence (`_xotaPollingDemarre`) : un double appel à
+  `_revelerCiblesChasse()` ne double pas les minuteurs. Zombie-timer après
+  changement d'activité : NON APPLICABLE ici — vérifié en lisant le code,
+  pas supposé : toute sortie de cette vue (`window.location.href`, nav)
+  est une VRAIE navigation qui tue tous les timers, contrairement à un
+  changement d'onglet SPA sans rechargement.
+- **6 tests dédiés** (`test_accueil_chasse_polling.py`, nouveau, V8) :
+  compte des inscriptions, cadences exactes, **et** — pas seulement les
+  cadences — que CHAQUE fonction capturée par `rcPoll` recharge bien SA
+  ressource (une cadence juste mais associée à la mauvaise ressource,
+  ex. POTA rechargeant en fait `/data/sota_spots`, ne serait pas détectée
+  par un test qui ne compare que la liste des `ms`). Idempotence, non-repoll
+  des objectifs.
+- **2 mutations** (garde d'idempotence, permutation POTA/SOTA) : rouge
+  confirmé, restauration vérifiée par md5.
+
+**2. Message d'état vide manquant sur POTA/SOTA/WWFF.**
+`renderNeedList`/`renderWcaRows`/`renderDxRows` avaient déjà leur état vide
+(`logx_chasse_panneaux.js`) ; `renderActivationRows` (partagée par les 3
+panneaux d'activation) ne l'avait pas — panneau simplement vide, sans
+texte. Message reconstitué depuis l'ancienne page (pas inventé) : chaque
+programme avait SON message propre (« Aucun trafic POTA signalé pour
+l'instant. », etc., trouvés via `git show` de la même façon). Repli
+générique (« Aucun trafic signalé pour l'instant. ») si `opts.programme`
+absent ou inconnu — rétrocompatible avec un futur appelant qui ne le
+passerait pas.
+- `opts.programme` ajouté aux 3 appels dans `logx_accueil.js`
+  (`_chargerPota`/`_chargerSota`/`_chargerWwff`) — seuls appelants
+  existants de `renderActivationRows` (vérifié par grep avant de toucher
+  la signature, `logx_chasse.html` n'est plus qu'un redirect).
+- Chaînes i18n COMPLÈTES par programme (pas de concaténation autour de
+  `rcT()`) : une clé de traduction doit rester une phrase entière
+  prévisible pour le traducteur, jamais un gabarit reconstitué à
+  l'exécution.
+- **9 tests dédiés** (`test_chasse_activation_rows.py`, étendu) : un par
+  programme + repli générique (absent/inconnu) + non-régression (liste non
+  vide n'affiche pas le message). **2 mutations** (retrait du garde, permu-
+  tation POTA/SOTA dans la table de messages) : rouge confirmé, md5 restauré.
+  **1 test structurel dédié par loader** (`test_accueil_chasse_polling.py`)
+  vérifie que `_chargerPota`/`_chargerSota`/`_chargerWwff` passent chacun
+  LEUR PROPRE `programme` — un grep global des 3 littéraux n'importe où
+  dans le fichier aurait pu passer même si les 3 loaders pointaient tous
+  vers le même programme, piège évité en isolant chaque fonction avant de
+  chercher son littéral.
+
+`ruff` non concerné (aucun `.py` touché), `node --check` propre, suite
+complète relancée. Pas de PR GitHub, pas de vérification navigateur réelle.
 
 ---
 
