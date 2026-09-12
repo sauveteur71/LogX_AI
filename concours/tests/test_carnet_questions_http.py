@@ -91,12 +91,55 @@ def test_texte_libre_reconnu_route_vers_deja_travaille(serveur, monkeypatch):
     assert 'W1AW' in j['reponse']
 
 
-def test_texte_libre_non_reconnu_repond_repli_explicite(serveur):
+@pytest.fixture
+def _isole_awards(monkeypatch, tmp_path):
+    """digest() (palier IA) passe par logx_awards.collect_all_qsos(), qui
+    lit archives/ et logx.db DANS LE RÉPERTOIRE COURANT (piège déjà
+    documenté pour shared_log/deleted_qsos, PASSATION.md) -- sans
+    chdir+invalidate avant ET après, ce test dépendrait de l'état réel du
+    poste (et pourrait laisser un cache périmé pour les tests suivants)."""
+    import logx_awards as awards
+    monkeypatch.chdir(tmp_path)
+    awards.invalidate()
+    yield
+    awards.invalidate()
+
+
+def test_texte_libre_non_reconnu_sans_cle_api_repond_erreur_propre(serveur, monkeypatch, _isole_awards):
+    """Incr. 2 (12/09/2026) : une question qui ne matche aucun motif fixe
+    tombe désormais sur le palier IA -- sans clé API configurée, call_llm
+    lève 'Clé API non configurée' ; l'endpoint doit renvoyer ça proprement
+    en payload (ok:False), jamais planter en 500."""
+    monkeypatch.setattr(h, 'current_config', {})
     code, j = _get(serveur, '/log/question?texte=' +
                     'combien%20de%20QSO%20en%2020m%20ce%20mois')
     assert code == 200
     assert j['ok'] is False
-    assert 'pas encore comprise' in j['error'].lower()
+    assert 'clé api' in j['error'].lower()
+
+
+def test_texte_libre_non_reconnu_avec_ia_disponible_repond_topic_ia(serveur, monkeypatch, _isole_awards):
+    """Palier IA (incr. 2) : call_llm est appelé en TEXTE PUR (jamais
+    call_llm_actions, cf. invariant I2) sur un digest d'agrégats -- la
+    réponse renvoyée est celle du LLM, topic marqué 'ia' pour que le client
+    sache qu'il ne s'agit pas d'un topic fixe."""
+    _seed(monkeypatch, [{'id': 1, 'call': 'F4ABC', 'band': '20m', 'mode': 'SSB',
+                        'date': '20260901', 'time': '10:00', 'locator': 'JN18'}])
+    monkeypatch.setattr(h, 'current_config', {'api_key': 'x', 'api_provider': 'anthropic'})
+    appels = []
+    monkeypatch.setattr(h, 'call_llm', lambda cfg, sysp, msgs, model, maxtok:
+                         appels.append((sysp, msgs)) or "1 QSO en 20 m ce mois-ci.")
+    code, j = _get(serveur, '/log/question?texte=' +
+                    'combien%20de%20QSO%20en%2020m%20ce%20mois')
+    assert code == 200 and j['ok'] is True
+    assert j['topic'] == 'ia'
+    assert j['reponse'] == "1 QSO en 20 m ce mois-ci."
+    assert len(appels) == 1
+    sysp, msgs = appels[0]
+    import logx_carnet_questions as cq
+    assert sysp == cq.SYSTEME_IA
+    assert 'combien de QSO en 20m ce mois' in msgs[0]['content']
+    assert 'F4ABC' in msgs[0]['content']   # le digest est bien injecté
 
 
 def test_ni_topic_ni_texte_est_une_erreur_propre(serveur):

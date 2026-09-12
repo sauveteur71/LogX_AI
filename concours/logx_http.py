@@ -2687,11 +2687,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'query': q, 'results': logx_search.search(q)})
             return
 
-        # Questions déterministes sur le carnet (C1, incrément 1) : 0 jeton,
-        # 0 appel LLM -- voir docs/superpowers/specs/2026-09-11-c1-requetes-
-        # langage-naturel-carnet.md. Jeton requis (données privées du carnet,
-        # contrairement à /search ci-dessus qui n'expose que du texte UI
-        # public).
+        # Questions sur le carnet (C1) : topics fixes = 0 jeton/0 appel LLM
+        # (incr. 1) ; texte libre sans motif reconnu = palier IA (incr. 2,
+        # décision F4GLD 12/09/2026) -- voir docs/superpowers/specs/2026-09-
+        # 11-c1-requetes-langage-naturel-carnet.md. Jeton requis (données
+        # privées du carnet, contrairement à /search ci-dessus qui n'expose
+        # que du texte UI public).
         if path == '/log/question':
             if not self._require_auth():
                 return
@@ -2708,9 +2709,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if trouve:
                     topic, indicatif = 'deja_travaille', trouve
                 else:
-                    self._json({'ok': False,
-                                 'error': "Question pas encore comprise -- essaie "
-                                          "une des questions rapides ci-dessus."})
+                    # Palier IA (incrément 2, décision F4GLD 12/09/2026) :
+                    # aucun motif fixe ne matche -> LLM texte pur sur un
+                    # digest d'agrégats déjà calculés (jamais le carnet
+                    # brut, voir logx_carnet_questions). Portée à vie
+                    # (archives + carnet courant), contrairement aux
+                    # topics fixes ci-dessus qui ne portent que sur le
+                    # carnet courant -- même distinction que Carte IA
+                    # (Basique = en cours, IA = à vie).
+                    cfg_snap = self._cfg_snapshot()
+                    try:
+                        import logx_awards as awards
+                        log_enrichi = awards.collect_all_qsos(log_copy)
+                        d = cq.digest(log_enrichi, cfg_snap.get('locator'))
+                        prompt = cq.construire_prompt_utilisateur(texte, d)
+                        reponse = call_llm(cfg_snap, cq.SYSTEME_IA,
+                                           [{'role': 'user', 'content': prompt}],
+                                           None, 400)
+                        self._json({'ok': True, 'reponse': reponse, 'topic': 'ia'})
+                    except Exception as e:
+                        self._json({'ok': False, 'error': str(e)})
                     return
             if topic not in cq.TOPICS:
                 self._json({'ok': False, 'error': 'Question inconnue : %r' % topic})

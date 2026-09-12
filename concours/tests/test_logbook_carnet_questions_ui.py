@@ -31,7 +31,7 @@ def test_overlay_present_avec_bouton_fermer():
     assert 'id="carnetQuestionsOverlay"' in html
     m = re.search(r'<div class="shortcuts-overlay"\s+id="carnetQuestionsOverlay"[^>]*>', html)
     assert m
-    bloc = html[m.end():m.end() + 2000]
+    bloc = html[m.end():m.end() + 3000]
     fin_bloc = bloc.index('</div>\n</div>')
     bloc = bloc[:fin_bloc]
     assert 'closeCarnetQuestions()' in bloc
@@ -40,6 +40,9 @@ def test_overlay_present_avec_bouton_fermer():
     # les 4 questions rapides + « déjà travaillé »
     for topic in ('total', 'par_bande', 'par_mode', 'dernier', 'deja_travaille'):
         assert "poserQuestionCarnet('%s')" % topic in bloc
+    # incr. 2 : question libre -> palier IA
+    assert 'id="qcLibreInput"' in bloc
+    assert 'poserQuestionLibreCarnet()' in bloc
 
 
 def test_js_fonctions_de_cablage_presentes():
@@ -71,3 +74,40 @@ def test_reponse_assignee_via_textcontent_jamais_innerhtml():
 def test_css_qc_box_existe():
     html = _lire('logx_logbook.html')
     assert '.qc-box' in html
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Question libre -> palier IA (C1, incrément 2, 12/09/2026)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_js_fonction_question_libre_presente():
+    js = _lire('logx_logbook.js')
+    assert 'async function poserQuestionLibreCarnet' in js
+
+
+def test_question_libre_envoie_texte_sans_topic():
+    """Contrairement à poserQuestionCarnet (topic préréglé côté client),
+    la question libre doit envoyer UNIQUEMENT `texte=` -- c'est ce qui
+    déclenche le dispatch serveur motif-fixe-puis-IA (logx_http.py)."""
+    js = _lire('logx_logbook.js')
+    i = js.index('async function poserQuestionLibreCarnet')
+    corps = js[i:i + 1200]
+    assert "fetch('/log/question" in corps
+    assert "texte: texte" in corps
+    assert 'topic:' not in corps
+
+
+def test_question_libre_reponse_assignee_via_textcontent_jamais_innerhtml():
+    js = _lire('logx_logbook.js')
+    i = js.index('async function poserQuestionLibreCarnet')
+    corps = js[i:i + 1200]
+    assert 'box.textContent = d.reponse' in corps
+    assert 'box.innerHTML' not in corps
+
+
+def test_champ_libre_present_dans_loverlay_avec_bouton_demander():
+    html = _lire('logx_logbook.html')
+    assert 'id="qcLibreInput"' in html
+    i = html.index('id="qcLibreInput"')
+    bloc = html[i:i + 300]
+    assert 'poserQuestionLibreCarnet()' in bloc

@@ -471,11 +471,13 @@ async function restaurerCorbeilleQso(idStr){
   }
 }
 
-// ─── QUESTIONS SUR LE CARNET (C1, incrément 1) ──────────────────────────────
-// 0 jeton, 0 appel LLM -- docs/superpowers/specs/2026-09-11-c1-requetes-
-// langage-naturel-carnet.md. La réponse est du texte simple renvoyé par le
-// serveur (logx_carnet_questions.repondre) : assignée via textContent, jamais
-// innerHTML -- rien à composer côté client.
+// ─── QUESTIONS SUR LE CARNET (C1) ────────────────────────────────────────────
+// docs/superpowers/specs/2026-09-11-c1-requetes-langage-naturel-carnet.md.
+// Boutons rapides (incr. 1) : 0 jeton, 0 appel LLM. Question libre
+// (incr. 2, ci-dessous) : palier IA si aucun motif fixe ne matche côté
+// serveur. Dans les deux cas la réponse est du texte simple renvoyé par le
+// serveur : assignée via textContent, jamais innerHTML -- rien à composer
+// côté client.
 
 function showCarnetQuestions(){
   const ov = document.getElementById('carnetQuestionsOverlay');
@@ -499,6 +501,32 @@ async function poserQuestionCarnet(topic){
   }
   try{
     const r = await fetch('/log/question?' + params.toString());
+    const d = await r.json();
+    if(!d.ok){
+      box.className = 'qc-reponse qc-erreur';
+      box.textContent = d.error || 'Question sans réponse.';
+      return;
+    }
+    box.textContent = d.reponse;
+  }catch(e){
+    box.className = 'qc-reponse qc-erreur';
+    box.textContent = trT('Serveur injoignable — réessaie.');
+  }
+}
+
+// ─── Question libre (C1, incrément 2) ───────────────────────────────────────
+// Aucun motif fixe reconnu côté serveur -> palier IA (jeton). Même réponse
+// texte assignée via textContent que poserQuestionCarnet() ci-dessus.
+async function poserQuestionLibreCarnet(){
+  const input = document.getElementById('qcLibreInput');
+  const texte = (input && input.value || '').trim();
+  if(!texte) return;
+  const box = document.getElementById('qcReponse');
+  if(!box) return;
+  box.className = 'qc-reponse';
+  box.textContent = 'Recherche… (appel IA, ça peut prendre quelques secondes)';
+  try{
+    const r = await fetch('/log/question?' + new URLSearchParams({texte: texte}).toString());
     const d = await r.json();
     if(!d.ok){
       box.className = 'qc-reponse qc-erreur';

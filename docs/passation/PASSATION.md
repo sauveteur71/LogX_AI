@@ -36,7 +36,9 @@ KISS/Direwolf sur l'écran « Santé de la station » (endpoint
 multi-flux (indicatif, image_id), persistance disque, panneau galerie sur la
 même page (clic sur la tuile SSDV). Voir les deux nouvelles sous-sections
 dédiées dans la section 1, juste après « SSDV Phase 2 — transport AX.25/APRS,
-socle KISS+AX.25 ».
+socle KISS+AX.25 ». **C1** complété d'un 2e incrément le même jour : palier
+IA complet (au-delà des agrégats fixes), historique multi-tour reporté —
+voir « C1 incrément 2 — palier IA complet » juste après la section C1.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1554,6 +1556,80 @@ Python, pas un parseur NLP général).
 agrégats, historique multi-tour) : à discuter séparément avec F4GLD, ni
 l'un ni l'autre en attente d'implémentation automatique — ni les phases
 suivantes de SSDV.
+
+### C1 incrément 2 — palier IA complet (12/09/2026)
+
+Les 2 questions ouvertes laissées par l'incrément 1 ont été tranchées par
+F4GLD via question à choix (méthode reprise du cadrage SSDV) : **palier IA
+complet activé** (au-delà des agrégats fixes) ; **historique multi-tour
+REPORTÉ** (chaque question reste indépendante, pas de code d'état de
+conversation dans ce lot).
+
+**Décision de conception prise seul (conséquence directe des 2 choix
+ci-dessus, pas une 3e question posée à F4GLD)** : le LLM ne reçoit **jamais
+le carnet brut** ni un champ libre (commentaire/note de QSO) — uniquement
+un **digest d'agrégats déjà calculés en Python** (total, par bande/mode/
+pays, indicatifs les plus travaillés, premier/dernier QSO, meilleur DX via
+`logx_awards.dx_records` déjà existant). Le LLM choisit/formule une réponse
+parmi CES chiffres vérifiés, il n'en recalcule aucun lui-même — élimine
+structurellement le risque d'halluciner un total sur un échantillon
+tronqué du carnet (risque réel si on avait injecté une liste de QSO bruts
+et laissé le modèle compter), et rend inutile le patron
+`sanitize_external_text` (`logx_prompts.py`, prévu au cadrage pour du texte
+EXTERNE non fiable type spot cluster) : rien de tel n'entre jamais dans ce
+prompt. Portée délibérément **« à vie »** (archives + carnet courant
+fusionnés via `logx_awards.collect_all_qsos`) plutôt que le carnet courant
+seul des topics fixes de l'incrément 1 — même distinction déjà établie par
+Carte IA (palier Basique = carnet en cours, palier IA = « questions à
+vie »), pas une incohérence involontaire.
+
+**Livré :**
+- `logx_carnet_questions.py` : `digest()`/`construire_prompt_utilisateur()`/
+  `SYSTEME_IA` — le prompt système interdit explicitement toute invention de
+  chiffre et rappelle qu'aucune écriture n'est possible sur ce chemin.
+- `logx_http.py` : `/log/question` bascule sur le palier IA quand `texte=`
+  ne matche AUCUN motif fixe (`extraire_indicatif_deja_travaille`) — appelle
+  `call_llm` en **texte pur**, jamais `call_llm_actions` (I2 tenu par
+  construction : ce chemin n'expose structurellement aucun outil
+  d'écriture, pas seulement par convention). Repli propre (`{'ok': False,
+  'error': ...}`, jamais un 500) si aucune IA n'est disponible (pas de
+  clé/mode local) — `call_llm` encode déjà les deux messages utilisateur
+  corrects, rien à dupliquer.
+- `logx_logbook.js`/`.html` : champ de question libre sous les boutons
+  rapides existants (`qcLibreInput` + `poserQuestionLibreCarnet()`), même
+  discipline `textContent` (jamais `innerHTML`) que l'incrément 1.
+- **Invariant I2 étendu** (`test_invariants_securite.py`) : nouveau test
+  dédié au palier IA, vérifie `call_llm_actions` JAMAIS appelé sur ce
+  chemin (pas seulement `add_qso_to_log`) — rougit si un futur changement
+  fait passer `/log/question` par le seul chemin qui expose un tool
+  d'écriture.
+- **Contre-épreuve par mutation sur 5 points structurels** : bascule vers
+  `call_llm_actions` (I2), `except Exception` réduit à `except ValueError`
+  (repli propre → 500 non maîtrisé), retrait du marqueur `'topic':'ia'`,
+  filtre `_par_pays` qui ignore les QSO sans pays résolu, paramètre `texte=`
+  envoyé côté client. Les 5 fois, rouge confirmé puis restauration vérifiée
+  par empreinte md5 identique.
+- **Piège d'isolation trouvé en écrivant les tests, pas après coup** :
+  `digest()` passe par `logx_awards.collect_all_qsos()`, qui lit
+  `archives/` et `logx.db` **dans le répertoire courant** (même piège déjà
+  documenté ailleurs pour `shared_log`/`deleted_qsos`) — sans
+  `monkeypatch.chdir(tmp_path)` + `awards.invalidate()` avant ET après,
+  les tests HTTP du palier IA auraient dépendu de l'état réel du poste
+  (voire été lents sur un vrai historique de plusieurs milliers de QSO) et
+  auraient pu laisser un cache périmé pour les tests suivants dans la même
+  suite. Ajouté aux 2 tests concernés (`test_carnet_questions_http.py`,
+  `test_invariants_securite.py`) avant même de les lancer une première
+  fois, pas en réaction à un échec.
+- `ruff`/`node --check` propres, suite complète relancée après coup.
+- Pas de PR GitHub (fusion directe), pas de vérification navigateur réelle
+  (pas d'affichage possible dans cet environnement) — à faire par F4GLD :
+  ouvrir LOGBOOK → SUIVI → QUESTIONS SUR LE CARNET, poser une question hors
+  des 4 boutons rapides (ex. « quel est mon meilleur DX ? »), vérifier la
+  réponse IA et le message d'erreur propre si aucune clé API n'est
+  configurée.
+
+**Reste NON cadré** : historique multi-tour (reporté par décision F4GLD
+ci-dessus), aucun autre incrément demandé pour l'instant.
 
 ---
 
