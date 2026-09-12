@@ -1286,9 +1286,52 @@ Phase 1 confirmée **sans changement** (« zéro risque »).
   binaire vendorisé (`test_integration_reelle_encode_decode_aller_retour`,
   même patron que `jt9`/`test_q65_natif.py`).
 
-**Phases suivantes NON cadrées** (transport AX.25/APRS, fusion
-multi-stations, suivi de passage satellite, UI temps réel) : à discuter
+**Phases suivantes** : transport AX.25/APRS **cadré et son socle livré**
+(voir sous-section dédiée juste en dessous) ; fusion multi-stations, suivi
+de passage satellite, UI temps réel restent NON cadrés — à discuter
 séparément avec F4GLD avant tout code.
+
+### SSDV Phase 2 — transport AX.25/APRS, socle KISS+AX.25 (11-12/09/2026)
+
+Cadrage `docs/superpowers/specs/2026-09-11-ssdv-phase2-transport-cadrage.md`.
+**Recherche initiale incomplète, corrigée sur signalement de F4GLD** :
+la première proposition (Direwolf comme équivalent WSJT-X, patron déjà
+utilisé pour `logx_wsjtx.py`) n'avait pas inclus de recherche GitHub large
+avant de la formuler — F4GLD a pointé deux dépôts pertinents manquants
+(`hobisatelit/ssdv2sat`, `daniestevez/gr-satellites`), vérifiés après coup
+via `gh api`/lecture directe. `ssdv2sat` CONFIRME la piste Direwolf (il
+s'appuie dessus lui-même pour AX.25) sans la remplacer ; `gr-satellites`
+est plus capable mais dépend de GNU Radio + IQ brut, jugé disproportionné
+pour un premier incrément. Une affirmation non sourcée (port TCP par
+défaut de Direwolf) a aussi été retirée faute de l'avoir retrouvée en
+vérifiant — leçon : la recherche élargie doit précéder la proposition, pas
+la suivre après relecture demandée.
+
+**Décision F4GLD** : Direwolf + client KISS maison (pas de réutilisation
+de `ssdv2sat` en bloc).
+
+**Socle livré (PR #474)** : format KISS (spec `ax25.net`) et en-tête AX.25
+(`ax25_pad.h`, `wb2osz/direwolf`, GPL-2.0, lu pour comprendre le format,
+aucun code copié) relus contre des sources faisant autorité avant tout
+code.
+- `logx_kiss.py` : échappement par octets, extraction de trames depuis un
+  flux TCP non aligné. Simplification trouvée PAR la contre-épreuve de
+  mutation elle-même : le reliquat inter-appels n'a pas besoin d'un
+  marqueur `FEND` en tête pour se recombiner correctement (le découpage
+  par `split()` ne dépend d'aucun état conservé) — retiré plutôt que
+  gardé par prudence non justifiée.
+- `logx_ax25.py` : parseur d'en-tête (adresses/SSID/répéteurs/contrôle/
+  PID), isole le champ INFO où vivent les paquets SSDV.
+- `logx_ssdv.paquet_depuis_trame_ax25()` : glue par taille, la validation
+  structurelle reste dans `parser_entete()` (Phase 1).
+- Test bout-en-bout KISS → AX.25 → SSDV sur trame synthétique, aucun
+  matériel requis.
+- **Portée volontairement arrêtée avant le client socket live et
+  l'endpoint HTTP** : les questions 2/3 du cadrage (banc de test radio
+  réel, priorité relative à la suite de C1) restent ouvertes, non
+  bloquantes pour ce socle mais à trancher avant d'aller plus loin
+  (connexion permanente à un port Direwolf = engagement d'infrastructure
+  serveur, pas juste un module pur testable).
 
 ### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
 
