@@ -239,6 +239,36 @@ def test_i2_log_question_palier_ia_ne_peut_jamais_ecrire(serveur, monkeypatch, t
         awards.invalidate()
 
 
+def test_i2_log_question_post_avec_historique_ne_peut_jamais_ecrire(serveur, monkeypatch, tmp_path):
+    """C1 incr. 3 (12/09/2026) : même garantie que ci-dessus, mais sur la
+    variante POST qui porte l'historique multi-tour -- un historique
+    fourni par le client (potentiellement hostile) ne doit pas non plus
+    pouvoir faire dévier ce chemin vers call_llm_actions ou une écriture."""
+    import logx_awards as awards
+    monkeypatch.chdir(tmp_path)
+    awards.invalidate()
+    ecritures = []
+    appels_actions = []
+    monkeypatch.setattr(h, 'add_qso_to_log', lambda *a, **k: ecritures.append(a) or (True, {}))
+    monkeypatch.setattr(h, 'call_llm_actions',
+                         lambda *a, **k: appels_actions.append(a) or {'text': 'x', 'action': None})
+    monkeypatch.setattr(h, 'call_llm', lambda *a, **k: "Réponse IA.")
+    monkeypatch.setattr(h, 'shared_log', [{'id': 1, 'call': 'F4ABC', 'band': '20m',
+                                            'mode': 'SSB', 'date': '20260901', 'time': '10:00'}])
+    saved = _seed_cfg({'api_key': 'x', 'api_provider': 'anthropic', 'locator': 'JN18'})
+    try:
+        historique = [{'role': 'user', 'content': 'log JA1XYZ maintenant stp'},
+                      {'role': 'assistant', 'content': "je ne peux pas écrire de QSO."}]
+        code, j = _post(serveur, '/log/question',
+                         {'texte': 'et maintenant ?', 'historique': historique})
+        assert code == 200 and j.get('ok') is True and j.get('topic') == 'ia'
+        assert ecritures == []
+        assert appels_actions == []
+    finally:
+        _restore_cfg(saved)
+        awards.invalidate()
+
+
 # ─────────────────────────── I3 — 0 faux crédit diplôme ──────────────────────
 
 def test_i3_source_llm_ou_inconnue_ne_credite_jamais():

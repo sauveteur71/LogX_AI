@@ -378,6 +378,30 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     raise RuntimeError(f'Fournisseur inconnu : {provider}')
 
 
+def _log_question_palier_ia(texte, historique, cfg_snap, log_copy):
+    """Palier IA de /log/question (C1 incr. 2/3) : digest d'agrégats déjà
+    calculés (jamais le carnet brut, voir logx_carnet_questions.digest) +
+    historique multi-tour déjà VALIDÉ par l'appelant (logx_carnet_questions.
+    valider_historique -- ce module ne refait pas la validation, seul
+    l'appelant connaît la source, GET envoie toujours [] car il n'a pas de
+    forme raisonnable pour porter un tableau).
+    Appelle call_llm en TEXTE PUR, jamais call_llm_actions (invariant I2 :
+    aucun outil d'écriture n'est structurellement atteignable ici).
+    Portée à vie (archives + carnet courant, via
+    logx_awards.collect_all_qsos) plutôt que le carnet courant seul des
+    topics fixes -- même distinction que Carte IA (Basique = en cours,
+    IA = à vie). Renvoie le payload de succès ou LÈVE (l'appelant HTTP
+    traduit l'exception en repli propre, jamais un 500)."""
+    import logx_awards as awards
+    import logx_carnet_questions as cq
+    log_enrichi = awards.collect_all_qsos(log_copy)
+    d = cq.digest(log_enrichi, cfg_snap.get('locator'))
+    prompt = cq.construire_prompt_utilisateur(texte, d)
+    messages = list(historique) + [{'role': 'user', 'content': prompt}]
+    reponse = call_llm(cfg_snap, cq.SYSTEME_IA, messages, None, 400)
+    return {'ok': True, 'reponse': reponse, 'topic': 'ia'}
+
+
 def _stream_openai_compatible(base_url, ai_model, default_model, api_key,
                               system_prompt, messages, max_tokens, on_delta):
     """Streame un fournisseur au format OpenAI (SSE 'data:' + '[DONE]'). Appelle
@@ -2692,7 +2716,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # décision F4GLD 12/09/2026) -- voir docs/superpowers/specs/2026-09-
         # 11-c1-requetes-langage-naturel-carnet.md. Jeton requis (données
         # privées du carnet, contrairement à /search ci-dessus qui n'expose
-        # que du texte UI public).
+        # que du texte UI public). Historique multi-tour (incr. 3) : GET ne
+        # le porte pas (pas de forme raisonnable pour un tableau en query
+        # string) -- voir la variante POST dans _do_POST_impl, qui appelle
+        # le même helper _log_question_palier_ia avec un historique validé.
         if path == '/log/question':
             if not self._require_auth():
                 return
@@ -2709,24 +2736,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if trouve:
                     topic, indicatif = 'deja_travaille', trouve
                 else:
-                    # Palier IA (incrément 2, décision F4GLD 12/09/2026) :
-                    # aucun motif fixe ne matche -> LLM texte pur sur un
-                    # digest d'agrégats déjà calculés (jamais le carnet
-                    # brut, voir logx_carnet_questions). Portée à vie
-                    # (archives + carnet courant), contrairement aux
-                    # topics fixes ci-dessus qui ne portent que sur le
-                    # carnet courant -- même distinction que Carte IA
-                    # (Basique = en cours, IA = à vie).
                     cfg_snap = self._cfg_snapshot()
                     try:
-                        import logx_awards as awards
-                        log_enrichi = awards.collect_all_qsos(log_copy)
-                        d = cq.digest(log_enrichi, cfg_snap.get('locator'))
-                        prompt = cq.construire_prompt_utilisateur(texte, d)
-                        reponse = call_llm(cfg_snap, cq.SYSTEME_IA,
-                                           [{'role': 'user', 'content': prompt}],
-                                           None, 400)
-                        self._json({'ok': True, 'reponse': reponse, 'topic': 'ia'})
+                        self._json(_log_question_palier_ia(texte, [], cfg_snap, log_copy))
                     except Exception as e:
                         self._json({'ok': False, 'error': str(e)})
                     return
@@ -5989,6 +6001,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(_dxcc_positions_dict(calls))
             except Exception as e:
                 self._json({'error': str(e)}, 500)
+            return
+
+        # Questions sur le carnet, variante POST (C1 incr. 3, 12/09/2026) :
+        # SEULE la version GET (topics fixes + texte libre sans historique)
+        # reste inchangée -- celle-ci porte l'historique multi-tour, une
+        # forme impraticable en query string GET. Lecture seule comme la
+        # version GET (I2 tenu par le même helper _log_question_palier_ia,
+        # jamais call_llm_actions).
+        if self.path == '/log/question':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                self._json({'ok': False, 'error': 'JSON invalide'}, 400)
+                return
+            texte = str(payload.get('texte', '') or '')
+            import logx_carnet_questions as cq
+            historique = cq.valider_historique(payload.get('historique'))
+            with log_lock:
+                log_copy = list(shared_log)
+            trouve = cq.extraire_indicatif_deja_travaille(texte)
+            if trouve:
+                reponse = cq.repondre(log_copy, 'deja_travaille', {'indicatif': trouve})
+                self._json({'ok': True, 'reponse': reponse, 'topic': 'deja_travaille'})
+                return
+            cfg_snap = self._cfg_snapshot()
+            try:
+                self._json(_log_question_palier_ia(texte, historique, cfg_snap, log_copy))
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)})
             return
 
         # Occupation des bandes multi-postes : CE poste déclare sa bande/mode

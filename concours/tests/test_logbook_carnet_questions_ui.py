@@ -85,22 +85,25 @@ def test_js_fonction_question_libre_presente():
     assert 'async function poserQuestionLibreCarnet' in js
 
 
-def test_question_libre_envoie_texte_sans_topic():
-    """Contrairement à poserQuestionCarnet (topic préréglé côté client),
-    la question libre doit envoyer UNIQUEMENT `texte=` -- c'est ce qui
-    déclenche le dispatch serveur motif-fixe-puis-IA (logx_http.py)."""
+def test_question_libre_envoie_texte_et_historique_en_post():
+    """Contrairement à poserQuestionCarnet (topic préréglé côté client, GET),
+    la question libre (incr. 3, historique multi-tour) POSTe `texte` et
+    `historique` -- jamais de `topic`, c'est le dispatch serveur motif-fixe-
+    puis-IA (logx_http.py) qui décide."""
     js = _lire('logx_logbook.js')
     i = js.index('async function poserQuestionLibreCarnet')
-    corps = js[i:i + 1200]
-    assert "fetch('/log/question" in corps
-    assert "texte: texte" in corps
+    corps = js[i:i + 1500]
+    assert "fetch('/log/question'" in corps
+    assert "method: 'POST'" in corps
+    assert 'texte: texte' in corps
+    assert 'historique: carnetHistorique' in corps
     assert 'topic:' not in corps
 
 
 def test_question_libre_reponse_assignee_via_textcontent_jamais_innerhtml():
     js = _lire('logx_logbook.js')
     i = js.index('async function poserQuestionLibreCarnet')
-    corps = js[i:i + 1200]
+    corps = js[i:i + 1500]
     assert 'box.textContent = d.reponse' in corps
     assert 'box.innerHTML' not in corps
 
@@ -111,3 +114,47 @@ def test_champ_libre_present_dans_loverlay_avec_bouton_demander():
     i = html.index('id="qcLibreInput"')
     bloc = html[i:i + 300]
     assert 'poserQuestionLibreCarnet()' in bloc
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Historique multi-tour (C1, incrément 3, 12/09/2026)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_js_fonctions_historique_presentes():
+    js = _lire('logx_logbook.js')
+    assert 'let carnetHistorique' in js
+    assert 'function reinitialiserConversationCarnet' in js
+    assert 'function majIndicateurConversationCarnet' in js
+
+
+def test_seul_un_tour_ia_alimente_lhistorique():
+    """Un topic déterministe (ex. 'deja_travaille' reconnu dans le texte
+    libre) ne doit PAS être poussé dans carnetHistorique -- seul un vrai
+    tour LLM (topic === 'ia') a sa place dans le contexte multi-tour."""
+    js = _lire('logx_logbook.js')
+    i = js.index('async function poserQuestionLibreCarnet')
+    corps = js[i:js.index('function reinitialiserConversationCarnet')]
+    assert "d.topic === 'ia'" in corps
+    assert 'carnetHistorique.push' in corps
+
+
+def test_historique_borne_cote_client():
+    js = _lire('logx_logbook.js')
+    assert 'CARNET_HISTORIQUE_MAX' in js
+    assert 'carnetHistorique.slice(-CARNET_HISTORIQUE_MAX)' in js
+
+
+def test_reinitialiser_vide_lhistorique():
+    js = _lire('logx_logbook.js')
+    i = js.index('function reinitialiserConversationCarnet')
+    corps = js[i:i + 200]
+    assert 'carnetHistorique = []' in corps
+
+
+def test_bouton_reset_present_dans_loverlay_et_cache_par_defaut():
+    html = _lire('logx_logbook.html')
+    assert 'id="qcResetBtn"' in html
+    i = html.index('id="qcResetBtn"')
+    bloc = html[max(0, i - 120):i + 120]
+    assert 'reinitialiserConversationCarnet()' in bloc
+    assert 'hidden' in bloc   # invisible tant qu'aucune conversation n'existe

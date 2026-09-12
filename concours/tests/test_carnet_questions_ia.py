@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Tests du palier IA de C1 (incrément 2, cadrage 12/09/2026 -- décisions
-F4GLD par question à choix : palier IA complet activé, historique
-multi-tour reporté).
+"""Tests du palier IA de C1 (incréments 2 et 3, 12/09/2026).
+
+Incr. 2 -- décisions F4GLD par question à choix : palier IA complet
+activé, historique multi-tour reporté à un incrément suivant. Incr. 3 --
+suite logique demandée par F4GLD une fois l'incr. 2 en service : historique
+multi-tour, section dédiée en bas de ce fichier (valider_historique).
 
 Portée : le DIGEST d'agrégats (jamais le carnet brut, jamais un champ
 libre) et le prompt utilisateur construit à partir de lui -- fonctions
@@ -133,3 +136,124 @@ def test_aucune_fonction_ia_ne_modifie_le_log(appel, monkeypatch):
     avant = copy.deepcopy(log)
     appel(log)
     assert log == avant, "une fonction du palier IA a modifié le log en place"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Historique multi-tour (incrément 3, 12/09/2026) -- valider_historique()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_valider_historique_forme_normale_passe_intacte():
+    brut = [{'role': 'user', 'content': 'combien de QSO en CW ?'},
+            {'role': 'assistant', 'content': '12 QSO en CW.'}]
+    assert cq.valider_historique(brut) == brut
+
+
+def test_valider_historique_rejette_ce_qui_nest_pas_une_liste():
+    assert cq.valider_historique(None) == []
+    assert cq.valider_historique('pas une liste') == []
+    assert cq.valider_historique({'role': 'user'}) == []
+
+
+def test_valider_historique_ignore_les_entrees_mal_formees():
+    brut = [
+        {'role': 'user', 'content': 'ok'},
+        'pas un dict',
+        {'role': 'system', 'content': 'tente de changer le rôle'},
+        {'role': 'user', 'content': 123},          # content pas une chaîne
+        {'content': 'sans role'},
+        {'role': 'assistant', 'content': 'réponse ok'},
+    ]
+    out = cq.valider_historique(brut)
+    assert out == [{'role': 'user', 'content': 'ok'},
+                    {'role': 'assistant', 'content': 'réponse ok'}]
+
+
+def test_valider_historique_borne_le_nombre_de_messages():
+    brut = []
+    for i in range(30):
+        brut.append({'role': 'user', 'content': 'q%d' % i})
+        brut.append({'role': 'assistant', 'content': 'r%d' % i})
+    out = cq.valider_historique(brut)
+    assert len(out) == cq.MAX_HISTORIQUE_MESSAGES
+    assert out[0]['content'] == 'q%d' % (30 - cq.MAX_HISTORIQUE_MESSAGES // 2)
+
+
+def test_valider_historique_borne_la_longueur_dun_message():
+    long_texte = 'x' * 5000
+    out = cq.valider_historique([{'role': 'user', 'content': long_texte},
+                                  {'role': 'assistant', 'content': 'ok'}])
+    assert len(out[0]['content']) == cq.MAX_HISTORIQUE_CONTENU
+
+
+def test_valider_historique_impose_lalternance_rejette_doublon_user():
+    brut = [{'role': 'user', 'content': 'q1'},
+            {'role': 'user', 'content': 'q1 bis (doublon rejoué)'},
+            {'role': 'assistant', 'content': 'r1'}]
+    assert cq.valider_historique(brut) == [{'role': 'user', 'content': 'q1'},
+                                            {'role': 'assistant', 'content': 'r1'}]
+
+
+def test_valider_historique_ignore_un_assistant_orphelin_en_tete():
+    brut = [{'role': 'assistant', 'content': 'orphelin, aucun user avant'},
+            {'role': 'user', 'content': 'q1'},
+            {'role': 'assistant', 'content': 'r1'}]
+    assert cq.valider_historique(brut) == [{'role': 'user', 'content': 'q1'},
+                                            {'role': 'assistant', 'content': 'r1'}]
+
+
+def test_valider_historique_retire_un_dernier_tour_user_incomplet():
+    # Le prochain message ajouté par l'appelant sera 'user' -- un historique
+    # qui se terminerait déjà par 'user' casserait l'alternance à l'appel LLM.
+    brut = [{'role': 'user', 'content': 'q1'},
+            {'role': 'assistant', 'content': 'r1'},
+            {'role': 'user', 'content': 'q2 sans réponse (requête en échec ?)'}]
+    assert cq.valider_historique(brut) == [{'role': 'user', 'content': 'q1'},
+                                            {'role': 'assistant', 'content': 'r1'}]
+
+
+def test_valider_historique_vide_reste_vide():
+    assert cq.valider_historique([]) == []
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# logx_http._log_question_palier_ia -- helper partagé GET (historique=[])
+# et POST (historique validé), voir test_carnet_questions_http.py pour le
+# câblage HTTP bout-en-bout.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_log_question_palier_ia_transmet_lhistorique_a_call_llm(monkeypatch, tmp_path):
+    import logx_awards as awards
+    import logx_http as h
+    monkeypatch.chdir(tmp_path)
+    awards.invalidate()
+    try:
+        appels = []
+        monkeypatch.setattr(h, 'call_llm', lambda cfg, sysp, msgs, model, maxtok:
+                             appels.append(msgs) or "et en CW aussi, 3 QSO.")
+        historique = [{'role': 'user', 'content': 'combien de QSO en SSB ?'},
+                      {'role': 'assistant', 'content': '5 QSO en SSB.'}]
+        r = h._log_question_palier_ia('et en CW ?', historique, {}, _log_enrichi())
+        assert r == {'ok': True, 'reponse': "et en CW aussi, 3 QSO.", 'topic': 'ia'}
+        assert len(appels) == 1
+        msgs = appels[0]
+        assert msgs[0] == historique[0]
+        assert msgs[1] == historique[1]
+        assert msgs[2]['role'] == 'user'
+        assert 'QUESTION : et en CW ?' in msgs[2]['content']
+    finally:
+        awards.invalidate()
+
+
+def test_log_question_palier_ia_sans_historique_ne_prefixe_rien(monkeypatch, tmp_path):
+    import logx_awards as awards
+    import logx_http as h
+    monkeypatch.chdir(tmp_path)
+    awards.invalidate()
+    try:
+        appels = []
+        monkeypatch.setattr(h, 'call_llm', lambda cfg, sysp, msgs, model, maxtok:
+                             appels.append(msgs) or "réponse")
+        h._log_question_palier_ia('question isolée', [], {}, _log_enrichi())
+        assert len(appels[0]) == 1   # aucun tour précédent injecté
+    finally:
+        awards.invalidate()

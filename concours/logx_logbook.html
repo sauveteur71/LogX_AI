@@ -695,6 +695,9 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .qc-reponse{font-size:13px;color:var(--text);background:var(--bg3);border:1px solid var(--border);
   border-radius:7px;padding:10px 12px;min-height:20px;line-height:1.5}
 .qc-reponse.qc-erreur{color:var(--muted)}
+.qc-reset{display:block;margin:0 0 8px 0;background:none;border:none;color:var(--accent2);
+  font-size:11.5px;cursor:pointer;padding:0;text-decoration:underline}
+.qc-reset:hover{color:var(--accent)}
 
 /* CHAMPS ADIF PERSONNALISÉS (édition QSO) */
 .exf-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center}
@@ -1444,6 +1447,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <input type="text" id="qcLibreInput" placeholder="Ex. quel est mon meilleur DX ?" maxlength="200" onkeydown="if(event.key==='Enter'){event.preventDefault();poserQuestionLibreCarnet();}">
       <button type="button" onclick="poserQuestionLibreCarnet()">Demander</button>
     </div>
+    <button type="button" class="qc-reset" id="qcResetBtn" onclick="reinitialiserConversationCarnet()" hidden></button>
     <div class="qc-reponse" id="qcReponse">Choisis une question ci-dessus.</div>
   </div>
 </div>

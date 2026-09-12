@@ -3,7 +3,8 @@
 c1-requetes-langage-naturel-carnet.md, « logbook » validé par F4GLD le
 11/09/2026). Incrément 1 : agrégats fixes, 0 jeton. Incrément 2 (12/09/2026,
 décisions F4GLD) : palier IA complet en repli quand aucun motif fixe ne
-matche -- voir la section dédiée plus bas dans ce fichier.
+matche. Incrément 3 (12/09/2026, suite logique demandée par F4GLD) :
+historique multi-tour -- voir les sections dédiées plus bas dans ce fichier.
 
 0 jeton, 0 appel LLM : même raisonnement que le palier « Basique » de Carte
 IA (logx_carte.html, AI_TIER_BASIQUE_TOPICS) -- un jeu FIXE de questions
@@ -159,15 +160,21 @@ def extraire_indicatif_deja_travaille(texte):
 # vie »), pas une incohérence : c'est l'appelant (logx_http.py) qui choisit
 # quelle vue passer à quelle fonction.
 SYSTEME_IA = (
-    "Tu réponds en français à UNE question sur le carnet de trafic d'un "
+    "Tu réponds en français à des questions sur le carnet de trafic d'un "
     "radioamateur, à partir UNIQUEMENT des chiffres déjà calculés fournis "
-    "ci-dessous. Ne recalcule jamais un total ou une distance toi-même, "
-    "n'invente aucun chiffre absent des données fournies -- si la question "
-    "porte sur une donnée qui n'y figure pas, dis-le clairement plutôt que "
-    "de deviner. Tu n'as aucun moyen d'enregistrer, modifier ou supprimer "
-    "un QSO : tu réponds uniquement par du texte. Réponse courte (1 à 3 "
-    "phrases), sans liste à puces sauf si la question porte sur plusieurs "
-    "éléments distincts."
+    "dans le message le plus récent (\"DONNÉES DU CARNET\"). Ne recalcule "
+    "jamais un total ou une distance toi-même, n'invente aucun chiffre "
+    "absent des données fournies -- si la question porte sur une donnée "
+    "qui n'y figure pas, dis-le clairement plutôt que de deviner. Tu n'as "
+    "aucun moyen d'enregistrer, modifier ou supprimer un QSO : tu réponds "
+    "uniquement par du texte. Réponse courte (1 à 3 phrases), sans liste à "
+    "puces sauf si la question porte sur plusieurs éléments distincts.\n"
+    "Des tours précédents de cette même conversation peuvent apparaître "
+    "au-dessus : sers-t'en pour comprendre une question de suivi (« et en "
+    "CW ? » après « combien de QSO en SSB »), mais les chiffres à citer "
+    "restent TOUJOURS ceux du bloc \"DONNÉES DU CARNET\" le plus récent -- "
+    "il est recalculé à chaque tour et peut différer d'un tour précédent "
+    "(nouveau QSO entré depuis)."
 )
 
 
@@ -261,3 +268,47 @@ def construire_prompt_utilisateur(question, d):
     lignes.append("")
     lignes.append("QUESTION : " + str(question or '').strip())
     return "\n".join(lignes)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Historique multi-tour (incrément 3, 12/09/2026 -- suite directe demandée
+# par F4GLD une fois le palier single-turn en service). Le client (JS) porte
+# l'historique -- aucun état de conversation stocké côté serveur, même
+# raisonnement que Carte IA (conversationHistory). valider_historique() ne
+# fait AUCUNE confiance à sa forme : chaque entrée doit être {role, content}
+# avec role in ('user','assistant') et content une chaîne, sinon ignorée
+# silencieusement -- jamais une exception qui casserait toute la
+# conversation pour une entrée mal formée. Borné en nombre ET en longueur :
+# défense en profondeur contre un client bugué/hostile qui gonflerait le
+# coût de l'appel LLM -- PAS une exigence de l'invariant I2, qui reste tenu
+# par construction quel que soit le contenu de l'historique (ce chemin
+# n'appelle jamais call_llm_actions/add_qso_to_log, cf. logx_http.
+# _log_question_palier_ia et test_invariants_securite.py).
+MAX_HISTORIQUE_MESSAGES = 20    # 10 tours (utilisateur+assistant)
+MAX_HISTORIQUE_CONTENU = 2000   # caractères par message
+
+
+def valider_historique(brut):
+    """En plus du filtrage forme (role/content), impose une ALTERNANCE
+    stricte user/assistant : les API des fournisseurs (Anthropic compris)
+    rejettent un tour en double -- un client bugué qui rejouerait deux fois
+    la même entrée ne doit pas faire échouer tout l'appel LLM avec une
+    erreur 400 opaque, juste perdre le doublon."""
+    if not isinstance(brut, list):
+        return []
+    out = []
+    role_attendu = 'user'
+    for item in brut[-MAX_HISTORIQUE_MESSAGES:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get('role')
+        content = item.get('content')
+        if role not in ('user', 'assistant') or not isinstance(content, str):
+            continue
+        if role != role_attendu:
+            continue
+        out.append({'role': role, 'content': content[:MAX_HISTORIQUE_CONTENU]})
+        role_attendu = 'assistant' if role == 'user' else 'user'
+    if out and out[-1]['role'] != 'assistant':
+        out.pop()   # le prochain message ajouté par l'appelant est 'user' -> doit suivre un 'assistant'
+    return out

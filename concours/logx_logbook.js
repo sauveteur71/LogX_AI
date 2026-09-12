@@ -474,10 +474,18 @@ async function restaurerCorbeilleQso(idStr){
 // ─── QUESTIONS SUR LE CARNET (C1) ────────────────────────────────────────────
 // docs/superpowers/specs/2026-09-11-c1-requetes-langage-naturel-carnet.md.
 // Boutons rapides (incr. 1) : 0 jeton, 0 appel LLM. Question libre
-// (incr. 2, ci-dessous) : palier IA si aucun motif fixe ne matche côté
-// serveur. Dans les deux cas la réponse est du texte simple renvoyé par le
-// serveur : assignée via textContent, jamais innerHTML -- rien à composer
-// côté client.
+// (incr. 2) : palier IA si aucun motif fixe ne matche côté serveur.
+// Historique multi-tour (incr. 3, 12/09/2026) : le CLIENT porte
+// carnetHistorique -- même patron que conversationHistory de Carte IA
+// (logx_carte.html), mais sans persistance localStorage (portée : la
+// session de page en cours, remise à zéro explicite via le bouton dédié).
+// Le serveur reste sans état -- il revalide/borne cet historique à chaque
+// appel (logx_carnet_questions.valider_historique), jamais une confiance
+// aveugle dans ce qu'envoie le client. Dans tous les cas la réponse est du
+// texte simple assignée via textContent, jamais innerHTML -- rien à
+// composer côté client.
+let carnetHistorique = [];
+const CARNET_HISTORIQUE_MAX = 20;   // 10 tours -- même borne que le serveur
 
 function showCarnetQuestions(){
   const ov = document.getElementById('carnetQuestionsOverlay');
@@ -514,9 +522,11 @@ async function poserQuestionCarnet(topic){
   }
 }
 
-// ─── Question libre (C1, incrément 2) ───────────────────────────────────────
-// Aucun motif fixe reconnu côté serveur -> palier IA (jeton). Même réponse
-// texte assignée via textContent que poserQuestionCarnet() ci-dessus.
+// ─── Question libre (C1, incréments 2 et 3) ─────────────────────────────────
+// Aucun motif fixe reconnu côté serveur -> palier IA (jeton). POST (pas
+// GET) depuis l'incr. 3 : porte carnetHistorique, une forme impraticable en
+// query string. Même réponse texte assignée via textContent que
+// poserQuestionCarnet() ci-dessus.
 async function poserQuestionLibreCarnet(){
   const input = document.getElementById('qcLibreInput');
   const texte = (input && input.value || '').trim();
@@ -526,7 +536,10 @@ async function poserQuestionLibreCarnet(){
   box.className = 'qc-reponse';
   box.textContent = 'Recherche… (appel IA, ça peut prendre quelques secondes)';
   try{
-    const r = await fetch('/log/question?' + new URLSearchParams({texte: texte}).toString());
+    const r = await fetch('/log/question', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({texte: texte, historique: carnetHistorique})
+    });
     const d = await r.json();
     if(!d.ok){
       box.className = 'qc-reponse qc-erreur';
@@ -534,10 +547,40 @@ async function poserQuestionLibreCarnet(){
       return;
     }
     box.textContent = d.reponse;
+    input.value = '';
+    // Seul un vrai tour IA alimente la conversation -- une réponse
+    // déterministe (topic !== 'ia', ex. "déjà travaillé" reconnu dans le
+    // texte libre) n'a pas de raison de peser sur le contexte multi-tour.
+    if(d.topic === 'ia'){
+      carnetHistorique.push({role: 'user', content: texte});
+      carnetHistorique.push({role: 'assistant', content: d.reponse});
+      if(carnetHistorique.length > CARNET_HISTORIQUE_MAX){
+        carnetHistorique = carnetHistorique.slice(-CARNET_HISTORIQUE_MAX);
+      }
+    }
+    majIndicateurConversationCarnet();
   }catch(e){
     box.className = 'qc-reponse qc-erreur';
     box.textContent = trT('Serveur injoignable — réessaie.');
   }
+}
+
+function reinitialiserConversationCarnet(){
+  carnetHistorique = [];
+  majIndicateurConversationCarnet();
+}
+
+// Visibilité de l'état de conversation -- intuitivité : sans indice, rien
+// ne dit à l'opérateur qu'une question de suivi ("et en CW ?") va réutiliser
+// le contexte précédent plutôt que repartir de zéro.
+function majIndicateurConversationCarnet(){
+  const btn = document.getElementById('qcResetBtn');
+  if(!btn) return;
+  const tours = carnetHistorique.length / 2;
+  btn.hidden = tours === 0;
+  btn.textContent = tours > 0
+    ? 'Nouvelle conversation (' + tours + ' tour' + (tours > 1 ? 's' : '') + ')'
+    : '';
 }
 
 function applyUsageModeToLogbook(mode){
