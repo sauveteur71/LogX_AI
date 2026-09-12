@@ -29,6 +29,12 @@ pas ici — voir #464-#471). Deux nouveaux chantiers cadrés le même jour :
 maintenant un premier incrément livré. Voir les sous-sections dédiées dans
 la section 1.
 
+**Mise à jour le 12/09/2026** : chantier **SSDV** complété d'un incrément
+supplémentaire — exposition de l'état du lien KISS/Direwolf sur l'écran
+« Santé de la station » (endpoint `GET /ssdv/kiss/state` + tuile diagnostic).
+Voir la nouvelle sous-section dédiée dans la section 1, juste après « SSDV
+Phase 2 — transport AX.25/APRS, socle KISS+AX.25 ».
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -1371,6 +1377,54 @@ sur flux simulé.
 - Pas d'endpoint HTTP dans cet incrément (pas demandé, pas nécessaire
   pour la validation sur flux simulé) — `kiss_settings()` lit déjà la
   config pour un futur câblage.
+
+### SSDV — exposition HTTP/UI de l'état du lien KISS (12/09/2026)
+
+Suite directe du socle Phase 2 (client KISS live, PR #475, ci-dessus) — celui-ci
+s'arrêtait volontairement avant tout endpoint HTTP (« pas demandé, pas
+nécessaire pour la validation sur flux simulé »). Cet incrément rend l'état de
+la liaison Direwolf **consultable côté opérateur**, sur le même patron que les
+tuiles matérielles existantes (WSJT-X, WinKeyer, PGXL…) de l'écran « Santé de
+la station » (`logx_diagnostic.html`).
+
+- `logx_http.py` : `_ssdv_kiss_state_dict(cfg_snap)` — même patron que
+  `_wsjtx_state_dict()` : lit `logx_ssdv_reception.kiss_settings()`, démarre à
+  chaud le client (idempotent, `demarrer_client_kiss()`) si la config l'a
+  activé, expose une copie de `logx_ssdv_reception.status` (aucune I/O
+  bloquante sur le thread HTTP — le client tourne dans son propre thread de
+  fond, socle déjà livré en Phase 2). `on_paquet_ssdv` reste un no-op : cet
+  incrément couvre la supervision du lien, pas l'assemblage/la persistance
+  d'image (suivi possible séparé, non cadré).
+  Nouvel endpoint `GET /ssdv/kiss/state` + champ `ssdv_kiss` ajouté à
+  `GET /hardware/state` (agrégat déjà consommé par la page diagnostic).
+- `logx_diagnostic.js` : nouvelle tuile `ssdv` dans `construireTuiles()` —
+  grise/« désactivé » si `kiss.enabled` est faux, verte avec le compte de
+  paquets reçus si connecté, jaune avec la dernière erreur sinon. Aucune
+  modification HTML : la page rend déjà ses tuiles dynamiquement depuis
+  `construireTuiles()`, pas de markup statique par tuile à tenir à jour.
+- **Contre-épreuve par mutation faite sur les 3 points structurels ajoutés**
+  (méthode du dépôt, section 2) : garde `!kiss.enabled` inversée côté JS →
+  4 tests rougissent ; retour `{'enabled': False}` forcé à `True` côté
+  Python → 2 tests rougissent ; appel à `demarrer_client_kiss()` retiré →
+  le test d'idempotence du démarrage rougit. Les trois fois, restauration
+  vérifiée par empreinte md5 identique au fichier avant mutation.
+- `ruff` propre sur les `.py` touchés, `node --check` propre sur le JS.
+- **Suite complète relancée deux fois** (avec puis sans les fichiers SSDV,
+  pour isoler) : seul échec rencontré dans les deux cas,
+  `test_hors_bande_endpoint.py::test_le_marqueur_suit_bien_la_frequence`
+  (`ConnectionResetError [WinError 10054]`) — le défaut réseau intermittent
+  local déjà documenté ailleurs dans ce fichier (`_est_incident_reseau`,
+  winerror 10053/10054), reproduit **sans aucun rapport** avec les fichiers
+  SSDV et revert au vert en isolation. Pas une régression de cet incrément.
+- Pas de PR GitHub pour ce lot (fusion directe, comme l'incrément 4 du
+  chantier CHASSE→activité) — pas de vérification navigateur faite (tuile
+  générique, même rendu que les tuiles matérielles déjà en place et déjà
+  vérifiées visuellement).
+
+**Reste hors scope, non cadré** : assemblage/persistance des images SSDV
+reçues (paquets bruts seulement pour l'instant), validation contre un flux
+Direwolf réel (carte son + TNC) — déjà noté comme hors de portée de ce dépôt
+de code en Phase 2.
 
 ### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
 

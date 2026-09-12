@@ -52,6 +52,17 @@
       t.push({id: 'ft8', nom: 'FT8 / WSJT-X', couleur: 'yellow', detail: 'aucun décodage récent'});
     }
 
+    var kiss = hw.ssdv_kiss || {};
+    if(!kiss.enabled){
+      t.push({id: 'ssdv', nom: 'SSDV (KISS/Direwolf)', couleur: 'muted', detail: 'désactivé'});
+    }else if(kiss.connected){
+      t.push({id: 'ssdv', nom: 'SSDV (KISS/Direwolf)', couleur: 'green',
+              detail: (kiss.paquets_recus || 0) + ' paquet(s) reçu(s)'});
+    }else{
+      t.push({id: 'ssdv', nom: 'SSDV (KISS/Direwolf)', couleur: 'yellow',
+              detail: kiss.derniere_erreur || 'non connecté'});
+    }
+
     var cb = net.callbook || {};
     t.push({id: 'callbook', nom: 'Callbook', couleur: cb.open ? 'yellow' : 'green',
             detail: cb.open ? 'en pause (hors-ligne)' : 'disponible'});

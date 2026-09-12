@@ -83,6 +83,36 @@ def test_dxcc_rouge_si_indisponible():
     assert c == 'red'
 
 
+def test_ssdv_kiss_mute_si_desactive():
+    ctx = _ctx()
+    c = ctx.eval("window.LogxDiagnostic.construireTuiles({hardware:{ssdv_kiss:{enabled:false}}}).filter(function(t){return t.id==='ssdv';})[0].couleur")
+    assert c == 'muted'
+
+
+def test_ssdv_kiss_verte_si_connecte():
+    ctx = _ctx()
+    data = "{hardware:{ssdv_kiss:{enabled:true, connected:true, paquets_recus:7}}}"
+    couleur = ctx.eval("window.LogxDiagnostic.construireTuiles(%s).filter(function(t){return t.id==='ssdv';})[0].couleur" % data)
+    detail = ctx.eval("window.LogxDiagnostic.construireTuiles(%s).filter(function(t){return t.id==='ssdv';})[0].detail" % data)
+    assert couleur == 'green'
+    assert '7' in detail
+
+
+def test_ssdv_kiss_jaune_si_active_mais_deconnecte():
+    ctx = _ctx()
+    data = "{hardware:{ssdv_kiss:{enabled:true, connected:false, derniere_erreur:'connexion refusee'}}}"
+    couleur = ctx.eval("window.LogxDiagnostic.construireTuiles(%s).filter(function(t){return t.id==='ssdv';})[0].couleur" % data)
+    detail = ctx.eval("window.LogxDiagnostic.construireTuiles(%s).filter(function(t){return t.id==='ssdv';})[0].detail" % data)
+    assert couleur == 'yellow'
+    assert 'connexion refusee' in detail
+
+
+def test_ssdv_kiss_absent_ne_plante_pas():
+    ctx = _ctx()
+    c = ctx.eval("window.LogxDiagnostic.construireTuiles({}).filter(function(t){return t.id==='ssdv';})[0].couleur")
+    assert c == 'muted'
+
+
 def test_callbook_jaune_si_disjoncteur_ouvert():
     ctx = _ctx()
     c = ctx.eval("window.LogxDiagnostic.construireTuiles({network:{callbook:{open:true, wait_s:30}}}).filter(function(t){return t.id==='callbook';})[0].couleur")

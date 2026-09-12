@@ -1941,6 +1941,28 @@ def _est_incident_reseau(exc):
     return isinstance(exc, OSError) and getattr(exc, 'winerror', None) in (10053, 10054)
 
 
+def _ssdv_kiss_state_dict(cfg_snap):
+    """État du lien KISS/Direwolf (SSDV Phase 2) -- même patron que
+    _wsjtx_state_dict() : démarrage à chaud idempotent du client quand la
+    config l'active, aucune I/O bloquante ici (le client tourne dans son
+    propre thread de fond, voir logx_ssdv_reception). `on_paquet_ssdv` est
+    un no-op pour l'instant -- l'assemblage/la persistance d'image n'est
+    pas demandé dans cet incrément (supervision de la liaison seulement),
+    suivi possible séparé."""
+    import logx_ssdv_reception as rx
+    settings = rx.kiss_settings(cfg_snap)
+    if not settings['enabled']:
+        return {'enabled': False}
+    rx.demarrer_client_kiss(
+        get_cfg=lambda: dict(current_config),
+        on_paquet_ssdv=lambda paquet: None,
+        host=settings['host'], port=settings['port'])
+    with rx._status_lock:
+        st = dict(rx.status)
+    st['enabled'] = True
+    return st
+
+
 def _winkeyer_state_dict(cfg_snap):
     """Le WinKeyer est-il ACTIVÉ en configuration ? — pas son état de liaison.
 
@@ -5379,6 +5401,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(_wsjtx_state_dict(self._cfg_snapshot()))
             return
 
+        # Lien KISS/Direwolf (SSDV Phase 2) : état de la connexion --
+        # demandé par F4GLD (« endpoint HTTP léger », supervision du lien).
+        if path == '/ssdv/kiss/state':
+            self._json(_ssdv_kiss_state_dict(self._cfg_snapshot()))
+            return
+
         # Réseau ADIF générique (N1MM/DXLog) : état de l'écoute — pollé par CONFIG
         if path == '/adifnet/state':
             import logx_adifnet as adifnet
@@ -5612,6 +5640,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'pgxl': _pgxl_state_dict(cfg_snap),
                 'acom': _acom_state_dict(cfg_snap),
                 'winkeyer': _winkeyer_state_dict(cfg_snap),
+                'ssdv_kiss': _ssdv_kiss_state_dict(cfg_snap),
             })
             return
 
