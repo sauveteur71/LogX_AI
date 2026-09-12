@@ -55,7 +55,13 @@ concours ambiguës — recherche menée, portée revue » juste après la
 section RTTY. **Copilote FT8 niveaux 3-4** : demandé comme suite à
 construire, trouvé DÉJÀ ENTIÈREMENT FAIT (02-03/09, jamais consigné ici) —
 rien codé, seule l'entrée manquante ajoutée (section 1 + « En attente d'un
-essai sur l'air »).
+essai sur l'air »). **Moteur de scoring REF TVA** : les 4 concours TVA
+sortis d'« ouvert, non entrepris » — règlements PDF lus intégralement,
+découverte que la donnée existante (« relais TVA ») était FAUSSE, vrai
+barème au kilomètre par bande (schéma `contest_schema.json` 1.2.0 → 1.3.0,
+forme `{'per_km_x': N}`), Section 1 seule (décision F4GLD) — voir « Moteur
+de scoring REF TVA » juste après la section « Définitions de concours
+ambiguës ».
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1910,6 +1916,11 @@ révélé être le simple « il ne manque que la liste des bandes » attendu** :
   connaissent pas) — chantier neuf de l'ampleur du correctif RTTY du jour
   mais pour un mode encore jamais codé (relais ATV). Laissé ouvert, décision
   F4GLD : ne pas l'entreprendre aujourd'hui.
+  **⚠️ Note périmée — entrepris et livré le jour même, voir
+  « Moteur de scoring REF TVA » plus bas.** Découverte en sourçant les
+  règlements : il n'y a pas de « relais » du tout, le vrai barème est un
+  scoring au kilomètre par bande — l'ancienne donnée `CONTEST_SCORING`
+  était fausse, pas seulement incomplète.
 - **REF_CHALLENGE_THF** : confirmé par la note d'origine comme nécessitant
   un moteur dédié — non réexaminé, rien de neuf.
 - **F9NL** : **découverte faite en sourçant** — la donnée existante
@@ -1953,6 +1964,97 @@ un moteur `'tva'` neuf aujourd'hui.
 absente), les 4 TVA et REF_CHALLENGE_THF (moteur de scoring à construire) —
 aucun des trois n'est "prêt à trancher", chacun mériterait son propre
 cadrage avec F4GLD s'il devient prioritaire.
+
+### Moteur de scoring REF TVA — 4 concours, découverte contredisant la donnée existante (12/09/2026)
+
+Repris la même journée, sur « suite » → F4GLD choisit « Moteur de scoring
+'tva' (4 concours REF) » dans la liste des chantiers ouverts ci-dessus.
+Avant de coder quoi que ce soit, les 3 règlements PDF officiels REF ont été
+lus **intégralement** (`WebFetch` échoue à en extraire le texte — flux
+compressé que son résumé automatique ne décode pas — mais sauvegarde le
+binaire brut localement ; le pointer ensuite avec l'outil `Read`, qui sait
+parser un PDF nativement, a fonctionné) :
+- `reg_nattva_fr_20260516.pdf` (National TVA — sert aussi à l'édition de
+  décembre, même règlement)
+- `reg_cdftva_fr_20260516.pdf` (Championnat de France TVA)
+- `reg_iarutva_fr_20251209.pdf` (IARU TVA Région 1)
+
+**Découverte** : la donnée existante (`CONTEST_SCORING[...]`, `'type':'tva'`,
+`'unit':'pts x relais TVA'`, `'mult':'relais TVA'`) était **fausse**, pas
+juste absente du moteur — aucun des 3 règlements ne mentionne de relais.
+Le vrai barème (Section 1, émission-réception bilatérale) est un scoring
+**au kilomètre**, coefficient croissant par bande, **sans multiplicateur** :
+70 cm → 2 pts/km, 23 cm → 4 pts/km, bandes supérieures → 10 pts/km. Question
+posée à F4GLD sur la portée : **Section 1 seule retenue** (Section 2,
+réception seule/SWL à moitié points, laissée hors scope — le carnet LogX AI
+n'a aucun champ pour distinguer un QSO bilatéral d'une réception unilatérale).
+
+**Livré :**
+- `contest_schema.json` **v1.2.0 → v1.3.0** (MINOR, additive) : nouvelle
+  forme de points `{'per_km_x': N}` dans le `oneOf` de
+  `scoring.bricks.points[].points`, aux côtés des formes existantes
+  (nombre, `'per_km'`, `{'param':...}`). `docs/CONTRATS_DONNEES.md` mis à
+  jour (changelog + statut d'en-tête).
+- `logx_scoring.py::_points_value()` : reconnaît `{'per_km_x': N}` →
+  `dist_km * N`, avant les branches existantes. **Mutation** (`*` → `+`) :
+  8 tests rougissent ; restauré, md5 identique confirmé.
+- `logx_definitions.py` : 4 nouvelles entrées `CONTEST_DEFINITIONS`
+  (`REF_NAT_TVA`, `REF_NAT_TVA_DEC`, `REF_CDF_TVA`, `REF_IARU_TVA`),
+  modélisées en 3 règles `bricks` filtrées par bande (70cm/23cm/le reste —
+  la 3e règle, sans filtre `bands`, capte tout au-delà de 23 cm sans
+  énumération), `multiplier: None`. IARU TVA a des bandes **restreintes**
+  (pas de 10368/47088, énuméré explicitement dans le règlement — pas une
+  omission). **Mutation** (retrait du filtre `bands` de la règle 70cm de
+  `REF_NAT_TVA`) : test dédié rougit ; restauré, md5 identique confirmé.
+- **Piège de préséance trouvé en lisant `get_scoring_info()`** :
+  `CONTEST_SCORING` est consulté **avant** `CONTEST_DEFINITIONS` — ajouter
+  les 4 définitions correctes sans corriger `CONTEST_SCORING` aurait laissé
+  l'ancienne donnée fausse (« relais TVA ») masquer silencieusement la
+  nouvelle côté prompts IA/affichage. Les 4 entrées `CONTEST_SCORING`
+  corrigées en même temps (`'type':'km'`, `'mult':'aucun'`, unité
+  2/4/10 pts/km).
+- **Bug préexistant trouvé en validant** : `logx_validate.py::_check_scoring()`
+  (vérificateur minimal de secours, sans `jsonschema`) n'acceptait jamais
+  `'per_km_stew'`/`'per_grid_3000'`/`{'per_km_x':...}` en forme `bricks`
+  **directe** — resté invisible car le seul autre concours à utiliser
+  `'per_grid_3000'` (`FT_CHALLENGE`) passe par la forme raccourcie `'type'`,
+  qui ne traverse pas cette branche. Corrigé en miroir du schéma JSON réel.
+  **Mutation** (retrait de la clause `per_km_x`) : 2 tests rougissent ;
+  restauré, md5 identique confirmé.
+- `tests/test_contest_ref_tva.py` (nouveau, 16 tests) : présence des 4
+  définitions, validité schéma, unité `_points_value`, barème par bande
+  des 4 concours, absence de multiplicateur, `calc_total_score` bout-en-
+  bout, régressions dédiées du bug `logx_validate.py`.
+- `tests/test_concours_sans_definition.py` : les 4 ID TVA retirés
+  d'`AMBIGUS_CONNUS` (recensement volontairement décroissant), nouveau
+  test `test_concours_tva_ont_maintenant_une_vraie_definition`.
+- Suite ciblée + `ruff` + `logx_validate.py` propres ; suite complète
+  relancée après coup (12 336 passés, 4 ignorés, 0 échec, hors le fichier
+  isolé ci-dessous).
+- **Hors scope, assumé** : Section 2 (réception seule/SWL) des 3
+  règlements, `UFT_RENCONTRES` et `REF_CHALLENGE_THF` restent ouverts.
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
+**🚨 Découverte annexe, sans rapport avec ce chantier — `test_ft8_decimation.py`
+bloque indéfiniment (12/09/2026)** : en relançant la suite complète après le
+chantier TVA, elle est restée bloquée ~20 minutes au même pourcentage (63 %),
+CPU en légère hausse mais sans nouvelle sortie. Isolé et **reproduit deux fois
+de suite en lançant CE SEUL fichier seul** (`pytest tests/test_ft8_decimation.py`,
+aucun autre test en cours) — donc pas une contention de suite complète, un vrai
+blocage propre au fichier. Point de blocage probable :
+`test_le_decodage_est_nettement_plus_rapide` (10e/17 items, juste après les
+tests rapides qui passent bien) — seul test du fichier qui invoque
+`py_mini_racer` (moteur JS V8 embarqué) pour exécuter `decoder()`/`ft8Decimer()`
+en conditions réelles, avec un commentaire du fichier lui-même anticipant un
+coût de compilation JIT (« la 1re passe paie la compilation JIT ») — mais des
+minutes de blocage dépassent largement ce qu'une compilation JIT devrait
+coûter. **Aucune investigation plus poussée faite** (hors scope du chantier
+TVA, `logx_scoring.py`/`logx_definitions.py`/`logx_validate.py` n'ont aucun
+lien avec ce fichier ni avec `py_mini_racer`) — suite complète relancée avec
+`--ignore=concours/tests/test_ft8_decimation.py` pour ne pas bloquer la
+vérification du chantier TVA. À reprendre par un futur chantier dédié :
+isoler si c'est spécifique à cette machine (antivirus scannant le moteur V8
+à chaud ?) ou une régression réelle du fichier/de `py_mini_racer`.
 
 ---
 
