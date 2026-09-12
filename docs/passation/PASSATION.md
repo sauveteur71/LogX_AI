@@ -2035,26 +2035,25 @@ n'a aucun champ pour distinguer un QSO bilatéral d'une réception unilatérale)
   règlements, `UFT_RENCONTRES` et `REF_CHALLENGE_THF` restent ouverts.
 - Pas de PR GitHub, pas de vérification navigateur réelle.
 
-**🚨 Découverte annexe, sans rapport avec ce chantier — `test_ft8_decimation.py`
-bloque indéfiniment (12/09/2026)** : en relançant la suite complète après le
-chantier TVA, elle est restée bloquée ~20 minutes au même pourcentage (63 %),
-CPU en légère hausse mais sans nouvelle sortie. Isolé et **reproduit deux fois
-de suite en lançant CE SEUL fichier seul** (`pytest tests/test_ft8_decimation.py`,
-aucun autre test en cours) — donc pas une contention de suite complète, un vrai
-blocage propre au fichier. Point de blocage probable :
-`test_le_decodage_est_nettement_plus_rapide` (10e/17 items, juste après les
-tests rapides qui passent bien) — seul test du fichier qui invoque
-`py_mini_racer` (moteur JS V8 embarqué) pour exécuter `decoder()`/`ft8Decimer()`
-en conditions réelles, avec un commentaire du fichier lui-même anticipant un
-coût de compilation JIT (« la 1re passe paie la compilation JIT ») — mais des
-minutes de blocage dépassent largement ce qu'une compilation JIT devrait
-coûter. **Aucune investigation plus poussée faite** (hors scope du chantier
-TVA, `logx_scoring.py`/`logx_definitions.py`/`logx_validate.py` n'ont aucun
-lien avec ce fichier ni avec `py_mini_racer`) — suite complète relancée avec
-`--ignore=concours/tests/test_ft8_decimation.py` pour ne pas bloquer la
-vérification du chantier TVA. À reprendre par un futur chantier dédié :
-isoler si c'est spécifique à cette machine (antivirus scannant le moteur V8
-à chaud ?) ou une régression réelle du fichier/de `py_mini_racer`.
+**Découverte annexe, sans rapport avec ce chantier — `test_ft8_decimation.py`
+extrêmement lent, PAS bloqué (12/09/2026)** : en relançant la suite complète
+après le chantier TVA, elle est restée ~20 minutes sans avancer au même
+pourcentage (63 %). Isolé (`pytest tests/test_ft8_decimation.py` seul, aucun
+autre test en cours) et **d'abord mal diagnostiqué en « blocage
+reproductible »** après deux tentatives tuées à 120-180 s sans sortie —
+correction faite en le laissant tourner jusqu'au bout sans le tuer : il
+**termine réellement, 17/17 verts, en ~8 minutes** (lancé 22:31:27, log
+écrit 22:39:30). Ce n'est donc PAS un hang, seulement une lenteur extrême
+d'un seul test — probablement `test_le_decodage_est_nettement_plus_rapide`
+(seul test du fichier invoquant `py_mini_racer`/V8 pour un décodage FT8
+réel sur fenêtre 16,5 s à 48 kHz, 3 passes, SANS décimation pour la mesure
+de référence). Le CPU du processus montait en continu pendant l'attente
+(preuve de calcul actif, pas d'attente bloquante) — c'est ce qui a permis de
+corriger le faux diagnostic initial. **Aucune régression de ce chantier** :
+`logx_scoring.py`/`logx_definitions.py`/`logx_validate.py` n'ont aucun lien
+avec ce fichier ni avec `py_mini_racer`. Reste un point à surveiller pour un
+futur chantier (8 minutes pour un seul fichier alourdit sensiblement toute
+suite complète) mais ne bloque aucune vérification.
 
 ---
 
