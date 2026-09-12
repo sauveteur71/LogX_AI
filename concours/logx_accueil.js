@@ -150,12 +150,18 @@ function _revelerCiblesChasse(){
     '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>';
   if(typeof fetch !== 'function') return;
   var P = window.LogxChassePanneaux; if(!P) return;
-  _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); });
-  _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota}); });
-  _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota}); }); // WWFF : même champ park_name que POTA
-  _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); });
-  _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); });
+  _chargerPota(); _chargerSota(); _chargerWwff(); _chargerWca(); _chargerDx();
   chargerObjectifs();
+  // Rafraîchissement automatique (écart de comportement signalé après la
+  // fusion, 12/09/2026 : l'ancienne page CHASSE pollait en continu, la
+  // nouvelle ne se rechargeait plus qu'au clic/changement d'objectif).
+  // Démarré ICI, SYNCHRONE -- ne dépend pas de la résolution de la promesse
+  // rig/rotor juste en dessous : _rafraichirNeedList() relit _xotaRigEnabled/
+  // _xotaRotorEnabled à CHAQUE appel (pas une valeur figée à la création du
+  // timer), le premier tick du poll (60 s plus tard) verra forcément l'état
+  // déjà résolu. Mêmes cadences que l'ancienne implémentation (logx_chasse.
+  // html avant fusion, incr. 5c).
+  _demarrerPollingChasse();
   // Need-list : lit l'état radio/rotor AVANT de rendre (comme logx_chasse.html)
   // pour savoir si les boutons QSY/rotor doivent apparaître par ligne.
   Promise.all([
@@ -179,6 +185,36 @@ function _rafraichirNeedList(){
   _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){
     return P.renderNeedList((d && d.spots) || [], {max:15, rigEnabled:_xotaRigEnabled, rotorEnabled:_xotaRotorEnabled});
   });
+}
+
+// Un loader nommé par panneau (plutôt que les lambdas inline d'avant) : la
+// même fonction sert au premier rendu ET à chaque tick du polling ci-dessous.
+function _chargerPota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota, programme:'POTA'}); }); }
+function _chargerSota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota, programme:'SOTA'}); }); }
+function _chargerWwff(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota, programme:'WWFF'}); }); } // WWFF : même champ park_name que POTA
+function _chargerWca(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); }); }
+function _chargerDx(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); }); }
+
+// Rafraîchissement automatique des panneaux + de la need-list -- mêmes
+// cadences que l'ancienne page CHASSE (avant fusion, PR #464-#471) :
+// need-list chaque minute, POTA/SOTA/WWFF/DXpéditions selon leur cache
+// serveur respectif, WCA (simple flux RSS) toutes les 5 min. Le profil
+// d'objectifs (chargerObjectifs) N'EST PAS re-pollé -- l'ancienne page ne
+// le faisait pas non plus (« profil d'objectifs : chargé une fois au
+// démarrage »), un changement se fait via un geste explicite (case cochée),
+// pas par polling. window.rcPoll (logx_statusbar.js) suspend les timers
+// quand l'onglet est masqué -- même garde-fou que le reste de l'app.
+var _xotaPollingDemarre = false;
+function _demarrerPollingChasse(){
+  if(_xotaPollingDemarre) return;
+  _xotaPollingDemarre = true;
+  var poll = window.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
+  poll(_rafraichirNeedList, 60 * 1000);
+  poll(_chargerPota, 2 * 60 * 1000);
+  poll(_chargerSota, 60 * 1000);
+  poll(_chargerWwff, 60 * 1000);
+  poll(_chargerWca, 5 * 60 * 1000);
+  poll(_chargerDx, 2 * 60 * 1000);
 }
 
 // ── Profil d'OBJECTIFS opérateur (fusion 4e, port de logx_chasse.html) ─────

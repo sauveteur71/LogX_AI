@@ -61,3 +61,44 @@ def test_respecte_le_max():
         return (window.LogxChassePanneaux.renderActivationRows(s,{max:10}).match(/sr-act/g)||[]).length;
     })()""")
     assert n == 10
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# État vide (écart de comportement signalé le 12/09/2026, fusion CHASSE→
+# activité incr. 4b : l'ancienne page CHASSE affichait un message par
+# programme, perdu à la fusion -- panneau simplement vide sans texte).
+# ═══════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize('programme,attendu', [
+    ('POTA', "Aucun trafic POTA signalé pour l'instant."),
+    ('SOTA', "Aucun trafic SOTA signalé pour l'instant."),
+    ('WWFF', "Aucun trafic WWFF signalé pour l'instant."),
+])
+def test_etat_vide_par_programme(programme, attendu):
+    ctx = _ctx()
+    html = ctx.eval(
+        "window.LogxChassePanneaux.renderActivationRows([], {programme:'%s'})" % programme)
+    assert 'ck-need-empty' in html
+    assert attendu in html
+
+
+def test_etat_vide_sans_programme_repli_generique():
+    ctx = _ctx()
+    html = ctx.eval("window.LogxChassePanneaux.renderActivationRows([])")
+    assert 'ck-need-empty' in html
+    assert "Aucun trafic signalé pour l'instant." in html
+
+
+def test_etat_vide_programme_inconnu_repli_generique():
+    ctx = _ctx()
+    html = ctx.eval(
+        "window.LogxChassePanneaux.renderActivationRows([], {programme:'AUTRE'})")
+    assert "Aucun trafic signalé pour l'instant." in html
+
+
+def test_liste_non_vide_naffiche_pas_le_message_vide():
+    ctx = _ctx()
+    html = ctx.eval(
+        "window.LogxChassePanneaux.renderActivationRows([{call:'F4ABC'}], {programme:'POTA'})")
+    assert 'ck-need-empty' not in html
+    assert 'F4ABC' in html

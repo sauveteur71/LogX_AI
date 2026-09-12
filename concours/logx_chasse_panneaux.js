@@ -97,10 +97,29 @@
   // fusion incr. 4b) : format sr-act commun ; la ligne « lieu » est fournie par
   // opts.place(s) (park_name / summit_name+alt+pts / …). Champs issus de services
   // tiers publics -> tout passe par esc(). freq en kHz -> MHz (3 décimales).
+  // État vide (opts.programme, ex. 'POTA') : écart de comportement signalé le
+  // 12/09/2026 (fusion CHASSE→activité, incr. 4b) -- l'ancienne page CHASSE
+  // affichait un message par programme (« Aucun trafic POTA signalé pour
+  // l'instant. », `git show 989d79d~1:concours/logx_chasse.html`), perdu à
+  // la fusion (panneau simplement vide, sans texte). Repli générique si
+  // opts.programme est absent -- même patron que renderWcaRows/renderDxRows
+  // juste en dessous, qui avaient déjà leur état vide.
   function renderActivationRows(spots, opts){
     spots = spots || []; opts = opts || {};
     const max = opts.max || 30;
     const place = opts.place || function(s){ return '<span class="sr-ref">' + esc(s.reference || '') + '</span>'; };
+    if(!spots.length){
+      // Chaînes COMPLÈTES (pas de concaténation autour de rcT()) : une clé
+      // i18n doit rester une phrase entière et prévisible pour le traducteur,
+      // jamais un gabarit reconstitué à l'exécution.
+      const MSG_VIDE = {
+        POTA: "Aucun trafic POTA signalé pour l'instant.",
+        SOTA: "Aucun trafic SOTA signalé pour l'instant.",
+        WWFF: "Aucun trafic WWFF signalé pour l'instant.",
+      };
+      const msg = MSG_VIDE[opts.programme] || "Aucun trafic signalé pour l'instant.";
+      return '<div class="ck-need-empty">' + rcT(msg) + '</div>';
+    }
     return spots.slice(0, max).map(function(s){
       return '<div class="spot-row sr-act">'
         + '<div class="sr-head">'
