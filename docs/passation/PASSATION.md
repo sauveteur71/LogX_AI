@@ -42,7 +42,11 @@ incrément 2 » et « C1 incrément 3 » juste après la section C1. **Fusion
 CHASSE→activité** : les 2 écarts de comportement notés au 11/09 (plus de
 rafraîchissement auto, pas de message d'état vide POTA/SOTA/WWFF) corrigés
 — voir « Fusion CHASSE→activité — 2 écarts de comportement corrigés » juste
-après C1 incrément 3.
+après C1 incrément 3. **Multiplicateurs RTTY W/VE** : la note de section 1
+(24-25/08) était périmée — le score était déjà correct depuis la PR #254 ;
+seul le coaching pré-QSO de l'ARRL RTTY Roundup avait un vrai trou
+(aucun évaluateur enregistré), corrigé — voir « Correctif coaching
+multiplicateurs RTTY W/VE » juste après la section CHASSE.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -218,13 +222,13 @@ relancer la suite ENTIÈRE après un merge). PR fusionnées :
 | #252 | **Bande 60m = clé unique `'5'`** (5 MHz), pas des canaux — décision F4GLD. Jumeaux scoring `_band_from_freq` + wsjtx `_mhz_to_band` + `ADIF_BAND['5']='60m'` + toggle contest. Le band-plan IARU R1 (`bandplan_iaru_r1.json`) contenait déjà 60m (5.3515–5.3665) : `en_bande_amateur` le reconnaît, rien à ajouter là. |
 | #253 | **Concours RTTY** (en cours de fusion) : CQ WW RTTY + ARRL RTTY Roundup, valeurs sourcées (cqwwrtty.com / arrl.org). Presets `zone_country_per_band_rtty` (1/2/3) et `rtty_roundup` (1 pt). |
 
-**Item scopé, non fait (demande un arbitrage F4GLD)** : les multiplicateurs
-états/provinces W/VE des deux concours RTTY (CQ WW RTTY §IV.C.3 combiné
-zone+DXCC+état par bande ; RTTY Roundup mult all-band états+provinces+DXCC).
-Ils touchent le moteur PARTAGÉ de classement de spots (`build_ranked_spots`
-/ `MULT_EVALUATORS`, cf. `logx_scoring.py`) que TOUS les concours utilisent —
-chirurgie non spéculative écartée en l'absence de F4GLD (les QSO se comptent
-déjà correctement zone+DXCC ; il ne manque qu'un multiplicateur secondaire).
+**Item scopé, alors non fait (demandait un arbitrage F4GLD)** : les
+multiplicateurs états/provinces W/VE des deux concours RTTY. **Le SCORE
+autoritaire a en réalité été traité dès le lendemain (25/08, PR #254,
+ci-dessous)** — cette note n'a simplement jamais été mise à jour après coup
+(trouvé en relisant le fichier le 12/09/2026, pas supposé). Voir « Correctif
+coaching multiplicateurs RTTY W/VE » (12/09/2026) plus loin dans ce document
+pour le seul trou qui restait réellement.
 
 #### Journée du 25/08/2026 — items 1 & 2 (« attaque 1 et 2 ») + barre d'émission
 
@@ -1761,6 +1765,68 @@ passerait pas.
 
 `ruff` non concerné (aucun `.py` touché), `node --check` propre, suite
 complète relancée. Pas de PR GitHub, pas de vérification navigateur réelle.
+
+### Correctif coaching multiplicateurs RTTY W/VE (12/09/2026)
+
+Repris sur demande F4GLD (« multiplicateurs RTTY W/VE »). **Vérification
+faite avant tout code, pas supposée** : la note de section 1 datée du
+24-25/08 disait « non fait, demande un arbitrage » — en lisant
+`logx_scoring.py` directement, le **SCORE autoritaire** (`calc_total_score`/
+`_mult_entries`, kinds `zone_dxcc_state` et `rtty_ru`) était en réalité
+DÉJÀ correct depuis la PR #254 (25/08, section 1 ci-dessus) ; la note
+n'avait simplement jamais été mise à jour après coup.
+
+**Vrai trou trouvé en creusant** : dans le moteur de **coaching pré-QSO**
+(`MULT_EVALUATORS`, utilisé par `build_ranked_spots` pour classer les spots
+AVANT tout contact), `zone_dxcc_state` (CQ WW RTTY) pointait délibérément
+vers `_mult_zone_dxcc` — choix documenté et sain : l'état/province n'est
+connu qu'à réception de l'échange, donc pas estimable au stade du spot.
+Mais `rtty_ru` (ARRL RTTY Roundup) n'avait **aucun évaluateur enregistré du
+tout** → un spot RTTY Roundup tombait dans le repli générique « pas de
+multiplicateur », priorité par **palier de distance** — non pertinent pour
+un concours noté `1 pt/QSO × mult`, sans aucune notion de distance.
+
+**Décision F4GLD (question à choix)** : corriger ce trou précis (repli
+« Oui, ajouter l'évaluateur `rtty_ru` manquant »), ne pas toucher au choix
+déjà sain de `zone_dxcc_state`.
+
+**Livré** — `_mult_rtty_ru` (`logx_scoring.py`) :
+- Station **hors K/VE** : DXCC connaissable au stade du spot (comme
+  `_mult_dxcc_only`) — mais suivi **GLOBALEMENT** (`done_dxcc_global`,
+  nouveau set), jamais par bande (`done_dxcc` classique), puisque le
+  règlement RTTY Roundup est **all-band** (« each multiplier counts once,
+  not once per band », §5.3).
+- Station **K/VE** : état/province inconnaissable au spot (même limite que
+  `zone_dxcc_state`) → **proxy préfixe d'indicatif** (3 premiers
+  caractères), EXACTE même technique déjà en production pour
+  `_mult_na_state` (ARRL DX) — suivi via `done_rtty_ru_proxies`, nouveau
+  set GLOBAL lui aussi.
+- Deux nouveaux paramètres (`done_dxcc_global`, `done_rtty_ru_proxies`)
+  filés à travers TOUTE la chaîne : `build_ranked_spots` (initialisation +
+  population dans `_mark_country_zone`, aux côtés de `done_prefixes`/
+  `done_na_proxies` déjà là) → `rank_stations_by_value` → `calc_qso_value`
+  → `ctx`. Enregistré dans `MULT_EVALUATORS['rtty_ru']`.
+- **11 tests dédiés** (`test_mult_rtty_coaching.py`, nouveau) : régression
+  du trou lui-même (évaluateur enregistré, symptôme exact du repli
+  distance si on le retire), DX neuf/connu, KL7/KH6 traités comme DXCC
+  jamais comme état (même règle que le score), proxy K/VE neuf/connu,
+  VE couvert comme K, signature qui impose le caractère all-band (aucun
+  paramètre `band` sur les deux nouveaux sets), et **2 tests bout-en-bout**
+  via `build_ranked_spots` (état réellement peuplé depuis `shared_log`,
+  pas seulement passé à la main dans un test unitaire).
+- **4 mutations** (retrait de l'enregistrement `rtty_ru`, inversion du
+  branchement K/VE↔DX, inversion de la population des deux sets dans
+  `_mark_country_zone`, chaînon manquant dans l'appel à
+  `rank_stations_by_value`) : rouge confirmé à chaque fois (jusqu'à 8 tests
+  simultanés pour la 2e mutation), restauration vérifiée par empreinte md5
+  identique.
+- Suite ciblée (27 fichiers touchant `logx_scoring`) + suite complète
+  relancées après coup : aucune régression, `ruff` propre.
+- Pas de PR GitHub, pas de vérification navigateur réelle (pas d'affichage
+  possible ici) — à vérifier par F4GLD : ouvrir un log ARRL RTTY Roundup,
+  confirmer qu'un spot DX neuf (hors K/VE) ressort en priorité 1 avec le
+  bon libellé, et qu'un spot K/VE ressort en « probable nouvel état/
+  province » plutôt qu'un classement par distance.
 
 ---
 
