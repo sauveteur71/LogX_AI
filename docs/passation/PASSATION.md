@@ -46,7 +46,13 @@ après C1 incrément 3. **Multiplicateurs RTTY W/VE** : la note de section 1
 (24-25/08) était périmée — le score était déjà correct depuis la PR #254 ;
 seul le coaching pré-QSO de l'ARRL RTTY Roundup avait un vrai trou
 (aucun évaluateur enregistré), corrigé — voir « Correctif coaching
-multiplicateurs RTTY W/VE » juste après la section CHASSE.
+multiplicateurs RTTY W/VE » juste après la section CHASSE. **Définitions
+de concours ambiguës** : recherche web menée sur les 6 items restants —
+un seul corrigé (F9NL, `bands` était FAUX, pas juste vague : 432 MHz UHF,
+pas HF), les 5 autres exigent soit une donnée externe absente (adhésion
+UFT), soit un moteur de scoring neuf (4 TVA, THF) — voir « Définitions de
+concours ambiguës — recherche menée, portée revue » juste après la
+section RTTY.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1827,6 +1833,70 @@ déjà sain de `zone_dxcc_state`.
   confirmer qu'un spot DX neuf (hors K/VE) ressort en priorité 1 avec le
   bon libellé, et qu'un spot K/VE ressort en « probable nouvel état/
   province » plutôt qu'un classement par distance.
+
+### Définitions de concours ambiguës — recherche menée, portée revue (12/09/2026)
+
+Repris sur demande F4GLD (item noté « à tenter seulement avec une source
+vérifiable citée, un concours à la fois », voir la nuit du 24-25/08 plus
+haut). Recherche web faite pour les 6 concours restants
+(`AMBIGUS_CONNUS`, `test_concours_sans_definition.py`) — **aucun ne s'est
+révélé être le simple « il ne manque que la liste des bandes » attendu** :
+
+- **UFT_RENCONTRES** : bien sourcé (uft.net officiel) — mais le barème réel
+  dépend du **statut de membre UFT** (paliers de points membre/non-membre
+  × même continent/DX) et le multiplicateur est « chaque membre UFT
+  contacté, par bande » — LogX AI n'a aucune base d'adhérents UFT. Pas une
+  plage à préciser : une brique de scoring neuve ET une donnée externe
+  absente. Laissé ouvert.
+- **Les 4 concours TVA** (`REF_CDF/IARU/NAT/NAT_DEC_TVA`) : le type
+  `'tva'` affiché dans `CONTEST_SCORING` n'a **jamais été implémenté**
+  dans le moteur (`LEGACY_SCORING_PRESETS`/`contest_schema.json` ne le
+  connaissent pas) — chantier neuf de l'ampleur du correctif RTTY du jour
+  mais pour un mode encore jamais codé (relais ATV). Laissé ouvert, décision
+  F4GLD : ne pas l'entreprendre aujourd'hui.
+- **REF_CHALLENGE_THF** : confirmé par la note d'origine comme nécessitant
+  un moteur dédié — non réexaminé, rien de neuf.
+- **F9NL** : **découverte faite en sourçant** — la donnée existante
+  (`bands:'HF', modes:'CW'`) était **FAUSSE**, pas juste vague. 4 sources
+  indépendantes et datées (f6kdu.wordpress.com 2011, ref-info.r-e-f.org
+  2017, calendrier REF 2025/2026) confirment un concours **432 MHz (UHF)**
+  en hommage à Maurice LACROUTS, « pionnier de la bande 70 cm » (créé
+  1983) — et signalent qu'il **n'est pas géré par la Commission des
+  concours REF** (absent de leur calendrier structuré officiel, organisé
+  au niveau REF65 Pyrénées-Atlantiques). Le règlement officiel
+  (`reg_f9nl.pdf`) est un PDF **scanné en image**, non extractible en
+  texte — échange/barème/format de log/date exacte restent donc NON
+  sourcés, `type`/`unit`/`mult`/`modes` volontairement **non touchés**
+  (aucune preuve pour ni contre — les corriger aurait été inventer, pas
+  moins que les laisser faux).
+
+**Décision F4GLD (question à choix)** : corriger uniquement ce qui est
+positivement sourcé (`CONTEST_SCORING['F9NL']['bands']` : `'HF'` →
+`'432MHz'`), laisser les 5 autres items ouverts plutôt que d'entreprendre
+un moteur `'tva'` neuf aujourd'hui.
+
+**Livré :**
+- `logx_definitions.py` : correctif d'une ligne + commentaire sourcé
+  (4 citations).
+- `F9NL` retiré de `AMBIGUS_CONNUS` (`test_concours_sans_definition.py`) —
+  `bandes_du_concours('F9NL')` rend désormais `['432']` au lieu de `[]`,
+  débloqué par le fallback existant sur `CONTEST_SCORING` (pas besoin
+  d'une `CONTEST_DEFINITIONS` complète pour ce seul point, contrairement
+  au patron REF_IARU_UHF/REF_F8TD du 01/09 — la différence est documentée
+  en commentaire dans le fichier de test, pour qu'un futur lecteur ne
+  suppose pas que la définition complète a été écrite).
+- Nouveau test de régression dédié (`test_f9nl_est_432_mhz_pas_hf`), même
+  patron que `test_marconi_est_bien_sur_144`.
+- **1 mutation** (retour à `'HF'`) : rouge confirmé, restauration vérifiée
+  par md5. `logx_validate.py` (schéma strict `contest_schema.json`) relancé
+  — propre (ce correctif touche `CONTEST_SCORING`, pas le schéma strict de
+  `CONTEST_DEFINITIONS`). `ruff` propre, suite complète relancée.
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
+**Reste ouvert, non cadré** : UFT_RENCONTRES (donnée d'adhésion UFT
+absente), les 4 TVA et REF_CHALLENGE_THF (moteur de scoring à construire) —
+aucun des trois n'est "prêt à trancher", chacun mériterait son propre
+cadrage avec F4GLD s'il devient prioritaire.
 
 ---
 
