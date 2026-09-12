@@ -364,6 +364,62 @@ def test_assembler_image_ecrit_les_paquets_ordonnes_puis_decode(monkeypatch, tmp
 # CI, mais vérifiable en local une fois le binaire vendorisé/compilé).
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════
+# paquet_depuis_trame_ax25() -- glue Phase 2 (transport), et bout-en-bout
+# KISS -> AX.25 -> SSDV sur des trames synthétiques (aucun matériel requis).
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_paquet_depuis_trame_ax25_bonne_taille():
+    entete = {'info': bytes(ssdv.TAILLE_PAQUET)}
+    assert ssdv.paquet_depuis_trame_ax25(entete) == bytes(ssdv.TAILLE_PAQUET)
+
+
+def test_paquet_depuis_trame_ax25_mauvaise_taille_rend_none():
+    assert ssdv.paquet_depuis_trame_ax25({'info': b'trop court'}) is None
+    assert ssdv.paquet_depuis_trame_ax25({'info': bytes(ssdv.TAILLE_PAQUET + 1)}) is None
+
+
+def test_paquet_depuis_trame_ax25_info_absente_rend_none():
+    assert ssdv.paquet_depuis_trame_ax25({}) is None
+
+
+def test_bout_en_bout_kiss_ax25_ssdv_sur_trame_synthetique():
+    """Simule ce qu'un socket Direwolf enverrait pour un vrai paquet SSDV :
+    KISS(AX.25(indicatif -> APRS, INFO = paquet SSDV de 256 octets)).
+    Aucun matériel requis -- même raisonnement que la Phase 1 sans le
+    binaire ssdv réel."""
+    import logx_ax25 as ax25
+    import logx_kiss as kiss
+
+    paquet_ssdv = _paquet(indicatif='F4GLD', image_id=1, packet_id=0)
+
+    def _champ_adresse(indicatif, ssid=0, dernier=False):
+        indicatif = indicatif.upper().ljust(6)[:6]
+        lettres = bytes((ord(c) << 1) & 0xFF for c in indicatif)
+        ssid_octet = 0x60 | ((ssid & 0x0F) << 1) | (1 if dernier else 0)
+        return lettres + bytes([ssid_octet])
+
+    trame_ax25 = (_champ_adresse('APRS', 0) + _champ_adresse('F4GLD', 0, dernier=True)
+                  + bytes([ax25.CONTROLE_UI, ax25.PID_PAS_DE_COUCHE_3]) + paquet_ssdv)
+    trame_kiss = kiss.encadrer(trame_ax25)
+
+    trames, reliquat = kiss.extraire_trames(trame_kiss)
+    assert reliquat == b''
+    assert len(trames) == 1
+    corps_kiss = trames[0]
+    assert corps_kiss[0] == 0x00              # octet de commande KISS (trame de données)
+
+    entete_ax25 = ax25.parser_entete(corps_kiss[1:])
+    assert entete_ax25['source'] == ('F4GLD', 0)
+
+    extrait = ssdv.paquet_depuis_trame_ax25(entete_ax25)
+    assert extrait == paquet_ssdv
+
+    entete_ssdv = ssdv.parser_entete(extrait)
+    assert entete_ssdv['indicatif'] == 'F4GLD'
+    assert entete_ssdv['packet_id'] == 0
+
+
 @pytest.mark.skipif(not ssdv.ssdv_disponible(), reason="binaire ssdv non disponible sur cette machine")
 def test_integration_reelle_encode_decode_aller_retour(tmp_path):
     # Pillow n'est pas une dépendance du dépôt (vérifié : aucun autre usage) --
