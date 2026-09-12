@@ -126,6 +126,25 @@ def parser_entete(paquet):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Glue transport (Phase 2, cadrage docs/superpowers/specs/2026-09-11-ssdv-
+# phase2-transport-cadrage.md) -- extrait un paquet SSDV du champ INFO
+# d'une trame AX.25 déjà désencapsulée (logx_ax25.parser_entete). Ne valide
+# QUE la taille : la validation structurelle complète (sync, type...) reste
+# dans parser_entete() ci-dessus, jamais dupliquée ici.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def paquet_depuis_trame_ax25(entete_ax25):
+    """entete_ax25 : dict renvoyé par logx_ax25.parser_entete(). Renvoie le
+    champ INFO s'il a la taille d'un paquet SSDV (256 octets), sinon None
+    -- une trame AX.25/APRS ordinaire (position, message texte...) n'a
+    aucune raison d'avoir cette taille exacte par hasard, mais ce n'est
+    qu'un premier filtre bon marché : appeler parser_entete() sur le
+    résultat pour la vraie validation avant de l'utiliser."""
+    info = entete_ax25.get('info', b'')
+    return info if len(info) == TAILLE_PAQUET else None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Assembleur d'image -- suivi de progression, paquets manquants/dupliqués.
 # Ne touche jamais la charge utile : la reconstruction JPEG réelle passe par
 # assembler_image() -> decoder() (le binaire externe).
