@@ -52,7 +52,10 @@ un seul corrigé (F9NL, `bands` était FAUX, pas juste vague : 432 MHz UHF,
 pas HF), les 5 autres exigent soit une donnée externe absente (adhésion
 UFT), soit un moteur de scoring neuf (4 TVA, THF) — voir « Définitions de
 concours ambiguës — recherche menée, portée revue » juste après la
-section RTTY.
+section RTTY. **Copilote FT8 niveaux 3-4** : demandé comme suite à
+construire, trouvé DÉJÀ ENTIÈREMENT FAIT (02-03/09, jamais consigné ici) —
+rien codé, seule l'entrée manquante ajoutée (section 1 + « En attente d'un
+essai sur l'air »).
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -454,6 +457,20 @@ passage. Ne jamais franchir les verrous gated (audit 547, #244/#245).
 
 ### En attente d'un essai sur l'air
 
+🔴 **Copilote FT8 — niveaux 3-4 (session autonome, `copilote_qso`/
+`copilote_cq`), 02-03/09/2026 — AJOUTÉ ICI le 12/09/2026** (voir la
+sous-section dédiée plus haut dans cette section : le chantier était déjà
+fait, seule cette entrée de suivi manquait). Chaîne de préalables, dans
+l'ordre : (1) essai sur l'air des niveaux 1-2 (`copilote`/`copilote_auto`,
+PR #262/#266) — **non confirmé comme fait dans ce document**, seule une
+vérification navigateur (pas on-air) est notée pour #266 ; (2) une fois (1)
+fait, premier essai sur l'air de N3/N4 lui-même, en supervisé, jamais laissé
+tourner seul avant ça (même règle que PR #179 juste en dessous — session qui
+émet en boucle sans reconfirmation trame par trame, la classe de risque la
+plus élevée du dépôt avec le séquenceur historique). Rien d'autre ne bloque
+côté code : 25 tests verts, revue adversariale déjà faite (2 portes dérobées
+fermées), OFF par défaut.
+
 ✅ **PR #179 — mode Automatique FT8 : ESSAI SUR L'AIR SUPERVISÉ FAIT
 (24/08/2026, confirmé par F4GLD).** Le blocage de publication est LEVÉ, et le
 mode Automatique est inclus dans le tag `v1.1-beta8` publié le 24/08/2026 (cf.
@@ -508,6 +525,45 @@ sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est renseigné**,
 et la réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV ». Le
 guide n'a en revanche pas encore de section sur le mode Automatique FT8
 (PR #179, ci-dessus) — à ajouter une fois l'essai sur l'air fait.
+
+🔶 **Copilote FT8 — niveaux 3-4 (session autonome), 02-03/09/2026 — trouvé
+NON consigné ici le 12/09/2026, en reprenant le chantier « copilote niveaux
+3-4 » sur demande F4GLD.** Vérification faite en lisant le code et git log
+avant tout code neuf, PAS supposé : le chantier est en réalité déjà
+**entièrement cadré (spec `docs/superpowers/specs/2026-09-02-ft8-copilote-
+niveaux-3-4-design.md`), implémenté, testé (25 tests, `logx_ft8_session.js`
++ `test_ft8_session.py`) et fusionné** (PR #452 spec, #454 dernier correctif) —
+seule la ligne de résumé du 25/08 (« Restent : niveaux 3-4… ») n'a jamais été
+mise à jour après coup, exactement le type de trou déjà rencontré ailleurs
+dans ce document (fusion CHASSE incr. 5, multiplicateurs RTTY). **N3
+`copilote_qso`** : une fois engagé sur un correspondant, enchaîne tout le QSO
+seul. **N4 `copilote_cq`** : appelle CQ et travaille le pile-up en boucle.
+Décision F4GLD verbatim (02/09) : « une fois les tests faits le ft8 doit
+pouvoir tourner sans jamais s'arrêter juste quand l'opérateur dit stop » —
+contrairement au modèle « session limitée » (expiration/plafond) du skill
+`tx-human-consent`, la session N3/N4 **tourne en continu, sans budget, jusqu'à
+Stop TX** (choix assumé de l'opérateur titulaire, documenté comme dérogation
+explicite dans la spec). Garde-fous : armement humain explicite obligatoire
+(bouton dédié, affiche l'enveloppe radio avant d'armer), invalidation
+immédiate au moindre changement de bande/fréquence/mode/puissance ou perte
+CAT, horloge SNTP synchronisée **obligatoire** pour armer (durci le 03/09,
+`ddd9268`, M3 — une session pouvait avant ça démarrer sans mesure d'horloge),
+Stop TX toujours visible, contrôle de présence optionnel (désactivé par
+défaut). **2 « portes dérobées » trouvées et fermées par revue adversariale
+avant fusion** (`a26fa04`) : (a) un double-clic aux niveaux N3/N4 retombait
+dans l'ANCIEN séquenceur (`seqDemarrer`), qui émettait en boucle SANS session
+armée ni empreinte radio verrouillée ; (b) le bouton STOP ÉMISSION existant
+coupait la trame en cours mais laissait la session armée, qui réémettait au
+cycle suivant — corrigé pour désarmer la session dans `stopEmission()`
+elle-même, pas à chaque site d'appel. Le log du QSO reste un geste humain
+(jamais écrit par l'IA, invariant I2 étendu). **OFF par défaut**, avec
+avertissement ⚠️ visible tant qu'aucun essai sur l'air n'est confirmé — voir
+juste en dessous, cet item manquait aussi à la section « En attente d'un essai
+sur l'air ».
+
+**Extension au CW/SSB explicitement hors scope** dans la spec elle-même
+(« N3/N4 = FT8 d'abord ») — chantier neuf si jamais demandé, pas une suite
+automatique de celui-ci.
 
 ### 🔴 L'incident du 19/08/2026 — le carnet perdu
 
