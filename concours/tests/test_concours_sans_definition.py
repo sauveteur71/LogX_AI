@@ -43,12 +43,6 @@ AMBIGUS_CONNUS = {
                            # de membre UFT + mult "membres/bande", non modélisable
                            # avec le moteur actuel (donnée d'adhésion absente) ;
                            # pas juste une plage à préciser.
-    'REF_CDF_TVA',         # « 438MHz+ TVA »
-    'REF_IARU_TVA',        # « 438MHz+ TVA »
-    'REF_NAT_TVA',         # « 438MHz+ TVA »
-    'REF_NAT_TVA_DEC',     # « 438MHz+ TVA » -- les 4 TVA : type 'tva' jamais
-                           # implémenté dans le moteur de scoring (absent de
-                           # LEGACY_SCORING_PRESETS/contest_schema.json).
     'REF_CHALLENGE_THF',   # « 144MHz-47GHz » — moteur de score dédié à brancher
     # RÉSOLUS le 01/09/2026 (règlements REF officiels lus, scoring km — définitions
     # dans logx_definitions.CONTEST_DEFINITIONS) :
@@ -59,6 +53,18 @@ AMBIGUS_CONNUS = {
     #   (voir logx_definitions.py). Pas de CONTEST_DEFINITIONS complète
     #   (échange/barème/log non sourcés, règlement en PDF scanné illisible) --
     #   seule la bande, seul point bloquant bandes_du_concours(), est corrigée.
+    # RÉSOLUS le 12/09/2026 (3 règlements PDF REF officiels lus intégralement
+    # via l'outil Read, pas WebFetch qui échouait sur ces PDF) : « 438MHz+
+    # TVA » et 'type':'tva' (« pts x relais TVA ») étaient FAUX -- AUCUNE
+    # notion de relais dans les règlements. Vrai barème : km × coefficient
+    # par bande (70cm ×2, 23cm ×4, au-delà ×10), sans multiplicateur.
+    # Section 1 (émission-réception) seule modélisée -- décision F4GLD, la
+    # Section 2 (réception seule/SWL, moitié points) exigerait un champ QSO
+    # inexistant. REF_NAT_TVA/REF_NAT_TVA_DEC = même règlement, 2 éditions
+    # annuelles (mars/décembre) :
+    #   REF_NAT_TVA / REF_NAT_TVA_DEC : reg_nattva_fr_20260516.pdf
+    #   REF_CDF_TVA                   : reg_cdftva_fr_20260516.pdf
+    #   REF_IARU_TVA                  : reg_iarutva_fr_20251209.pdf
 }
 
 
@@ -93,6 +99,21 @@ def test_f9nl_est_432_mhz_pas_hf():
     r-e-f.org 2017, calendrier REF 2025/2026) confirment un concours
     432 MHz (UHF) en hommage à un « pionnier de la bande 70 cm »."""
     assert D.bandes_du_concours('F9NL') == ['432']
+
+
+def test_concours_tva_ont_maintenant_une_vraie_definition():
+    """Correctif 12/09/2026 : les 4 concours TVA avaient 'HF'... non, '438MHz+
+    TVA' -- ambigu ET, comme découvert en lisant les 3 règlements PDF REF
+    officiels, un barème 'tva'/'relais TVA' entièrement inventé (aucune
+    notion de relais dans les règlements réels, qui sont un scoring km ×
+    coefficient de bande). CONTEST_DEFINITIONS complète désormais ces 4 ids."""
+    attendu_national = ['432', '1296', '2320', '3400', '5760', '10368', '24048', '47088']
+    assert D.bandes_du_concours('REF_NAT_TVA') == attendu_national
+    assert D.bandes_du_concours('REF_NAT_TVA_DEC') == attendu_national
+    assert D.bandes_du_concours('REF_CDF_TVA') == attendu_national
+    # IARU TVA : bandes ATV/DATV listées explicitement par le règlement,
+    # PAS « et au-delà » -- 10368/47088 absents, pas une omission.
+    assert D.bandes_du_concours('REF_IARU_TVA') == ['432', '1296', '2320', '3400', '5760', '24048']
 
 
 def test_un_bareme_multibande_donne_toutes_les_bandes():

@@ -150,6 +150,13 @@ def _check_validity(validity, ctx):
 def _points_value(rule, ctx, scoring):
     """Résout la valeur de points d'une règle : nombre, 'per_km', ou paramètre."""
     v = rule.get('points', 0)
+    if isinstance(v, dict) and 'per_km_x' in v:
+        # {'per_km_x': N} : distance × N pts/km -- schéma 1.3.0, ex. REF TVA
+        # (2 pts/km 70cm, 4 pts/km 23cm, 10 pts/km au-delà, combiné à un
+        # filtre 'bands' par règle pour le coefficient par bande, cf.
+        # docs/CONTRATS_DONNEES.md). Distinct de {'param':...} ci-dessous :
+        # jamais un paramètre du bloc scoring, une constante de la règle.
+        return ctx['dist_km'] * (v.get('per_km_x') or 0)
     if isinstance(v, dict):
         v = scoring.get(v.get('param'), v.get('default', 0))
     if v == 'per_km':

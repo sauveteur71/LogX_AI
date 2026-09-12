@@ -4,7 +4,7 @@ Ce document fixe la politique de versionnage des schémas de données publics du
 
 ## Schéma concours (`concours/contest_schema.json`)
 
-**Statut : v1.2.0** (21/08/2026).
+**Statut : v1.3.0** (12/09/2026).
 
 JSON Schema (draft 2020-12) validant chaque entrée de `CONTEST_DEFINITIONS` (`logx_definitions.py`) — qu'elle soit écrite à la main, importée du calendrier WA7BNM ou extraite d'un règlement par l'IA. Validé par `logx_validate.py` (utilise la lib `jsonschema` si installée, sinon une vérification minimale de secours).
 
@@ -29,6 +29,7 @@ Le `$id` (`https://f6kqj.local/contest_schema.json`) reste **stable** d'une vers
 
 - **1.0.0** (21/07/2026) — première version explicitement numérotée. Aucun changement de structure à cette étape : le schéma existait déjà (draft 2020-12, `required`/`additionalProperties: false`), seul le numéro de version et cette politique sont nouveaux.
 - **1.2.0** (21/08/2026) — garde-fou A04 : `cabrillo_name` devient requis quand `log_format` vaut `'CABRILLO'` (bloc `if`/`then`, appliqué en miroir dans le vérificateur minimal de `logx_validate.py`). Motivé par un défaut réel — 12 concours natifs et 2 concours personnalisés importés par IA (`WAEDC_CW`, `ARRL_EME`, confiance IA "medium") sont passés inaperçus sans ce champ, avec un export Cabrillo qui aurait porté l'identifiant interne au lieu du tag officiel. MINOR et non MAJOR : toutes les définitions déjà intégrées (natives + `custom_contests.json`) sont désormais conformes, `$id` ne change pas. Le garde-fou s'exerce à deux points : à l'import IA (`logx_rules_ai.py` appelle `validate_definition()` avant relecture humaine, erreur visible dans `validation_errors`) et en CI (`python logx_validate.py`, qui valide `CONTEST_DEFINITIONS` une fois `custom_contests.json` fusionné).
+- **1.3.0** (12/09/2026) — nouvelle forme de points `{'per_km_x': N}` (`properties.scoring.properties.bricks.properties.points.items.properties.points.oneOf`) : distance en km × N, motivée par les 4 concours REF TVA (barème 2/4/10 pts/km selon la bande, découvert en lisant les règlements officiels — l'ancienne donnée d'affichage `CONTEST_SCORING` prétendait à tort un multiplicateur « relais TVA » inexistant dans les règlements). MINOR : forme additive, aucune définition existante n'a besoin d'être modifiée. Au passage, un trou PRÉEXISTANT du vérificateur minimal de secours (`logx_validate.py::_check_scoring`) a été corrigé : il n'acceptait ni `'per_km_stew'` ni `'per_grid_3000'` en forme `bricks` directe (seulement via `param`/nombre/`'per_km'`) — resté invisible jusqu'ici car le seul autre concours à utiliser `'per_grid_3000'` (`FT_CHALLENGE`) passe par la forme raccourcie `'type'`, qui ne traverse pas cette branche de code. Corrigé en miroir du schéma JSON réel, avec témoin vert + contre-épreuve par mutation dédiés (`tests/test_contest_ref_tva.py`).
 
 ## Schéma QSO
 

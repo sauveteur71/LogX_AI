@@ -68,8 +68,18 @@ def _check_scoring(sc, props):
                     errs.append(f"bricks.points[{i}].when {unknown} inconnu du moteur "
                                 f"(connus : {sorted(PREDICATES)})")
                 v = rule.get('points')
-                ok = (isinstance(v, (int, float)) or v == 'per_km'
-                      or (isinstance(v, dict) and 'param' in v))
+                # Miroir de contest_schema.json 'points' oneOf -- trou trouvé
+                # le 12/09/2026 (REF TVA, forme bricks directe) : ce
+                # validateur MINIMAL (secours si jsonschema absent) n'avait
+                # jamais 'per_km_stew'/'per_grid_3000'/'per_km_x', invisible
+                # tant qu'aucun concours n'utilisait la forme 'bricks'
+                # directe avec l'une de ces valeurs (FT_CHALLENGE passe par
+                # 'type':'grid_field_distance', jamais par cette branche).
+                ok = (isinstance(v, (int, float))
+                      or v in ('per_km', 'per_km_stew', 'per_grid_3000')
+                      or (isinstance(v, dict) and 'param' in v)
+                      or (isinstance(v, dict) and 'per_km_x' in v
+                          and isinstance(v.get('per_km_x'), (int, float))))
                 if not ok:
                     errs.append(f"bricks.points[{i}].points invalide : {v!r}")
                 b = rule.get('bands')

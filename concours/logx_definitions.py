@@ -102,6 +102,145 @@ CONTEST_DEFINITIONS = {
         'serial_per_band': True,
         'notes': '1296 MHz et au-delà, 1 pt/km. Trophée : majoration de classement +10% (2 bandes) … +80% (7 bandes). Numérotation séparée par bande.',
     },
+    # ── TVA (Télévision Amateur) — 4 définitions ajoutées le 12/09/2026,
+    # règlements PDF officiels REF lus intégralement. DÉCOUVERTE en sourçant :
+    # l'ancien CONTEST_SCORING affichait « pts x relais TVA » -- FAUX, aucune
+    # notion de « relais » dans les 3 règlements. Le vrai barème est un
+    # scoring AU KILOMÈTRE, coefficient croissant par bande (70cm ×2, 23cm
+    # ×4, au-delà ×10), SANS multiplicateur. Modélisé via 3 règles 'bricks'
+    # filtrées par bande (schéma 1.3.0, {'per_km_x': N}) -- la 3e règle,
+    # sans filtre 'bands', capte toutes les bandes au-delà de 23cm sans
+    # avoir à les énumérer.
+    #
+    # Portée VOLONTAIREMENT réduite à la Section 1 (émission-réception) --
+    # décision F4GLD 12/09/2026. Les 3 règlements ont aussi une Section 2
+    # (réception seule / SWL, à MOITIÉ points) : hors scope ici, le carnet
+    # LogX AI n'a aucun champ pour distinguer un contact bilatéral d'une
+    # réception unilatérale -- l'ajouter serait un chantier de modèle de
+    # données à part, pas une correction de barème.
+    #
+    # Échange RADIO (RS+N°QSO+locator) modélisé ; le report VIDÉO (code
+    # secret 4 chiffres par bande, propre à l'ATV) NE L'EST PAS -- non
+    # capturé par le carnet, honnêtement absent plutôt qu'inventé.
+    'REF_NAT_TVA': {
+        'name': 'National TVA (mars)',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/reglements/index.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
+        # « Le deuxième week-end complet de mars [...] du samedi à 1200 UTC
+        # au dimanche à 18h00 UTC. »
+        'date_rule': 'second_full_weekend_march_12h',
+        'duration_h': 30, 'start_utc': '12:00',
+        'bands': ['432', '1296', '2320', '3400', '5760', '10368', '24048', '47088'],
+        'modes': ['SSB', 'CW', 'FM'],
+        'exchange': 'RS + N°QSO + locator6 (+ code vidéo secret par bande, non modélisé)',
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'when': 'always', 'points': {'per_km_x': 2}, 'bands': ['432']},
+                    {'when': 'always', 'points': {'per_km_x': 4}, 'bands': ['1296']},
+                    {'when': 'always', 'points': {'per_km_x': 10}},
+                ],
+                'multiplier': None,
+            },
+            'unit': '2/4/10 pts/km selon la bande (70cm/23cm/au-delà)',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'http://concours.r-e-f.org/tools/upload/thf.php',
+        'serial_per_band': True,
+        'notes': "Section 1 (émission-réception) uniquement -- la Section 2 (réception seule, moitié points) n'est pas modélisée. Édition de mars ; voir REF_NAT_TVA_DEC pour celle de décembre (même règlement).",
+    },
+    'REF_NAT_TVA_DEC': {
+        'name': 'National TVA (décembre)',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/reglements/index.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
+        'date_rule': 'second_full_weekend_december_12h',
+        'duration_h': 30, 'start_utc': '12:00',
+        'bands': ['432', '1296', '2320', '3400', '5760', '10368', '24048', '47088'],
+        'modes': ['SSB', 'CW', 'FM'],
+        'exchange': 'RS + N°QSO + locator6 (+ code vidéo secret par bande, non modélisé)',
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'when': 'always', 'points': {'per_km_x': 2}, 'bands': ['432']},
+                    {'when': 'always', 'points': {'per_km_x': 4}, 'bands': ['1296']},
+                    {'when': 'always', 'points': {'per_km_x': 10}},
+                ],
+                'multiplier': None,
+            },
+            'unit': '2/4/10 pts/km selon la bande (70cm/23cm/au-delà)',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'http://concours.r-e-f.org/tools/upload/thf.php',
+        'serial_per_band': True,
+        'notes': "Section 1 (émission-réception) uniquement -- la Section 2 (réception seule, moitié points) n'est pas modélisée. Édition de décembre ; même règlement que REF_NAT_TVA (mars).",
+    },
+    'REF_CDF_TVA': {
+        'name': 'Championnat de France TVA',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/reglements/index.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdftva_fr_20260516.pdf',
+        # « Le concours débute le deuxième samedi de septembre à 1400 UTC et
+        # s'achève le dimanche à 18h00 UTC. »
+        'date_rule': 'second_saturday_september_14h',
+        'duration_h': 28, 'start_utc': '14:00',
+        'bands': ['432', '1296', '2320', '3400', '5760', '10368', '24048', '47088'],
+        'modes': ['SSB', 'CW', 'FM'],
+        'exchange': 'RS + N°QSO + locator6 (+ code vidéo secret par bande, non modélisé)',
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'when': 'always', 'points': {'per_km_x': 2}, 'bands': ['432']},
+                    {'when': 'always', 'points': {'per_km_x': 4}, 'bands': ['1296']},
+                    {'when': 'always', 'points': {'per_km_x': 10}},
+                ],
+                'multiplier': None,
+            },
+            'unit': '2/4/10 pts/km selon la bande (70cm/23cm/au-delà)',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org/tools/upload/index.php',
+        'serial_per_band': True,
+        'notes': "Section 1 (émission-réception) uniquement -- la Section 2 (réception seule, moitié points) n'est pas modélisée.",
+    },
+    'REF_IARU_TVA': {
+        'name': 'IARU TVA (Région 1)',
+        'organizer': 'REF / IARU-R1',
+        'check_url': 'https://concours.r-e-f.org/reglements/index.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_iarutva_fr_20251209.pdf',
+        # « Le concours débute le deuxième samedi de juin à 12:00 UTC et
+        # s'achève le dimanche à 18:00 UTC. »
+        'date_rule': 'second_saturday_june_12h',
+        'duration_h': 30, 'start_utc': '12:00',
+        # Bandes ATV/DATV listées explicitement par le règlement : « 70 cm,
+        # 23 cm, 13 cm, 9 cm, 6,3 cm et 1,2 cm » -- PAS 3cm/10368MHz
+        # (absent de l'énumération, contrairement à National/CDF TVA
+        # ci-dessus qui disent juste « et au-delà »). Liste reprise telle
+        # quelle, rien ajouté.
+        'bands': ['432', '1296', '2320', '3400', '5760', '24048'],
+        'modes': ['SSB', 'CW', 'FM'],
+        'exchange': 'Report vidéo P0-P5/son T0-T5 + N°QSO + locator (+ code vidéo secret par bande, non modélisé)',
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'when': 'always', 'points': {'per_km_x': 2}, 'bands': ['432']},
+                    {'when': 'always', 'points': {'per_km_x': 4}, 'bands': ['1296']},
+                    {'when': 'always', 'points': {'per_km_x': 10}},
+                ],
+                'multiplier': None,
+            },
+            'unit': '2/4/10 pts/km selon la bande (70cm/23cm/au-delà)',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org/tools/upload/index.php',
+        'serial_per_band': True,
+        'notes': "Section 1 (émission-réception, « hors du cadre de la section 2 ») uniquement -- la Section 2 (réception seule/SWL, moitié points) n'est pas modélisée. Modes analogiques et numériques (DATV) acceptés sans différence de calcul -- non distingués ici, le carnet n'a pas de mode ATV/DATV dédié.",
+    },
     'REF_PRINTEMPS': {
         'name': 'Concours du Printemps',
         'organizer': 'REF',
@@ -1483,12 +1622,15 @@ CONTEST_SCORING = {
     'REF_CDF_HF_SSB':{'type':'dept_dxcc','unit':'pts x depts + DXCC','mult':'depts+DXCC','bands':'3.5 7 14 21 28MHz','modes':'SSB'},
     'REF_NAT_THF':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
     'REF_CCD_MAR':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
-    'REF_NAT_TVA':   {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    # Correctif 12/09/2026 (règlement PDF officiel lu, voir CONTEST_DEFINITIONS
+    # ci-dessus) : 'relais TVA' était FAUX, aucune notion de relais dans le
+    # règlement -- vrai barème 2/4/10 pts/km selon la bande, sans multiplicateur.
+    'REF_NAT_TVA':   {'type':'km','unit':'2/4/10 pts/km selon bande (70/23cm/au-dela)','mult':'aucun','bands':'432 1296 2320 3400 5760 10368 24048 47088MHz','modes':'SSB CW FM'},
     'REF_CCD_AVR_CW':{'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
     'REF_PRINTEMPS': {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
     'REF_CCD_MAI':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
     'REF_CDF_THF':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
-    'REF_IARU_TVA':  {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_IARU_TVA':  {'type':'km','unit':'2/4/10 pts/km selon bande (70/23cm/au-dela)','mult':'aucun','bands':'432 1296 2320 3400 5760 24048MHz','modes':'SSB CW FM'},
     'REF_DDFM_50':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'50MHz','modes':'SSB CW FM'},
     'REF_IARU_50':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'50MHz','modes':'SSB CW'},
     'REF_RPH':       {'type':'km','unit':'1pt/km SANS multiplicateur - SSB uniquement','mult':'none','bands':'144MHz-47GHz','modes':'SSB'},
@@ -1496,7 +1638,7 @@ CONTEST_SCORING = {
     'REF_ETE':       {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
     'REF_F8TD':      {'type':'km_x_loc','unit':'1pt/km x locators SHF','mult':'locators','bands':'1296MHz-47GHz','modes':'SSB CW'},
     'REF_IARU_VHF':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW'},
-    'REF_CDF_TVA':   {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_CDF_TVA':   {'type':'km','unit':'2/4/10 pts/km selon bande (70/23cm/au-dela)','mult':'aucun','bands':'432 1296 2320 3400 5760 10368 24048 47088MHz','modes':'SSB CW FM'},
     'REF_IARU_UHF':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432MHz-47GHz','modes':'SSB CW'},
     'REF_CCD_OCT':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
     'REF_MARCONI':   {'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
@@ -1504,7 +1646,7 @@ CONTEST_SCORING = {
     'REF_CCD_NOV':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
     'REF_CCD_DEC':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
     'REF_CCD_DEC_CW':{'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
-    'REF_NAT_TVA_DEC':{'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_NAT_TVA_DEC':{'type':'km','unit':'2/4/10 pts/km selon bande (70/23cm/au-dela)','mult':'aucun','bands':'432 1296 2320 3400 5760 10368 24048 47088MHz','modes':'SSB CW FM'},
     # ── Autres francais ───────────────────────────────────────────────────────
     # Correctif 12/09/2026 (recherche web sourcée, PAS supposée) : 'bands'
     # était 'HF', FAUX -- confirmé par 4 sources indépendantes datées
@@ -1613,6 +1755,10 @@ CONTEST_RULES_URLS = {
     'REF_CCD_JAN1':  'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
     'REF_MARCONI':   'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
     'REF_DDFM_50':   'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
+    'REF_NAT_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
+    'REF_NAT_TVA_DEC': 'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
+    'REF_CDF_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_cdftva_fr_20260516.pdf',
+    'REF_IARU_TVA':    'https://concours.r-e-f.org/reglements/actuels/reg_iarutva_fr_20251209.pdf',
 }
 
 
