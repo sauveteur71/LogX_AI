@@ -21,9 +21,11 @@ def _ctx():
       var window = {};
       var __c = { innerHTML: '' };
       var __prog = { innerHTML: '' };
+      var __gal = { innerHTML: '' };
       var document = { getElementById: function(id){
           if(id === 'diagTuiles') return __c;
           if(id === 'diagProgression') return __prog;
+          if(id === 'diagGalerie') return __gal;
           return null; } };
     """)
     with open(JS, encoding='utf-8') as f:
@@ -178,5 +180,76 @@ def test_cablage_page():
     assert 'src="logx_diagnostic.js"' in h
     assert 'id="diagTuiles"' in h
     assert 'id="diagProgression"' in h
+    assert 'id="diagGaleriePanel"' in h
+    assert 'id="diagGalerie"' in h
     assert 'logx_theme.css' in h            # tokens mutualisés
     assert 'logx_statusbar.js' in h         # barre de statut + expert-only
+
+
+# ─── Galerie SSDV (clic sur la tuile -> vignettes des images reçues) ────────
+
+def test_ssdv_tuile_est_un_bouton_cliquable():
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendre(window.LogxDiagnostic.construireTuiles("
+             "{hardware:{ssdv_kiss:{enabled:true, connected:true, paquets_recus:2}}}));")
+    html = ctx.eval("__c.innerHTML")
+    assert '<button' in html
+    assert 'diag-tuile-clic' in html
+    assert 'data-id="ssdv"' in html
+
+
+def test_construire_galerie_formate_indicatif_image_id_et_date():
+    ctx = _ctx()
+    src = ("window.LogxDiagnostic.construireGalerie("
+           "[{fichier:'F4GLD_1_1700000000.jpg', indicatif:'F4GLD', image_id:1, recu_le:1700000000}])[0].")
+    assert ctx.eval(src + "fichier") == 'F4GLD_1_1700000000.jpg'
+    libelle = ctx.eval(src + "libelle")
+    assert 'F4GLD' in libelle
+    assert '#1' in libelle
+    assert 'UTC' in libelle
+
+
+def test_construire_galerie_tolere_liste_absente():
+    ctx = _ctx()
+    assert ctx.eval("window.LogxDiagnostic.construireGalerie(null).length") == 0
+
+
+def test_rendre_galerie_vide_affiche_un_message():
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendreGalerie([]);")
+    html = ctx.eval("__gal.innerHTML")
+    assert 'Aucune image' in html
+
+
+def test_rendre_galerie_produit_une_vignette_avec_url_echappee():
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendreGalerie(window.LogxDiagnostic.construireGalerie("
+             "[{fichier:'F4GLD_1_1700000000.jpg', indicatif:'F4GLD', image_id:1, recu_le:1700000000}]));")
+    html = ctx.eval("__gal.innerHTML")
+    assert '/ssdv_images/F4GLD_1_1700000000.jpg' in html
+    assert '<img' in html
+    assert 'diag-ssdv-vignette' in html
+
+
+def test_rendre_galerie_encode_les_caracteres_speciaux_de_lurl():
+    # esc() seul n'échappe pas espace/#/? -- caractères qui casseraient
+    # l'URL (pas le HTML) s'ils passaient bruts. encodeURIComponent() est
+    # ce qui protège CE cas précis.
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendreGalerie(window.LogxDiagnostic.construireGalerie("
+             "[{fichier:'F4 GLD_1_1.jpg', indicatif:'X', image_id:1, recu_le:1}]));")
+    html = ctx.eval("__gal.innerHTML")
+    assert '/ssdv_images/F4%20GLD_1_1.jpg' in html
+    assert '/ssdv_images/F4 GLD_1_1.jpg' not in html
+
+
+def test_rendre_galerie_echappe_un_indicatif_hostile():
+    # indicatif alimente le libellé affiché -- jamais passé par
+    # encodeURIComponent (contrairement à fichier, qui vit dans l'URL) --
+    # c'est esc() seul qui doit empêcher l'injection ici.
+    ctx = _ctx()
+    ctx.eval("window.LogxDiagnostic._rendreGalerie(window.LogxDiagnostic.construireGalerie("
+             "[{fichier:'F4GLD_1_1.jpg', indicatif:'<img onerror=alert(1)>', image_id:1, recu_le:1}]));")
+    html = ctx.eval("__gal.innerHTML")
+    assert '<img onerror=alert(1)>' not in html
+    assert '&lt;img onerror=alert(1)&gt;' in html

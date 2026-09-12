@@ -29,11 +29,14 @@ pas ici — voir #464-#471). Deux nouveaux chantiers cadrés le même jour :
 maintenant un premier incrément livré. Voir les sous-sections dédiées dans
 la section 1.
 
-**Mise à jour le 12/09/2026** : chantier **SSDV** complété d'un incrément
-supplémentaire — exposition de l'état du lien KISS/Direwolf sur l'écran
-« Santé de la station » (endpoint `GET /ssdv/kiss/state` + tuile diagnostic).
-Voir la nouvelle sous-section dédiée dans la section 1, juste après « SSDV
-Phase 2 — transport AX.25/APRS, socle KISS+AX.25 ».
+**Mise à jour le 12/09/2026** : chantier **SSDV** complété de DEUX incréments
+supplémentaires, dans la foulée — (a) exposition de l'état du lien
+KISS/Direwolf sur l'écran « Santé de la station » (endpoint
+`GET /ssdv/kiss/state` + tuile diagnostic) ; (b) galerie d'images : registre
+multi-flux (indicatif, image_id), persistance disque, panneau galerie sur la
+même page (clic sur la tuile SSDV). Voir les deux nouvelles sous-sections
+dédiées dans la section 1, juste après « SSDV Phase 2 — transport AX.25/APRS,
+socle KISS+AX.25 ».
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -1425,6 +1428,89 @@ la station » (`logx_diagnostic.html`).
 reçues (paquets bruts seulement pour l'instant), validation contre un flux
 Direwolf réel (carte son + TNC) — déjà noté comme hors de portée de ce dépôt
 de code en Phase 2.
+
+### SSDV — galerie d'images : assemblage multi-flux + persistance + UI (12/09/2026)
+
+Suite directe de l'incrément précédent (« exposition HTTP/UI de l'état du
+lien KISS » ci-dessus), qui laissait explicitement l'assemblage/la
+persistance hors scope. **Cadré avec F4GLD avant tout code** (3 décisions,
+via question à choix — méthode reprise du cadrage Phase 1/Phase 2) :
+
+1. **Multi-flux** : un assemblage PAR **(indicatif, image_id)**, pas un seul
+   flux global — le lien KISS/Direwolf capte tout ce qui passe sur le port,
+   plusieurs stations peuvent émettre des images en même temps.
+2. **Persistance** : dossier local, **aucune purge automatique** (« tout
+   conservé »).
+3. **UI** : **galerie sur la page diagnostic existante** (clic sur la tuile
+   SSDV), pas de nouvelle page dédiée.
+
+**Découverte en préparant l'incrément** : l'assembleur pur (paquets → JPEG
+via le binaire externe `ssdv`, progression, paquets manquants) existait
+DÉJÀ depuis la Phase 1 (`logx_ssdv.py` : `nouvel_assemblage`/
+`ajouter_paquet`/`est_complet`/`assembler_image`…) — noté à tort comme
+« hors scope » dans l'incrément précédent. Ce qui manquait réellement :
+router les paquets multi-flux vers le bon assemblage (l'assembleur Phase 1
+ne gère qu'UN SEUL flux, il lève si un paquet d'une autre `image_id`
+arrive en cours de route), persister sur disque, et exposer côté UI.
+
+**Livré :**
+- `logx_ssdv_galerie.py` (nouveau module) : `registre` = dict
+  `(indicatif, image_id) -> assemblage`, un par flux. `recevoir_paquet()`
+  route/crée l'assemblage et renvoie `vient_de_se_completer` (True une
+  SEULE fois, un EOI dupliqué ne redéclenche pas une écriture). `nom_fichier()`
+  / `lister_images()` : le NOM DE FICHIER (`<indicatif>_<image_id>_<epoch>.jpg`)
+  est la SEULE source de vérité — aucun manifeste séparé à tenir
+  synchronisé. `sauver_image()` retire TOUJOURS l'assemblage du registre
+  (succès ou échec, ex. binaire `ssdv` absent) : un paquet suivant repart
+  d'un état neuf plutôt que de raccrocher à un assemblage déjà consommé.
+- **Dossier `concours/ssdv_images/` SANS point de tête** — choix délibéré,
+  à l'inverse de `.operator_goals.json` etc. : `Handler._interdit()`
+  (`logx_http.py`) bloque tout segment de chemin commençant par `.` pour
+  qu'un secret ne soit jamais servi par erreur. Les images SSDV n'ont rien
+  de secret et doivent au contraire être servies par le serveur de
+  fichiers statique EXISTANT (`GET /ssdv_images/<fichier>`, anti-traversée
+  déjà géré par `Handler._resolve()`) — aucun endpoint de service dédié à
+  maintenir en parallèle. Suit le précédent `concours/voice_messages/`.
+  Ajouté à `.gitignore` (donnée runtime, pas du code).
+- `logx_http.py` : `_ssdv_paquet_recu()` remplace le no-op câblé dans
+  l'incrément précédent — appelée depuis le thread de fond du client KISS
+  (jamais le thread HTTP), route vers `logx_ssdv_galerie` et sauvegarde dès
+  qu'une image se complète. Nouvel endpoint `GET /ssdv/images` (liste JSON,
+  lecture seule du dossier).
+- `logx_diagnostic.js`/`.html` : la tuile SSDV devient un `<button>` natif
+  (focus/clavier gratuits, même style `focus-visible` déjà global à la
+  page) — clic ouvre un panneau galerie sous la grille de tuiles
+  (`construireGalerie()`/`_rendreGalerie()`, mêmes découpage pur/rendu DOM
+  que le reste de la page). Vignettes = lien direct vers le JPEG
+  (`target="_blank"`), pas de lightbox construite (YAGNI — pas demandé).
+- **Contre-épreuve par mutation faite sur 6 points structurels** (méthode
+  du dépôt) : garde `vient_de_se_completer`, `registre.pop` dans
+  `sauver_image`, `if complet` dans `_ssdv_paquet_recu`, `encodeURIComponent`
+  ET `esc()` côté rendu galerie (2 mutations séparées — la première tentative
+  de test « nom de fichier hostile » s'est révélée VACANTE : le payload
+  passait par `encodeURIComponent` qui le neutralisait déjà avant même
+  `esc()`, donc supprimer `esc()` ne faisait rougir aucun test ; corrigé en
+  injectant le payload dans `indicatif`, qui alimente le libellé affiché
+  SANS jamais passer par `encodeURIComponent` — piège du type « témoin vert
+  qui ne prouve rien », détecté en le vivant, pas en le récitant), et le
+  garde `!images.length` de l'état vide. Les 6 fois, rouge confirmé puis
+  restauration vérifiée par empreinte md5 identique.
+- `ruff`/`node --check` propres. Suite complète relancée : seuls échecs
+  rencontrés = le même flake réseau intermittent déjà documenté
+  (`ConnectionResetError WinError 10054`, sur des tests sans aucun rapport
+  avec SSDV), confirmés verts en isolation.
+- Pas de PR GitHub (fusion directe), pas de vérification navigateur réelle
+  faite (pas d'affichage possible dans cet environnement) — à faire par
+  F4GLD avant un usage on-air : ouvrir la page diagnostic, cliquer la tuile
+  SSDV, vérifier le panneau (vide au départ, thèmes jour/nuit).
+
+**Reste hors scope, non cadré** : le binaire externe `ssdv` n'est toujours
+PAS vendorisé sur cette machine (`ssdv_disponible()` renvoie False) — la
+chaîne assemblage→JPEG n'a donc pas pu être vérifiée de bout en bout avec
+le vrai binaire, seulement par mutation avec `assembler_image` simulé
+(obtention/compilation du binaire = suivi séparé déjà noté non bloquant en
+Phase 1). Validation contre un flux Direwolf réel (carte son + TNC)
+également hors de portée de ce dépôt de code.
 
 ### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
 

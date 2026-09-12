@@ -108,12 +108,60 @@
     var box = document.getElementById('diagTuiles');
     if(!box) return;
     box.innerHTML = (tuiles || []).map(function(t){
-      return '<div class="diag-tuile">' +
+      // Tuile SSDV : bouton natif plutôt que div (focus/clavier gratuits,
+      // même style de focus-visible déjà global à la page) -- clic ouvre
+      // la galerie des images reçues (voir _toggleGalerieSsdv).
+      var tag = t.id === 'ssdv' ? 'button' : 'div';
+      var attrs = t.id === 'ssdv'
+        ? ' type="button" class="diag-tuile diag-tuile-clic"'
+        : ' class="diag-tuile"';
+      return '<' + tag + attrs + ' data-id="' + esc(t.id) + '">' +
         '<span class="diag-dot" data-c="' + esc(t.couleur) + '"></span>' +
         '<span class="diag-nom">' + esc(t.nom) + '</span>' +
         '<span class="diag-detail">' + esc(t.detail) + '</span>' +
-        '</div>';
+        '</' + tag + '>';
     }).join('');
+  }
+
+  // Galerie SSDV — construction PURE (testable) depuis la liste renvoyée
+  // par GET /ssdv/images, puis rendu DOM séparé (même découpage que les
+  // tuiles/la progression ci-dessus).
+  function construireGalerie(images){
+    return (images || []).map(function(im){
+      var d = new Date((im.recu_le || 0) * 1000);
+      var horodatage = isNaN(d.getTime()) ? '?' : d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+      return {
+        fichier: im.fichier,
+        libelle: (im.indicatif || '?') + ' · image #' + im.image_id + ' · ' + horodatage
+      };
+    });
+  }
+
+  function _rendreGalerie(images){
+    var box = document.getElementById('diagGalerie');
+    if(!box) return;
+    if(!images.length){
+      box.innerHTML = '<div class="diag-sub">Aucune image SSDV reçue pour l\'instant.</div>';
+      return;
+    }
+    box.innerHTML = images.map(function(im){
+      var url = '/ssdv_images/' + encodeURIComponent(im.fichier);
+      return '<a class="diag-ssdv-vignette" href="' + esc(url) + '" target="_blank" rel="noopener">' +
+        '<img src="' + esc(url) + '" alt="Image SSDV : ' + esc(im.libelle) + '" loading="lazy">' +
+        '<span>' + esc(im.libelle) + '</span></a>';
+    }).join('');
+  }
+
+  var _galerieOuverte = false;
+  function _toggleGalerieSsdv(){
+    var panel = document.getElementById('diagGaleriePanel');
+    if(!panel) return;
+    _galerieOuverte = !_galerieOuverte;
+    panel.hidden = !_galerieOuverte;
+    if(_galerieOuverte){
+      fetch('/ssdv/images').then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
+        .then(function(images){ _rendreGalerie(construireGalerie(images)); });
+    }
   }
 
   // Progression des diplômes (sur toute la vie de la station) à partir de
@@ -181,11 +229,21 @@
     var poll = global.rcPoll || function(fn, ms){ return setInterval(fn, ms); };
     _timer = poll(_maj, INTERVALLE_MS);
     _horlogeTimer = setInterval(_horloge, 1000);
+    // Délégation : la tuile SSDV est reconstruite à chaque poll (_rendre),
+    // un seul écouteur posé une fois sur le conteneur stable suffit.
+    var box = document.getElementById('diagTuiles');
+    if(box){
+      box.addEventListener('click', function(ev){
+        var tuile = ev.target.closest && ev.target.closest('.diag-tuile[data-id="ssdv"]');
+        if(tuile) _toggleGalerieSsdv();
+      });
+    }
   }
 
   global.LogxDiagnostic = {
     demarrer: demarrer, construireTuiles: construireTuiles, _rendre: _rendre,
-    construireProgression: construireProgression, _rendreProgression: _rendreProgression
+    construireProgression: construireProgression, _rendreProgression: _rendreProgression,
+    construireGalerie: construireGalerie, _rendreGalerie: _rendreGalerie
   };
 
   // Démarrage auto (VRAI navigateur uniquement — fetch présent).

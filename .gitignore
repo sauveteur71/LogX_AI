@@ -80,6 +80,12 @@ reg_rph_fr_20250312.pdf
 # Messages vocaux enregistres par l'operateur (sa voix, propre a sa station)
 concours/voice_messages/
 
+# Galerie SSDV : images recues via le lien KISS/Direwolf (donnees runtime,
+# pas du code). SANS point de tete deliberement -- doit rester servable par
+# le serveur de fichiers statique (GET /ssdv_images/<fichier>), que
+# Handler._interdit() bloque pour tout segment commencant par '.'.
+concours/ssdv_images/
+
 # Band map Search & Pounce : notes de balayage, propres a la station
 concours/bandmap_local.json
 

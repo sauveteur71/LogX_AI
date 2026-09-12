@@ -1945,22 +1945,37 @@ def _ssdv_kiss_state_dict(cfg_snap):
     """État du lien KISS/Direwolf (SSDV Phase 2) -- même patron que
     _wsjtx_state_dict() : démarrage à chaud idempotent du client quand la
     config l'active, aucune I/O bloquante ici (le client tourne dans son
-    propre thread de fond, voir logx_ssdv_reception). `on_paquet_ssdv` est
-    un no-op pour l'instant -- l'assemblage/la persistance d'image n'est
-    pas demandé dans cet incrément (supervision de la liaison seulement),
-    suivi possible séparé."""
+    propre thread de fond, voir logx_ssdv_reception). `on_paquet_ssdv`
+    route vers l'assemblage puis la persistance disque, voir
+    _ssdv_paquet_recu() et logx_ssdv_galerie (galerie d'images, cadrage
+    12/09/2026)."""
     import logx_ssdv_reception as rx
     settings = rx.kiss_settings(cfg_snap)
     if not settings['enabled']:
         return {'enabled': False}
     rx.demarrer_client_kiss(
         get_cfg=lambda: dict(current_config),
-        on_paquet_ssdv=lambda paquet: None,
+        on_paquet_ssdv=_ssdv_paquet_recu,
         host=settings['host'], port=settings['port'])
     with rx._status_lock:
         st = dict(rx.status)
     st['enabled'] = True
     return st
+
+
+def _ssdv_paquet_recu(paquet_brut):
+    """Callback réel du client KISS live -- appelée depuis SON thread de
+    fond (logx_ssdv_reception), jamais depuis le thread HTTP. Route le
+    paquet vers l'assemblage (indicatif, image_id) correspondant
+    (logx_ssdv_galerie, registre multi-flux -- plusieurs stations peuvent
+    émettre en même temps) et écrit l'image sur disque dès qu'elle vient
+    de se compléter."""
+    import logx_ssdv_galerie as galerie
+    assemblage, complet = galerie.recevoir_paquet(galerie.registre, paquet_brut)
+    if complet:
+        galerie.sauver_image(galerie.registre,
+                              (assemblage['indicatif'], assemblage['image_id']),
+                              cfg=dict(current_config))
 
 
 def _winkeyer_state_dict(cfg_snap):
@@ -5405,6 +5420,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # demandé par F4GLD (« endpoint HTTP léger », supervision du lien).
         if path == '/ssdv/kiss/state':
             self._json(_ssdv_kiss_state_dict(self._cfg_snapshot()))
+            return
+
+        # Galerie SSDV : images complètes reçues (cadrage 12/09/2026) --
+        # lecture seule du dossier concours/ssdv_images/, chaque JPEG est
+        # ensuite servi directement par le serveur de fichiers statique
+        # (GET /ssdv_images/<fichier>, aucun endpoint dédié nécessaire).
+        if path == '/ssdv/images':
+            import logx_ssdv_galerie as galerie
+            self._json(galerie.lister_images())
             return
 
         # Réseau ADIF générique (N1MM/DXLog) : état de l'écoute — pollé par CONFIG
