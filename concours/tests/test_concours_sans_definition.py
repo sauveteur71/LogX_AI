@@ -39,17 +39,26 @@ import logx_definitions as D          # noqa: E402
 # règlement, pas devinée.
 AMBIGUS_CONNUS = {
     'CUSTOM',              # « Au choix » — par construction
-    'F9NL',                # « HF »
-    'UFT_RENCONTRES',      # « HF »
+    'UFT_RENCONTRES',      # « HF » -- sourcé (uft.net) mais barème par statut
+                           # de membre UFT + mult "membres/bande", non modélisable
+                           # avec le moteur actuel (donnée d'adhésion absente) ;
+                           # pas juste une plage à préciser.
     'REF_CDF_TVA',         # « 438MHz+ TVA »
     'REF_IARU_TVA',        # « 438MHz+ TVA »
     'REF_NAT_TVA',         # « 438MHz+ TVA »
-    'REF_NAT_TVA_DEC',     # « 438MHz+ TVA »
+    'REF_NAT_TVA_DEC',     # « 438MHz+ TVA » -- les 4 TVA : type 'tva' jamais
+                           # implémenté dans le moteur de scoring (absent de
+                           # LEGACY_SCORING_PRESETS/contest_schema.json).
     'REF_CHALLENGE_THF',   # « 144MHz-47GHz » — moteur de score dédié à brancher
     # RÉSOLUS le 01/09/2026 (règlements REF officiels lus, scoring km — définitions
     # dans logx_definitions.CONTEST_DEFINITIONS) :
     #   REF_IARU_UHF  : « 432 MHz et au-delà », 1 pt/km.
     #   REF_F8TD      : « 1296 MHz et au-delà », 1 pt/km (reg_f8td_fr_20250312.pdf).
+    # RÉSOLU le 12/09/2026 (recherche web sourcée, 4 sources indépendantes) :
+    #   F9NL : 'HF' était FAUX -- corrigé en '432MHz' dans CONTEST_SCORING
+    #   (voir logx_definitions.py). Pas de CONTEST_DEFINITIONS complète
+    #   (échange/barème/log non sourcés, règlement en PDF scanné illisible) --
+    #   seule la bande, seul point bloquant bandes_du_concours(), est corrigée.
 }
 
 
@@ -76,6 +85,14 @@ def test_les_concours_orphelins_convertibles_ont_des_bandes():
 def test_marconi_est_bien_sur_144():
     """Cas concret : REF_MARCONI rendait [] avant ce correctif."""
     assert D.bandes_du_concours('REF_MARCONI') == ['144']
+
+
+def test_f9nl_est_432_mhz_pas_hf():
+    """Correctif 12/09/2026 : CONTEST_SCORING['F9NL']['bands'] valait 'HF',
+    FAUX -- 4 sources indépendantes (f6kdu.wordpress.com 2011, ref-info.
+    r-e-f.org 2017, calendrier REF 2025/2026) confirment un concours
+    432 MHz (UHF) en hommage à un « pionnier de la bande 70 cm »."""
+    assert D.bandes_du_concours('F9NL') == ['432']
 
 
 def test_un_bareme_multibande_donne_toutes_les_bandes():

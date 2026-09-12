@@ -1506,7 +1506,18 @@ CONTEST_SCORING = {
     'REF_CCD_DEC_CW':{'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
     'REF_NAT_TVA_DEC':{'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
     # ── Autres francais ───────────────────────────────────────────────────────
-    'F9NL':           {'type':'dept_dxcc','unit':'pts x depts + DXCC CW','mult':'depts+DXCC','bands':'HF','modes':'CW'},
+    # Correctif 12/09/2026 (recherche web sourcée, PAS supposée) : 'bands'
+    # était 'HF', FAUX -- confirmé par 4 sources indépendantes datées
+    # (2011 f6kdu.wordpress.com, 2017 ref-info.r-e-f.org, calendrier REF
+    # 2025/2026) : le Mémorial F9NL est un concours 432 MHz (UHF) en
+    # hommage à Maurice LACROUTS, « pionnier de la bande 70 cm » (créé
+    # 1983). PAS géré par la Commission des concours REF (absent de leur
+    # calendrier structuré) -- organisé au niveau REF65 (Pyrénées-
+    # Atlantiques). 'modes'/'type'/'unit'/'mult' NON corrigés : aucune
+    # source ne confirme ni n'infirme CW/dept_dxcc pour ce concours
+    # précis (le règlement officiel n'est qu'un PDF scanné, image non
+    # extractible en texte) -- laissés tels quels plutôt que d'inventer.
+    'F9NL':           {'type':'dept_dxcc','unit':'pts x depts + DXCC CW','mult':'depts+DXCC','bands':'432MHz','modes':'CW'},
     'UFT_RENCONTRES': {'type':'dept','unit':'pts x depts CW','mult':'depts','bands':'HF','modes':'CW'},
     # ── Internationaux ────────────────────────────────────────────────────────
     'CQ_WW_SSB':  {
