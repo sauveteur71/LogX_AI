@@ -494,6 +494,60 @@ def _mult_exchange_distinct(ctx, pts, result, scoring):
                              f"décompte exact sur le log")
     result['priority'] = 3 if pts else 5
 
+def _mult_rtty_ru(ctx, pts, result, scoring):
+    """ARRL RTTY Roundup (§5.3) : mult = états US + provinces VE (stations
+    K/VE) + entités DXCC hors US/Canada (autres stations), COMPTÉ ALL-BAND
+    (is_global, comme _mult_prefix -- « each multiplier counts once, not
+    once per band »). Trou de coaching trouvé le 12/09/2026 (aucun
+    évaluateur enregistré pour 'rtty_ru' avant ce correctif -- un spot RTTY
+    RU tombait dans le repli « pas de multiplicateur », priorité par palier
+    de DISTANCE, absurde pour un concours qui n'en tient aucun compte).
+
+    Station K/VE : l'état/province exact n'est connu qu'à réception de
+    l'échange (inconnu au stade du spot) → proxy préfixe d'indicatif, EXACTE
+    même technique que _mult_na_state (ARRL DX) -- suivi via
+    done_rtty_ru_proxies, GLOBAL (pas par bande, contrairement à
+    done_na_proxies : la règle RTTY RU est all-band).
+    Station hors K/VE : l'entité DXCC EST connaissable au stade du spot
+    (déduite de l'indicatif, comme _mult_dxcc_only) -- mais suivie
+    GLOBALEMENT ici (done_dxcc_global), jamais done_dxcc qui est PAR BANDE
+    et ferait apparaître un faux « nouveau mult » à chaque changement de
+    bande pour ce concours all-band."""
+    c = ctx['dx_country']
+    if c in _RTTY_STATE_ENTITIES:
+        proxy = ctx['dx_base'][:3]
+        done = ctx.get('done_rtty_ru_proxies', set())
+        state_new = proxy not in done
+        if state_new:
+            result['new_mult'] = True
+            result['mult_type'] = 'etat_province'
+            result['mult_value'] = 1
+            mult_val = (ctx['current_score_total'] // max(len(done), 1)
+                        if done else pts * 5)
+            result['total_impact'] = pts + mult_val
+            result['explanation'] = f"{pts}pt + probable NOUVEL ÉTAT/PROVINCE → +{mult_val}pts estimés"
+            result['priority'] = 1
+        else:
+            result['total_impact'] = pts
+            result['explanation'] = f"{pts}pt (état/province probablement déjà travaillé)"
+            result['priority'] = 3
+        return
+    done_dxcc_global = ctx.get('done_dxcc_global', set())
+    new_dxcc = bool(c) and c not in done_dxcc_global
+    if new_dxcc:
+        result['new_mult'] = True
+        result['mult_type'] = 'dxcc'
+        result['mult_value'] = 1
+        mult_val = (ctx['current_score_total'] // max(len(done_dxcc_global), 1)
+                    if done_dxcc_global else pts * 5)
+        result['total_impact'] = pts + mult_val
+        result['explanation'] = f"{pts}pt + NOUVEAU DXCC → +{mult_val}pts estimés"
+        result['priority'] = 1
+    else:
+        result['total_impact'] = pts
+        result['explanation'] = f"{pts}pt (DXCC déjà compté)"
+        result['priority'] = 3
+
 
 MULT_EVALUATORS = {
     'locator':      _mult_locator,
@@ -511,6 +565,7 @@ MULT_EVALUATORS = {
     'na_section':   _mult_na_section,
     'na_state':     _mult_na_state,
     'exchange_distinct': _mult_exchange_distinct,
+    'rtty_ru':      _mult_rtty_ru,
 }
 
 # ── Conversion des types historiques en compositions de briques ─────────────
@@ -878,7 +933,8 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                    done_cq_zones, done_dxcc, current_score_total,
                    band=None, dist_km=0, noaa=None, dxmaps=None, source='',
                    mode='', done_today_by_band=None, done_prefixes=None,
-                   done_depts=None, done_na_proxies=None, done_itu_zones=None):
+                   done_depts=None, done_na_proxies=None, done_itu_zones=None,
+                   done_dxcc_global=None, done_rtty_ru_proxies=None):
     """
     Calcule la VALEUR RÉELLE d'un QSO selon le règlement du concours.
     Retourne un dict avec points directs, impact multiplicateur, valeur totale estimée.
@@ -953,6 +1009,10 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         'done_prefixes': done_prefixes or set(),
         'done_depts': done_depts or {}, 'dx_dept': dx_dept,
         'done_na_proxies': done_na_proxies or {},
+        # GLOBAUX (pas par bande) : ARRL RTTY Roundup, cf. _mult_rtty_ru --
+        # règle all-band, contrairement à done_dxcc/done_na_proxies ci-dessus.
+        'done_dxcc_global': done_dxcc_global or set(),
+        'done_rtty_ru_proxies': done_rtty_ru_proxies or set(),
         'current_score_total': current_score_total,
         'bricks': bricks,  # accessible aux détecteurs (ex. seuils de priorité)
     }
@@ -1099,7 +1159,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
                             done_cq_zones, done_dxcc, current_score,
                             noaa=None, dxmaps=None, done_today_by_band=None,
                             done_prefixes=None, done_depts=None, done_na_proxies=None,
-                            done_itu_zones=None):
+                            done_itu_zones=None, done_dxcc_global=None,
+                            done_rtty_ru_proxies=None):
     """
     Prend une liste de stations et les classe par valeur décroissante.
     stations_data = [{'call':str, 'locator':str, 'dist_km':int, 'band':str, ...}]
@@ -1117,7 +1178,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
             noaa, dxmaps, s.get('source',''), s.get('mode',''),
             done_today_by_band, done_prefixes=done_prefixes,
             done_depts=done_depts, done_na_proxies=done_na_proxies,
-            done_itu_zones=done_itu_zones
+            done_itu_zones=done_itu_zones, done_dxcc_global=done_dxcc_global,
+            done_rtty_ru_proxies=done_rtty_ru_proxies
         )
         s['scoring'] = val
         s['value_total'] = val['total_impact']
@@ -1307,6 +1369,8 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                                 # confondues (règlement WPX explicite), cf. _mult_prefix
     done_depts = {}            # département FR réel, échange connu (REF HF) — PAR BANDE
     done_na_proxies = {}       # 3 premiers car. indicatif (Field Day/ARRL DX) — PAR BANDE
+    done_dxcc_global = set()   # entité DXCC, GLOBAL (ARRL RTTY RU, hors K/VE) — cf. _mult_rtty_ru
+    done_rtty_ru_proxies = set()  # 3 premiers car. indicatif, GLOBAL (ARRL RTTY RU, K/VE) — cf. _mult_rtty_ru
     current_score = 0
     calldb = departments._load_calldb()
 
@@ -1327,12 +1391,19 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     def _mark_country_zone(base, band):
         """Pays et zone CQ travaillés — via la base cty.dat hors ligne.
         Suivi PAR BANDE (band_norm, déjà calculé par l'appelant) sauf
-        done_prefixes qui reste global (règle WPX explicite)."""
+        done_prefixes qui reste global (règle WPX explicite) et
+        done_dxcc_global/done_rtty_ru_proxies (ARRL RTTY Roundup, all-band
+        comme WPX — cf. _mult_rtty_ru)."""
         if not base:
             return
-        done_dxcc.setdefault(band, set()).add(dxcc.country_key(base))
+        c = dxcc.country_key(base)
+        done_dxcc.setdefault(band, set()).add(c)
         done_prefixes.add(_wpx_prefix(base))
         done_na_proxies.setdefault(band, set()).add(base[:3])
+        if c in _RTTY_STATE_ENTITIES:
+            done_rtty_ru_proxies.add(base[:3])
+        elif c:
+            done_dxcc_global.add(c)
         z = dxcc.cq_zone(base)
         if z is not None:
             done_cq_zones.setdefault(band, set()).add(str(z))
@@ -1514,7 +1585,8 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         done_cq_zones, done_dxcc, current_score,
         noaa, dxmaps, done_today_by_band,
         done_prefixes=done_prefixes, done_depts=done_depts,
-        done_na_proxies=done_na_proxies, done_itu_zones=done_itu_zones
+        done_na_proxies=done_na_proxies, done_itu_zones=done_itu_zones,
+        done_dxcc_global=done_dxcc_global, done_rtty_ru_proxies=done_rtty_ru_proxies
     )
     cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {
