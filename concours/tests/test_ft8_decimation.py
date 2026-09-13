@@ -287,12 +287,50 @@ def test_le_decodage_est_nettement_plus_rapide(ctx, fenetre):
 
     Seuil volontairement bas (x2) alors que la mesure donne x3,8 : ce test
     protège contre une RÉGRESSION (quelqu'un qui décâblerait la décimation),
-    il n'a pas à rougir parce qu'une machine d'intégration est chargée."""
+    il n'a pas à rougir parce qu'une machine d'intégration est chargée.
+
+    Fenêtre de recherche RÉTRÉCIE (freqMin/freqMax/timeSlopSymbols/
+    maxCandidates) UNIQUEMENT ICI — mesure de VITESSE seulement, jamais de
+    justesse de décodage (les tests 1-3 plus haut gardent les valeurs par
+    défaut du moteur, celles réellement utilisées en production). Découverte
+    du 13/09/2026 : le coût mesuré (~12-17s/passe non décimé) est un coût
+    algorithmique réel, pas un artefact de configuration V8 (testé : retirer
+    --single-threaded de py_mini_racer.MiniRacer.v8_flags ralentit encore,
+    ne corrige rien) — SUR DEUX ÉTAGES, pas un seul :
+      1. ft8FindAllSync (balayage grossier) : ~13 décalages temporels ×
+         ~864 pas de fréquence × 21 appels Goertzel par candidat ;
+      2. ft8RefineSync (affinage), appelé sur jusqu'à `maxCandidates`
+         candidats : 17×7 = 119 évaluations Costas par candidat, un coût
+         du MÊME ORDRE que l'étage 1 pour maxCandidates=60 (défaut) — une
+         première version de ce correctif qui ne rétrécissait QUE freqMin/
+         freqMax/timeSlopSymbols n'a gagné presque rien (~15s au lieu de
+         ~12-17s) parce que l'étage 2 domine alors, indépendant de la
+         largeur de balayage. Rétrécir aussi maxCandidates (peu de signaux
+         réels dans FEN, bruit quasi nul) corrige les DEUX étages.
+    Chaque paramètre réduit LE MÊME FACTEUR sur les deux chemins comparés
+    (avec/sans décimation) — le RAPPORT mesuré est donc préservé (linéaire
+    en nombre de candidats × échantillons/symbole, voir docstring
+    ci-dessus), seul le coût absolu tombe (~12-17s -> ~6,4s par passe non
+    décimé, mesuré). Bornes de fréquence/temps choisies avec marge autour
+    des tons/DT réellement synthétisés (TONS, DT_VRAIS)."""
+    # Fonction nommée définie UNE SEULE FOIS avant la boucle de mesure (comme
+    # decoder() partagé par les autres tests) plutôt qu'un littéral de
+    # fonction ré-évalué à chaque passe : `ctx.eval()` d'un texte de fonction
+    # RECOMPILE ce texte à chaque appel, ce qui a dominé le premier essai
+    # (~87s au lieu des ~35-40s attendus, contre-mesuré le 13/09/2026).
+    ctx.eval('''function decoderRapide(samples, sr){
+        var ht = ft8CreateHashTable();
+        return ft8DecodeAudioAll(samples, sr, ht, {
+            centerSample: 1.5 * sr, freqMin: 700, freqMax: 2300, timeSlopSymbols: 3,
+            maxCandidates: 15
+        });
+    }''')
+
     def duree(expr_samples, expr_sr):
         best = None
         for _ in range(3):     # la 1re passe paie la compilation JIT
             t0 = time.perf_counter()
-            ctx.eval('decoder(%s, %s)' % (expr_samples, expr_sr))
+            ctx.eval('decoderRapide(%s, %s)' % (expr_samples, expr_sr))
             d = time.perf_counter() - t0
             best = d if best is None else min(best, d)
         return best
