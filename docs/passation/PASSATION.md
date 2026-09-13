@@ -77,9 +77,17 @@ trimestriel puis annuel. Moteur dédié `calc_challenge_thf_band()`/
 appliquerait un seul coefficient à toutes les bandes à la fois — faux ici).
 MVP 144/432 MHz (décision F4GLD), schéma `contest_schema.json` 1.3.0 →
 1.4.0 — voir « Moteur de scoring Challenge THF » juste après la
-« Découverte annexe » sur `test_ft8_decimation.py`. UFT_RENCONTRES reste à
-faire (portée déjà cadrée par F4GLD : journalisation + score provisoire
-non-officiel, jamais d'approximation silencieuse).
+« Découverte annexe » sur `test_ft8_decimation.py`. **Moteur de scoring
+Rencontres UFT** : le cadrage initial (« Option C temporaire », score
+provisoire non-officiel) reposait sur une prémisse fausse — en lisant le
+vrai règlement (uft.net), le statut membre/non-membre s'est révélé
+auto-déclaré DANS L'ÉCHANGE reçu (comme un numéro de série REF classique),
+donc calculable à 100% SANS base d'adhérents externe. Moteur RÉEL construit
+directement (pas la version provisoire cadrée en amont) : F8UFT=20,
+membre même continent=5/DX=10, non-membre même continent=1/DX=2,
+multiplicateur = membres distincts + F8UFT par bande. Schéma
+`contest_schema.json` 1.4.0 → 1.5.0 — voir « Moteur de scoring Rencontres
+UFT » juste après « Moteur de scoring Challenge THF ».
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -2166,6 +2174,88 @@ disponibles (`departments.dept_for_qso`, `get_large_locator`).
 score provisoire explicite « non officiel » tant que la base d'adhérents
 UFT n'est pas intégrée — jamais de score chiffré présenté comme officiel à
 partir d'une approximation silencieuse). Non commencé dans ce chantier.
+
+### Moteur de scoring Rencontres UFT — pas provisoire, la donnée bloquante n'existait pas (13/09/2026)
+
+Repris dans la foulée de Challenge THF, sur la même session. **Sourcé avant
+tout code** : page officielle `uft.net/activites-et-concours/rencontres-uft/`
+lue intégralement (page HTML cette fois, `WebFetch` a réussi directement —
+contrairement aux PDF REF de la veille qui exigeaient l'outil `Read` sur le
+binaire sauvegardé). L'ancienne `CONTEST_SCORING['UFT_RENCONTRES']`
+(`'type':'dept'`, `'mult':'depts'`) était **fausse** : aucune notion de
+département dans le vrai barème — même piège que TVA et Challenge THF les
+deux jours précédents (une 3e donnée d'affichage fabriquée, jamais vérifiée
+contre un règlement réel, découverte coup sur coup).
+
+**Découverte qui change le cadrage donné en amont** : la note du 12/09
+disait le barème « non modélisable avec le moteur actuel (donnée
+d'adhésion absente) » — et F4GLD avait en conséquence cadré ce chantier en
+« Option C temporaire » (journalisation + score provisoire non-officiel,
+Phase 2/référentiel externe plus tard). **En lisant le vrai règlement,
+cette prémisse s'est révélée fausse** : le numéro de membre UFT (ou `'NM'`
+pour un non-membre) est **auto-déclaré dans l'échange reçu lui-même**
+(`RST + numéro de membre UFT (ou NM)`), exactement comme un numéro de
+série de concours REF classique — aucune base d'adhérents externe n'est
+nécessaire au CALCUL du score, seulement à une éventuelle vérification
+anti-fraude a posteriori (rôle de la commission UFT, pas de LogX AI).
+**Décision prise en conséquence** : construire directement le moteur RÉEL
+(comme Challenge THF), pas la version provisoire/incomplète initialement
+cadrée — la donnée bloquante qui justifiait le provisoire n'existe pas.
+
+**Le vrai barème (sourcé)** : F8UFT (station officielle) = 20 pts quel que
+soit le continent ; membre UFT même continent = 5, DX = 10 ; non-membre
+(`'NM'` reçu) même continent = 1, DX = 2. Multiplicateur = membres UFT
+distincts contactés + F8UFT, comptés PAR BANDE. Bandes CW uniquement
+(3.5/7/14/21/28 MHz), 1er week-end complet de décembre, en réalité 3
+sessions de 3h (pas une fenêtre continue — limite de la grammaire
+`date_rule`, documentée en `notes` comme pour WWA).
+
+**Décision d'architecture** : moteur DÉDIÉ (`calc_uft_points()`/
+`calc_uft_rencontres_score()`, `logx_scoring.py`), pas le moteur générique
+`bricks` — les points dépendent de l'échange REÇU (`num_rcvd`), une donnée
+que le contexte pré-QSO de `calc_qso_value`/`score_new_qso` ne porte
+structurellement pas (il ne connaît que ce qui est su AVANT le contact).
+Même raison de fond que Challenge THF, cause différente (là : coefficient
+par bande incompatible avec la multiplication finale unique du moteur
+générique ; ici : donnée manquante dans le contexte du moteur générique).
+
+**Livré :**
+- `contest_schema.json` **1.4.0 → 1.5.0** (MINOR) : `'uft_rencontres'`
+  ajouté à l'enum `scoring.type`.
+- `logx_scoring.py` : `calc_uft_points(qso, my_call)` (rend `(points,
+  statut)`, `statut='incomplete'` si l'échange est vide — jamais un point
+  inventé) et `calc_uft_rencontres_score(qsos, my_call)` (bilan complet,
+  `status='official_candidate'`/`'incomplete'`, `raw_points`,
+  `multiplier`, `score`, `qsos_incomplets`). Preset de coaching
+  `LEGACY_SCORING_PRESETS['uft_rencontres']` : valeur PLANCHER (2 pts,
+  non-membre DX) plutôt qu'une estimation optimiste non garantie avant
+  réception de l'échange réel.
+- `logx_definitions.py` : nouvelle entrée `CONTEST_DEFINITIONS['UFT_RENCONTRES']`,
+  `CONTEST_SCORING` corrigé (précédence sur `CONTEST_DEFINITIONS` dans
+  `get_scoring_info()`, même piège que TVA/THF), `CONTEST_RULES_URLS`
+  complété.
+- `tests/test_contest_uft_rencontres.py` (nouveau, 15 tests) : les 5
+  paliers de points (F8UFT, membre même continent/DX, non-membre même
+  continent/DX), `'NM'` insensible à la casse/espaces, échange manquant →
+  `incomplete` sans inventer de point, multiplicateur (membres distincts +
+  F8UFT par bande, un non-membre ne compte jamais comme multi), score =
+  points × multiplicateur, bilan mixte (un QSO incomplet marque tout le
+  bilan `incomplete` sans perdre les points déjà classables), journal vide.
+- `tests/test_concours_sans_definition.py` : `UFT_RENCONTRES` retiré
+  d'`AMBIGUS_CONNUS`.
+- **4 mutations** (points F8UFT, inversion membre/non-membre, clé du
+  multiplicateur sans l'exclusion `'NM'`, `score` en addition au lieu
+  d'une multiplication) : rouge confirmé à chaque fois, restauré, md5
+  identique. `ruff` propre, `logx_validate.py` propre (62 concours
+  conformes), suite complète relancée.
+- **Hors scope, assumé** : contrainte « hors concours » (le règlement ne
+  précise pas d'exclusion explicite comme Challenge THF, mais reste non
+  vérifiable automatiquement de toute façon), vérification anti-fraude
+  d'un numéro de membre annoncé (rôle de la commission UFT), format de log
+  CABRILLO exact (TESTUFT génère `.LOG`/`.CBR`, tag `CONTEST:` non
+  confirmé — `log_format` laissé vide plutôt que deviné), UI/endpoint HTTP
+  pour afficher le bilan (seul le moteur de calcul est livré).
+- Pas de PR GitHub, pas de vérification navigateur réelle.
 
 ---
 
