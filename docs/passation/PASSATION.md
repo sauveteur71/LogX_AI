@@ -61,7 +61,25 @@ découverte que la donnée existante (« relais TVA ») était FAUSSE, vrai
 barème au kilomètre par bande (schéma `contest_schema.json` 1.2.0 → 1.3.0,
 forme `{'per_km_x': N}`), Section 1 seule (décision F4GLD) — voir « Moteur
 de scoring REF TVA » juste après la section « Définitions de concours
-ambiguës ».
+ambiguës ». `test_ft8_decimation.py` : investigué après un faux diagnostic
+de blocage (voir « Découverte annexe » juste après TVA) — il termine
+réellement, juste très lent (~8 min pour un seul test, py_mini_racer/V8),
+aucune régression.
+
+**Mise à jour le 13/09/2026** : **Moteur de scoring Challenge THF** —
+REF_CHALLENGE_THF sort d'« ouvert, moteur neuf à construire » : règlement
+PDF officiel lu intégralement, ancienne donnée `CONTEST_SCORING`
+(« 1pt/km x locators ») FAUSSE (même piège que TVA), vrai barème = 1 pt/
+station neuve par mois+bande × (départements+grands carrés locator) ×
+coefficient PROPRE à chaque bande (144:1 432:3 1296:5 2320+:10), cumul
+trimestriel puis annuel. Moteur dédié `calc_challenge_thf_band()`/
+`_report()` (`logx_scoring.py`) plutôt que le moteur générique (qui
+appliquerait un seul coefficient à toutes les bandes à la fois — faux ici).
+MVP 144/432 MHz (décision F4GLD), schéma `contest_schema.json` 1.3.0 →
+1.4.0 — voir « Moteur de scoring Challenge THF » juste après la
+« Découverte annexe » sur `test_ft8_decimation.py`. UFT_RENCONTRES reste à
+faire (portée déjà cadrée par F4GLD : journalisation + score provisoire
+non-officiel, jamais d'approximation silencieuse).
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
@@ -2054,6 +2072,100 @@ corriger le faux diagnostic initial. **Aucune régression de ce chantier** :
 avec ce fichier ni avec `py_mini_racer`. Reste un point à surveiller pour un
 futur chantier (8 minutes pour un seul fichier alourdit sensiblement toute
 suite complète) mais ne bloque aucune vérification.
+
+### Moteur de scoring Challenge THF — engine dédié, MVP 144/432 MHz (13/09/2026)
+
+Repris sur « suite » → F4GLD choisit de reprendre les deux derniers items de
+« Définitions de concours ambiguës » (UFT_RENCONTRES et REF_CHALLENGE_THF),
+avec un cadrage détaillé donné directement : REF_CHALLENGE_THF en priorité
+(« Option A », moteur locator/distance réutilisable, MVP 144/432 MHz
+d'abord), UFT_RENCONTRES ensuite (« Option C » temporaire — journalisation +
+score provisoire explicitement non-officiel, jamais d'approximation
+silencieuse). Ce chantier traite REF_CHALLENGE_THF ; UFT_RENCONTRES reste à
+faire (voir note ci-dessous).
+
+**Sourcé avant tout code** (règle du dépôt) : le cadrage donné en réponse
+contenait des coefficients de bande et une formule très précis — avant de
+leur faire confiance, le règlement PDF officiel REF a été lu intégralement
+(`reg_challengethf_fr_20251209.pdf`, même technique que TVA : `WebFetch`
+échoue à extraire le texte mais sauvegarde le binaire, relu ensuite avec
+l'outil `Read`). **Les chiffres proposés se sont révélés exacts** (art. 9 du
+règlement, y compris l'exemple chiffré « 450 pts×(50 dépts+40 QTH)×1 =
+40500 » repris tel quel en test) — mais la vérification restait nécessaire :
+l'ancienne donnée `CONTEST_SCORING['REF_CHALLENGE_THF']` (`'type':'km_x_loc'`,
+« 1pt/km x locators ») était, elle, **complètement fausse** (aucune notion
+de distance dans le règlement), exactement le même piège que TVA la veille.
+
+**Le vrai barème (règlement, art. 3-9)** : concours PERMANENT (toute
+l'année, hors trafic pendant un autre concours — contrainte non
+vérifiable automatiquement, documentée comme limite). 1 point par station
+NEUVE contactée, par MOIS et par BANDE (une même station ne compte qu'une
+fois par mois par bande, donc jusqu'à 3 fois par trimestre). Multiplicateur
+= nombre de départements + nombre de grands carrés locator distincts,
+comptés PAR BANDE et PAR TRIMESTRE. Coefficient par bande : 144 MHz=1,
+432 MHz=3, 1296 MHz=5, 2320 MHz et au-delà=10. Score bande = points ×
+(départements+locators) × coef. Cumul annuel = SOMME des 4 scores
+trimestriels (pas un recalcul sur l'année entière, qui sous-compterait un
+département déjà vu dans un trimestre antérieur).
+
+**Décision d'architecture, motivée par la structure même du règlement** :
+le moteur générique (`count_mults`/`calc_total_score`) calcule
+(somme des points TOUTES bandes) × (somme des mults pondérés TOUTES
+bandes) en une seule multiplication finale — correct pour un multiplicateur
+global unique (DXCC, zones...), **faux** ici où chaque bande a son propre
+coefficient à appliquer indépendamment avant de sommer. D'où un moteur
+dédié, `calc_challenge_thf_band()`/`calc_challenge_thf_report()`
+(`logx_scoring.py`), qui ne réutilise du générique que les briques déjà
+disponibles (`departments.dept_for_qso`, `get_large_locator`).
+
+**Livré :**
+- `contest_schema.json` **1.3.0 → 1.4.0** (MINOR) : `'challenge_thf'` ajouté
+  à l'enum `scoring.type` (utilisé pour l'affichage/le contrat, pas pour le
+  calcul — le vrai score passe par les fonctions dédiées, pas par
+  `resolve_scoring_bricks`).
+- `logx_scoring.py` : `CHALLENGE_THF_COEF_BAND` (barème sourcé complet,
+  144 à 146 GHz — pas seulement le MVP), `_thf_month_key`/`_thf_quarter_key`
+  (clé de dédoublonnage et de trimestre), `_thf_dedup_monthly` (une station
+  = 1 pt/mois/bande, art. 4), `calc_challenge_thf_band()` (bilan détaillé
+  d'une bande sur une période déjà filtrée — dict vérifiable ligne à ligne
+  comme le formulaire officiel de compte rendu, art. 13), et
+  `calc_challenge_thf_report()` (regroupe par trimestre calendaire, cumule
+  l'année). Preset `LEGACY_SCORING_PRESETS['challenge_thf']` ajouté pour le
+  coaching pré-QSO (1 pt de base, sans multiplicateur — inconnu avant que
+  le QSO existe, même logique que SOTA/POTA).
+- `logx_definitions.py` : nouvelle entrée `CONTEST_DEFINITIONS['REF_CHALLENGE_THF']`
+  (MVP 144/432 MHz, décision F4GLD — le moteur gère déjà 1296/2320+, seule
+  l'exposition dans `bands` est restreinte), `CONTEST_SCORING['REF_CHALLENGE_THF']`
+  corrigé (précédence sur `CONTEST_DEFINITIONS` dans `get_scoring_info()`,
+  piège déjà rencontré avec TVA — corriger UN SEUL des deux aurait laissé
+  l'autre masquer le correctif), `CONTEST_RULES_URLS` complété.
+- `tests/test_contest_challenge_thf.py` (nouveau, 14 tests) : présence/
+  validité de la définition, coefficients sourcés, **l'exemple chiffré
+  officiel du règlement reproduit exactement** (450/50/40/40500), dédoublon
+  mensuel (même station même mois = 1x, mois différent = 2x, bandes
+  différentes = comptées séparément), multiplicateur = dépts+locators
+  cumulés, regroupement par trimestre calendaire, **cumul annuel = somme
+  des trimestres et non un recalcul global** (test dédié au piège
+  structurel identifié plus haut), bande inconnue → `ValueError` plutôt
+  qu'un score silencieusement faux.
+- `tests/test_concours_sans_definition.py` : `REF_CHALLENGE_THF` retiré
+  d'`AMBIGUS_CONNUS`, nouveau test `test_challenge_thf_a_maintenant_une_vraie_definition`.
+- **5 mutations** (coefficient de bande, largeur de la clé mensuelle,
+  formule du multiplicateur, calcul du trimestre calendaire, cumul annuel) :
+  rouge confirmé à chaque fois, restauré, md5 identique. `ruff` propre,
+  `logx_validate.py` propre (61 concours conformes), suite complète
+  relancée (résultat consigné plus bas une fois terminée).
+- **Hors scope, assumé** : SWL (art. 2/7/12, comme la Section 2 des TVA),
+  bandes 1296 MHz et au-delà (moteur prêt, pas exposées dans
+  `CONTEST_DEFINITIONS`), contrainte « hors concours » de l'art. 3 (non
+  vérifiable automatiquement), UI/endpoint HTTP pour afficher le bilan
+  (seul le moteur de calcul est livré, comme TVA la veille).
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
+**UFT_RENCONTRES reste à faire** (portée donnée par F4GLD : journalisation +
+score provisoire explicite « non officiel » tant que la base d'adhérents
+UFT n'est pas intégrée — jamais de score chiffré présenté comme officiel à
+partir d'une approximation silencieuse). Non commencé dans ce chantier.
 
 ---
 
