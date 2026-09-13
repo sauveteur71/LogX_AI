@@ -39,10 +39,6 @@ import logx_definitions as D          # noqa: E402
 # règlement, pas devinée.
 AMBIGUS_CONNUS = {
     'CUSTOM',              # « Au choix » — par construction
-    'UFT_RENCONTRES',      # « HF » -- sourcé (uft.net) mais barème par statut
-                           # de membre UFT + mult "membres/bande", non modélisable
-                           # avec le moteur actuel (donnée d'adhésion absente) ;
-                           # pas juste une plage à préciser.
     # RÉSOLUS le 01/09/2026 (règlements REF officiels lus, scoring km — définitions
     # dans logx_definitions.CONTEST_DEFINITIONS) :
     #   REF_IARU_UHF  : « 432 MHz et au-delà », 1 pt/km.
@@ -73,6 +69,15 @@ AMBIGUS_CONNUS = {
     # 432:3 1296:5 2320+:10). MVP 144/432 exposé dans CONTEST_DEFINITIONS
     # (décision F4GLD 13/09/2026), moteur dédié (calc_challenge_thf_band/
     # _report, logx_scoring.py) prêt pour 1296/2320+ si besoin.
+    # RÉSOLU le 13/09/2026 (page HTML officielle uft.net lue intégralement) :
+    # 'HF' était une plage brute ET l'ancien 'type':'dept'/'mult':'depts'
+    # étaient FAUX -- aucune notion de département dans le vrai barème
+    # (membre/non-membre UFT × même continent/DX, multiplicateur = membres
+    # distincts + F8UFT par bande). DÉCOUVERTE : contrairement à la note
+    # précédente, aucune base d'adhérents externe n'est nécessaire -- le
+    # numéro de membre (ou 'NM') est auto-déclaré DANS L'ÉCHANGE reçu, comme
+    # un numéro de série REF classique. Moteur RÉEL (pas provisoire) :
+    # calc_uft_points()/calc_uft_rencontres_score() (logx_scoring.py).
 }
 
 
@@ -128,6 +133,12 @@ def test_challenge_thf_a_maintenant_une_vraie_definition():
     """Correctif 13/09/2026 : REF_CHALLENGE_THF sort d'AMBIGUS_CONNUS -- MVP
     144/432 (décision F4GLD), moteur dédié déjà prêt pour 1296/2320+."""
     assert D.bandes_du_concours('REF_CHALLENGE_THF') == ['144', '432']
+
+
+def test_uft_rencontres_a_maintenant_une_vraie_definition():
+    """Correctif 13/09/2026 : UFT_RENCONTRES sort d'AMBIGUS_CONNUS -- bandes
+    HF CW du règlement officiel (uft.net)."""
+    assert D.bandes_du_concours('UFT_RENCONTRES') == ['3.5', '7', '14', '21', '28']
 
 
 def test_un_bareme_multibande_donne_toutes_les_bandes():

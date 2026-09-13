@@ -748,6 +748,17 @@ LEGACY_SCORING_PRESETS = {
         'priority_default': 3,
         'explain_direct': 'Challenge THF permanent — 1 pt si station neuve ce mois-ci sur cette bande (bilan trimestriel réel hors coaching)',
     },
+    # Rencontres UFT : ESTIMATION de coaching pré-QSO uniquement -- le vrai
+    # barème dépend de l'échange REÇU ('NM' ou numéro de membre), inconnu
+    # avant le QSO. Valeur plancher (non-membre DX, 2 pts) plutôt qu'une
+    # estimation optimiste : mieux vaut sous-estimer une priorité de spot
+    # que promettre 20 pts qui ne se confirmeront qu'à la réception réelle.
+    'uft_rencontres': {
+        'points': [{'when': 'always', 'points': 2}],
+        'multiplier': None,
+        'priority_default': 3,
+        'explain_direct': 'Rencontres UFT — 2 pts plancher (non-membre DX) ; le vrai barème (jusqu\'à 20 pts F8UFT) se confirme à réception de l\'échange',
+    },
 }
 
 def resolve_scoring_bricks(scoring):
@@ -1029,6 +1040,78 @@ def calc_challenge_thf_report(qsos, bands=None):
         trimestres[tk] = {'bandes': detail_bandes, 'total': total_trim}
         total_annuel += total_trim
     return {'trimestres': trimestres, 'total_annuel': total_annuel}
+
+
+# ─── Rencontres UFT (Union Française des Télégraphistes, CW, permanent) ────
+#
+# Sourcé uft.net/activites-et-concours/rencontres-uft/ (page HTML lue
+# intégralement le 13/09/2026). Barème :
+#   F8UFT (station officielle)            : 20 pts, quel que soit le continent
+#   membre UFT même continent             : 5 pts
+#   membre UFT DX (autre continent)       : 10 pts
+#   non-membre ('NM' reçu) même continent : 1 pt
+#   non-membre DX                         : 2 pts
+#   multiplicateur : chaque membre UFT distinct contacté compte 1 multi PAR
+#   BANDE, ainsi que les QSO avec F8UFT.
+#
+# Moteur DÉDIÉ (comme Challenge THF), PAS le moteur générique bricks : les
+# points dépendent de l'ÉCHANGE REÇU (num_rcvd = 'NM' ou un numéro de
+# membre), une donnée que calc_qso_value/score_new_qso ne reçoivent
+# structurellement PAS (leur contexte ne porte que ce qui est su AVANT le
+# QSO -- voir score_new_qso plus haut). calc_uft_points() opère sur le QSO
+# déjà loggué, où num_rcvd existe réellement.
+#
+# Le statut membre/non-membre n'exige AUCUNE base d'adhérents externe : le
+# numéro de membre (ou 'NM') est auto-déclaré DANS L'ÉCHANGE, comme un
+# numéro de série de concours REF classique -- une base externe ne
+# servirait qu'à une vérification anti-fraude a posteriori (rôle de la
+# commission UFT, pas de LogX AI).
+
+def calc_uft_points(qso, my_call):
+    """Points d'UN QSO du barème Rencontres UFT. Rend (points, statut) --
+    statut 'incomplete' si l'échange reçu est vide (ni 'NM' ni un numéro de
+    membre) : jamais un point inventé faute de donnée."""
+    dx_base = _dx_base(qso)
+    if dx_base == 'F8UFT':
+        return 20, 'ok'
+    exch = str(qso.get('num_rcvd', '') or '').strip().upper()
+    if not exch:
+        return 0, 'incomplete'
+    my_base = str(my_call or '').split('/')[0].upper()
+    same = bool(my_base) and get_continent(my_base) == get_continent(dx_base)
+    if exch == 'NM':
+        return (1 if same else 2), 'ok'
+    return (5 if same else 10), 'ok'   # numéro de membre auto-déclaré par l'échange
+
+
+def calc_uft_rencontres_score(qsos, my_call):
+    """Bilan Rencontres UFT sur un log : raw_points (somme des points des
+    QSO classables) × multiplicateur (membres UFT distincts + F8UFT,
+    comptés PAR BANDE). status='incomplete' si au moins un QSO n'a pas pu
+    être classé (échange manquant) -- jamais un score présenté comme
+    définitif dans ce cas (voir calc_uft_points)."""
+    raw_points = 0
+    incomplets = 0
+    seen_by_band = {}
+    for q in qsos:
+        pts, statut = calc_uft_points(q, my_call)
+        if statut == 'incomplete':
+            incomplets += 1
+            continue
+        raw_points += pts
+        dx_base = _dx_base(q)
+        exch = str(q.get('num_rcvd', '') or '').strip().upper()
+        cle_mult = 'F8UFT' if dx_base == 'F8UFT' else (exch if exch and exch != 'NM' else None)
+        if cle_mult:
+            band = str(q.get('band', ''))
+            seen_by_band.setdefault(band, set()).add(cle_mult)
+    nb_mults = sum(len(v) for v in seen_by_band.values())
+    return {
+        'status': 'incomplete' if incomplets else 'official_candidate',
+        'raw_points': raw_points, 'multiplier': nb_mults,
+        'score': raw_points * nb_mults,
+        'qsos_incomplets': incomplets,
+    }
 
 
 def contest_geo_mode(contest_id):

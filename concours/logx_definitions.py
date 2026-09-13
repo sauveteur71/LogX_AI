@@ -1587,6 +1587,65 @@ CONTEST_DEFINITIONS = {
              'DUBUS/REF EME. 100 pts/QSO random × préfixes. Date 2026 : 11/07 (annuelle).'),
         ]
     },
+    # ── Rencontres UFT — ajouté le 13/09/2026, règlement lu intégralement sur
+    # le site officiel (uft.net/activites-et-concours/rencontres-uft/, page
+    # HTML -- WebFetch a réussi à en extraire le texte cette fois, contrairement
+    # aux PDF REF de TVA/Challenge THF la veille). L'ancienne donnée
+    # CONTEST_SCORING ('type':'dept', 'mult':'depts') était FAUSSE -- aucune
+    # notion de département dans le barème réel (membre/non-membre × continent).
+    #
+    # DÉCOUVERTE IMPORTANTE : la note précédente (« barème dépend du statut de
+    # membre UFT, donnée d'adhésion absente, pas modélisable ») était
+    # INCOMPLÈTE. Le statut membre/non-membre n'exige AUCUNE base externe : le
+    # règlement fait envoyer le numéro de membre UFT (ou 'NM' pour un
+    # non-membre) DANS L'ÉCHANGE lui-même -- exactement comme un numéro de
+    # série de concours REF classique. Le score réel est donc calculable à
+    # 100% depuis un QSO normalement loggué (num_rcvd). Une base d'adhérents
+    # ne serait utile qu'à une VÉRIFICATION anti-fraude a posteriori (rôle de
+    # la commission des concours UFT, pas de LogX AI) -- jamais nécessaire au
+    # calcul du score lui-même. D'où un moteur RÉEL (pas provisoire), comme
+    # Challenge THF -- calc_uft_points()/calc_uft_rencontres_score()
+    # (logx_scoring.py), dédié car les points dépendent de l'échange REÇU,
+    # une donnée hors du contexte pré-QSO de calc_qso_value/score_new_qso.
+    'UFT_RENCONTRES': {
+        'name': 'Rencontres UFT',
+        'organizer': 'UFT (Union Française des Télégraphistes)',
+        'check_url': 'https://www.uft.net/activites-et-concours/rencontres-uft/',
+        'rules_url': 'https://www.uft.net/activites-et-concours/rencontres-uft/',
+        # « 1er week-end complet de décembre » -- mais en 3 sessions
+        # DISTINCTES (05h-08h et 15h-18h le samedi, 07h-10h le dimanche, UTC),
+        # pas une fenêtre continue. La grammaire date_rule ne modélise qu'un
+        # début+durée continus (comme WWA_2027_* avant) -- date_rule pointe le
+        # week-end et l'heure de départ réelle, duration_h couvre l'étendue
+        # totale (05h sam. -> 10h dim. = 29h), le VRAI luxe de 3 fenêtres de
+        # 3h (9h de trafic effectif) est documenté ci-dessous en 'notes', pas
+        # dans le calcul de compte à rebours (qui affichera donc une fenêtre
+        # trop large -- limite connue, comme pour WWA).
+        'date_rule': 'first_full_weekend_december_05h',
+        'duration_h': 29, 'start_utc': '05:00',
+        'bands': ['3.5', '7', '14', '21', '28'],
+        'modes': ['CW'],
+        'exchange': 'RST + numéro de membre UFT (ou NM pour un non-membre)',
+        'scoring': {
+            'type': 'uft_rencontres',
+            'unit': 'F8UFT=20, membre même continent=5/DX=10, non-membre même continent=1/DX=2, × multiplicateur',
+            'note': "Score réel calculé par calc_uft_points()/calc_uft_rencontres_score() "
+                    "(logx_scoring.py), PAS le moteur bricks générique (points "
+                    "dépendants de l'échange reçu, hors contexte pré-QSO). "
+                    "Multiplicateur = membres UFT distincts + F8UFT, comptés PAR "
+                    "BANDE (numéro de membre reçu = clé du multiplicateur).",
+        },
+        'log_format': '',
+        'log_deadline': 'dans les 15 jours suivants (de préférence par e-mail)',
+        'log_submit': 'mailto:commission-concours@uft.net',
+        'notes': "Permanent, annuel (1er week-end complet de décembre). Fenêtre "
+                 "RÉELLE en 3 sessions de 3h (05h-08h et 15h-18h UTC samedi, "
+                 "07h-10h UTC dimanche), pas une fenêtre continue de 29h -- "
+                 "limite de la grammaire date_rule, documentée ici plutôt que "
+                 "silencieuse. Format de log (.LOG/.CBR généré par le logiciel "
+                 "TESTUFT propre à l'UFT) non retenu comme 'CABRILLO' faute de "
+                 "confirmation du gabarit exact (tag CONTEST:) -- pas inventé.",
+    },
 }
 
 # ─── CONCOURS PERSONNALISÉS (extraction IA + relecture humaine, Phase 3) ─────
@@ -1715,7 +1774,11 @@ CONTEST_SCORING = {
     # précis (le règlement officiel n'est qu'un PDF scanné, image non
     # extractible en texte) -- laissés tels quels plutôt que d'inventer.
     'F9NL':           {'type':'dept_dxcc','unit':'pts x depts + DXCC CW','mult':'depts+DXCC','bands':'432MHz','modes':'CW'},
-    'UFT_RENCONTRES': {'type':'dept','unit':'pts x depts CW','mult':'depts','bands':'HF','modes':'CW'},
+    # Corrigé le 13/09/2026 -- l'ancienne donnée ('type':'dept', 'mult':'depts')
+    # était FAUSSE : aucune notion de département, le vrai barème (uft.net)
+    # est membre/non-membre × même continent/DX, multiplicateur = membres
+    # UFT distincts + F8UFT par bande. Même piège que TVA/Challenge THF.
+    'UFT_RENCONTRES': {'type':'uft_rencontres','unit':'F8UFT=20 membre=5/10 non-membre=1/2','mult':'membres UFT + F8UFT par bande','bands':'3.5 7 14 21 28MHz','modes':'CW'},
     # ── Internationaux ────────────────────────────────────────────────────────
     'CQ_WW_SSB':  {
         'type':'zone_country',
@@ -1811,6 +1874,7 @@ CONTEST_RULES_URLS = {
     'REF_MARCONI':   'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
     'REF_DDFM_50':   'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
     'REF_CHALLENGE_THF': 'https://concours.r-e-f.org/reglements/actuels/reg_challengethf_fr_20251209.pdf',
+    'UFT_RENCONTRES': 'https://www.uft.net/activites-et-concours/rencontres-uft/',
     'REF_NAT_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
     'REF_NAT_TVA_DEC': 'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
     'REF_CDF_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_cdftva_fr_20260516.pdf',
