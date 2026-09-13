@@ -2257,6 +2257,66 @@ générique ; ici : donnée manquante dans le contexte du moteur générique).
   pour afficher le bilan (seul le moteur de calcul est livré).
 - Pas de PR GitHub, pas de vérification navigateur réelle.
 
+### Performance test_ft8_decimation.py — cause trouvée, un test allégé sans rien affaiblir (13/09/2026)
+
+Suite à la « découverte annexe » du 12/09 (le fichier ne bloque pas, juste
+très lent, ~8 min pour 17 tests) — creusé sur demande F4GLD.
+
+**Diagnostic, PAS un artefact de configuration V8** : essayé de retirer
+`--single-threaded` de `py_mini_racer.MiniRacer.v8_flags` (seul flag par
+défaut) — **ça ralentit encore** (fabriquerFenetre 23,6s au lieu de 11,7s,
+decode non décimé 23,5s au lieu de 13-17s). Écarté, pas creusé plus loin
+dans cette direction.
+
+**Vrai coût, algorithmique, sur DEUX étages de `ft8DecodeAudioAll`** (lu le
+code, pas supposé) :
+1. `ft8FindAllSync` (balayage grossier) : ~13 décalages temporels × ~864
+   pas de fréquence × 21 appels Goertzel par candidat, chacun O(échantillons
+   /symbole) — ~1,8 milliard d'opérations à 48 kHz pour UN décodage.
+2. `ft8RefineSync` (affinage), appelé sur jusqu'à `maxCandidates` (60 par
+   défaut) candidats retenus : 17×7 = 119 évaluations Costas par candidat —
+   un coût du MÊME ORDRE que l'étage 1. **Piège trouvé en mesurant, pas en
+   lisant** : une première version de ce correctif qui ne rétrécissait QUE
+   `freqMin`/`freqMax`/`timeSlopSymbols` (réduction attendue ~3× par le
+   calcul) n'a presque rien gagné (~15s au lieu de 12-17s) — l'étage 2
+   dominait, indépendant de la largeur du balayage grossier.
+
+**Correctif, dans `tests/test_ft8_decimation.py` uniquement, un seul test**
+(`test_le_decodage_est_nettement_plus_rapide` — celui qui MESURE le gain de
+la décimation, pas ceux qui vérifient la justesse du décodage) : fonction
+`decoderRapide` avec `freqMin:700, freqMax:2300, timeSlopSymbols:3,
+maxCandidates:15` (au lieu de 200-2900/±6/60 par défaut) — plage resserrée
+autour des tons/DT réellement synthétisés dans ce test, mais réduisant LE
+MÊME FACTEUR les deux chemins comparés (avec/sans décimation), donc
+préservant le RAPPORT mesuré (le travail est linéaire en candidats ×
+échantillons/symbole — propriété déjà documentée dans le test lui-même).
+Résultat : ~6,4s par passe non décimée (mesuré) au lieu de ~12-17s, ratio
+mesuré toujours ~3,2× (le seuil du test est ×2, large marge conservée).
+**Contre-épreuve par mutation** : le côté « avec décimation » remplacé par
+le même appel non décimé (simulation d'un décâblage de la décimation) —
+rouge confirmé, restauré, md5 identique. Fichier complet (17 tests)
+relancé : tout vert. `ruff` propre.
+
+**Piège de premier essai, corrigé au passage** : la toute première version
+passait un LITTÉRAL de fonction à `ctx.eval()` à chaque passe de mesure —
+`eval()` d'un texte de fonction le RECOMPILE à chaque appel, ce qui a
+dominé le premier essai (~87s de test au lieu des ~35-40s attendus).
+Corrigé en définissant `decoderRapide` comme fonction NOMMÉE une seule
+fois avant la boucle de chronométrage (même patron que `decoder()`,
+partagé par les autres tests du fichier) — repéré en comparant le temps
+mesuré à l'estimation théorique, pas par lecture.
+
+**Hors scope, assumé** : les AUTRES tests du fichier (notamment
+`test_la_decimation_ne_coute_aucune_sensibilite_au_seuil`, 18 appels au
+décodeur PARTAGÉ `decoder()`) restent au barème par défaut — rétrécir LEUR
+fenêtre de recherche changerait potentiellement ce qu'ils décodent
+réellement, exactement la propriété que ce test-là vérifie. La suite
+complète reste donc encore de l'ordre de plusieurs minutes, réduite mais
+pas éliminée — seul le test explicitement dédié à la VITESSE (pas à la
+justesse) a été allégé.
+- Suite complète relancée après coup (résultat consigné une fois terminée).
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats
