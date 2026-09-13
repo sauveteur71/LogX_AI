@@ -2317,6 +2317,32 @@ justesse) a été allégé.
 - Suite complète relancée après coup (résultat consigné une fois terminée).
 - Pas de PR GitHub, pas de vérification navigateur réelle.
 
+**Effet de bord découvert dans la foulée : le flake `test_theme_inline.py`
+n'a PAS la cause qu'on lui connaissait (13/09/2026).** La suite complète
+lancée après ce correctif a échoué sur
+`test_theme_inline.py::test_page_reellement_servie_a_le_theme_incorpore`
+(`TimeoutError` sur son `urlopen(timeout=5)`) — le même symptôme qu'une
+régression déjà diagnostiquée et CORRIGÉE le 12/09 (thread de reconnexion
+KISS de `test_ssdv_reception.py` mal rejoint, contention avec ce test SANS
+RAPPORT plus loin dans la suite ; voir « SSDV Phase 2 » plus haut,
+`arreter_client_kiss(attendre=True)`). **Reproduit en isolation totale**
+(CE SEUL test, seul, aucun autre fichier chargé, donc aucun thread KISS
+possible) : **3 échecs sur 4** essais successifs. Contre-épreuve : le
+correctif `test_ft8_decimation.py` mis de côté (`git stash`) puis les 4
+mêmes essais rejoués — **même taux d'échec à l'identique**, prouvant que
+ce n'est pas non plus lié à ce correctif. La cause probable, cette fois,
+est celle que le test documente lui-même dans son propre docstring :
+interférence réelle d'Avast Web Shield sur la requête HTTP localhost
+qu'il effectue — exactement le mécanisme produit que ce test existe pour
+vérifier (`logx_theme_guard.js`, PR #428). **Décision F4GLD : ne rien
+changer dans le test** (relever le timeout risquerait de masquer une
+vraie interférence antivirus, pas seulement de stabiliser un chiffre) —
+consigné ici pour qu'un futur lecteur ne reparte pas sur la piste KISS déjà
+fermée si ce flake réapparaît. Piste ouverte, non traitée : vérifier
+l'exception Avast Web Shield pour `127.0.0.1`/`localhost` sur cette
+machine (déjà documentée comme nécessaire, PR #428, « exception Agent Web
+pour localhost:8080 » — peut-être retombée).
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats
