@@ -1616,6 +1616,20 @@ le vrai binaire, seulement par mutation avec `assembler_image` simulé
 Phase 1). Validation contre un flux Direwolf réel (carte son + TNC)
 également hors de portée de ce dépôt de code.
 
+**Repris et re-clos le 13/09/2026** — recherche faite avant de coder :
+`github.com/fsphil/ssdv` (source historiquement citée) est **archivé**
+(31/12/2025), développement poursuivi sur `codeberg.org/fsphil/ssdv`
+(licence GPL, fichier `COPYING`, build `make` trivial). **Aucun binaire
+précompilé n'est proposé nulle part** — vendoriser exigerait une
+compilation en CI (comme `vendor/jt9/`, mais sans installeur officiel tout
+fait à télécharger cette fois) via une nouvelle action GitHub
+(`fetch-ssdv`) + wiring `build-release.yml`/`logx.spec`. **Cette machine
+n'a aucun compilateur C** (`gcc`/`cl`/`make` tous absents) : impossible d'y
+écrire ET vérifier une telle action avant qu'elle tourne réellement sur les
+runners GitHub. Décision F4GLD : ne pas écrire de YAML CI à l'aveugle sans
+pouvoir le tester — laissé hors scope, à reprendre avec un environnement
+capable de le vérifier.
+
 ### C1 — questions en langage naturel sur le carnet (cadré ET livré, 11/09/2026)
 
 F4GLD a tranché l'ordre (« C1 PUIS ssdv ») puis le périmètre (« logbook »,
