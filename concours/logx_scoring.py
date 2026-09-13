@@ -733,6 +733,21 @@ LEGACY_SCORING_PRESETS = {
         'priority_default': 2,
         'explain_direct': 'Station spéciale WWA {dx_base} — {pts} pts (mode à confirmer au QSO)',
     },
+    # Challenge THF (REF, permanent) : ESTIMATION de coaching pré-QSO
+    # uniquement (1 pt/station neuve, comme si elle n'avait encore été
+    # travaillée ni ce mois ni cette bande) -- le vrai score (dédoublonnage
+    # mensuel + multiplicateur départements/locators par bande et par
+    # trimestre) est calculé après coup par calc_challenge_thf_band()/
+    # calc_challenge_thf_report() plus bas dans ce fichier, jamais par ce
+    # preset. 'multiplier': None ici == précédent SOTA/POTA (summit_points/
+    # park_points) : le multiplicateur réel n'est pas connaissable au moment
+    # du spot, avant que le QSO existe.
+    'challenge_thf': {
+        'points': [{'when': 'always', 'points': 1}],
+        'multiplier': None,
+        'priority_default': 3,
+        'explain_direct': 'Challenge THF permanent — 1 pt si station neuve ce mois-ci sur cette bande (bilan trimestriel réel hors coaching)',
+    },
 }
 
 def resolve_scoring_bricks(scoring):
@@ -901,6 +916,119 @@ def count_mults(qsos, cdef):
             bucket.add(entry)
 
     return sum(len(vals) * weights.get(band, 1) for band, vals in seen_by_band.items())
+
+
+# ─── Challenge THF (REF, permanent) — moteur dédié ──────────────────────────
+#
+# Pourquoi PAS le moteur générique ci-dessus (count_mults/calc_total_score) :
+# ce dernier calcule (somme des points de TOUTES les bandes) × (somme des
+# multiplicateurs pondérés de TOUTES les bandes) en une seule multiplication
+# finale — correct pour un concours à multiplicateur global unique (DXCC,
+# zones...), mais FAUX ici où le règlement (art. 9) donne un coefficient
+# PROPRE à chaque bande, appliqué indépendamment avant de sommer :
+#     T_bande = points_bande × (départements + grands carrés)_bande × coef_bande
+#     score = somme des T_bande
+# Une bande à fort coefficient (2320 MHz : ×10) ne doit jamais « profiter »
+# du multiplicateur d'une autre bande, ni l'inverse.
+
+CHALLENGE_THF_COEF_BAND = {
+    # Sourcé règlement REF, art. 9 (reg_challengethf_fr_20251209.pdf) :
+    # « 144 MHz : 1, 432 MHz : 3, 1296 MHz : 5, 2320 MHz et au-dessus : 10 »
+    # — le formulaire officiel de compte rendu (art. 13) liste explicitement
+    # 5,7/10/24/47/76/146 GHz au coefficient 10, toutes reprises ici.
+    '144': 1, '432': 3, '1296': 5,
+    '2320': 10, '3400': 10, '5760': 10, '10368': 10, '24048': 10, '47088': 10,
+}
+
+
+def _thf_month_key(date_str):
+    return str(date_str or '')[:6]   # 'YYYYMM' (format de date QSO LogX AI)
+
+
+def _thf_quarter_key(date_str):
+    """'YYYYQn' à partir d'une date QSO 'YYYYMMJJ' -- chaîne vide si la date
+    est absente/trop courte (QSO exclu du bilan plutôt que mal classé)."""
+    s = str(date_str or '')
+    if len(s) < 6:
+        return ''
+    annee, mois = s[:4], s[4:6]
+    if not mois.isdigit():
+        return ''
+    return '%sQ%d' % (annee, (int(mois) - 1) // 3 + 1)
+
+
+def _thf_dedup_monthly(qsos):
+    """Une même station ne compte qu'une fois par mois et par bande
+    (règlement art. 4 : « Une même station pourra être contactée une fois
+    par mois et ceci pour chaque bande [...] donc 3 fois dans le
+    trimestre »). Garde le premier QSO rencontré pour chaque clé."""
+    vus = set()
+    out = []
+    for q in qsos:
+        cle = (_dx_base(q), str(q.get('band', '')), _thf_month_key(q.get('date', '')))
+        if cle in vus:
+            continue
+        vus.add(cle)
+        out.append(q)
+    return out
+
+
+def calc_challenge_thf_band(qsos, band):
+    """Bilan Challenge THF d'UNE bande sur la période déjà filtrée par
+    l'appelant (un trimestre — le règlement compte le multiplicateur PAR
+    TRIMESTRE, art. 9 ; voir calc_challenge_thf_report pour le découpage
+    automatique). Rend un dict détaillé, jamais juste un entier : chaque
+    élément du calcul est vérifiable comme le formulaire officiel de compte
+    rendu (art. 13 : stations par mois, total départements, total locators).
+
+    Lève ValueError sur une bande absente de CHALLENGE_THF_COEF_BAND —
+    jamais un score silencieusement faux pour une bande sans coefficient
+    sourcé."""
+    coef = CHALLENGE_THF_COEF_BAND.get(str(band))
+    if coef is None:
+        raise ValueError('Challenge THF : bande sans coefficient sourcé : %r' % (band,))
+    qsos_bande = [q for q in qsos if str(q.get('band', '')) == str(band)]
+    deduped = _thf_dedup_monthly(qsos_bande)
+    points = len(deduped)
+    depts = {d for d in (departments.dept_for_qso(q) for q in deduped) if d}
+    carres = {c for c in (get_large_locator(q.get('locator', '')) for q in deduped) if c}
+    mult = len(depts) + len(carres)
+    return {
+        'band': str(band), 'coef': coef, 'points': points,
+        'departements': sorted(depts), 'grands_carres': sorted(carres),
+        'multiplicateur': mult, 'score': points * mult * coef,
+    }
+
+
+def calc_challenge_thf_report(qsos, bands=None):
+    """Bilan complet Challenge THF : regroupe les QSO par trimestre calendaire
+    puis par bande (calc_challenge_thf_band), et cumule l'année en SOMMANT
+    les totaux trimestriels (règlement art. 8 : « classement annuel [...] en
+    cumulant les points obtenus au cours de l'année ») — jamais en
+    recalculant le multiplicateur sur l'année entière, ce qui sous-compterait
+    un département/locator déjà vu dans un trimestre antérieur puis revu
+    dans un autre (chaque trimestre repart de zéro, art. 9).
+
+    `bands` : sous-ensemble de bandes à évaluer (défaut : tout
+    CHALLENGE_THF_COEF_BAND — le moteur gère déjà toutes les bandes
+    officielles même si CONTEST_DEFINITIONS n'en expose que 144/432 en MVP)."""
+    bands = list(bands) if bands else sorted(
+        CHALLENGE_THF_COEF_BAND, key=lambda b: CHALLENGE_THF_COEF_BAND[b])
+    par_trimestre = {}
+    for q in qsos:
+        tk = _thf_quarter_key(q.get('date', ''))
+        if not tk:
+            continue
+        par_trimestre.setdefault(tk, []).append(q)
+    trimestres = {}
+    total_annuel = 0
+    for tk in sorted(par_trimestre):
+        qs = par_trimestre[tk]
+        detail_bandes = {b: calc_challenge_thf_band(qs, b) for b in bands}
+        total_trim = sum(d['score'] for d in detail_bandes.values())
+        trimestres[tk] = {'bandes': detail_bandes, 'total': total_trim}
+        total_annuel += total_trim
+    return {'trimestres': trimestres, 'total_annuel': total_annuel}
 
 
 def contest_geo_mode(contest_id):

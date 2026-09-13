@@ -43,7 +43,6 @@ AMBIGUS_CONNUS = {
                            # de membre UFT + mult "membres/bande", non modélisable
                            # avec le moteur actuel (donnée d'adhésion absente) ;
                            # pas juste une plage à préciser.
-    'REF_CHALLENGE_THF',   # « 144MHz-47GHz » — moteur de score dédié à brancher
     # RÉSOLUS le 01/09/2026 (règlements REF officiels lus, scoring km — définitions
     # dans logx_definitions.CONTEST_DEFINITIONS) :
     #   REF_IARU_UHF  : « 432 MHz et au-delà », 1 pt/km.
@@ -65,6 +64,15 @@ AMBIGUS_CONNUS = {
     #   REF_NAT_TVA / REF_NAT_TVA_DEC : reg_nattva_fr_20260516.pdf
     #   REF_CDF_TVA                   : reg_cdftva_fr_20260516.pdf
     #   REF_IARU_TVA                  : reg_iarutva_fr_20251209.pdf
+    # RÉSOLU le 13/09/2026 (règlement PDF REF officiel lu intégralement,
+    # reg_challengethf_fr_20251209.pdf) : « 144MHz-47GHz » était une plage
+    # brute jamais développée -- ET le type 'km_x_loc' affiché était FAUX
+    # (aucune notion de km dans le règlement, art. 9). Vrai barème : 1 pt par
+    # station neuve/mois/bande, multiplicateur départements+grands carrés par
+    # bande et par trimestre, coefficient propre à chaque bande (144:1
+    # 432:3 1296:5 2320+:10). MVP 144/432 exposé dans CONTEST_DEFINITIONS
+    # (décision F4GLD 13/09/2026), moteur dédié (calc_challenge_thf_band/
+    # _report, logx_scoring.py) prêt pour 1296/2320+ si besoin.
 }
 
 
@@ -114,6 +122,12 @@ def test_concours_tva_ont_maintenant_une_vraie_definition():
     # IARU TVA : bandes ATV/DATV listées explicitement par le règlement,
     # PAS « et au-delà » -- 10368/47088 absents, pas une omission.
     assert D.bandes_du_concours('REF_IARU_TVA') == ['432', '1296', '2320', '3400', '5760', '24048']
+
+
+def test_challenge_thf_a_maintenant_une_vraie_definition():
+    """Correctif 13/09/2026 : REF_CHALLENGE_THF sort d'AMBIGUS_CONNUS -- MVP
+    144/432 (décision F4GLD), moteur dédié déjà prêt pour 1296/2320+."""
+    assert D.bandes_du_concours('REF_CHALLENGE_THF') == ['144', '432']
 
 
 def test_un_bareme_multibande_donne_toutes_les_bandes():

@@ -241,6 +241,56 @@ CONTEST_DEFINITIONS = {
         'serial_per_band': True,
         'notes': "Section 1 (émission-réception, « hors du cadre de la section 2 ») uniquement -- la Section 2 (réception seule/SWL, moitié points) n'est pas modélisée. Modes analogiques et numériques (DATV) acceptés sans différence de calcul -- non distingués ici, le carnet n'a pas de mode ATV/DATV dédié.",
     },
+    # ── Challenge THF — ajouté le 13/09/2026, règlement PDF officiel REF lu
+    # intégralement (reg_challengethf_fr_20251209.pdf, 9 déc. 2025). Concours
+    # PERMANENT (toute l'année, art. 3), structurellement différent de tous
+    # les autres CONTEST_DEFINITIONS : le score n'est PAS un point-par-QSO
+    # multiplié une fois à la fin (calc_total_score/count_mults), mais un
+    # cumul TRIMESTRIEL PUIS ANNUEL avec dédoublonnage mensuel (art. 4 : une
+    # même station ne compte qu'une fois par mois et par bande) et un
+    # coefficient PROPRE À CHAQUE BANDE appliqué indépendamment avant de
+    # sommer (art. 9) -- (somme des points) × (somme des mults pondérés) du
+    # moteur générique donnerait un résultat FAUX ici. D'où le moteur dédié
+    # calc_challenge_thf_band()/calc_challenge_thf_report() (logx_scoring.py).
+    'REF_CHALLENGE_THF': {
+        'name': 'Challenge THF (permanent)',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/challenge/index.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_challengethf_fr_20251209.pdf',
+        'date_rule': 'permanent',
+        'start_utc': '00:00',
+        # MVP (F4GLD, 13/09/2026) : seules 144/432 exposées ici. Le moteur
+        # (CHALLENGE_THF_COEF_BAND, logx_scoring.py) connaît déjà tout le
+        # barème officiel (144:1 432:3 1296:5 2320MHz-et-au-delà:10, art. 9)
+        # -- étendre cette liste suffira le jour où 1296+ devient prioritaire.
+        'bands': ['144', '432'],
+        'modes': ['SSB', 'CW', 'FM', 'DIGI'],
+        'exchange': "RS(T) + locator (grand carré identifié à réception) + département (art. 5, 9)",
+        'scoring': {
+            'type': 'challenge_thf',
+            'unit': 'T = points × (départements + grands carrés) × coef bande — 144:1 432:3 1296:5 2320MHz+:10 (art. 9)',
+            'note': "Score réel calculé par calc_challenge_thf_band()/_report() "
+                    "(logx_scoring.py), PAS le moteur bricks générique. 1 pt par "
+                    "station NEUVE par mois et par bande (art. 4) ; multiplicateur "
+                    "= départements + grands carrés locator distincts, comptés PAR "
+                    "BANDE et PAR TRIMESTRE (art. 9) ; cumul annuel = somme des 4 "
+                    "totaux trimestriels, jamais un recalcul sur l'année entière "
+                    "(art. 8 -- sous-compterait les mult déjà vus dans un trimestre "
+                    "antérieur).",
+        },
+        'log_format': '',
+        'log_deadline': "trimestriel, avant le 15 du mois suivant le trimestre échu (art. 6)",
+        'log_submit': 'http://concours.r-e-f.org/challenge/index.php',
+        'notes': "Permanent toute l'année (art. 3) -- SEULES les liaisons EN "
+                 "DEHORS des concours français/étrangers comptent : LogX AI ne "
+                 "peut pas vérifier automatiquement qu'un QSO n'a pas eu lieu "
+                 "pendant un autre concours (limite documentée, pas une "
+                 "approximation silencieuse). SWL (art. 2, 7, 12) hors scope, "
+                 "comme la Section 2 des concours TVA -- pas de champ dédié dans "
+                 "le carnet. Bandes 1296MHz et au-delà non exposées ici (MVP "
+                 "144/432, décision F4GLD 13/09/2026) mais déjà prêtes côté "
+                 "moteur (CHALLENGE_THF_COEF_BAND, logx_scoring.py).",
+    },
     'REF_PRINTEMPS': {
         'name': 'Concours du Printemps',
         'organizer': 'REF',
@@ -1613,7 +1663,12 @@ load_custom_contests()
 # ─── SCORING PAR CONCOURS ────────────────────────────────────────────────────
 CONTEST_SCORING = {
     # ── REF 2026 ──────────────────────────────────────────────────────────────
-    'REF_CHALLENGE_THF': {'type':'km_x_loc','unit':'1pt/km x locators (cumulatif annuel)','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM DIGI'},
+    # Corrigé le 13/09/2026 -- l'ancienne donnée ('km_x_loc', '1pt/km') était
+    # FAUSSE : le règlement officiel (art. 9) n'a aucune notion de distance,
+    # c'est 1 pt/station neuve par mois+bande × (départements+locators) ×
+    # coef bande. Même piège que TVA la veille (donnée d'affichage jamais
+    # vérifiée contre le vrai règlement).
+    'REF_CHALLENGE_THF': {'type':'challenge_thf','unit':'pts x (depts+locators) x coef bande (144:1 432:3 1296:5 2320+:10)','mult':'departements+grands carres','bands':'144 432MHz (MVP)','modes':'SSB CW FM DIGI'},
     'REF_CCD_JAN1':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
     'REF_CCD_JAN2':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
     'REF_CDF_HF_CW': {'type':'dept_dxcc','unit':'pts x depts + DXCC','mult':'depts+DXCC','bands':'3.5 7 14 21 28MHz','modes':'CW'},
@@ -1755,6 +1810,7 @@ CONTEST_RULES_URLS = {
     'REF_CCD_JAN1':  'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
     'REF_MARCONI':   'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
     'REF_DDFM_50':   'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
+    'REF_CHALLENGE_THF': 'https://concours.r-e-f.org/reglements/actuels/reg_challengethf_fr_20251209.pdf',
     'REF_NAT_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
     'REF_NAT_TVA_DEC': 'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20260516.pdf',
     'REF_CDF_TVA':     'https://concours.r-e-f.org/reglements/actuels/reg_cdftva_fr_20260516.pdf',
