@@ -2446,6 +2446,56 @@ signalée plutôt que tranchée seul ; F4GLD a confirmé le laisser intact.
   du premier passage.
 - Pas de PR GitHub, pas de vérification navigateur réelle.
 
+**Suite immédiate, même session** : deuxième passe d'audit, BFS refait
+avec un ensemble de points d'entrée ÉLARGI — le premier passage
+(`submitQSO`/`renderLog`/`autoFillQso` seuls) sous-estimait le chemin
+critique réel. CLAUDE.md le définit plus largement (« saisie bande/mode/
+callsign/RST/échange », pas seulement le bouton d'enregistrement) ; ajout
+de `onCallInput`, `pickBand`, `pickMode`, `pickOp`, `setFreqForBand`,
+`onFreqInput`, `setupDone`, `pickDept`, `freqFromRig`, `clearForm` comme
+points d'entrée. **Résultat : 84 fonctions sur 117 atteignables**, contre
+54/112 au premier passage — la marge de manœuvre est bien plus étroite
+que ce que le premier audit laissait penser. C'est exactement pour cette
+raison que `validateLocator` (candidat B, rejeté au premier incrément)
+n'était PAS dans le premier ensemble « atteignable » (54) mais l'aurait
+été dans celui-ci (84) — la première méthode a eu de la chance de le
+détecter par un grep manuel plutôt que par la méthode elle-même. Retenu
+pour tout audit futur sur ce fichier : partir de la définition CLAUDE.md
+du chemin critique, pas d'une liste de points d'entrée devinée.
+
+Sur les 26 candidats restants (33 non-atteignables moins les 7 de
+CORBEILLE déjà identifiés), le plus prometteur par son nom — le lien de
+partage (`initShareLink`/`copyShareLink`) — porte un **piège d'un type
+nouveau** : `initShareLink()` est appelée au NIVEAU TOP-LEVEL du script
+(`initShareLink();`, hors de toute fonction, l.2676), et lit une variable
+module-level (`_myVersion`). Un déplacement changerait l'ORDRE
+D'EXÉCUTION réel au chargement de la page (pas seulement l'endroit où le
+code habite) — risque absent des deux candidats précédents (qui n'étaient
+invoqués que sur événement utilisateur, jamais au chargement).
+
+**Décision F4GLD : s'arrêter là pour ce fichier.** Un incrément réel livré
+(C1) est un résultat concret ; les 26 candidats restants coûteraient
+chacun une vérification aussi lourde pour un gain de plus en plus faible
+(quelques dizaines de lignes), sur le fichier le plus risqué du dépôt —
+rendement décroissant. Aucun code touché dans cette deuxième passe (audit
+seul). Si ce chantier est repris un jour : repartir de la liste des 26
+noms ci-dessous plutôt que de refaire le BFS de zéro (script Python
+one-off, non conservé) :
+`_navPropagContextuel`, `adaptivePoll`, `addRefRow`,
+`applyUsageModeToLogbook`, `bandeauxRythmeMasques`, `bandmapClick`,
+`basculerSaisieDecouplee`, `buildLbMenu`, `copyShareLink`, `cwToCall`,
+`fermerLbMenu`, `filterLog`, `hav`, `init`, `initShareLink`,
+`itemsMenuLogbook`, `loadServerConfig`, `majBoutonSaisieDecouplee`,
+`setFilter`, `showMoreLog`, `toggleBandPicker`, `toggleCwPanelForce`,
+`toggleLbMenu`, `toggleModePicker`, `toggleOpPicker`, `toggleScoreVisible`
+— dont au moins `init`/`loadServerConfig` (bootstrap de page, rien ne
+fonctionne sans eux malgré leur absence du BFS — la méthode BFS ne
+détecte que « ce que le chemin critique appelle », pas « ce qui doit
+tourner AVANT que le chemin critique existe ») et `itemsMenuLogbook`/
+`buildLbMenu`/`fermerLbMenu`/`toggleLbMenu` (surface large : câblent la
+quasi-totalité des panneaux du carnet) à traiter avec une prudence au
+moins égale à celle déjà appliquée ici, pas moindre.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats
