@@ -2357,6 +2357,95 @@ l'exception Avast Web Shield pour `127.0.0.1`/`localhost` sur cette
 machine (déjà documentée comme nécessaire, PR #428, « exception Agent Web
 pour localhost:8080 » — peut-être retombée).
 
+### Découpage logx_logbook.js — premier incrément réel, deux candidats écartés en route (14/09/2026)
+
+F4GLD a donné l'accord explicite pour ce chantier (jusqu'ici marqué « sur
+accord F4GLD uniquement », `logx_logbook.js` étant le chemin critique le
+plus sensible du dépôt — incident du 19/08/2026, 248 QSO perdus). Traité
+avec la prudence maximale : **audit en lecture seule avant tout code**,
+deux candidats trouvés puis écartés parce qu'ils touchaient en réalité le
+chemin critique, un troisième finalement extrait.
+
+**État du fichier avant ce chantier** : déjà le résultat d'un immense
+travail d'extraction (chantier EV-7, ~50 fichiers déjà sortis —
+`logx_export_adif.js`, `logx_clock.js`, `logx_macros.js`, `logx_chat.js`,
+etc., visible via `grep "extrait vers"`). Ce qui restait (3405 lignes,
+112 fonctions top-level) est par construction le noyau le plus entrelacé
+avec l'état partagé du carnet (`qsoLog`, `myCall`, `currentContest`...).
+
+**Méthode d'audit** : analyse automatisée (script Python, BFS sur les
+appels de fonction) partant des 3 points d'entrée du chemin critique
+(`submitQSO`, `renderLog`, `autoFillQso`) pour lister tout ce qui leur est
+atteignable — 54 des 112 fonctions le sont, exclues d'office. Les 58
+restantes ont été examinées une à une.
+
+**Candidat A rejeté — déjà documenté par le dépôt lui-même.** Le moteur de
+filtres avancés (`matchesAdvancedFilter`, `FILTER_FIELDS`...) semblait
+l'extraction la plus sûre (zéro lecture/écriture d'état partagé, déjà
+consommé à distance par 2 fichiers externes). Mais le commentaire juste
+au-dessus (l.731-738) documente une décision DÉJÀ prise en revue
+adversariale : le moteur reste dans `logx_logbook.js` exprès, parce que
+`renderLog()` — chemin critique — en dépend directement ; le sens inverse
+« faisait dépendre le rendu du log CŒUR d'un fichier "fonctionnalité
+optionnelle" ». J'allais reproduire une erreur déjà actée et rejetée.
+
+**Candidat B rejeté — trouvé en traçant les appelants, non documenté.**
+Les utilitaires géo/locator (`locLL`, `hav`, `bearing`, `cardinalDir`,
+`validateLocator`) semblaient sûrs (consommés par 7 fichiers externes,
+aucune copie locale conflictuelle). Mais `validateLocator()` est appelée
+**sans aucune garde** dans `submitQSO()` (l.2203, portail de validation
+obligatoire) — si le fichier externe échouait à charger (antivirus, ordre
+de script...), plus aucun QSO ne pourrait être enregistré. Indice
+révélateur : `bearing()`, juste à côté dans `autoFillQso()`, EST protégée
+par `typeof bearing === 'function'` — un signe qu'une extraction future
+avait déjà été anticipée pour elle, mais pas pour `validateLocator`.
+
+**Candidat D — livré.** Panneau de questions C1 (`carnetHistorique`,
+`poserQuestionCarnet`, `poserQuestionLibreCarnet`,
+`reinitialiserConversationCarnet`, `majIndicateurConversationCarnet`,
+`showCarnetQuestions`, `closeCarnetQuestions`, ~110 lignes, l.474-585).
+Absent de l'arbre d'appels du chemin critique (confirmé par le BFS),
+**aucun autre fichier du dépôt** ne le référence (contrairement à A/B),
+dépendance uniquement SORTANTE (`trT`, `fetchLog()` avec garde `typeof`).
+Un candidat C (panneau CORBEILLE — le dispositif construit en réponse à
+l'incident du 19/08, structurellement tout aussi sûr) a été identifié mais
+volontairement laissé de côté : sa charge symbolique méritait d'être
+signalée plutôt que tranchée seul ; F4GLD a confirmé le laisser intact.
+
+**Livré :**
+- `logx_carnet_questions.js` (nouveau) : déplacement pur du bloc, aucune
+  réécriture. Chargé en `<script>` juste avant `logx_logbook.js`.
+- `logx_logbook.js` : bloc retiré, remplacé par un commentaire de renvoi
+  qui documente EXPLICITEMENT pourquoi ce candidat a été jugé sûr alors
+  que le moteur de filtres et `validateLocator`, juste à côté, ne le sont
+  pas — pour qu'un futur lecteur ne les confonde pas.
+- `logx_logbook.html` : `<script src="logx_carnet_questions.js">` ajouté.
+- `tests/test_logbook_carnet_questions_ui.py` : 12 tests repointés vers
+  le nouveau fichier (implémentation), 2 nouveaux tests d'équivalence
+  (définition retirée de `logx_logbook.js`, définie exactement une fois
+  au total — même patron que `test_config_cloudsync_extrait.py`), 1
+  nouveau test d'ordre de chargement.
+- `tests/test_logbook_menu_debut_fin.py` : **dépendant caché trouvé par
+  la suite `-k logbook`, pas par le fichier de test dédié** —
+  `JS_EXTRAITS_EV7` (registre des fichiers EV-7 que ce test charge pour
+  vérifier que chaque entrée de menu pointe vers une fonction réelle) ne
+  connaissait pas le nouveau fichier ; `showCarnetQuestions` introuvable.
+  Corrigé en l'ajoutant au registre. Rappel de méthode : après toute
+  extraction touchant `logx_logbook.js`, lancer `pytest -k logbook`
+  (suite élargie), jamais seulement le fichier de test qu'on vient de
+  modifier soi-même.
+- **3 mutations** (textContent→innerHTML, doublon de définition dans
+  logx_logbook.js, ordre de chargement inversé) : rouge confirmé à chaque
+  fois, restauré, md5 identique. `ruff`/`node --check` propres, suite
+  `-k logbook` complète verte, suite globale relancée.
+- **Hors scope, assumé** : candidat C (CORBEILLE) laissé intact par
+  décision F4GLD ; le reste du fichier (98 fonctions restantes après ce
+  premier incrément) contient très probablement d'autres blocs touchant
+  le chemin critique d'une façon ou d'une autre — aucun audit exhaustif
+  des 98 fonctions restantes n'a été fait, seulement des 58 candidates
+  du premier passage.
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats
