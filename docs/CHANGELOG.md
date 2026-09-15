@@ -13,6 +13,55 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta10] — 2026-09-15
+
+### Ajouté
+
+- **Réception d'images SSDV (ballons/satellites).** Nouveau sous-système de
+  réception d'images transmises en SSDV (Slow-Scan Digital Video) via un TNC
+  compatible KISS (Direwolf) : client KISS temps réel avec reconnexion
+  automatique à recul exponentiel, extraction de l'en-tête AX.25/UKHAS,
+  assemblage progressif multi-flux (plusieurs images/indicatifs en même
+  temps) avec persistance sur disque, galerie consultable depuis la page
+  Santé de la station (état du lien, compteur de paquets, dernière erreur).
+  Le décodage JPEG final délègue au binaire externe `ssdv` (fsphil,
+  GPL-3.0), à obtenir séparément — non vendorisé dans cette version.
+
+- **Fusion complète de CHASSE dans le système d'activités.** L'ancienne page
+  CHASSE dédiée devient un simple redirect ; toutes ses fonctions (need-list
+  en direct, panneaux POTA/SOTA/WWFF/WCA/DXpéditions, QSY et pointage
+  d'antenne au clic sur un spot, objectifs de chasse, stratégie pile-up FT8)
+  vivent désormais dans la vue Activité de l'accueil, avec le même
+  rafraîchissement automatique et les mêmes messages d'état qu'avant.
+
+- **Questions en langage naturel sur le carnet.** Un panneau de chat permet
+  d'interroger le carnet en français courant (nombre de QSO, bandes
+  travaillées, etc.), avec un historique multi-tour — le copilote se
+  souvient des questions précédentes dans la même session.
+
+- **Corbeille de QSO récupérable.** Un QSO supprimé par erreur peut être
+  restauré depuis un nouvel écran CORBEILLE (rétention 30 jours) — avant
+  cette version, la suppression était irréversible côté interface.
+
+- **Scoring réel pour 6 nouveaux concours.** Les 4 concours TVA du REF
+  (National mars et décembre, Championnat de France, IARU Région 1 —
+  barème au kilomètre, coefficient croissant par bande), le Challenge THF
+  (barème mensuel par station neuve × départements/grands carrés locator ×
+  coefficient de bande) et les Rencontres UFT (barème membre/non-membre ×
+  continent) affichent désormais un vrai calcul de score, vérifié contre
+  les règlements officiels — les trois remplacent une donnée de barème
+  erronée, jamais implémentée dans le moteur.
+
+### Corrigé
+
+- **F9NL** est un concours 432 MHz (hommage à un pionnier de la bande
+  70 cm), pas un concours HF comme l'affichait la donnée précédente.
+
+- **Coaching RTTY W/VE (ARRL RTTY Roundup).** L'estimation de priorité d'un
+  spot avant contact ne tenait pas compte du multiplicateur état/province
+  américain ou canadien — corrigé (le score final du concours, lui, était
+  déjà correct).
+
 ## [1.2-beta9] — 2026-09-09
 
 ### Corrigé
