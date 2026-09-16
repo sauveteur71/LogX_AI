@@ -109,7 +109,15 @@ function _elementModaleOuverte(){
                // bulkResolveOverlay : logx_bulk_resolve.js) — les macros F1-
                // F8 (TX CW/vocal) restaient actives au clavier même quand
                // ces panneaux étaient ouverts.
-               'voacapOverlay', 'bulkResolveOverlay'];
+               'voacapOverlay', 'bulkResolveOverlay',
+               // Diagnostic complet du 16/09/2026 : même trou, sur les deux
+               // panneaux construits le plus récemment (CORBEILLE le
+               // 10-11/09, questions C1 le 11-12/09) -- ni l'un ni l'autre
+               // n'avait été ajouté à ce registre au moment de leur
+               // construction. Sans ça, F1-F8 pouvait partir en émission
+               // CW/vocale pendant que l'opérateur croyait être dans un
+               // dialogue, pas au clavier de la station.
+               'corbeilleOverlay', 'carnetQuestionsOverlay'];
   for(const id of ids){
     const el = document.getElementById(id);
     if(el && el.classList.contains('show')) return el;
@@ -231,6 +239,14 @@ document.addEventListener('keydown', e => {
     if(document.getElementById('netOverlay')?.classList.contains('show') && typeof closeNetControl === 'function') closeNetControl();
     if(document.getElementById('rateOverlay')?.classList.contains('show') && typeof closeRatePanel === 'function') closeRatePanel();
     if(document.getElementById('qslCardOverlay')?.classList.contains('show')) document.getElementById('qslCardOverlay').classList.remove('show');
+    // Diagnostic complet du 16/09/2026 : mêmes deux panneaux ajoutés au
+    // registre modal ci-dessus (_elementModaleOuverte) -- Échap doit aussi
+    // les fermer, via leur fonction de fermeture dédiée (nettoyage propre :
+    // closeCorbeille()/closeCarnetQuestions() retirent juste la classe
+    // 'show', même effet que les repli classList.remove ci-dessus, mais en
+    // passant par LA fonction que le bouton ✕ du panneau appelle lui-même).
+    if(document.getElementById('corbeilleOverlay')?.classList.contains('show') && typeof closeCorbeille === 'function') closeCorbeille();
+    if(document.getElementById('carnetQuestionsOverlay')?.classList.contains('show') && typeof closeCarnetQuestions === 'function') closeCarnetQuestions();
     return;
   }
   // Tab / Shift+Tab : piège de focus générique dans la modale ouverte (audit
@@ -303,7 +319,14 @@ document.addEventListener('keydown', e => {
   const watchedIds = ['shortcutsOverlay', 'validateOverlay', 'awardsOverlay',
                        'importOverlay', 'checklistOverlay', 'qtcOverlay',
                        'filterOverlay', 'dupOverlay', 'netOverlay', 'rateOverlay',
-                       'qslCardOverlay', 'dupConfirmBanner'];
+                       'qslCardOverlay', 'dupConfirmBanner',
+                       // Diagnostic complet du 16/09/2026 : même trou qu'un
+                       // 3e registre séparé -- corbeilleOverlay et
+                       // carnetQuestionsOverlay n'avaient pas de focus
+                       // automatique à l'ouverture, donc le piège Tab
+                       // (ci-dessus) n'avait rien à attraper tant qu'un
+                       // premier Tab manuel n'avait pas posé le focus dedans.
+                       'corbeilleOverlay', 'carnetQuestionsOverlay'];
   function focusFirstIn(el){
     const f = el.querySelector(
       'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
