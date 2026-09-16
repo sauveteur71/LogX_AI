@@ -2496,6 +2496,74 @@ tourner AVANT que le chemin critique existe ») et `itemsMenuLogbook`/
 quasi-totalité des panneaux du carnet) à traiter avec une prudence au
 moins égale à celle déjà appliquée ici, pas moindre.
 
+### Diagnostic complet du dépôt (14-16/09/2026)
+
+Demande F4GLD : « refaits une analyse complète du programme à la recherche
+de problème ou d'incohérence, un diagnostic complet de tous les domaines —
+code, sécurité, intuitivité... ». Traité par **4 audits parallèles en
+lecture seule** (forks — recherche read-only, jamais deux agents sur le
+même fichier en écriture) : sécurité, architecture/dette technique,
+intuitivité/UX, fiabilité des données/tests. Chacun a vérifié le contexte
+réel de chaque trouvaille avant de la retenir (pas un grep brut) et a
+listé ses faux positifs écartés. Résultat compilé dans un artifact
+(diagnostic_logx.html) présenté à F4GLD, qui a répondu « tous » — les 6
+points remontés sont traités un par un ci-dessous, chacun dans sa propre
+sous-section au fil de l'eau.
+
+**Aucun défaut de niveau Critique.** Le dépôt affiche une hygiène nettement
+au-dessus de la moyenne sur les 4 domaines (TX-safety réellement câblée,
+pas juste documentée ; aucune injection ; aucun secret en dur ; aucune
+violation du chemin critique ; round-trip ADIF testé ; synchro multi-
+postes mature ; zéro dette « oubliée »). Les 6 points retenus, par ordre
+de traitement :
+1. Fuite TX F1-F8 sur CORBEILLE/panneau C1 (UX/sécurité TX) — **traité
+   ci-dessous**.
+2. Échec d'écriture SQLite silencieux (fiabilité) — angle mort du
+   durcissement post-19/08.
+3. HA_DX multiplicateur faux (fiabilité) — 4e instance du même défaut que
+   TVA/THF/UFT.
+4. Asymétrie auth GET/POST (sécurité) — 141 routes GET sans
+   `_require_auth()` individuel.
+5. Vocabulaire scoring divergent sur 11 autres concours (architecture).
+6. `logx_http.py` — deux méthodes de dispatch de ~3200 lignes jamais
+   évaluées comme candidat de découpage (architecture).
+
+### 1/6 — Fuite TX F1-F8 sur CORBEILLE et le panneau C1 (16/09/2026)
+
+Trouvé par l'audit UX : `logx_theme_shortcuts.js` maintient **trois
+registres distincts** d'identifiants d'overlay (1. `_elementModaleOuverte()`
+— neutralise les macros F1-F8 CW/vocal pendant qu'une modale est ouverte ;
+2. le bloc Échap — ferme les modales au clavier ; 3. `watchedIds` — pose le
+focus automatique à l'ouverture, prérequis du piège Tab/Shift+Tab). Les
+deux panneaux construits le plus récemment (CORBEILLE 10-11/09, questions
+C1 11-12/09) n'avaient été ajoutés à AUCUN des trois — un opérateur pouvait
+donc déclencher une macro d'émission en pleine frappe F1-F8 en croyant être
+dans un simple dialogue.
+
+Skill `tx-human-consent` chargé avant de toucher au fichier (code
+adjacent à un chemin d'émission, même si ce fichier lui-même ne pilote pas
+le PTT — il DÉCIDE si les macros peuvent partir). Correctif mécanique :
+ajout de `corbeilleOverlay`/`carnetQuestionsOverlay` aux 3 registres, avec
+appel aux fonctions de fermeture dédiées (`closeCorbeille()`/
+`closeCarnetQuestions()`) dans le bloc Échap plutôt qu'un simple
+`classList.remove`.
+
+**Livré :**
+- `logx_theme_shortcuts.js` : 3 registres corrigés, chacun avec un
+  commentaire daté expliquant le trou trouvé.
+- `tests/test_modales_corbeille_carnet_registre.py` (nouveau, 7 tests) :
+  exécute le VRAI gestionnaire keydown dans un moteur V8 (DOM minimal),
+  pas une recopie — vérifie que `_modaleOuverte()` détecte les deux
+  panneaux ouverts, qu'Échap les ferme via leur fonction dédiée, et un
+  test structurel sur `watchedIds` (extrait le tableau réel du fichier).
+- **3 mutations** (retrait de `corbeilleOverlay` du registre 1, appel
+  `closeCorbeille()` neutralisé par un `false &&`, retrait de
+  `carnetQuestionsOverlay` du registre 3) : rouge confirmé à chaque fois,
+  restauré, md5 identique.
+- Suite complète relancée : **12394 passés, 0 échec** (même le flake
+  antivirus connu de `test_theme_inline.py` n'a pas mordu cette fois).
+- Pas de PR GitHub, pas de vérification navigateur réelle.
+
 ---
 
 ## 2. La méthode — ce qui a réellement produit les résultats
