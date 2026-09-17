@@ -96,7 +96,14 @@ testé). Terminé : barème réel (10/2/5 pts) et multiplicateur
 `ha_county_dxcc` remplacent le placeholder « approximatif », schéma
 `contest_schema.json` 1.6.0 complété (`is_ha`), `docs/CONTRATS_DONNEES.md`
 remis à jour. Voir « Moteur de scoring HA-DX Contest » juste avant la
-section 2.
+section 2. Commité (`c79be93`) et poussé sur `origin/main` le jour même.
+
+**Point de passation le 17/09/2026** (nouveau changement de compte, à la
+demande de F4GLD) : vérifié à cet instant précis — `git status` propre
+(rien en attente, rien non suivi), `main` strictement synchronisé avec
+`origin/main` (aucun commit local en avance ni en retard). Rien n'est
+perdu ; le prochain compte peut reprendre directement sur un nouveau
+chantier sans étape de rattrapage.
 
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
