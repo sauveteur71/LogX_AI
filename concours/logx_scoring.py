@@ -98,6 +98,11 @@ PREDICATES = {
     # TK (Corse). country_key('TM...') == 'F' (spéciales françaises déjà
     # bien classées par ce biais, sans avoir besoin du startswith('TM') d'avant).
     'is_french':           lambda c: c['dx_country'] in ('F', 'TK'),
+    # HA-DX Contest (ha-dx.com/en/contest-rules) : 10 pts fixes pour une
+    # station hongroise, quels que soient bande/mode/continent -- même
+    # entité DXCC 'HA' que _mult_ha_county_dxcc utilise pour router le
+    # multiplicateur (HG est un préfixe spécial de la même entité).
+    'is_ha':               lambda c: c['dx_country'] == 'HA',
     # Métropole + Corse + DOM/TOM — chacun sa propre entité DXCC dans cty.dat,
     # liste vérifiée EMPIRIQUEMENT via dxcc.list_entities() sur le cty.dat
     # chargé (F/TK + FG Guadeloupe, FM Martinique, FJ St-Barthélemy, FS
@@ -491,6 +496,46 @@ def _mult_na_state(ctx, pts, result, scoring):
         result['explanation'] = f"{pts}pts (état/province probablement déjà travaillé)"
         result['priority'] = 3
 
+def _mult_ha_county_dxcc(ctx, pts, result, scoring):
+    """HA-DX Contest (règlement officiel, ha-dx.com/en/contest-rules, lu le
+    16/09/2026) : multiplicateur = DXCC + WAE (hors HA elle-même) + comtés
+    hongrois, PAR BANDE, quel que soit le mode. Comme _mult_na_state
+    (ARRL DX) : le comté exact d'une station HA n'est connu qu'À RÉCEPTION
+    (aucune géographie de préfixe HA/HG ne l'encode, contrairement à
+    _mult_dept_dxcc où le département français s'estime depuis le
+    locator/calldb) -- proxy 3 premiers caractères de l'indicatif, suivi
+    via done_na_proxies (dict générique malgré son nom, voir sa population
+    dans rank_stations_by_value : peuplé pour TOUT QSO, pas seulement
+    Amérique du Nord)."""
+    band = ctx['band_norm']
+    if ctx['dx_country'] == 'HA':
+        proxy = ctx['dx_base'][:3]
+        done = ctx.get('done_na_proxies', {}).get(band, set())
+        nb_mults = len(done)
+        new = proxy not in done
+        mult_type = 'comte_ha'
+        label = 'probable NOUVEAU COMTÉ HA'
+    else:
+        band_dxcc = ctx['done_dxcc'].get(band, set())
+        nb_mults = len(band_dxcc)
+        new = ctx['dx_country'] not in band_dxcc
+        mult_type = 'dxcc'
+        label = 'NOUVEAU DXCC/WAE'
+    best = _max_rule_points(ctx.get('bricks', {}).get('points'), ctx, scoring)
+    if new:
+        result['new_mult'] = True
+        result['mult_type'] = mult_type
+        result['mult_value'] = 1
+        mult_value_est = (ctx['current_score_total'] // max(nb_mults, 1)
+                           if nb_mults else pts * 5)
+        result['total_impact'] = pts + mult_value_est
+        result['explanation'] = f"{pts}pts + {label} → +{mult_value_est}pts estimés"
+        result['priority'] = 1 if pts == best and best > 0 else 2
+    else:
+        result['total_impact'] = pts
+        result['explanation'] = f"{pts}pts (comté/DXCC probablement déjà travaillé)"
+        result['priority'] = 3
+
 def _mult_exchange_distinct(ctx, pts, result, scoring):
     """Multiplicateur = valeurs d'ÉCHANGE distinctes reçues par bande (EUHFC :
     année de 1re licence). Par nature INCONNAISSABLE avant le QSO : au spot,
@@ -573,6 +618,7 @@ MULT_EVALUATORS = {
     'na_state':     _mult_na_state,
     'exchange_distinct': _mult_exchange_distinct,
     'rtty_ru':      _mult_rtty_ru,
+    'ha_county_dxcc': _mult_ha_county_dxcc,
 }
 
 # ── Conversion des types historiques en compositions de briques ─────────────
@@ -789,6 +835,25 @@ def _rtty_state_token(raw):
 # RTTY RU §5.3).
 _RTTY_STATE_ENTITIES = ('K', 'VE')
 
+# Les 20 comtés hongrois (megyék) reconnus comme multiplicateur par le
+# règlement HA-DX Contest (ha-dx.com/en/contest-rules, lu le 16/09/2026 puis
+# revérifié le 17/09/2026) -- reçus en 2 lettres dans l'échange d'une
+# station HA/HG (ex. « 599 BP »).
+_HA_COUNTIES = frozenset((
+    'BA', 'BE', 'BN', 'BO', 'BP', 'CS', 'FE', 'GY', 'HB', 'HE',
+    'KO', 'NG', 'PE', 'SA', 'SO', 'SZ', 'TO', 'VA', 'VE', 'ZA',
+))
+
+
+def _ha_county_token(raw):
+    """Code de comté (2 lettres) reçu dans l'échange d'une station HA/HG --
+    même patron que _rtty_state_token (jeton alphabétique final), mais
+    VALIDÉ contre la liste officielle des 20 comtés : un code inventé ou
+    mal transcrit ne doit jamais devenir un multiplicateur fantôme."""
+    m = re.search(r'([A-Z]{2})\s*$', str(raw).strip().upper())
+    code = m.group(1) if m else None
+    return code if code in _HA_COUNTIES else None
+
 
 def _mult_entries(kind, q):
     """(espace, valeur) multiplicateur qu'UN QSO apporte pour `kind` — vide si
@@ -852,6 +917,16 @@ def _mult_entries(kind, q):
         if PREDICATES['is_french']({'dx_country': c}):
             d = departments.dept_for_qso(q)
             return [('dept', d)] if d else []
+        return [('dxcc', c)] if c else []
+    if kind == 'ha_county_dxcc':
+        # HA-DX Contest : DXCC + WAE (hors HA) + comtés hongrois, PAR BANDE
+        # (voir _mult_ha_county_dxcc pour la source). Valeur RÉELLEMENT reçue
+        # (num_rcvd), jamais le proxy indicatif que le coach utilise avant
+        # contact -- même distinction que na_section/na_state ci-dessous.
+        c = dxcc.country_key(base)
+        if c == 'HA':
+            county = _ha_county_token(q.get('num_rcvd', ''))
+            return [('county', county)] if county else []
         return [('dxcc', c)] if c else []
     if kind in ('na_section', 'na_state'):
         # Valeur RÉELLEMENT reçue (ex. ARRL DX : 'RS + état/province' — le
@@ -1132,7 +1207,7 @@ def contest_geo_mode(contest_id):
     if kind in ('zone_dxcc', 'zone_dxcc_state', 'rtty_ru', 'prefix',
                 'dxcc_only', 'itu_zone'):
         return 'dxcc'
-    if kind in ('na_state', 'na_section'):
+    if kind in ('na_state', 'na_section', 'ha_county_dxcc'):
         return 'other'
     # locator, large_square, exchange_distinct, None -> français par défaut
     return 'dept'

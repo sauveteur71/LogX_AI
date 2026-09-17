@@ -1247,17 +1247,24 @@ CONTEST_DEFINITIONS = {
         'cabrillo_name': 'HA-DX',
         'scoring': {
             'bricks': {
+                # Règlement officiel (ha-dx.com/en/contest-rules, lu et
+                # revérifié le 17/09/2026) : barème unique, indépendant de
+                # la bande et du mode -- station HA=10, même continent=2,
+                # autre continent=5. 'is_ha' AVANT 'same_continent' : une
+                # station HA en Europe doit rendre 10 pts, pas 2.
                 'points': [
-                    {'prefix_in': ['HA','HG'], 'points': 6},
-                    {'when': 'same_continent', 'points': 1},
-                    {'when': 'always', 'points': 3},
+                    {'when': 'is_ha', 'points': 10},
+                    {'when': 'same_continent', 'points': 2},
+                    {'when': 'different_continent', 'points': 5},
                 ],
-                'multiplier': {'kind': 'zone_dxcc'},
+                'multiplier': {'kind': 'ha_county_dxcc'},
             },
-            'unit': 'pts × (comtés HA + DXCC) par bande',
-            'note': 'Barème approximatif — à confirmer via 🤖 analyse du règlement.',
+            'unit': 'pts × (comtés HA + DXCC/WAE hors HA) par bande',
+            'note': 'Stations /AM et /MM (2 pts fixes, non-multiplicateur au '
+                     'règlement) hors périmètre MVP -- comptées comme une '
+                     'station normale de leur pays d\'immatriculation.',
         },
-        'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
+        'log_format': 'CABRILLO', 'log_deadline': '5_days_after',
     },
     'ALL_ASIAN_CW': {
         'name': 'All Asian DX Contest — CW',

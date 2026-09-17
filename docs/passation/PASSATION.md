@@ -89,6 +89,15 @@ multiplicateur = membres distincts + F8UFT par bande. Schéma
 `contest_schema.json` 1.4.0 → 1.5.0 — voir « Moteur de scoring Rencontres
 UFT » juste après « Moteur de scoring Challenge THF ».
 
+**Mise à jour le 17/09/2026** : **Moteur de scoring HA-DX Contest** — trouvé
+en travail INACHEVÉ et non consigné (règlement lu le 16/09, moteur dédié
+écrit dans `logx_scoring.py`, mais jamais raccordé à la définition ni
+testé). Terminé : barème réel (10/2/5 pts) et multiplicateur
+`ha_county_dxcc` remplacent le placeholder « approximatif », schéma
+`contest_schema.json` 1.6.0 complété (`is_ha`), `docs/CONTRATS_DONNEES.md`
+remis à jour. Voir « Moteur de scoring HA-DX Contest » juste avant la
+section 2.
+
 **Première chose à savoir : rien n'est perdu.** Tout le code est sur GitHub
 (`sauveteur71/LogX_AI`). Ce qui disparaît avec le compte, c'est la mémoire de
 travail et la méthode — les deux sont archivées ici.
@@ -2563,6 +2572,61 @@ appel aux fonctions de fermeture dédiées (`closeCorbeille()`/
 - Suite complète relancée : **12394 passés, 0 échec** (même le flake
   antivirus connu de `test_theme_inline.py` n'a pas mordu cette fois).
 - Pas de PR GitHub, pas de vérification navigateur réelle.
+
+### Moteur de scoring HA-DX Contest — placeholder « approximatif » remplacé par le règlement réel (17/09/2026)
+
+Trouvé en travail INACHEVÉ et non consigné (git status : `contest_schema.json`
+et `logx_scoring.py` modifiés mais jamais commités) au moment de la reprise
+de session — le règlement avait été lu le 16/09/2026 (commentaire daté dans
+le code) et un moteur dédié (`_mult_ha_county_dxcc`, `_ha_county_token`,
+prédicat `is_ha`) avait été écrit dans `logx_scoring.py`, mais **la
+définition `CONTEST_DEFINITIONS['HA_DX']` n'avait jamais été raccordée** :
+elle portait encore l'ancien barème inventé (6/1/3 pts, mult `zone_dxcc`
+générique) avec la mention `'note': 'Barème approximatif'`, et aucun test
+n'existait pour ce moteur.
+
+**Règlement réel** (ha-dx.com/en/contest-rules, revérifié le 17/09/2026) :
+barème unique, indépendant bande/mode — station HA/HG = 10 pts, même
+continent = 2 pts, autre continent (DX) = 5 pts. Multiplicateur PAR BANDE
+= DXCC+WAE (hors Hongrie) + les 20 comtés hongrois. Dépôt des logs sous
+5 jours, pas 7 (l'ancien placeholder avait copié le délai d'un concours
+voisin, SPDX, dans le même fichier).
+
+**Piège de commentaire trouvé au passage** : le frozenset `_HA_COUNTIES`
+contenait déjà les 20 bons codes, mais TROIS commentaires (dont le
+docstring de validation) affirmaient à tort « 19 comtés » — corrigé sans
+toucher aux données elles-mêmes (`len(_HA_COUNTIES) == 20`, vérifié
+contre la liste officielle avant correction, pas supposé).
+
+**Livré :**
+- `logx_definitions.py` : barème HA-DX corrigé (10/2/5), multiplicateur
+  `ha_county_dxcc`, `log_deadline` 5 jours, note « approximatif » retirée.
+- `logx_scoring.py` : prédicat `is_ha` ajouté à `PREDICATES` (nécessaire
+  pour que 'is_ha' prime sur 'same_continent' dans les briques de points) ;
+  3 commentaires « 19 comtés » → « 20 comtés ».
+- `contest_schema.json` 1.6.0 (déjà amorcé par la session précédente pour
+  `ha_county_dxcc` côté `multiplier.kind` — complété ici par `is_ha` côté
+  énumération `when`, les deux formes chaîne et tableau combiné).
+- `docs/CONTRATS_DONNEES.md` : "Statut" remis à jour (1.3.0 → 1.6.0, resté
+  périmé depuis plusieurs bumps antérieurs) + entrée Historique 1.6.0 ;
+  gap 1.4.0/1.5.0 constaté et signalé plutôt que reconstitué de mémoire.
+- `tests/test_contest_ha_dx.py` (nouveau, 19 tests) : barème par
+  station/continent, priorité de `is_ha` sur `same_continent`,
+  multiplicateur par bande (comtés + DXCC), rejet d'un code de comté
+  inventé, verrou sur les 20 comtés, coaching pré-QSO
+  (`MULT_EVALUATORS['ha_county_dxcc']`), routage `contest_geo_mode`.
+- **3 mutations** (retour à l'ancien barème/mult, `is_ha` neutralisé à
+  `False`, validation du comté désactivée) : rouge confirmé à chaque fois
+  (14, puis 4, puis 1 test rougissant selon la mutation), restauré, md5
+  identique. `logx_validate.py` en mode jsonschema complet : 62 concours
+  conformes. Suite complète relancée : exit code 0, aucun échec.
+- **Hors scope, assumé** : stations `/AM`/`/MM` (2 pts fixes, non-
+  multiplicateur au règlement) traitées comme une station normale de leur
+  pays d'immatriculation — noté explicitement dans le champ `note` de la
+  définition plutôt que silencieusement ignoré.
+- Pas de PR GitHub, pas de vérification navigateur (aucune interface ne
+  consomme cette définition directement — catalogue exposé dynamiquement
+  au client, pas de liste JS à synchroniser).
 
 ---
 
