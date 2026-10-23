@@ -2006,6 +2006,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="loc-hint" id="locHint"></div>
       </div>
 
+      <!-- Bouton ENREGISTRER juste sous le locator (demande F4GLD 23/10/2026) :
+           il était tout en bas, après le commentaire, les onglets et la grille
+           départements — il fallait défiler pour l'atteindre. Entrée dans les
+           champs de saisie enregistre toujours, où que soit le bouton. -->
+      <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRER LE QSO
+      </button>
+
       <!-- Commentaire libre : champ du trafic COURANT par excellence, TOUJOURS
            visible et jamais réservé au mode avancé — HORS des onglets. Un
            débutant le voit d'emblée (exigence figée par
@@ -2237,10 +2245,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="dept-grid" id="deptGrid"></div>
       </div>
 
-      <!-- DUP check -->
-      <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
-        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRER LE QSO
-      </button>
 
     </div>
 
