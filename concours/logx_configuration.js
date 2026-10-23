@@ -6777,6 +6777,7 @@ function openReviewModal(p){
       ${_revField('modes', 'MODES (virgules)', (d.modes || []).join(','), c.modes)}
       ${_revField('exchange', 'ÉCHANGE', d.exchange, c.exchange)}
       ${_revField('log_format', 'FORMAT LOG (EDI/CABRILLO/ADIF)', d.log_format, c.log_format)}
+      ${_revField('cabrillo_name', 'NOM CABRILLO (ligne CONTEST:)', d.cabrillo_name, c.cabrillo_name, 'ex. CQ-WW-SSB — obligatoire si format CABRILLO')}
       ${_revField('log_deadline', 'DEADLINE LOG', d.log_deadline, c.log_deadline)}
       ${_revField('log_submit', 'SOUMISSION LOG (URL/email)', d.log_submit, c.log_submit)}
     </div>
@@ -6817,6 +6818,11 @@ async function saveReviewedDefinition(){
   if (g('log_deadline')) definition.log_deadline = g('log_deadline');
   if (g('log_submit')) definition.log_submit = g('log_submit');
   if (g('notes')) definition.notes = g('notes');
+  // Nom officiel de la ligne CONTEST: du Cabrillo. Champ ABSENT du formulaire
+  // jusqu'au 23/10/2026 : le validateur (logx_validate, A04) l'exige pour tout
+  // log_format CABRILLO -> aucun concours Cabrillo analysé par l'IA ne pouvait
+  // être enregistré, même quand l'IA avait trouvé ce nom (il était perdu ici).
+  if (g('cabrillo_name')) definition.cabrillo_name = g('cabrillo_name');
   if (_aiProposal?.source_url) definition.rules_url = _aiProposal.source_url;
 
   status.textContent = '⏳ Validation + enregistrement...';
