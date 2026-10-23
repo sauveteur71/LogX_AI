@@ -157,7 +157,11 @@ RÈGLES IMPÉRATIVES :
    De même : multiplicateurs pondérés par bande → 'mult_weight_by_band' ;
    points différents selon la bande → règles 'points' avec le filtre 'bands'.
 5. citations : cite pour CHAQUE champ de definition le passage source exact.
-   C'est ce qui permet la relecture humaine — c'est obligatoire."""
+   C'est ce qui permet la relecture humaine — c'est obligatoire.
+6. log_format CABRILLO → renseigne cabrillo_name avec la valeur EXACTE que le règlement
+   impose pour la ligne « CONTEST: » du fichier Cabrillo (ex. CQ-WW-SSB), et cite-la.
+   Si le règlement ne la donne pas, omets cabrillo_name et signale-le en warning
+   (l'opérateur la saisira à la relecture — sans elle, l'enregistrement est refusé)."""
 
 def build_verification_system():
     return """Tu es un VÉRIFICATEUR adversarial de définitions de concours radioamateur.
