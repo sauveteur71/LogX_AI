@@ -22,6 +22,49 @@
 
   var JOUR_MS = 86400000;
 
+  // ── Libellé de bande LISIBLE ───────────────────────────────────────────────
+  // Les endpoints envoient la bande en CLÉ INTERNE = MHz ('7', '14', '21' —
+  // logx_paths.etat_bandes_hf, logx_scoring._band_from_freq), PAS en mètres.
+  // Défaut corrigé (signalé par plusieurs utilisateurs, 23/10/2026) : la clé
+  // était affichée suivie de « m » -> « 21 m », « 28 m », bandes inexistantes,
+  // et « 10 m » pour 10 MHz qui est en réalité la bande des 30 m. Table reprise
+  // de BAND_LABELS (logx_logbook.js), + '10' (clé de logx_paths pour 30 m) et
+  // '5' (60 m, clé de _band_from_freq). Une valeur déjà en mètres/cm ('20m')
+  // est gardée telle quelle ; une clé inconnue est montrée en MHz (on n'invente
+  // pas de longueur d'onde).
+  var LIB_BANDES = {
+    '1.8':'160 m', '3.5':'80 m', '5':'60 m', '7':'40 m', '10':'30 m', '10.1':'30 m',
+    '14':'20 m', '18':'17 m', '21':'15 m', '24':'12 m', '28':'10 m',
+    '50':'6 m', '70':'4 m', '144':'2 m', '432':'70 cm', '1296':'23 cm',
+    '2320':'13 cm', '3400':'9 cm', '5760':'6 cm', '10368':'3 cm',
+    '24048':'1,2 cm', '47088':'6 mm'
+  };
+  function _libBande(b){
+    var s = String(b == null ? '' : b).trim();
+    if(!s) return '';
+    var m = s.match(/^(\d+(?:[.,]\d+)?)\s*(m|cm|mm)$/i);
+    if(m) return m[1] + ' ' + m[2].toLowerCase();       // déjà une longueur d'onde
+    if(LIB_BANDES[s]) return LIB_BANDES[s];
+    var f = parseFloat(s.replace(',', '.'));
+    if(!isNaN(f)){
+      for(var k in LIB_BANDES){ if(parseFloat(k) === f) return LIB_BANDES[k]; }   // '7.0' == '7'
+      return s + ' MHz';
+    }
+    return s;                                            // 'HF' & co : tel quel
+  }
+
+  // Type de multiplicateur (identifiant INTERNE de logx_scoring : 'zone_cq',
+  // 'grand_carre'…) -> libellé lisible. Inconnu -> underscores remplacés.
+  var LIB_MULTS = {
+    locator:'locator', grand_carre:'grand carré', zone_cq:'zone CQ', zone_itu:'zone ITU',
+    dxcc:'pays DXCC', prefix:'préfixe', dept_dxcc:'département/pays',
+    section_na:'section ARRL', etat_province:'état/province', comte_ha:'comté HA'
+  };
+  function _libMult(t){
+    var s = String(t == null ? '' : t);
+    return LIB_MULTS[s] || s.replace(/_/g, ' ');
+  }
+
   // ── DXpéditions ≤ 7 jours (source : /data/dxpeditions_active) ───────────────
   // donnees.dxpeditions = { expeditions: [ {callsign, entity, dates, status,
   //   starts, ends, freq_khz, spot_band, spot_mode, worked_status, ...} ] }
@@ -55,7 +98,7 @@
       if(actif){
         bout = e.freq_khz
           ? ' · ' + (e.freq_khz / 1000).toFixed(3) + ' MHz'
-              + (e.spot_band ? ' (' + e.spot_band + ')' : '')
+              + (e.spot_band ? ' (' + _libBande(e.spot_band) + ')' : '')
           : ' · en cours';
       }else{
         bout = ' · ' + (e.dates || 'à venir');
@@ -98,19 +141,24 @@
       return b && (b.etat === 'ouverte' || b.etat === 'possible');
     });
     // ADAPTATION BANDE : la bande en cours de saisie (ctx.band) passe EN TÊTE et
-    // est marquée « ta bande ». Match tolérant sur les chiffres ('20'='20m'='20 m').
-    var courante = (ctx && ctx.band != null) ? String(ctx.band).replace(/[^0-9.]/g, '') : '';
+    // est marquée « ta bande ». Comparaison sur le LIBELLÉ normalisé : la page
+    // donne currentBand en clé MHz ('14', '10.1') comme le serveur ('14', '10'),
+    // et '20m' reste accepté -> '14' = '20m' = '20 m'.
+    var courante = (ctx && ctx.band != null) ? _libBande(ctx.band) : '';
     var items = ouvertes.map(function(b){
-      var est = !!courante && String(b.band).replace(/[^0-9.]/g, '') === courante;
+      var lib = _libBande(b.band);
+      var est = !!courante && lib === courante;
       var pastille = b.etat === 'ouverte' ? '● ' : '◐ ';
       return {
         _c: est,
-        texte: (est ? '▸ ' : '') + pastille + b.band + ' m · ' + b.etat + (est ? ' · ta bande' : ''),
+        texte: (est ? '▸ ' : '') + pastille + lib + ' · ' + b.etat + (est ? ' · ta bande' : ''),
         title: b.raison || ''
       };
     });
+    // href : un clic mène à la page PROPAG (sans href, le lien '#' renvoyait
+    // en haut de la page de saisie).
     var tete = [], reste = [];
-    items.forEach(function(it){ (it._c ? tete : reste).push({ texte: it.texte, title: it.title }); });
+    items.forEach(function(it){ (it._c ? tete : reste).push({ texte: it.texte, title: it.title, href: 'logx_propagation.html' }); });
     return tete.concat(reste);   // bande courante d'abord, reste dans l'ordre d'origine
   }
 
@@ -132,7 +180,7 @@
       if(!s || !s.call) continue;
       var bits = [s.call];
       if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');   // 0/absent -> pas de fréquence
-      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      if(s.band) bits.push(_libBande(s.band));
       if(s.mode) bits.push(s.mode);
       var badge = (s.credit_score && s.credit_raison) ? ' · ' + s.credit_raison : '';
       out.push({
@@ -169,9 +217,9 @@
       var s = spots[i];
       if(!s || !s.call || !s.new_mult) continue;   // uniquement les NOUVEAUX multiplicateurs
       var bits = [s.call];
-      if(s.mult_type) bits.push(s.mult_type);
+      if(s.mult_type) bits.push(_libMult(s.mult_type));
       if(s.freq) bits.push((Number(s.freq) / 1000).toFixed(3) + ' MHz');
-      if(s.band) bits.push(String(s.band).match(/m$/i) ? s.band : s.band + ' m');
+      if(s.band) bits.push(_libBande(s.band));
       out.push({
         texte: '★ ' + bits.join(' · '),
         title: s.dx_country || '',
