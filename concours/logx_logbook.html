@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LogX AI — Logbook Multi-Opérateur</title>
+<script>
+/* Fenêtre « SAISIE SEULE » (?vue=saisie, voir logx_saisie_detachee.js) : classe
+   posée AVANT le premier rendu pour ne pas afficher la page complète un instant. */
+try{ if(new URLSearchParams(location.search).get('vue') === 'saisie'){
+  document.documentElement.classList.add('vue-saisie');
+  document.title = 'LogX AI — Saisie QSO';
+} }catch(e){}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>📡</text></svg>">
 <!-- PWA : installable sur téléphone/tablette (« ajouter à l'écran d'accueil ») -->
 <link rel="manifest" href="/manifest.webmanifest">
@@ -970,6 +978,30 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 #mobileBanner a{color:var(--accent2);font-weight:700}
 #mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px;background:none;border:none;font-family:inherit;line-height:1}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
+/* ── FENÊTRE « SAISIE SEULE » (?vue=saisie) ─────────────────────────────────
+   Masquage CSS PUR (« masquer ≠ bloquer ») : les éléments restent dans la page
+   et fonctionnent, ils ne sont simplement pas affichés. Restent visibles :
+   l'en-tête (indicatif, locator, heure UTC), le panneau de saisie en pleine
+   largeur, le dock de macros CW/voix, et les fenêtres modales à leur ouverture. */
+html.vue-saisie .app-nav,
+html.vue-saisie #rcStatusBar,
+html.vue-saisie #bandeaux,
+html.vue-saisie .net-status,
+html.vue-saisie .score-banner,
+html.vue-saisie .band-recap-bar,
+html.vue-saisie .op-stats-bar,
+html.vue-saisie .hour-chart-bar,
+html.vue-saisie .on4kst-reminder,
+html.vue-saisie .shortcut-offer,
+html.vue-saisie #mobileBanner,
+html.vue-saisie .bandmap-panel,
+html.vue-saisie .log-panel,
+html.vue-saisie .chat-panel,
+html.vue-saisie #occupationPanel,
+html.vue-saisie #occupationToggle,
+html.vue-saisie #opportunitesPanel,
+html.vue-saisie #btnDetacherSaisie{display:none!important}
+html.vue-saisie .saisie-panel{width:100%;max-width:none;min-width:0;border-right:none}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
 /* Filet de sécurité : tout <svg> icône qui échapperait à la liste de
    sélecteurs scopés ci-dessous (classe oubliée, futur ajout) tombe sinon à
@@ -1725,6 +1757,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">Copilote ○</button>
       <button id="esmBtn" onclick="toggleEsm()" title="ESM : la touche Entrée enchaîne appel CQ → échange → log (comme N1MM) — détail complet dans l'aide (bouton ?)"
         style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">ESM ○</button>
+      <button id="btnDetacherSaisie" type="button" onclick="detacherSaisie()" title="Ouvrir la saisie QSO seule dans une fenêtre séparée (pour un 2e écran). Les QSO saisis là-bas apparaissent aussitôt ici."
+        style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"><svg aria-hidden="true" viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="10" height="10" rx="1.3"/><polyline points="10,2.5 15.5,2.5 15.5,8"/><line x1="15.5" y1="2.5" x2="8.5" y2="9.5"/></svg>Détacher</button>
       </span>
     </div>
 
@@ -2757,6 +2791,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_clock.js"></script>
 <script src="logx_panel_layout.js"></script>
 <script src="logx_broadcast.js"></script>
+<script src="logx_saisie_detachee.js"></script>
 <script src="logx_voacap_panel.js"></script>
 <script src="logx_last_qso.js"></script>
 <script src="logx_carnet_questions.js"></script>
