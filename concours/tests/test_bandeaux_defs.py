@@ -157,14 +157,15 @@ def _propag_expr(bandes):
 def test_propag_ne_montre_que_les_bandes_exploitables():
     ctx = _ctx()
     items = _j(ctx, _propag_expr([
-        {'band': '20', 'etat': 'ouverte', 'score': 80, 'raison': 'DX'},
-        {'band': '40', 'etat': 'possible', 'score': 50, 'raison': 'régional'},
-        {'band': '10', 'etat': 'fermee', 'score': 10, 'raison': 'au-dessus MUF'},
+        # Clés RÉELLES du serveur (MHz) : '14' = 20 m, '7' = 40 m, '28' = 10 m.
+        {'band': '14', 'etat': 'ouverte', 'score': 80, 'raison': 'DX'},
+        {'band': '7', 'etat': 'possible', 'score': 50, 'raison': 'régional'},
+        {'band': '28', 'etat': 'fermee', 'score': 10, 'raison': 'au-dessus MUF'},
     ]))
     txt = ''.join(i['texte'] for i in items)
-    assert '20' in txt        # ouverte -> montrée
-    assert '40' in txt        # possible -> montrée
-    assert '10' not in txt    # fermee -> masquée
+    assert '20 m' in txt        # ouverte -> montrée
+    assert '40 m' in txt        # possible -> montrée
+    assert '10 m' not in txt    # fermee -> masquée
 
 
 def test_propag_aucune_bande_ouverte_pas_de_ligne_morte():
@@ -177,26 +178,28 @@ def test_propag_aucune_bande_ouverte_pas_de_ligne_morte():
 
 def test_propag_met_en_avant_la_bande_courante():
     """Adaptation bande (ctx.band) : la bande en cours de saisie passe EN TÊTE
-    et est marquée ; les autres restent normales. Match tolérant '20'/'20m'."""
+    et est marquée ; les autres restent normales. ctx.band en clé MHz ('14',
+    comme currentBand du logbook) ou en mètres ('20m') : les deux reconnus."""
     ctx = _ctx()
-    expr = ("window.LogxBandeaux.REGISTRE.propag.construire({band:'20m'},"
-            "{propagation:{etat_bandes:{bandes:%s}}})" % json.dumps([
-                {'band': '40', 'etat': 'ouverte'},
-                {'band': '20', 'etat': 'possible'},
-            ]))
-    items = _j(ctx, expr)
-    assert '20' in items[0]['texte'] and 'ta bande' in items[0]['texte']   # courante en tête + marquée
+    for cur in ('14', '20m'):
+        expr = ("window.LogxBandeaux.REGISTRE.propag.construire({band:%s},"
+                "{propagation:{etat_bandes:{bandes:%s}}})" % (json.dumps(cur), json.dumps([
+                    {'band': '7', 'etat': 'ouverte'},
+                    {'band': '14', 'etat': 'possible'},
+                ])))
+        items = _j(ctx, expr)
+        assert '20 m' in items[0]['texte'] and 'ta bande' in items[0]['texte'], cur   # courante en tête + marquée
     assert 'ta bande' not in items[1]['texte']                             # les autres non marquées
 
 
 def test_propag_sans_bande_courante_inchange():
     ctx = _ctx()
     items = _j(ctx, _propag_expr([
-        {'band': '40', 'etat': 'ouverte'}, {'band': '20', 'etat': 'ouverte'},
+        {'band': '7', 'etat': 'ouverte'}, {'band': '14', 'etat': 'ouverte'},
     ]))
     txt = ''.join(i['texte'] for i in items)
-    assert 'ta bande' not in txt        # aucun ctx.band -> pas de marquage
-    assert '40' in items[0]['texte']    # ordre d'origine préservé
+    assert 'ta bande' not in txt          # aucun ctx.band -> pas de marquage
+    assert '40 m' in items[0]['texte']    # ordre d'origine préservé
 
 
 # ─── Bandeau SPOTS DX (source : /data/spots_ranked) ─────────────────────────
@@ -306,3 +309,95 @@ def test_mults_borne_le_nombre():
     many = [{'call': 'C%d' % i, 'band': '20m', 'freq': 14000 + i, 'new_mult': True, 'mult_type': 'z'} for i in range(20)]
     items = _j(ctx, _mults_expr(many))
     assert len(items) == 12
+
+
+# ─── Libellés de bande : FORME RÉELLE des endpoints (correctif 23/10/2026) ───
+# Défaut signalé par plusieurs utilisateurs : les bandeaux PROPAG / MULTS / SPOTS
+# affichaient la CLÉ INTERNE en MHz suivie de « m » (« 21 m », « 28 m » — bandes
+# inexistantes ; « 10 m » pour 10 MHz = bande des 30 m). Les tests ci-dessus
+# n'avaient rien vu : leurs données étaient des mannequins DÉJÀ en mètres
+# ('20m', band '20'). Ici les données viennent du VRAI producteur serveur.
+
+LONGUEURS_REELLES = {'160 m', '80 m', '60 m', '40 m', '30 m', '20 m', '17 m', '15 m',
+                     '12 m', '10 m', '6 m', '4 m', '2 m', '70 cm', '23 cm'}
+
+
+def _bandes_reelles_serveur():
+    """Sortie RÉELLE de logx_paths.etat_bandes_hf (producteur de /data/propagation),
+    toutes bandes forcées « ouverte » pour que le bandeau les affiche toutes."""
+    import sys
+    sys.path.insert(0, CONCOURS)
+    import logx_paths
+    eb = logx_paths.etat_bandes_hf(45.1, 3.9)
+    bandes = eb['bandes'] if isinstance(eb, dict) else eb
+    assert bandes, 'etat_bandes_hf ne rend plus de bandes — adapter ce test'
+    return [dict(b, etat='ouverte') for b in bandes]
+
+
+def test_propag_libelles_sur_la_vraie_sortie_serveur():
+    ctx = _ctx()
+    bandes = _bandes_reelles_serveur()
+    items = _j(ctx, _propag_expr(bandes))
+    assert len(items) == len(bandes)
+    for it in items:
+        lib = it['texte'].split('● ', 1)[1].split(' · ')[0]
+        assert lib in LONGUEURS_REELLES, 'libellé de bande impossible : %r' % it['texte']
+    txt = ' | '.join(i['texte'] for i in items)
+    assert '21 m' not in txt and '28 m' not in txt and '14 m' not in txt
+
+
+@pytest.mark.parametrize('cle,attendu', [
+    ('1.8', '160 m'), ('3.5', '80 m'), ('7', '40 m'), ('10', '30 m'), ('10.1', '30 m'),
+    ('14', '20 m'), ('18', '17 m'), ('21', '15 m'), ('24', '12 m'), ('28', '10 m'),
+    ('50', '6 m'), ('144', '2 m'), ('432', '70 cm'), ('20m', '20 m'),
+])
+def test_propag_cle_mhz_vers_longueur_d_onde(cle, attendu):
+    ctx = _ctx()
+    items = _j(ctx, _propag_expr([{'band': cle, 'etat': 'ouverte'}]))
+    assert items[0]['texte'] == '● ' + attendu + ' · ouverte'
+
+
+def test_propag_ta_bande_avec_currentBand_reel():
+    """currentBand du logbook est une clé MHz ('7', '10.1') — et le serveur
+    propag dit '10' pour 30 m : les deux doivent se reconnaître."""
+    ctx = _ctx()
+    for cur, cle in (('7', '7'), ('10.1', '10'), ('14', '14')):
+        expr = ("window.LogxBandeaux.REGISTRE.propag.construire({band:%s},"
+                "{propagation:{etat_bandes:{bandes:%s}}})" % (json.dumps(cur), json.dumps([
+                    {'band': '21', 'etat': 'ouverte'}, {'band': cle, 'etat': 'possible'}])))
+        items = _j(ctx, expr)
+        assert 'ta bande' in items[0]['texte'], (cur, items)
+        assert 'ta bande' not in items[1]['texte']
+
+
+def test_propag_item_cliquable_vers_page_propag():
+    """Sans href, le lien rendu valait '#' : un clic renvoyait en haut de la page."""
+    ctx = _ctx()
+    items = _j(ctx, _propag_expr([{'band': '14', 'etat': 'ouverte'}]))
+    assert items[0]['href'] == 'logx_propagation.html'
+
+
+def test_mults_et_spots_bande_reelle_et_type_lisible():
+    """Forme réelle de /data/spots_ranked : band = clé MHz ('7'), mult_type =
+    identifiant interne de logx_scoring ('zone_cq')."""
+    ctx = _ctx()
+    spot = {'call': 'YB9CQN', 'band': '7', 'freq': '7163', 'mode': 'SSB',
+            'new_mult': True, 'mult_type': 'zone_cq', 'dx_country': 'Indonesia'}
+    t = _j(ctx, _mults_expr([spot]))[0]['texte']
+    assert t == '★ YB9CQN · zone CQ · 7.163 MHz · 40 m', t
+    t2 = _j(ctx, _spots_expr([spot]))[0]['texte']
+    assert '40 m' in t2 and '7 m' not in t2.replace('7.163', '')
+
+
+def test_mults_tous_les_types_du_moteur_sont_traduits():
+    """Chaque mult_type émis par logx_scoring.py a un libellé sans underscore."""
+    import re
+    src = open(os.path.join(CONCOURS, 'logx_scoring.py'), encoding='utf-8').read()
+    types = set(re.findall(r"mult_type'\]\s*=\s*'([a-z_]+)'", src))
+    types |= set(re.findall(r"\bmult_type\s*=\s*'([a-z_]+)'", src))
+    types |= set(re.findall(r"'(zone_cq|dxcc)' if", src))
+    assert {'zone_cq', 'grand_carre', 'etat_province'} <= types, types
+    ctx = _ctx()
+    for ty in sorted(types):
+        t = _j(ctx, _mults_expr([{'call': 'X1X', 'band': '14', 'new_mult': True, 'mult_type': ty}]))[0]['texte']
+        assert '_' not in t, (ty, t)
