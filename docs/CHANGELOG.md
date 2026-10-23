@@ -13,6 +13,40 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta11] — 2026-10-23
+
+### Corrigé
+
+- **Bandeaux défilants PROPAG / MULTS / SPOTS : bandes affichées fausses.**
+  Signalé par plusieurs utilisateurs. La bande arrivait du serveur en MHz
+  (« 7 », « 14 », « 21 ») et s'affichait suivie de « m » : « 21 m », « 28 m »
+  (bandes inexistantes), et surtout « 10 m » pour 10 MHz, qui est la bande
+  des 30 m. Les bandes s'affichent désormais en longueur d'onde (40 m, 30 m,
+  20 m, 15 m…), le type de multiplicateur est lisible (« zone CQ » au lieu
+  de « zone_cq »), la bande en cours de saisie est bien repérée « ta bande »,
+  et un clic sur PROPAG ouvre la page PROPAG au lieu de remonter en haut.
+
+- **Ajout d'un concours depuis son règlement (IA) : refus des concours
+  Cabrillo.** L'enregistrement échouait avec « cabrillo_name absent » pour
+  tout concours au format CABRILLO : la relecture n'offrait aucun champ pour
+  le nom de la ligne `CONTEST:` et perdait celui trouvé par l'IA. Nouveau
+  champ « NOM CABRILLO » dans la relecture, et l'IA est invitée à le relever
+  dans le règlement.
+
+- **Sécurité émission : macros F1-F8 actives sous la CORBEILLE et le panneau
+  de questions sur le carnet.** Ces deux panneaux rejoignent les autres :
+  macros clavier coupées pendant qu'ils sont ouverts, fermeture par Échap,
+  focus posé à l'ouverture.
+
+- **HA-DX Contest : barème réel** (station HA/HG 10 pts, même continent 2,
+  DX 5 ; multiplicateurs DXCC + WAE + 20 comtés hongrois par bande ; dépôt
+  sous 5 jours) à la place d'un barème approximatif.
+
+### Interne
+
+- Le panneau de questions sur le carnet est extrait de `logx_logbook.js`
+  vers `logx_carnet_questions.js` (aucun changement de comportement).
+
 ## [1.2-beta10] — 2026-09-15
 
 ### Ajouté
