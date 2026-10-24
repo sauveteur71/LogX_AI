@@ -21,6 +21,7 @@ module est le choix par défaut pour les marques couvertes nativement
 tout le reste (Ten-Tec, RGO, modèles anciens...).
 """
 import atexit
+import contextlib
 import threading
 import time
 
@@ -1728,6 +1729,10 @@ def port_ptt_effectif(settings):
 # si la configuration (port/marque/modèle/vitesse) change entre deux appels.
 _persistent = {}
 _persistent_lock = threading.Lock()
+# Ports réservés par un test ponctuel CONFIG (« Tester la connexion »,
+# « Auto-détecter ») : tant qu'un port y figure, la connexion persistante ne
+# le rouvre pas. Protégé par _persistent_lock. Voir _reserver_port_pour_test.
+_ports_reserves_test = set()
 
 
 def _ensure_connected(settings):
@@ -1736,6 +1741,9 @@ def _ensure_connected(settings):
     key = (settings['port'], settings['brand'], settings['model'], settings['baudrate'],
            settings['civ_addr'])
     with _persistent_lock:
+        if str(settings['port'] or '').upper() in _ports_reserves_test:
+            return None, ("Port " + str(settings['port']) + " momentanément pris par un "
+                          "test lancé depuis CONFIG — la lecture reprend dès la fin du test.")
         entry = _persistent.get('default')
         if entry and entry['key'] == key:
             return entry['driver'], None
@@ -1775,6 +1783,40 @@ def _ensure_connected(settings):
             driver = AsciiRadio(transport, settings['brand'], settings['model'])
         _persistent['default'] = {'key': key, 'driver': driver, 'transport': transport}
         return driver, None
+
+
+@contextlib.contextmanager
+def _reserver_port_pour_test(port):
+    """Rend `port` disponible à un test ponctuel CONFIG, puis le rend au polling.
+
+    DÉFAUT CORRIGÉ (signalé par F4GLD le 24/10/2026, COM20, « je n'ai que mon
+    poste de connecté et que LogX AI en route ») : « Tester la connexion »
+    ouvrait une DEUXIÈME fois le port que la connexion persistante de LogX AI
+    (lecture de fréquence du logbook) tenait déjà. Sous Windows un port COM ne
+    s'ouvre qu'une fois -> PermissionError(13) -> message accusant « un AUTRE
+    programme », alors que le seul occupant était LogX AI lui-même. Invisible
+    sous Linux (double ouverture permise), donc invisible en CI.
+
+    Pendant le test : la connexion persistante sur ce port est fermée (et un
+    PTT matériel éventuellement levé dessus est reposé — sens SÛR, retour en
+    réception), et _ensure_connected refuse de la rouvrir. Après le test, la
+    réservation est levée : le prochain appel de polling rouvre le port seul.
+    On ne tient PAS _persistent_lock pendant le test (un auto-détect peut
+    durer ~50 s) : c'est la réservation qui empêche la réouverture."""
+    cle = str(port or '').upper()
+    with _persistent_lock:
+        _ports_reserves_test.add(cle)
+        entry = _persistent.get('default')
+        if entry and str(entry['key'][0] or '').upper() == cle:
+            _persistent.pop('default', None)
+            _oublier_ptt_si_transport(entry['transport'])
+            entry['transport'].close()
+        liberer_port_pour_cat(port)
+    try:
+        yield
+    finally:
+        with _persistent_lock:
+            _ports_reserves_test.discard(cle)
 
 
 def disconnect_persistent():
@@ -2386,6 +2428,12 @@ def test_connection(brand, model, port, baudrate, civ_addr=None):
     if not port:
         return {'ok': False, 'error': 'Port série manquant'}
     brand = (brand or '').strip().lower()
+    with _reserver_port_pour_test(port):
+        return _test_connection_port_libre(brand, model, port, baudrate, civ_addr)
+
+
+def _test_connection_port_libre(brand, model, port, baudrate, civ_addr):
+    """Corps de test_connection(), appelé port réservé (voir _reserver_port_pour_test)."""
     try:
         transport = _open_serial_retry(port, baudrate or CAT_DEFAULT_BAUD.get(brand, 19200))
     except Exception as e:
@@ -2582,6 +2630,12 @@ def autodetect_scan(port, bauds=None):
     vitesse essayée, ce module étant appelé une fois par vitesse)."""
     if not port:
         return {'ok': False, 'error': 'Port série manquant'}
+    with _reserver_port_pour_test(port):
+        return _autodetect_scan_port_libre(port, bauds)
+
+
+def _autodetect_scan_port_libre(port, bauds):
+    """Corps d'autodetect_scan(), appelé port réservé (voir _reserver_port_pour_test)."""
     tried = list(bauds or _AUTODETECT_BAUDS)
     for baud in tried:
         try:
