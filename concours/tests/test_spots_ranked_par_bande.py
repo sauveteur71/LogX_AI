@@ -82,3 +82,15 @@ def test_les_ecrans_d_une_bande_demandent_leur_bande():
     assert "fetch('/data/spots_ranked?band='+encodeURIComponent(band))" in scope
     tick = panel[panel.index('async function tickBandMap'):]
     assert "fetch('/data/spots_ranked?band=' + encodeURIComponent(band))" in tick[:3000]
+
+
+def test_band_map_du_logbook_et_fenetre_par_bande_demandent_leur_bande():
+    """Signalé par F4GLD (24/10/2026) juste après le correctif de la Band Map
+    détachée : « la band map attachée n'affiche rien ». Même défaut, autres écrans."""
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fs = open(os.path.join(base, 'logx_filtre_spots.js'), encoding='utf-8').read()
+    f = fs[fs.index('async function refreshBandMap'):]
+    assert "fetch('/data/spots_ranked?band=' + encodeURIComponent(currentBand || ''))" in f[:2500]
+    bande = open(os.path.join(base, 'logx_bande.html'), encoding='utf-8').read()
+    assert "fetch('/data/spots_ranked?band=' + encodeURIComponent(bande))" in bande
+
