@@ -114,11 +114,17 @@ const CONTEST_EXCHANGE = {
                      def_s:'1D DX', ph_r:'ex: 2A TN',
                      ml_s:7, ml_r:8, auto_serial:false, clear_s:false, pad_r:false },
   // ── CQ World Wide : RST + zone CQ (France = zone 14)
+  // freq_facultative : le règlement exige « frequency (or band) » — la BANDE
+  // suffit (cqww.com/rules.htm, vérifié le 24/10/2026, demande F4GLD : « si le
+  // concours autorise juste la bande, ne mettre que la bande »). Le champ
+  // FRÉQUENCE est alors masqué (pas supprimé : le CAT continue d'y écrire la
+  // vraie fréquence en coulisse). NB règlement : les candidats aux classements
+  // Monde/Continent doivent fournir les fréquences réelles — d'où le CAT.
   'CQ_WW_SSB':     { label_s:'ZONE ENV', label_r:'ZONE RCU',
-                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone',
+                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone', freq_facultative:true,
                      ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   'CQ_WW_CW':      { label_s:'ZONE ENV', label_r:'ZONE RCU',
-                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone',
+                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone', freq_facultative:true,
                      ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   // ── CQ WPX / ARRL DX : N° de série standard
   'CQ_WPX_SSB':    { label_s:'N° ENVOYÉ', label_r:'N° REÇU',    def_s:'', ph_r:'001', ml_s:4, ml_r:4, auto_serial:true,  clear_s:true,  pad_r:true  },
@@ -171,6 +177,10 @@ function applyExchangeFormat(contestId){
     if(fS && ex.def_s && !fS.value) fS.value = ex.def_s;
   }
   if(typeof clearExchWarn === 'function') clearExchWarn();   // change de concours : avertissement zone périmé
+  // Concours où la BANDE suffit (freq_facultative) : champ FRÉQUENCE masqué
+  // (CSS .freq-facultative, « masquer ≠ bloquer » : il reste dans la page).
+  const grpF = document.getElementById('inputFreq')?.closest('.field-group');
+  if(grpF) grpF.classList.toggle('freq-facultative', !!ex.freq_facultative);
   _majDeptGrid();   // grille départements visible seulement si l'échange reçu est un dept
 }
 
@@ -2094,11 +2104,19 @@ async function submitQSO(){
     notify('Indicatif manquant !');
     return;
   }
-  if(!freq){
+  // Fréquence obligatoire, SAUF concours où la bande suffit (champ masqué :
+  // exiger une valeur invisible bloquerait l'enregistrement sans recours).
+  if(!freq && !currentExchange.freq_facultative){
     document.getElementById('inputFreq')?.focus();
     notify('Fréquence manquante !');
     return;
   }
+  // Bande seule (freq_facultative) : le champ masqué ne contient alors que la
+  // fréquence d'appel PAR DÉFAUT de la bande (setFreqForBand) — l'enregistrer
+  // la ferait passer pour une vraie fréquence. On ne garde la fréquence que si
+  // c'est le CAT qui l'a lue sur la radio (rigState, logx_hardware_cat.js).
+  const catActif = (typeof rigState !== 'undefined') && rigState.enabled && rigState.freq_khz > 0;
+  const freqQso = (currentExchange.freq_facultative && !catActif) ? '' : freq;
   if(loc && !validateLocator(loc)){
     document.getElementById('inputLocator').focus();
     notify('Locator invalide !\nFormat attendu : AA00AA  (ex: JN03QQ)');
@@ -2134,7 +2152,7 @@ async function submitQSO(){
     id: Date.now(),
     date: nowDateUTC(),
     time: nowUTC(),
-    call, band: currentBand, mode: currentMode, freq,
+    call, band: currentBand, mode: currentMode, freq: freqQso,
     rst_sent: rstSent, num_sent: serial,
     rst_rcvd: rstRcvd, num_rcvd: numRcvd,
     // Département correspondant SAISI (override VHF/UHF) : prime sur le locator

@@ -978,6 +978,9 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 #mobileBanner a{color:var(--accent2);font-weight:700}
 #mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px;background:none;border:none;font-family:inherit;line-height:1}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
+/* Concours où la BANDE suffit (CONTEST_EXCHANGE.freq_facultative, ex. CQ WW) :
+   champ FRÉQUENCE masqué — applyExchangeFormat() pose la classe. */
+.field-group.freq-facultative{display:none!important}
 /* ── FENÊTRE « SAISIE SEULE » (?vue=saisie) ─────────────────────────────────
    Masquage CSS PUR (« masquer ≠ bloquer ») : les éléments restent dans la page
    et fonctionnent, ils ne sont simplement pas affichés. Restent visibles :
