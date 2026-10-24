@@ -1591,7 +1591,7 @@ _LIB_TYPE_MULT = {
 }
 
 
-def _cibles_mults_concours(ranked, max_n=8):
+def _cibles_mults_concours(ranked, max_n=8, log_concours=None):
     """Cibles du coach PENDANT un concours : les spots qui apportent un
     multiplicateur NOUVEAU DANS CE CONCOURS (scoring du moteur, log filtré sur
     la portée concours+année), dans l'ordre de valeur de build_ranked_spots.
@@ -1618,6 +1618,16 @@ def _cibles_mults_concours(ranked, max_n=8):
             pass
         pays = pays or sc.get('dx_country') or ''
         label = ' · '.join(x for x in (pays, quoi, (bande + ' MHz') if bande else '') if x)
+        # POURQUOI c'est un mult (F4GLD 24/10/2026 : « il me propose des mults
+        # qui ne correspondent pas à mon log du concours » — ils y
+        # correspondaient, 47 QSO tous sur 7 MHz, mais rien ne le disait). En
+        # CQ WW un pays/une zone compte PAR BANDE : sur une bande encore vierge
+        # dans ce concours, chaque pays est nouveau.
+        if log_concours is not None and bande:
+            if not any(str(q.get('band', '')) == bande for q in log_concours):
+                label += ' (aucun QSO sur %s MHz dans ce concours)' % bande
+            else:
+                label += ' (pas encore fait sur %s MHz dans ce concours)' % bande
         try:
             khz = freq_en_khz(s.get('freq', ''), bande)
         except Exception:
@@ -3534,7 +3544,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 en_concours = ((state.get('clock') or {}).get('status') == 'en_cours'
                                and bool(cfg_scope_id(cfg_snapshot)))
                 if en_concours:
-                    new_ones = _cibles_mults_concours(ranked)
+                    with log_lock:
+                        _log_conc = _scope_filtered(list(shared_log), cfg_snapshot)
+                    new_ones = _cibles_mults_concours(ranked, log_concours=_log_conc)
                 else:
                     new_ones = awards.spotted_new_ones(shared_log, _spots_from_caches())
                 new_hints = []

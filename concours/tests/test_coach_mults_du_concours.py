@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import threading
+import re
 import urllib.request
 
 import pytest
@@ -88,6 +89,9 @@ def test_en_concours_les_cibles_sont_les_mults_du_concours(serveur, monkeypatch)
     assert 'CT1END' in cibles and cibles['CT1END']['type'] == 'mult'   # fait hors concours seulement
     assert '3D2USU' in cibles
     assert cibles['3D2USU']['label'].startswith('Fiji')   # nom du pays, pas le préfixe
+    # POURQUOI c'est un mult, dit en clair (rapporté au log DU concours) :
+    assert '(aucun QSO sur 21 MHz dans ce concours)' in cibles['3D2USU']['label']
+    assert '(pas encore fait sur 7 MHz dans ce concours)' in cibles['CT1END']['label']
     textes = ' | '.join(h['text'] for h in st['hints'])
     assert 'NOUVEAU MULT du concours' in textes
     assert 'jamais travaillé' not in textes              # plus de cibles « à vie » en concours
@@ -101,3 +105,17 @@ def test_hors_concours_les_cibles_restent_a_vie(serveur, monkeypatch):
     assert 'CT1END' not in cibles                        # Portugal déjà fait à vie
     assert 'UZ7C' not in cibles
     assert '3D2USU' in cibles                            # Fiji jamais fait
+
+
+def test_bandeau_carte_ne_recopie_plus_la_prose_de_l_agent():
+    """« QSO TOTAL 2 · — pts » alors que le concours comptait 47 QSO : le
+    bandeau recopiait un nombre trouvé dans un message de l'agent."""
+    src = open('logx_carte.html', encoding='utf-8').read()
+    f = src[src.index('function parseScores'):]
+    f = f[:f.index('\n}\n')]
+    assert re.search(r"if\(typeof _scoreServeur !== 'undefined' && _scoreServeur\)\{", f)
+    bloc = f[f.index("&& _scoreServeur){"):]
+    bloc = bloc[:bloc.index('return;')]
+    assert 'scoreQSO' not in bloc and 'scoreTotal' not in bloc
+    assert "_scoreServeur = true" in src
+    assert re.search(r"setTimeout\(\(\)=>\{ fetchTerrainData\(\); \}, 1500\)", src)

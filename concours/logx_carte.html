@@ -1676,7 +1676,19 @@ function showThinking(){
 
 function removeThinking(){const el=document.getElementById('thinking');if(el)el.remove();}
 
+// Score / QSO du bandeau : la source de vérité est le SERVEUR (/data/refresh :
+// log du concours, voir do_refresh). Défaut F4GLD 24/10/2026 : le bandeau
+// affichait « QSO TOTAL 2 · — pts » (47 QSO au logbook) — fetchTerrainData()
+// n'était appelée qu'après 2 min, et parseScores() recopiait entre-temps le
+// premier « 2 QSO » trouvé dans la prose de l'agent. Une fois la valeur
+// serveur reçue, la prose ne l'écrase plus.
+let _scoreServeur = false;
 function parseScores(text){
+  if(typeof _scoreServeur !== 'undefined' && _scoreServeur){   // typeof : fonction autonome (testée seule en V8)
+    const dx=text.match(/(\d{3,5})\s*km/g);
+    if(dx){const m=Math.max(...dx.map(d=>parseInt(d)));if(m>100)document.getElementById('scoreBestDX').textContent=m+' km';}
+    return;
+  }
   const tot=text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
   if(tot)document.getElementById('scoreTotal').textContent=parseInt(tot[1].replace(/[\s,]/g,'')).toLocaleString()+' '+rcT('pts');
   const dx=text.match(/(\d{3,5})\s*km/g);  // 3-5 chiffres : un DX >= 10000 km (jusqu'à ~20000 antipode) doit être lu entier, pas tronqué à 4 chiffres
@@ -1790,6 +1802,7 @@ async function fetchTerrainData(){
     if(keys[0])document.getElementById('score1').textContent=(logs[keys[0]].score||0).toLocaleString()+' '+rcT('pts');
     if(keys[1])document.getElementById('score2').textContent=(logs[keys[1]].score||0).toLocaleString()+' '+rcT('pts');
     if(data.qso_total!==undefined)document.getElementById('scoreQSO').textContent=data.qso_total;
+    if(data.score_total!==undefined && data.qso_total!==undefined) _scoreServeur = true;
     if(data.system_prompt)systemPrompt=data.system_prompt;
     // Affichage carte : couche structurée du moteur (refreshRankedStations)
     if(data.on4kst_mentions) checkMentionAlerts(data.on4kst_mentions);
@@ -3515,6 +3528,8 @@ setInterval(() => { if(g3dState.active){ g3dLoadWorldWorked(); g3dLoadSpots(); }
 // ─── INIT ────────────────────────────────────────────────────────────────────
 loadConfig();
 scheduleRefresh();
+// Bandeau rempli DÈS l'ouverture (avant : seulement au 1er tick, 2 min plus tard).
+setTimeout(()=>{ fetchTerrainData(); }, 1500);
 scheduleAutoCheck();
 if(!_mapOnlyMode){
   // Fenêtre détachée exclue (constat critique ci-dessus) : son panneau de
