@@ -24,7 +24,11 @@ import logx_prompts as prompts  # noqa: E402
 
 
 def _cfg():
-    return {'locator': 'JN15WD', 'contest': 'CUSTOM', 'callsign': 'F4GLD'}
+    # usage_mode 'simple' : carnet COMPLET. Depuis le 24/10/2026, en mode
+    # concours, build_terrain_context ne donne à l'IA que les QSO de la portée
+    # du concours (test_ia_log_du_concours.py) — ces QSO de test, non tagués,
+    # en seraient exclus ; or ce fichier teste le LIBELLÉ, pas la portée.
+    return {'locator': 'JN15WD', 'contest': 'CUSTOM', 'callsign': 'F4GLD', 'usage_mode': 'simple'}
 
 
 def test_libelle_reste_neutre_avec_un_seul_operateur(monkeypatch):
