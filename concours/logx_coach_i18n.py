@@ -56,6 +56,10 @@ _FR = {
                      "spotté, appelle-le !",
     'hint_new_dept': "🇫🇷 NOUVEAU DÉPARTEMENT jamais travaillé : {label} — {call}"
                      "{freq_txt} spotté, appelle-le !",
+    # PENDANT un concours : multiplicateur nouveau DANS CE CONCOURS (log du
+    # concours, pas le carnet à vie) — /coach/state, _cibles_mults_concours.
+    'hint_new_mult': "📈 NOUVEAU MULT du concours : {label} — {call}{freq_txt} "
+                     "spotté, appelle-le !",
     # Prévision Es / aurora (es_aurora_forecast → text)
     'es_confirmed': "⚡ SPORADIQUE-E CONFIRMÉ (DXMaps) — surveille 6 m puis 2 m, "
                     "les ouvertures montent en fréquence.",
@@ -112,6 +116,7 @@ _FR = {
     # Nudges IA événementiels (coach_nudge) : UNE phrase d'action en toast.
     'nudge_new_dxcc': "🌍 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
     'nudge_new_dept': "🇫🇷 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
+    'nudge_new_mult': "📈 Nouveau mult du concours spotté : {label} ({call}{freq_txt}) — appelle-le !",
     'nudge_rate': "Rythme effondré : {last_h} QSO sur la dernière heure contre {avg}/h de moyenne — "
                   "change de bande, de cap, ou passe en recherche.",
     'nudge_silence': "Silence radio depuis {min} min — lance un appel ou va chercher les mults spottés.",
@@ -141,6 +146,7 @@ _EN = {
     'hint_best_band': "{band} MHz is open AND its mults ×{w} count — it's the most rewarding band at this hour.",
     'hint_endgame': 'Last {remaining:.1f} h: a new multiplier is worth more than a string of QSO — hunt the missing mults in the MAX PRIORITY spots.',
     'hint_last_hour': 'Last hour — log everything, sort it out later.',
+    'hint_new_mult': '📈 NEW CONTEST MULT: {label} — {call}{freq_txt} spotted, call it!',
     'hint_new_dxcc': '🌍 NEW COUNTRY never worked: {label} — {call}{freq_txt} spotted, call it!',
     'hint_new_dept': '🇫🇷 NEW DEPARTMENT never worked: {label} — {call}{freq_txt} spotted, call it!',
     'es_confirmed': '⚡ SPORADIC-E CONFIRMED (DXMaps) — watch 6 m then 2 m, openings climb in frequency.',
@@ -181,6 +187,7 @@ _EN = {
     'off_proj_score': ' — estimated score: ~{score} pts',
     'off_proj_caveat': ' (constant-rate estimate — remaining multipliers usually get scarcer '
                        'toward the end, the final score is up to you).',
+    'nudge_new_mult': '📈 New contest mult spotted: {label} ({call}{freq_txt}) — call it!',
     'nudge_new_dxcc': '🌍 {label} never worked AND spotted now ({call}{freq_txt}) — call it!',
     'nudge_new_dept': '🇫🇷 {label} never worked AND spotted ({call}{freq_txt}) — call it!',
     'nudge_rate': 'Rate collapsed: {last_h} QSO in the last hour vs {avg}/h average — '

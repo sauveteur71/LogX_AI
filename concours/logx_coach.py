@@ -1023,9 +1023,10 @@ def coach_nudge(state, lang='fr'):
     n'affiche pas deux fois le même événement, et débounce dans le temps).
 
     Priorité — la plus payante d'abord :
-      1) une entité/dept JAMAIS faite à vie ET actuellement spottée : le spot lui-
-         même PROUVE que la bande est ouverte vers elle (calculé côté serveur,
-         voir /coach/state -> new_targets) ;
+      1) une cible ACTUELLEMENT spottée (le spot PROUVE que la bande est ouverte
+         vers elle, calculé côté serveur, voir /coach/state -> new_targets) :
+         pendant un concours en cours, un MULTIPLICATEUR NOUVEAU DU CONCOURS
+         (type 'mult') ; sinon une entité/dept JAMAIS faite à vie ;
       2) effondrement du rythme (bien sous la moyenne, temps restant utile) ;
       3) silence radio prolongé.
     Rien en dehors du concours en cours (un nudge hors épreuve n'a pas de sens)."""
@@ -1039,7 +1040,7 @@ def coach_nudge(state, lang='fr'):
         n = targets[0]
         call = n.get('call', '')
         freq = (' ' + str(n.get('freq'))) if n.get('freq') else ''
-        key = 'nudge_new_dxcc' if n.get('type') == 'dxcc' else 'nudge_new_dept'
+        key = {'mult': 'nudge_new_mult', 'dxcc': 'nudge_new_dxcc'}.get(n.get('type'), 'nudge_new_dept')
         return {'sig': 'target:' + str(call), 'level': 'action',
                 'text': t(lang, key, label=n.get('label', ''), call=call, freq_txt=freq)}
 
