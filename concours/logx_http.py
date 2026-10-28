@@ -1584,6 +1584,61 @@ def _fetch_on4kst_src(cfg):
         print(f"[ON4KST] Exception : {e}")
         return None
 
+_LIB_TYPE_MULT = {
+    'dxcc': 'pays', 'zone_cq': 'zone CQ', 'zone_itu': 'zone ITU', 'prefix': 'préfixe',
+    'locator': 'locator', 'grand_carre': 'grand carré', 'dept_dxcc': 'département/pays',
+    'section_na': 'section ARRL', 'etat_province': 'état/province', 'comte_ha': 'comté HA',
+}
+
+
+def _cibles_mults_concours(ranked, max_n=8, log_concours=None):
+    """Cibles du coach PENDANT un concours : les spots qui apportent un
+    multiplicateur NOUVEAU DANS CE CONCOURS (scoring du moteur, log filtré sur
+    la portée concours+année), dans l'ordre de valeur de build_ranked_spots.
+    Même forme que logx_awards.spotted_new_ones (type/label/call/freq) pour
+    que les conseils et nudges les affichent sans autre changement."""
+    out, vus = [], set()
+    for s in ranked or []:
+        sc = s.get('scoring') or {}
+        if not sc.get('new_mult') or sc.get('already_done'):
+            continue
+        call = str(s.get('call', '') or '')
+        if not call or call in vus:
+            continue
+        vus.add(call)
+        bande = str(s.get('band', '') or '')
+        quoi = _LIB_TYPE_MULT.get(sc.get('mult_type', ''), str(sc.get('mult_type', '') or 'mult').replace('_', ' '))
+        # Nom du pays (cty.dat), comme le cadre PROVENANCE : le moteur ne garde
+        # parfois que le préfixe (« 3D2 » au lieu de « Fiji »).
+        pays = ''
+        try:
+            import logx_dxcc as _dx
+            pays = ((_dx.lookup(call) or {}).get('country') or '')
+        except Exception:
+            pass
+        pays = pays or sc.get('dx_country') or ''
+        label = ' · '.join(x for x in (pays, quoi, (bande + ' MHz') if bande else '') if x)
+        # POURQUOI c'est un mult (F4GLD 24/10/2026 : « il me propose des mults
+        # qui ne correspondent pas à mon log du concours » — ils y
+        # correspondaient, 47 QSO tous sur 7 MHz, mais rien ne le disait). En
+        # CQ WW un pays/une zone compte PAR BANDE : sur une bande encore vierge
+        # dans ce concours, chaque pays est nouveau.
+        if log_concours is not None and bande:
+            if not any(str(q.get('band', '')) == bande for q in log_concours):
+                label += ' (aucun QSO sur %s MHz dans ce concours)' % bande
+            else:
+                label += ' (pas encore fait sur %s MHz dans ce concours)' % bande
+        try:
+            khz = freq_en_khz(s.get('freq', ''), bande)
+        except Exception:
+            khz = ''
+        out.append({'type': 'mult', 'label': label, 'call': call,
+                    'freq': ('%.1f' % float(khz)) if khz not in ('', None) else '', 'band': bande})
+        if len(out) >= max_n:
+            break
+    return out
+
+
 def do_refresh(cfg):
     from concurrent.futures import ThreadPoolExecutor
 
@@ -1705,6 +1760,20 @@ def do_refresh(cfg):
     # ── Score total ───────────────────────────────────────────────────────────
     total_score = sum(l.get('score', 0) for l in logs.values())
     total_qso   = sum(l.get('total_qso', 0) for l in logs.values())
+    # Sans logiciel de log externe (N1MM, Log4OM… : total à 0), le bandeau de
+    # la Carte IA affichait « 0 pts / 0 QSO » en plein concours (F4GLD,
+    # 24/10/2026 : 41 QSO au logbook). Score et QSO du log LogX AI DU CONCOURS,
+    # calculés comme le score en direct du LOGBOOK (/log/list : portée
+    # concours+année, calc_total_score).
+    if not total_qso and cfg_scope_id(cfg):
+        try:
+            with log_lock:
+                _log_conc = _scope_filtered(list(shared_log), cfg)
+            _cdef_r = CONTEST_DEFINITIONS.get(cfg.get('contest', ''), {}) if contest_actif(cfg) else {}
+            total_qso = len(_log_conc)
+            total_score = int(round(calc_total_score(_log_conc, _cdef_r))) if _log_conc else 0
+        except Exception:
+            pass
 
     # ── Contexte enrichi pour l'IA ───────────────────────────────────────────
     context = build_terrain_context(logs, spots_by_band, cfg)
@@ -3442,6 +3511,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 dxmaps = _coach_dxmaps_cache
             # Densité de nouveaux mults sur le cluster (caches, pas de réseau)
             mult_count = None
+            ranked = []
             try:
                 from logx_scoring import build_ranked_spots
                 ranked, _ = build_ranked_spots({}, _spots_from_caches(), cfg_snapshot)
@@ -3469,14 +3539,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # VIE (pas seulement le multiplicateur du concours en cours) parmi
             # les stations actuellement spottées sur le cluster — poussées ici
             # sans action de l'utilisateur, comme demandé.
+            #
+            # PENDANT un concours en cours, ce n'est PAS la bonne question :
+            # défaut F4GLD (24/10/2026, CQ WW SSB) — « l'IA me propose des mults
+            # basés sur mon log général alors que ça doit être le log du
+            # concours ». Les cibles deviennent alors les MULTIPLICATEURS DU
+            # CONCOURS : spots classés `ranked` ci-dessus (build_ranked_spots,
+            # log filtré sur la portée concours+année — vérifié sur le carnet
+            # réel de F4GLD : 41 QSO de portée sur 9 912), new_mult et pas déjà
+            # fait. Hors concours, les entités jamais faites à vie restent.
             try:
                 import logx_awards as awards
                 from logx_coach_i18n import t
-                new_ones = awards.spotted_new_ones(shared_log, _spots_from_caches())
+                en_concours = ((state.get('clock') or {}).get('status') == 'en_cours'
+                               and bool(cfg_scope_id(cfg_snapshot)))
+                if en_concours:
+                    with log_lock:
+                        _log_conc = _scope_filtered(list(shared_log), cfg_snapshot)
+                    new_ones = _cibles_mults_concours(ranked, log_concours=_log_conc)
+                else:
+                    new_ones = awards.spotted_new_ones(shared_log, _spots_from_caches())
                 new_hints = []
                 for n in new_ones:
                     freq_txt = f" {n['freq']}" if n.get('freq') else ''
-                    key = 'hint_new_dxcc' if n['type'] == 'dxcc' else 'hint_new_dept'
+                    key = {'mult': 'hint_new_mult', 'dxcc': 'hint_new_dxcc'}.get(
+                        n['type'], 'hint_new_dept')
                     new_hints.append({'level': 'action', 'icon': '🎯',
                                       'text': t(lang, key, label=n['label'],
                                                 call=n['call'], freq_txt=freq_txt)})

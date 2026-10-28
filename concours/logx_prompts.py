@@ -728,7 +728,16 @@ def build_terrain_context(logs, spots_by_band, cfg):
     # sélectionné logbook simple ?" — en réalité aucune synchro réseau n'était
     # active, juste ~9800 QSO d'historique perso). Le libellé ne s'applique
     # désormais que si le log contient VRAIMENT 2+ opérateurs distincts.
-    if shared_log:
+    # PORTÉE DU CONCOURS (défaut F4GLD 24/10/2026, CQ WW SSB : « l'IA me
+    # propose des mults basés sur mon log général alors que ça doit être le log
+    # du concours ») : l'IA recevait TOUT le carnet (9 912 QSO, ses 30 derniers
+    # tous concours confondus). Même filtre que le LOGBOOK et le moteur de
+    # mults (logx_storage.cfg_scope_id : concours+année ; '' en mode simple ou
+    # sans concours = carnet complet, comportement historique).
+    from logx_storage import cfg_scope_id, qso_scope_id
+    _portee = cfg_scope_id(cfg)
+    log_ia = [q for q in shared_log if qso_scope_id(q) == _portee] if _portee else list(shared_log)
+    if log_ia:
         # Un même opérateur physique peut apparaître sous DEUX formats selon la
         # voie d'écriture du QSO (ID de créneau 'OP1' depuis LOGBOOK, indicatif
         # réel depuis la page FT8 native/WSJT-X, casse libre depuis un import) —
@@ -738,11 +747,11 @@ def build_terrain_context(logs, spots_by_band, cfg):
         # et on normalise la casse avant de compter les opérateurs distincts.
         from logx_export import resolve_operator_callsign
         distinct_ops = {resolve_operator_callsign(q.get('operator', ''), cfg).strip().upper()
-                        for q in shared_log if str(q.get('operator', '')).strip()}
+                        for q in log_ia if str(q.get('operator', '')).strip()}
         distinct_ops.discard('')
         label = 'LOG PARTAGÉ MULTI-OPÉRATEUR' if len(distinct_ops) >= 2 else 'LOG LOGX AI'
-        lines.append(f"\n{label} ({len(shared_log)} QSO) :")
-        for q in shared_log[-30:]:  # 30 derniers
+        lines.append(f"\n{label} ({len(log_ia)} QSO) :")
+        for q in log_ia[-30:]:  # 30 derniers
             base = q.get('call','').split('/')[0]
             lines.append(f"  {q.get('time','')} {q.get('call',''):12} {q.get('locator',''):6} "
                         f"{q.get('points',0):4}pts {q.get('band','')}MHz {q.get('mode','')} "
@@ -754,6 +763,18 @@ def build_terrain_context(logs, spots_by_band, cfg):
                     'points': q.get('points',0)
                 }
 
+    if not total_qso and _portee and log_ia:
+        # Pas de logiciel de log externe (N1MM, Log4OM… — total à 0) : le score
+        # et le nombre de QSO sont ceux du log LogX AI DU CONCOURS, calculés
+        # comme le score en direct du LOGBOOK (calc_total_score, A10).
+        from logx_scoring import calc_total_score
+        from logx_storage import contest_actif
+        _cdef = CONTEST_DEFINITIONS.get(cfg.get('contest', ''), {}) if contest_actif(cfg) else {}
+        try:
+            total_score = int(round(calc_total_score(log_ia, _cdef)))
+        except Exception:
+            total_score = sum(int(q.get('points', 0) or 0) for q in log_ia)
+        total_qso = len(log_ia)
     lines.append(f"\n🏆 SCORE TOTAL : {total_score} pts | {total_qso} QSO\n")
 
     # ── DONNÉES POUR VÉRIFICATION CROISÉE ────────────────────────────────────
