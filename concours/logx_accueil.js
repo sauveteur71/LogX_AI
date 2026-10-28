@@ -137,8 +137,12 @@ function _revelerCiblesChasse(){
   // need-list cluster avec QSY/rotor (fusion 4d, endpoints /rig/qsy et
   // /rotor/point — AUCUNE émission, juste régler la fréquence/l'antenne) +
   // profil d'objectifs de chasse (fusion 4e, pilote les badges de crédit).
+  // Toute la largeur de la fenêtre pour les cibles (F4GLD 28/10/2026).
+  var intro = document.getElementById('intro');
+  if(intro && intro.classList) intro.classList.add('intro-large');
   el.innerHTML =
     '<h2 class="xota-acc-h">Cibles en direct</h2>' +
+    '<div id="chasseFiltre" class="chasse-filtre" role="group" aria-label="Ce que je chasse"></div>' +
     '<div class="xota-panneaux">' +
       '<div class="xota-pan"><div class="xota-pan-h">POTA</div><div id="panPota" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">SOTA</div><div id="panSota" class="scroll-list"></div></div>' +
@@ -148,6 +152,13 @@ function _revelerCiblesChasse(){
     '</div>' +
     '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">🎯 Mes objectifs de chasse</div><div id="objectifsList" class="obj-list"></div></div>' +
     '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>';
+  // Filtre CW/Phonie/Data + bandes : un changement relit les panneaux filtrés
+  // tout de suite (pas d'attente du prochain tick de polling).
+  if(window.LogxChasseFiltre){
+    LogxChasseFiltre.monter(document.getElementById('chasseFiltre'), function(){
+      _chargerPota(); _chargerSota(); _chargerWwff(); _rafraichirNeedList();
+    });
+  }
   if(typeof fetch !== 'function') return;
   var P = window.LogxChassePanneaux; if(!P) return;
   _chargerPota(); _chargerSota(); _chargerWwff(); _chargerWca(); _chargerDx();
@@ -182,16 +193,34 @@ function _revelerCiblesChasse(){
 function _rafraichirNeedList(){
   if(typeof fetch !== 'function') return;
   var P = window.LogxChassePanneaux; if(!P) return;
-  _chargerPan('/data/spots_ranked', 'ckNeedList', function(d){
-    return P.renderNeedList((d && d.spots) || [], {max:15, rigEnabled:_xotaRigEnabled, rotorEnabled:_xotaRotorEnabled});
+  // Filtre appliqué CÔTÉ SERVEUR (avant la coupe du classement) : un choix
+  // « 40 m CW » doit trouver ses stations même hors du top toutes bandes.
+  var F = window.LogxChasseFiltre;
+  _chargerPan('/data/spots_ranked' + (F ? F.requete() : ''), 'ckNeedList', function(d){
+    var spots = (d && d.spots) || [];
+    if(!spots.length && F && F.actif()) return '<div class="cf-masques">Aucune station spottée pour ce choix de mode et de bandes.</div>';
+    return P.renderNeedList(spots, {max:15, rigEnabled:_xotaRigEnabled, rotorEnabled:_xotaRotorEnabled});
   });
 }
 
 // Un loader nommé par panneau (plutôt que les lambdas inline d'avant) : la
 // même fonction sert au premier rendu ET à chaque tick du polling ci-dessous.
-function _chargerPota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/pota_spots', 'panPota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota, programme:'POTA'}); }); }
-function _chargerSota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/sota_spots', 'panSota', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placeSota, programme:'SOTA'}); }); }
-function _chargerWwff(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return P.renderActivationRows((d && d.spots) || [], {place:_placePota, programme:'WWFF'}); }); } // WWFF : même champ park_name que POTA
+// Activations filtrées par le choix CW/Phonie/Data + bandes. Panneau vidé PAR
+// le filtre : on le dit (« N masqués ») plutôt que d'annoncer « aucun trafic »
+// alors que des activateurs sont bien sur l'air ailleurs.
+function _rendreActivations(d, opts){
+  var P = window.LogxChassePanneaux, F = window.LogxChasseFiltre;
+  var tous = (d && d.spots) || [];
+  var gardes = F ? F.filtrer(tous) : tous;
+  if(!gardes.length && tous.length){
+    return '<div class="cf-masques">' + tous.length + ' spot(s) ' + opts.programme +
+           ' hors de ton choix de mode/bandes.</div>';
+  }
+  return P.renderActivationRows(gardes, opts);
+}
+function _chargerPota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/pota_spots', 'panPota', function(d){ return _rendreActivations(d, {place:_placePota, programme:'POTA'}); }); }
+function _chargerSota(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/sota_spots', 'panSota', function(d){ return _rendreActivations(d, {place:_placeSota, programme:'SOTA'}); }); }
+function _chargerWwff(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/wwff_spots', 'panWwff', function(d){ return _rendreActivations(d, {place:_placePota, programme:'WWFF'}); }); } // WWFF : même champ park_name que POTA
 function _chargerWca(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/wca_planned', 'panWca', function(d){ return P.renderWcaRows((d && d.items) || [], {max:15}); }); }
 function _chargerDx(){ var P = window.LogxChassePanneaux; if(P) _chargerPan('/data/dxpeditions_active', 'panDx', function(d){ return P.renderDxRows((d && d.expeditions) || [], {max:15}); }); }
 
