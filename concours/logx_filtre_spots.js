@@ -209,7 +209,10 @@ async function refreshBandMap(){
   const bandEl = document.getElementById('bandmapBand');
   if(bandEl) bandEl.textContent = (currentBand || '—') + ' MHz';
   try{
-    const r = await fetch('/data/spots_ranked');
+    // ?band= : spots de LA bande courante, filtrés côté serveur AVANT la coupe
+    // au top 40 toutes bandes (défaut F4GLD 24/10/2026 : band map vide sur
+    // 40 m en CQ WW, les 40 places allant aux mults 14/21/28 MHz).
+    const r = await fetch('/data/spots_ranked?band=' + encodeURIComponent(currentBand || ''));
     if(!r.ok) return;
     const d = await r.json();
     if(_gen!==_bandmapGen) return;   // un appel plus récent a déjà démarré

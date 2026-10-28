@@ -313,7 +313,7 @@ if(localStorage.getItem('rc_theme') === null){
     horloge();
     await pollVfo();
     try{
-      const r = await fetch('/data/spots_ranked');
+      const r = await fetch('/data/spots_ranked?band=' + encodeURIComponent(bande));   // spots DE CETTE BANDE (sinon coupés au top 40 toutes bandes)
       if(!r.ok) return;
       const d = await r.json();
       // Filtrage sur NOTRE bande uniquement : c'est tout l'intérêt d'ouvrir

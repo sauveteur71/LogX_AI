@@ -188,17 +188,51 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   // ─── BAND MAP ───────────────────────────────────────────────────────────
+  // Quelle bande afficher ?
+  //  - ?band=X SANS ?suivre=1 : band map FIXE sur X (une fenêtre par bande,
+  //    ouverte exprès — usage concours, dispositions enregistrées) ;
+  //  - sinon (ouverte depuis le menu DISPOSITION) : SUIT la bande de la radio
+  //    (CAT, /hardware/state -> rig.band), repli sur ?band = bande du logbook
+  //    au moment de l'ouverture.
+  // Défaut corrigé (F4GLD 24/10/2026, CQ WW SSB sur 7 MHz) : sans ?band, la
+  // fenêtre retombait sur '144' codé en dur et affichait « Aucun spot sur
+  // 144 MHz » en plein concours déca.
+  let _bmDerniere = null;
+  async function _bandeBandMap(){
+    const fixe = params.get('band');
+    if(fixe && params.get('suivre') !== '1') return {band: fixe, source: 'fixe'};
+    try{
+      const r = await fetch('/hardware/state');
+      if(r.ok){
+        const d = await r.json();
+        const rig = d && d.rig;
+        if(rig && rig.ok && rig.band){ _bmDerniere = String(rig.band); return {band: _bmDerniere, source: 'radio'}; }
+      }
+    }catch(e){ /* serveur injoignable : repli ci-dessous */ }
+    if(_bmDerniere) return {band: _bmDerniere, source: 'radio'};
+    if(fixe) return {band: fixe, source: 'logbook'};
+    return {band: null, source: ''};
+  }
+
   async function tickBandMap(){
     const body = document.getElementById('panelBody');
-    const band = params.get('band') || '144';
+    const choix = await _bandeBandMap();
+    const band = choix.band;
+    if(!band){
+      body.innerHTML = '<div class="empty">' + T("Bande inconnue : active le pilotage CAT, ou ouvre la Band Map depuis le LOGBOOK.") + '</div>';
+      return;
+    }
+    const entete = choix.source === 'fixe' ? ''
+      : '<div class="muted" style="font-size:12px;margin-bottom:6px">' + esc(band) + ' MHz · '
+        + (choix.source === 'radio' ? T('suit la radio') : T('bande du logbook')) + '</div>';
     try{
-      const r = await fetch('/data/spots_ranked');
+      const r = await fetch('/data/spots_ranked?band=' + encodeURIComponent(band));   // spots DE CETTE BANDE
       if(!r.ok) return;
       const d = await r.json();
       const spots = (d.spots || []).filter(s => String(s.band) === band)
         .sort((a,b) => parseFloat(b.freq||0) - parseFloat(a.freq||0));
-      if(!spots.length){ body.innerHTML = '<div class="empty">' + Tf('Aucun spot sur {bande} MHz', {bande: esc(band)}) + '</div>'; return; }
-      body.innerHTML = spots.map(s => `
+      if(!spots.length){ body.innerHTML = entete + '<div class="empty">' + Tf('Aucun spot sur {bande} MHz', {bande: esc(band)}) + '</div>'; return; }
+      body.innerHTML = entete + spots.map(s => `
         <div class="row">
           <span class="call ${s.already_done?'done':''}">${s.new_mult&&!s.already_done?'★ ':''}${esc(s.call)}</span>
           <span class="info">${esc(s.freq||'')}</span>

@@ -231,8 +231,13 @@ def test_LE_VRAI_SUJET_alertes_puis_filtre_puis_coupe_a_40():
     bloc = bloc[:bloc.index("if path == '/wsjtx/state':")]
     i_alertes = bloc.index('alerts.check_alerts')
     i_filtre = bloc.index('spotfilter.filtrer')
-    i_coupe = bloc.index('visibles[:40]')
-    assert i_alertes < i_filtre < i_coupe
+    # Coupe paramétrée depuis le 24/10/2026 : 40 par défaut, 200 pour la vue
+    # d'UNE bande (?band=, Bandscope/Band Map) — le filtre par bande passe lui
+    # aussi AVANT la coupe, sinon il ne trierait que le top 40 toutes bandes.
+    i_coupe = bloc.index('visibles[:limite]')
+    assert 'limite = 40' in bloc
+    i_bande = bloc.index("str(e.get('band', '')) == _bande")
+    assert i_alertes < i_filtre < i_bande < i_coupe
 
 
 def test_le_spotteur_est_bien_transmis_au_client():

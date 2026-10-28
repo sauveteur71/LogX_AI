@@ -1840,6 +1840,16 @@ def _rig_state_dict(cfg_snap):
     # fréquence — un écran mural annonçant 144 MHz pendant qu'on trafique en
     # 1296 serait exactement le défaut que ce chantier corrige.
     state = _appliquer_transverter(_rig_state_dict_impl(cfg_snap), cfg_snap)
+    # Clé de BANDE de la fréquence réelle ('7', '14', '144'…), même table que
+    # les spots classés (logx_scoring._band_from_freq) : permet à une fenêtre
+    # détachée (Band Map) de SUIVRE la bande de la radio sans dupliquer de
+    # plan de bandes côté navigateur. '' hors bande connue.
+    try:
+        if isinstance(state, dict) and state.get('ok') and state.get('freq_khz'):
+            import logx_scoring as _sc_bande
+            state['band'] = _sc_bande._band_from_freq(state['freq_khz']) or ''
+    except Exception:
+        pass
     try:
         if state.get('enabled') and state.get('ok') and state.get('freq_khz'):
             import logx_mqtt as mqtt_bridge
@@ -5423,7 +5433,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     cfg_snap.get('spot_filter'))
             except Exception:
                 pass        # un filtre en panne montre tout, il ne cache rien
-            self._json({'spots': visibles[:40], 'meta': meta,
+            # ?band=7 : vue d'UNE bande (Bandscope, Band Map). Le filtre passe
+            # AVANT la coupe à 40 : celle-ci garde les 40 spots les mieux
+            # classés TOUTES bandes confondues, et un écran d'une seule bande
+            # qui triait ensuite cette liste n'y trouvait souvent rien —
+            # défaut F4GLD 24/10/2026, CQ WW SSB : « la band map n'affiche
+            # rien alors que beaucoup de QSO en cours » sur 40 m, les 40
+            # places étant prises par les mults 14/21/28 MHz.
+            limite = 40
+            try:
+                from urllib.parse import parse_qs as _pqs, urlparse as _up
+                _bande = (_pqs(_up(self.path).query).get('band', [''])[0] or '').strip()
+            except Exception:
+                _bande = ''
+            if _bande:
+                from logx_scoring import _band_from_freq as _bff
+                visibles = [e for e in visibles
+                            if str(e.get('band', '')) == _bande
+                            or _bff(e.get('freq', '')) == _bande]
+                limite = 200
+            self._json({'spots': visibles[:limite], 'meta': meta,
                         'alert_matches': alert_matches, 'filtre': comptes_filtre})
             return
 

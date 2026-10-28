@@ -2047,6 +2047,16 @@
     const top = g.y != null ? g.y : Math.max(0, (screen.height - h) / 2);
     let url = 'logx_panel.html?id=' + encodeURIComponent(id);
     if (id === 'bandmap' && g.band) url += '&band=' + encodeURIComponent(g.band);
+    else if (id === 'bandmap') {
+      // Sans bande demandée (menu DISPOSITION) : la fenêtre SUIT la radio.
+      // Repli = bande en cours dans le logbook (currentBand, global de
+      // logx_logbook.js, présent seulement sur cette page). Avant : rien, et
+      // logx_panel.html retombait sur 144 MHz codé en dur.
+      url += '&suivre=1';
+      try {
+        if (typeof currentBand !== 'undefined' && currentBand) url += '&band=' + encodeURIComponent(currentBand);
+      } catch (e) { /* hors logbook : la radio seule décide */ }
+    }
     const cle = panelKey(id, g);
     // Le nom de fenêtre doit être un identifiant simple : la bande peut
     // contenir un point (10.1 MHz), que l'on remplace comme le fait déjà
