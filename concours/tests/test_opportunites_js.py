@@ -81,7 +81,7 @@ def test_rendu_fiche_a_trois_couches():
     # Les trois couches sont présentes et étiquetées
     assert 'FAIT' in html and 'CALCUL' in html and 'PROPOSITION' in html
     # FAIT = données sourcées (pays / bande / mode), rien d'inventé
-    assert 'Japan' in html and '20' in html and 'FT8' in html
+    assert 'Japan' in html and '20 MHz' in html and 'FT8' in html   # clé MHz, jamais « 20 m »
     # CALCUL = raison + score du moteur déterministe
     assert 'nouveau DXCC' in html and '1000' in html
     # PROPOSITION = bouton d'action qui appelle la brique (pas d'émission)

@@ -103,9 +103,14 @@ function applyRigState(d){
         fEl.value = (d.freq_khz / 1000).toFixed(3);
       if(typeof updateKeyerPanels==='function') updateKeyerPanels();
     } else {
-      document.getElementById('rigFreq').textContent = 'rigctld injoignable';
+      // La VRAIE cause renvoyée par le serveur (« Port série non configuré »,
+      // « Pas de réponse fréquence (CI-V) »…) plutôt qu'un « rigctld
+      // injoignable » figé, faux en CAT natif (F4GLD, 28/10/2026 : CAT activé
+      // sans port enregistré, aucun moyen de savoir pourquoi rien ne marchait).
+      const cause = d.error ? String(d.error) : 'rigctld injoignable';
+      document.getElementById('rigFreq').textContent = 'CAT : ' + cause;
       document.getElementById('rigMode').textContent = '';
-      if(dot){ dot.classList.remove('on'); dot.title = 'Radio injoignable (rigctld)'; dot.setAttribute('aria-label', 'Radio injoignable (rigctld)'); }
+      if(dot){ dot.classList.remove('on'); dot.title = 'Radio injoignable — ' + cause; dot.setAttribute('aria-label', 'Radio injoignable — ' + cause); }
     }
 }
 

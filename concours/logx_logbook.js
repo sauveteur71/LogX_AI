@@ -881,8 +881,11 @@ function bandmapClick(call, mhz, mode){
   if(rig.enabled){
     // Mode du SPOT cliqué, pas le mode de saisie courant de l'opérateur —
     // sinon un clic sur un spot CW pendant une saisie SSB fait QSY en SSB.
+    // freq_hz, PAS des kHz arrondis : Math.round(mhz*1000) calait un spot à
+    // 7143,5 kHz sur 7143 — 500 Hz à côté en SSB, la station inaudible
+    // (F4GLD, 28/10/2026). Le serveur accepte freq_hz tel quel.
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({freq_khz: Math.round(mhz*1000), mode: mode || currentMode || undefined})
+      body: JSON.stringify({freq_hz: Math.round(mhz*1e6), mode: mode || currentMode || undefined})
     }).catch(()=>{});
   }
 }
@@ -1345,8 +1348,9 @@ function _qsyVersRadio(){
   // règlement/région) — hors de portée sûre d'un simple correctif CAT.
   const fEl = document.getElementById('inputFreq');
   const mhz = fEl ? parseFloat(fEl.value) : NaN;
-  const freqKhz = (isFinite(mhz) && mhz > 0) ? Math.round(mhz * 1000)
-                : (BAND_FREQ[currentBand] ? Math.round(parseFloat(BAND_FREQ[currentBand]) * 1000) : 0);
+  // Résolution 10 Hz (pas le kHz entier) : 7,1435 tapé doit donner 7143,50.
+  const freqKhz = (isFinite(mhz) && mhz > 0) ? Math.round(mhz * 1e5) / 100
+                : (BAND_FREQ[currentBand] ? Math.round(parseFloat(BAND_FREQ[currentBand]) * 1e5) / 100 : 0);
   if(!freqKhz) return;
   fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({freq_khz: freqKhz, mode: currentMode})
@@ -1798,8 +1802,18 @@ function updateSerialDisplay(){
 
 // ─── SAISIE ──────────────────────────────────────────────────────────────────
 function onCallInput(){
-  const call = document.getElementById('inputCall').value.toUpperCase();
-  document.getElementById('inputCall').value = call;
+  const _inp = document.getElementById('inputCall');
+  const call = _inp.value.toUpperCase();
+  // Réécrire .value replace le curseur EN FIN de champ. Défaut F4GLD
+  // (28/10/2026) : on entend « OQU », on le tape, on revient au début pour
+  // ajouter « F4 »… et après le F le curseur sautait plus loin, il fallait
+  // revenir en arrière à chaque caractère. On ne réécrit que si la casse
+  // change vraiment, et on remet le curseur là où il était.
+  if(_inp.value !== call){
+    const d = _inp.selectionStart, f = _inp.selectionEnd;
+    _inp.value = call;
+    try{ if(d != null) _inp.setSelectionRange(d, f); }catch(e){}
+  }
   broadcastTyping(call);   // vue PARTNER : le runner diffuse sa saisie en direct
   if(typeof clearExchWarn === 'function') clearExchWarn();   // indicatif retapé : avertissement zone périmé
   // Reprendre la frappe rend obsolète un bandeau de confirmation doublon resté

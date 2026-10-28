@@ -77,5 +77,5 @@ function bandmapSaut(sens){
   }
   if(!cible){ notify(sens > 0 ? 'dernier spot de la bande' : 'premier spot de la bande'); return; }
   bandmapClick(String(cible.call || '').replace(/[^A-Za-z0-9/]/g, ''), parseFloat(cible.freq),
-              String(cible.mode || '').replace(/[^A-Za-z0-9/-]/g, ''));
+              cible.mode_deduit ? '' : String(cible.mode || '').replace(/[^A-Za-z0-9/-]/g, ''));
 }
