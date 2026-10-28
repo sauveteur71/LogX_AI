@@ -21,7 +21,16 @@
   // rouvre la chaîne avant exécution). Extraites verbatim de logx_chasse.html.
   function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
   function jsBand(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9.]/g,''); }
-  function jsMode(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9-]/g,''); }
+  // Mode transmis à la radio : la PHONIE part en « SSB » (le serveur choisit
+  // LSB/USB d'après la fréquence — un « USB » brut de cluster laissait la
+  // radio en USB sur 40 m), un « DIGITAL »/« DATA » sans précision ne part
+  // pas (il mettait la radio en USB-DATA). Défaut F4GLD 28/10/2026.
+  function jsMode(v){
+    const m = String(v==null?'':v).toUpperCase().replace(/[^A-Z0-9-]/g,'');
+    if(m === 'USB' || m === 'LSB' || m === 'PHONE' || m === 'SSB') return 'SSB';
+    if(m === 'DIGITAL' || m === 'DATA' || m === 'DIGI') return '';
+    return m;
+  }
 
   // Bouton « ▶ QSY » commun (need-list, activations, DXpéditions) : règle la
   // radio sur la fréquence du spot, AUCUNE émission. `mode` = mode ANNONCÉ

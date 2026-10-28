@@ -2817,7 +2817,13 @@ async function qsyDepuisCarte(){
   if(!s||!s.freq||!box) return;
   const khz=parseFloat(s.freq);
   const b={freq_hz:Math.round(khz*1000)};
-  if(s.mode&&!s.mode_deduit) b.mode=s.mode;
+  // Phonie -> « SSB » (le serveur choisit LSB/USB), « DIGITAL » flou -> rien :
+  // même règle que les boutons QSY de CHASSE (jsMode, logx_chasse_panneaux.js).
+  if(s.mode&&!s.mode_deduit){
+    const m=String(s.mode).toUpperCase();
+    if(/^(USB|LSB|PHONE|SSB)$/.test(m)) b.mode='SSB';
+    else if(!/^(DIGITAL|DATA|DIGI)$/.test(m)) b.mode=m;
+  }
   box.style.color='var(--muted)'; box.textContent='⏳ QSY…';
   let d=null;
   try{

@@ -136,9 +136,13 @@ def test_bandmap_spot_ft8_pose_la_question_et_garde_le_mode_de_saisie():
     assert c.eval("__bodies[0].freq_hz") == 10136000
 
 
-def test_bandmap_sans_question_garde_le_mode_du_spot():
+@pytest.mark.parametrize('mode_spot', ['DIGITAL', 'USB', 'PHONE', 'SSB', ''])
+def test_bandmap_envoie_toujours_le_mode_de_saisie(mode_spot):
+    # EA7GSL à 7,080 (F4GLD 28/10/2026) : un mode brut du spot (« DIGITAL »
+    # du plan de bande, « USB » littéral) laissait la radio en USB sur 40 m.
+    # La radio reçoit le mode de SAISIE ; le serveur choisit LSB/USB.
     c = _ctx_bandmap(False)
-    c.eval("bandmapClick('EA8XX', 7.143, 'SSB')")
+    c.eval("bandmapClick('EA7GSL', 7.080, %r)" % mode_spot)
     assert c.eval("__bodies[0].mode") == 'SSB'
 
 
@@ -299,3 +303,32 @@ def test_carte_cablage():
     assert re.search(r'stns\s*=\s*filtrerSpotsAffiches\(_derniersSpotsCarte,\s*_affichageCarte\(\)\)', corps)
     corps = _fn(s, 'drawLoggedQSOs')
     assert re.search(r'const qsoLog = filtrerQsoAffiches\(tousQso, _affichageCarte\(\)\.qso, Date\.now\(\)\)', corps)
+
+
+# ── Phonie : la radio choisit sa bande latérale (EA7GSL 7,080, 28/10/2026) ──
+
+@pytest.mark.parametrize('mode,attendu', [('USB', 'SSB'), ('lsb', 'SSB'), ('PHONE', 'SSB'),
+                                          ('DIGITAL', ''), ('FT8', 'FT8'), ('CW', 'CW')])
+def test_bouton_qsy_chasse_normalise_le_mode(mode, attendu):
+    c = _ctx_panneaux()
+    html = c.eval("window.LogxChassePanneaux.qsyBouton(7080, 'EA7GSL', %r)" % mode)
+    assert "qsyTo(7080,'EA7GSL','%s')" % attendu in html
+
+
+@pytest.mark.parametrize('mode,attendu', [('USB', 'SSB'), ('DIGITAL', None), ('FT8', 'FT8')])
+def test_carte_qsy_normalise_le_mode(mode, attendu):
+    c = py_mini_racer.MiniRacer()
+    c.eval("""
+      var __bodies = [];
+      var __box = {textContent:'', style:{}};
+      var document = {getElementById: function(id){ return id === 'ttQsy' ? __box : null; }};
+      function fetch(u, o){ __bodies.push(JSON.parse(o.body));
+        return Promise.resolve({json: function(){ return Promise.resolve({ok:true}); }}); }
+      function BroadcastChannel(){ this.postMessage = function(){}; this.close = function(){}; }
+      var lastTooltipSpot = {call:'EA7GSL', freq:7080, mode:%r, mode_deduit:false};
+    """ % mode)
+    c.eval(_fn(_src('logx_carte.html'), 'qsyDepuisCarte'))
+    c.eval("qsyDepuisCarte()")
+    _drain(c)
+    m = c.eval("__bodies[0].mode === undefined ? null : __bodies[0].mode")
+    assert m == attendu
