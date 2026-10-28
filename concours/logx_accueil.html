@@ -66,6 +66,9 @@ body.simple-mode .expert-only{display:none!important}
    réelle, pas supposé. */
 .wrap{flex:1;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:30px 20px}
 .intro{max-width:900px;width:100%}
+/* Page CHASSE : toute la largeur (F4GLD 28/10/2026) — les panneaux se
+   répartissent en colonnes au lieu de rester tassés au centre. */
+.intro.intro-large{max-width:none}
 .intro h1{font-family:var(--font-display);font-weight:900;font-size:26px;color:var(--accent2);letter-spacing:.2px;margin-bottom:6px;text-align:center}
 .intro p{color:var(--muted);font-size:14px;text-align:center;margin-bottom:28px}
 
@@ -183,6 +186,7 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
 <script src="logx_accueil_cockpit.js"></script>
 <script src="logx_xota_role.js"></script>
 <script src="logx_chasse_panneaux.js"></script>
+<script src="logx_chasse_filtre.js"></script>
 <script src="logx_accueil.js"></script>
 </body>
 </html>
