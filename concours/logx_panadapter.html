@@ -663,7 +663,7 @@ if(localStorage.getItem('rc_theme') === null){
   // sur le spectre/waterfall (voir clicCanvas).
   function qsyHz(freqHz, mode){
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({freq_khz: Math.round(freqHz/1000), mode: mode || undefined})
+      body: JSON.stringify({freq_hz: Math.round(freqHz), mode: mode || undefined})   // Hz : un arrondi au kHz décalait de 500 Hz
     }).catch(()=>{});
   }
 

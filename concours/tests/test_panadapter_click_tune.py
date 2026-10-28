@@ -79,7 +79,8 @@ def test_clic_canvas_qsy_via_plage_et_freq_au_clic():
 
 def test_qsy_hz_poste_bien_rig_qsy():
     corps = _extraire('qsyHz')
-    assert "/rig/qsy" in corps and 'freq_khz' in corps
+    # freq_hz depuis le 28/10/2026 (un arrondi au kHz décalait de 500 Hz).
+    assert "/rig/qsy" in corps and 'freq_hz' in corps
 
 
 def test_clic_spot_utilise_toujours_qsy_hz():

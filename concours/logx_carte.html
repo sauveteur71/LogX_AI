@@ -534,6 +534,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="tt-row"><span class="tt-lbl">CAP ANTENNE</span><span class="tt-val" id="ttCap" style="color:var(--accent)"></span></div>
   <div class="tt-row"><span class="tt-lbl">BANDE</span><span class="tt-val" id="ttBand"></span></div>
   <div class="tt-status" id="ttStatus"></div>
+  <!-- QSY depuis la carte (demande F4GLD 28/10/2026) : cale la radio sur la
+       fréquence du spot et pré-remplit l'indicatif dans LOGBOOK (canal
+       'logx_log', même message que le panadapter). Règle la radio, N'ÉMET
+       RIEN. Pas expert-only : c'est le geste principal sur une station vue. -->
+  <button type="button" id="ttQsyBtn"
+          style="pointer-events:auto;width:100%;margin-top:8px;padding:6px;background:rgba(var(--accent-rgb),.12);border:1px solid var(--accent);border-radius:5px;color:var(--accent);font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer"
+          onclick="qsyDepuisCarte()">▶ QSY + APPELER</button>
+  <div id="ttQsy" style="pointer-events:auto;font-size:11px;margin-top:4px"></div>
   <!-- Vérification VOACAP à la demande (vrai moteur scientifique) sur CE
        candidat précis -- l'heuristique rapide de la carte (ci-dessus) reste
        le tri temps réel de tous les spots, VOACAP ne fait qu'approfondir un
@@ -1059,6 +1067,8 @@ function updateMapStations(stns){
 
 function showTooltip(s,ev,color){
   lastTooltipSpot=s;
+  const _q=document.getElementById('ttQsy'); if(_q) _q.textContent='';
+  const _qb=document.getElementById('ttQsyBtn'); if(_qb) _qb.style.display=s.freq?'':'none';
   document.getElementById('ttVoacap').innerHTML='';  // resultat d'un candidat precedent : ne pas le laisser affiche sur un nouveau
   // Invalide aussi toute vérification VOACAP encore en vol pour l'ANCIEN spot
   // (checkVoacapForSpot() n'incrémentait ce jeton qu'à son propre déclenchement,
@@ -2707,6 +2717,37 @@ function voacapTableHtml(data){
   return html;
 }
 
+// QSY sur la station de l'infobulle + indicatif pré-rempli dans LOGBOOK.
+// freq_hz (pas des kHz arrondis : 7143,5 doit rester 7143,5). Le mode n'est
+// envoyé que s'il est ANNONCÉ par le spot — un mode déduit du plan de bande
+// ne commande jamais la radio (voir mode_deduit, /data/spots_ranked).
+async function qsyDepuisCarte(){
+  const s=lastTooltipSpot;
+  const box=document.getElementById('ttQsy');
+  if(!s||!s.freq||!box) return;
+  const khz=parseFloat(s.freq);
+  const b={freq_hz:Math.round(khz*1000)};
+  if(s.mode&&!s.mode_deduit) b.mode=s.mode;
+  box.style.color='var(--muted)'; box.textContent='⏳ QSY…';
+  let d=null;
+  try{
+    const r=await fetch('/rig/qsy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    d=await r.json().catch(()=>null);
+  }catch(e){ d={ok:false,error:'serveur LogX injoignable'}; }
+  if(lastTooltipSpot!==s) return;   // une autre station a été cliquée entretemps
+  if(d&&d.ok){
+    box.style.color='var(--green)'; box.textContent='✓ Radio sur '+khz+' kHz';
+  }else{
+    box.style.color='var(--red)';
+    box.textContent='✗ QSY impossible : '+((d&&d.error)||'pas de réponse')+' — vérifie CONFIG › Radio (CAT)';
+  }
+  try{
+    const bc=new BroadcastChannel('logx_log');
+    bc.postMessage({type:'prefill_call', data:{call:String(s.call||'')}});
+    bc.close();
+  }catch(e){}
+}
+
 async function checkVoacapForSpot(){
   const s=lastTooltipSpot;
   const box=document.getElementById('ttVoacap');
@@ -2877,7 +2918,8 @@ async function refreshRankedStations(){
       .slice(0,25)
       .map(s=>({call:s.call, locator:s.locator, lat:s.lat, lon:s.lon,
                 priority:s.priority, done:s.already_done, freq:s.freq,
-                band:s.band, dist:s.dist_km, bearing:s.bearing, mult:s.new_mult}));
+                band:s.band, dist:s.dist_km, bearing:s.bearing, mult:s.new_mult,
+                mode:s.mode, mode_deduit:s.mode_deduit}));
     updateMapStations(stns);   // toujours appelé (même vide) : elle vide leafletStations/leafletLines
   }catch(e){/* serveur injoignable : carte inchangée */}
 }

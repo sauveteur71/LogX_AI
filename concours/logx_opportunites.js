@@ -49,13 +49,35 @@
       .slice(0, TOP_N);
   }
 
+  // Bande LISIBLE. /data/spots_ranked envoie la CLÉ INTERNE en MHz ('7', '14',
+  // logx_scoring._band_from_freq), PAS des mètres. Défaut corrigé (F4GLD,
+  // 28/10/2026) : la clé était suivie de « m » -> « 7 m », « 3.5 m », bandes
+  // inexistantes. Table = BAND_LABELS de logx_logbook.js (une seule vérité,
+  // déjà chargée sur la page) ; absente ou clé inconnue -> MHz, on n'invente
+  // pas de longueur d'onde.
+  function _libBande(b){
+    if(b == null || b === '') return '';
+    var t = (typeof BAND_LABELS !== 'undefined') ? BAND_LABELS : null;
+    return (t && t[String(b)]) || (String(b) + ' MHz');
+  }
+
+  // Résultat du QSY rendu VISIBLE. Défaut corrigé (F4GLD, 28/10/2026) : la
+  // réponse de /rig/qsy était jetée (.catch vide) — un CAT activé mais sans
+  // port enregistré répondait « Port série non configuré » et le clic ne
+  // faisait rien, sans un mot. notify() du LOGBOOK classe déjà « impossible »
+  // en erreur ; absent (autre page, harnais) -> console, jamais d'exception.
+  function _signaler(msg){
+    if(typeof global.notify === 'function'){ try{ global.notify(msg); return; }catch(e){} }
+    if(typeof console !== 'undefined' && console.log) console.log(msg);
+  }
+
   // Une opportunité = un <details> (repli natif, accessible, 0 JS pour ouvrir) :
   // le <summary> montre emoji+indicatif+score, la fiche déplie les 3 couches.
   function _fiche(s){
     var cl = s.credit_classe || 'inconnu';
     var emoji = CLASSE_EMOJI[cl] || '•';
     var score = s.credit_score || 0;
-    var fait = [s.dx_country, (s.band ? s.band + ' m' : ''), s.mode]
+    var fait = [s.dx_country, _libBande(s.band), s.mode]
       .filter(function(x){ return x; }).map(esc).join(' · ');
     var calcul = esc(s.credit_raison || '') + ' → ' + esc(score);
     var freq = Number(s.freq) || 0;
@@ -119,10 +141,19 @@
       if(inp.focus) inp.focus();
     }
     if(_rig && freqKhz){
+      var f = parseFloat(freqKhz);
       fetch('/rig/qsy', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({freq_khz: parseFloat(freqKhz)})
-      }).catch(function(){});
+        body: JSON.stringify({freq_khz: f})
+      }).then(function(r){
+        return r.json().catch(function(){ return {ok: false, error: 'réponse illisible (HTTP ' + r.status + ')'}; });
+      }).then(function(d){
+        if(d && d.ok) _signaler('📻 QSY ' + f + ' kHz — ' + call);
+        else _signaler('❌ QSY impossible : ' + ((d && d.error) || 'pas de réponse du serveur')
+                       + ' — vérifie CONFIG › Radio (CAT)');
+      }).catch(function(){
+        _signaler('❌ QSY impossible : serveur LogX injoignable');
+      });
     }
   }
 

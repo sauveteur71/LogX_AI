@@ -38,7 +38,9 @@ def test_clic_qsy_prerempli_inchange():
     # le clic reste bandmapClick (QSY + pré-remplissage déjà en place) : on n'a
     # fait qu'AJOUTER la surbrillance, sans toucher le comportement du clic.
     js = _lire('logx_filtre_spots.js')
-    assert "onclick=\"bandmapClick('${jsCall}',${f},'${modeSpot}')\"" in js
+    # modeQsy (et non plus modeSpot) depuis le 28/10/2026 : un mode DÉDUIT du
+    # plan de bande ne commande plus la radio (voir test_qsy_precis.py).
+    assert "onclick=\"bandmapClick('${jsCall}',${f},'${modeQsy}')\"" in js
 
 
 def test_panneau_departements_a_faire():

@@ -49,7 +49,8 @@ function drawBandscope(spots, rng, txMhz){
     const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--muted)');
     const op = s.already_done ? 0.35 : 1;
     const safeCall = String(s.call || '').replace(/[^A-Z0-9/]/gi, '');
-    const safeMode = String(s.mode || '').replace(/[^A-Za-z0-9/-]/g, '');
+    // Mode déduit du plan de bande : jamais envoyé à la radio (voir refreshBandMap).
+    const safeMode = s.mode_deduit ? '' : String(s.mode || '').replace(/[^A-Za-z0-9/-]/g, '');
     g += `<rect class="bs-bar" x="${(x-1).toFixed(1)}" y="${(base-h).toFixed(1)}" width="2" height="${h.toFixed(1)}"`
        + ` style="fill:${col}" opacity="${op}" onclick="bandmapClick('${safeCall}',${f},'${safeMode}')">`
        + `<title>${escHtml(s.call)} ${f.toFixed(3)}</title></rect>`;

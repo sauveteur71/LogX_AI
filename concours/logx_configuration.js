@@ -1764,12 +1764,24 @@ async function refreshCatPorts(){
     const res = await fetch('/rig/ports');
     const data = await res.json();
     const ports = data.ports || [];
-    sel.innerHTML = ports.length
-      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
+    // Port enregistré ABSENT de la liste (radio éteinte, USB débranché au
+    // moment d'ouvrir CONFIG) : on le GARDE comme option. Défaut corrigé
+    // (F4GLD, 28/10/2026) : il disparaissait, le <select> tombait sur
+    // « Aucun port détecté » (valeur vide) et le prochain ENREGISTRER
+    // écrivait cat_port='' — CAT « activé » mais plus aucun port, QSY muet.
+    const absent = !!prev && !ports.some(p => p.device === prev);
+    const optAbsent = absent
+      ? `<option value="${escC(prev)}">${escC(prev)} — non détecté (radio éteinte ou USB débranché ?)</option>`
+      : '';
+    sel.innerHTML = (ports.length || absent)
+      ? optAbsent + ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
       : '<option value="">Aucun port détecté</option>';
-    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+    if (prev) sel.value = prev;
   }catch(e){
-    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+    sel.innerHTML = prev
+      ? `<option value="${escC(prev)}">${escC(prev)} — serveur injoignable</option>`
+      : '<option value="">Serveur injoignable</option>';
+    if (prev) sel.value = prev;
   }
 }
 
@@ -1816,11 +1828,16 @@ async function refreshCatPttPorts(portVoulu){
     const res = await fetch('/rig/ports');
     const data = await res.json();
     const ports = data.ports || [];
+    // Même garde que refreshCatPorts() : un port enregistré absent reste choisi.
+    const absent = !!prev && !ports.some(p => p.device === prev);
     sel.innerHTML = memeQueCat
+      + (absent ? `<option value="${escC(prev)}">${escC(prev)} — non détecté</option>` : '')
       + ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('');
-    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+    if (prev) sel.value = prev;
   }catch(e){
-    sel.innerHTML = memeQueCat;
+    sel.innerHTML = memeQueCat
+      + (prev ? `<option value="${escC(prev)}">${escC(prev)} — serveur injoignable</option>` : '');
+    if (prev) sel.value = prev;
   }
 }
 
@@ -1907,12 +1924,24 @@ async function refreshAmpPorts(){
     const res = await fetch('/rig/ports');
     const data = await res.json();
     const ports = data.ports || [];
-    sel.innerHTML = ports.length
-      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
+    // Port enregistré ABSENT de la liste (radio éteinte, USB débranché au
+    // moment d'ouvrir CONFIG) : on le GARDE comme option. Défaut corrigé
+    // (F4GLD, 28/10/2026) : il disparaissait, le <select> tombait sur
+    // « Aucun port détecté » (valeur vide) et le prochain ENREGISTRER
+    // écrivait cat_port='' — CAT « activé » mais plus aucun port, QSY muet.
+    const absent = !!prev && !ports.some(p => p.device === prev);
+    const optAbsent = absent
+      ? `<option value="${escC(prev)}">${escC(prev)} — non détecté (radio éteinte ou USB débranché ?)</option>`
+      : '';
+    sel.innerHTML = (ports.length || absent)
+      ? optAbsent + ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
       : '<option value="">Aucun port détecté</option>';
-    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+    if (prev) sel.value = prev;
   }catch(e){
-    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+    sel.innerHTML = prev
+      ? `<option value="${escC(prev)}">${escC(prev)} — serveur injoignable</option>`
+      : '<option value="">Serveur injoignable</option>';
+    if (prev) sel.value = prev;
   }
 }
 
@@ -4529,12 +4558,24 @@ async function refreshRelayPorts(){
     const res = await fetch('/rig/ports');
     const data = await res.json();
     const ports = data.ports || [];
-    sel.innerHTML = ports.length
-      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
+    // Port enregistré ABSENT de la liste (radio éteinte, USB débranché au
+    // moment d'ouvrir CONFIG) : on le GARDE comme option. Défaut corrigé
+    // (F4GLD, 28/10/2026) : il disparaissait, le <select> tombait sur
+    // « Aucun port détecté » (valeur vide) et le prochain ENREGISTRER
+    // écrivait cat_port='' — CAT « activé » mais plus aucun port, QSY muet.
+    const absent = !!prev && !ports.some(p => p.device === prev);
+    const optAbsent = absent
+      ? `<option value="${escC(prev)}">${escC(prev)} — non détecté (radio éteinte ou USB débranché ?)</option>`
+      : '';
+    sel.innerHTML = (ports.length || absent)
+      ? optAbsent + ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
       : '<option value="">Aucun port détecté</option>';
-    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+    if (prev) sel.value = prev;
   }catch(e){
-    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+    sel.innerHTML = prev
+      ? `<option value="${escC(prev)}">${escC(prev)} — serveur injoignable</option>`
+      : '<option value="">Serveur injoignable</option>';
+    if (prev) sel.value = prev;
   }
 }
 
