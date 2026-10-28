@@ -16,7 +16,8 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logx_storage  # noqa: E402
 import logx_prompts  # noqa: E402
 
-AUJ = datetime.datetime.utcnow()
+from logx_utils import utcnow  # noqa: E402
+AUJ = utcnow()
 VIDE = {'Log': {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'URL log non configurée'}}
 
 

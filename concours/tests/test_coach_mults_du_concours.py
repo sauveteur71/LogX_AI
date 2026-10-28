@@ -25,7 +25,8 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logx_http as httpmod  # noqa: E402
 
-AUJ = datetime.datetime.utcnow()
+from logx_utils import utcnow  # noqa: E402
+AUJ = utcnow()
 AN = AUJ.strftime('%Y')
 
 
