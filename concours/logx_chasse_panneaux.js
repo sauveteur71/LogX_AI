@@ -21,6 +21,18 @@
   // rouvre la chaîne avant exécution). Extraites verbatim de logx_chasse.html.
   function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
   function jsBand(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9.]/g,''); }
+  function jsMode(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9-]/g,''); }
+
+  // Bouton « ▶ QSY » commun (need-list, activations, DXpéditions) : règle la
+  // radio sur la fréquence du spot, AUCUNE émission. `mode` = mode ANNONCÉ
+  // par la source seulement (jamais un mode déduit du plan de bande) : un
+  // spot FT8 fait passer le poste en FT8 (demande F4GLD 28/10/2026).
+  function qsyBouton(freqKhz, call, mode){
+    const f = Number(freqKhz) || 0;
+    if(!f) return '';
+    return '<button type="button" class="qsy-btn" onclick="qsyTo(' + f + ',\'' + jsCall(call) + '\',\'' + jsMode(mode) + '\')" title="'
+      + rcT('Régler la radio sur') + ' ' + esc(f) + ' kHz' + (mode ? ' ' + esc(mode) : '') + '">▶ QSY</button>';
+  }
 
   const PRIO_COLORS = {1:'var(--green)',2:'var(--red)',3:'var(--orange)',4:'var(--yellow)',5:'var(--muted)',6:'var(--border)'};
 
@@ -77,8 +89,7 @@
     const rig = !!opts.rigEnabled, rotor = !!opts.rotorEnabled;
     if(!spots.length) return '<div class="ck-need-empty">' + rcT('Aucune cible en direct.') + '</div>';
     return spots.slice(0, max).map(function(s){
-      const qsyBtn = (rig && s.freq)
-        ? '<button class="qsy-btn" onclick="qsyTo(' + (Number(s.freq)||0) + ',\'' + jsCall(s.call) + '\')" title="' + rcT('Régler la radio sur') + ' ' + esc(s.freq) + ' kHz">▶ QSY</button>' : '';
+      const qsyBtn = (rig && s.freq) ? qsyBouton(s.freq, s.call, s.mode_deduit ? '' : s.mode) : '';
       const pointBtn = (rotor && s.bearing != null)
         ? '<button class="point-btn" onclick="pointTo(' + (Number(s.bearing)||0) + ',\'' + jsCall(s.call) + '\',\'' + jsBand(s.band) + '\')" title="' + rcT("Pointer l'antenne sur") + ' ' + Math.round(s.bearing) + '°">🧭 ' + Math.round(s.bearing) + '°</button>' : '';
       const stratBtn = (s.mode && /ft8|ft4/i.test(s.mode))
@@ -127,6 +138,7 @@
           + '<span class="sr-band">' + (esc(s.band) || '—') + '</span>'
           + (s.freq ? '<span class="sr-qrg">' + (s.freq/1000).toFixed(3) + ' MHz</span>' : '')
           + (s.mode ? '<span class="sr-mode">' + esc(s.mode) + '</span>' : '')
+          + qsyBouton(s.freq, s.call, s.mode)
         + '</div>'
         + '<div class="sr-place">' + place(s) + '</div>'
         + (s.comment ? '<div class="sr-note" title="' + esc(s.comment) + '">' + esc(s.comment) + '</div>' : '')
@@ -174,6 +186,7 @@
         + '<div class="sr-head">'
           + '<span class="sr-call">' + esc(e.callsign || '?') + '</span>'
           + statut + freq + mode + nouveau
+          + qsyBouton(e.freq_khz, e.callsign, e.spot_mode)
         + '</div>'
         + '<div class="sr-place">' + esc(e.entity || '?') + ' · ' + esc(e.dates || '—') + '</div>'
         + (e.qsl ? '<div class="sr-note">QSL : ' + esc(e.qsl) + '</div>' : '')
@@ -182,7 +195,7 @@
   }
 
   global.LogxChassePanneaux = {
-    esc: esc, jsCall: jsCall, jsBand: jsBand, splitBadge: splitBadge, creditBadge: creditBadge,
+    esc: esc, jsCall: jsCall, jsBand: jsBand, qsyBouton: qsyBouton, splitBadge: splitBadge, creditBadge: creditBadge,
     renderNeedList: renderNeedList, renderActivationRows: renderActivationRows,
     renderWcaRows: renderWcaRows, renderDxRows: renderDxRows,
     CREDIT_LABELS: CREDIT_LABELS, PRIO_COLORS: PRIO_COLORS,

@@ -146,8 +146,13 @@ function syncBandModeFromRig(freqKhz, mode){
   if(typeof saisieDecoupleeActive === 'function' && saisieDecoupleeActive()) return;
   // Fréquence radio → bande interne (bornes larges pour les segments contest)
   const mhz = freqKhz / 1000;
-  const BANDS = [[1.8,2,'1.8'],[3.5,4,'3.5'],[7,7.3,'7'],[14,14.35,'14'],
-                 [21,21.45,'21'],[28,29.7,'28'],[50,54,'50'],[144,148,'144'],[430,440,'432']];
+  // Bandes WARC (30/17/12 m), 4 m et 23 cm ajoutées le 28/10/2026 (F4GLD :
+  // radio sur 10,136 MHz, carnet resté sur 40 m -> QSO loggé sur la mauvaise
+  // bande). Bornes = _BM_RANGE de logx_logbook.js et _band_from_freq côté
+  // serveur (logx_scoring.py) ; clés = celles de BAND_LABELS.
+  const BANDS = [[1.8,2,'1.8'],[3.5,4,'3.5'],[7,7.3,'7'],[10.1,10.15,'10.1'],[14,14.35,'14'],
+                 [18,18.2,'18'],[21,21.45,'21'],[24.8,25,'24'],[28,29.7,'28'],[50,54,'50'],
+                 [70,70.5,'70'],[144,148,'144'],[430,440,'432'],[1240,1300,'1296']];
   for(const [lo,hi,b] of BANDS){
     if(mhz>=lo && mhz<=hi){
       // La radio PILOTÉE est source de vérité : sa bande réelle prime, même si

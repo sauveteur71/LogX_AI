@@ -352,21 +352,35 @@ function closeStrat(){ var ov = document.getElementById('stratOverlay'); if(ov) 
 // fréquence/l'antenne). Statut affiché dans #xotaQsyStatus, repli silencieux
 // s'il est absent (ex. rôle changé entre-temps).
 function _afficherStatutQsy(ok, msg){
+  // Bandeau flottant en bas d'écran : le clic peut venir de N'IMPORTE quel
+  // panneau (need-list, POTA/SOTA/WWFF, DXpéditions), le résultat doit se
+  // voir là où l'opérateur regarde. + rappel dans l'en-tête de la need-list.
   var el = document.getElementById('xotaQsyStatus');
-  if(!el) return;
-  el.textContent = msg;
-  el.style.color = ok ? 'var(--green)' : 'var(--red)';
-  setTimeout(function(){ el.style.color = ''; }, 4000);
+  if(el){ el.textContent = msg; el.style.color = ok ? 'var(--green)' : 'var(--red)'; }
+  var t = document.getElementById('xotaToast');
+  if(!t && document.body && document.createElement){
+    t = document.createElement('div'); t.id = 'xotaToast'; t.className = 'xota-toast';
+    t.setAttribute('role', 'status'); document.body.appendChild(t);
+  }
+  if(t){
+    t.textContent = msg; t.className = 'xota-toast show ' + (ok ? 'ok' : 'err');
+    clearTimeout(_afficherStatutQsy._tm);
+    _afficherStatutQsy._tm = setTimeout(function(){ t.className = 'xota-toast'; }, ok ? 4000 : 9000);
+  }
 }
-async function qsyTo(freqKhz, call){
+async function qsyTo(freqKhz, call, mode){
+  var b = {freq_hz: Math.round(parseFloat(freqKhz) * 1000)};   // au hertz : 7143,5 reste 7143,5
+  if(mode) b.mode = mode;                                      // mode ANNONCÉ par le spot (FT8…)
   try{
     const r = await fetch('/rig/qsy', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({freq_khz: parseFloat(freqKhz)})
+      body: JSON.stringify(b)
     });
     const d = await r.json();
-    _afficherStatutQsy(!!d.ok, d.ok ? ('📻 QSY ' + freqKhz + ' kHz → ' + call) : ('❌ ' + d.error));
-  }catch(e){}
+    _afficherStatutQsy(!!d.ok, d.ok
+      ? ('📻 QSY ' + freqKhz + ' kHz' + (mode ? ' ' + mode : '') + ' → ' + call)
+      : ('❌ QSY impossible : ' + (d.error || 'pas de réponse') + ' — vérifie CONFIG › Radio (CAT)'));
+  }catch(e){ _afficherStatutQsy(false, '❌ QSY impossible : serveur LogX injoignable'); }
 }
 async function pointTo(az, call, band){
   try{

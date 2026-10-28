@@ -55,6 +55,12 @@
   // inexistantes. Table = BAND_LABELS de logx_logbook.js (une seule vérité,
   // déjà chargée sur la page) ; absente ou clé inconnue -> MHz, on n'invente
   // pas de longueur d'onde.
+  // Mode ANNONCÉ par le spot (jamais déduit du plan de bande), assaini pour
+  // un argument onclick : sert à proposer « Passer en FT8 ? ».
+  function _modeAnnonce(s){
+    return s && !s.mode_deduit ? String(s.mode || '').replace(/[^A-Za-z0-9-]/g, '') : '';
+  }
+
   function _libBande(b){
     if(b == null || b === '') return '';
     var t = (typeof BAND_LABELS !== 'undefined') ? BAND_LABELS : null;
@@ -92,7 +98,7 @@
           '<div class="opp-calc"><span class="opp-tag">CALCUL</span>' + calcul + '</div>' +
           '<div class="opp-prop"><span class="opp-tag">PROPOSITION</span>' +
             '<button type="button" class="opp-appeler" ' +
-              "onclick=\"LogxOpportunites.appeler('" + jsCall(s.call) + "'," + freq + ')">' +
+              "onclick=\"LogxOpportunites.appeler('" + jsCall(s.call) + "'," + freq + ",'" + _modeAnnonce(s) + "')\">" +
               '▶ Appeler</button>' +
           '</div>' +
         '</div>' +
@@ -125,7 +131,7 @@
       return {icone: CLASSE_EMOJI[s.credit_classe] || '•',
               texte: (s.call || '') + ' — ' + (s.credit_raison || 'à travailler'),
               type: 'proposition',
-              onclick: "LogxOpportunites.appeler('" + jsCall(s.call) + "'," + freq + ')'};
+              onclick: "LogxOpportunites.appeler('" + jsCall(s.call) + "'," + freq + ",'" + _modeAnnonce(s) + "')"};
     });
     global.LogxFilIA.pousser('opportunites', entrees);
   }
@@ -133,13 +139,16 @@
   // Action « un clic utile » : pré-remplit TOUJOURS l'indicatif dans la saisie
   // QSO (et déclenche l'enrichissement existant via l'événement input), puis
   // QSY SEULEMENT si le CAT est branché. Jamais d'émission, jamais d'armement.
-  function appeler(call, freqKhz){
+  function appeler(call, freqKhz, modeSpot){
     var inp = document.getElementById('inputCall');
     if(inp){
       inp.value = call;
       try{ if(inp.dispatchEvent) inp.dispatchEvent(new global.Event('input')); }catch(e){}
       if(inp.focus) inp.focus();
     }
+    // Spot dans un autre mode que la saisie (FT8 alors qu'on est en SSB) :
+    // proposer de basculer, non modal (logx_mode_spot.js).
+    if(modeSpot && global.LogxModeSpot) global.LogxModeSpot.proposer(modeSpot, Math.round(parseFloat(freqKhz) * 1000), call);
     if(_rig && freqKhz){
       var f = parseFloat(freqKhz);
       fetch('/rig/qsy', {

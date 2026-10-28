@@ -878,14 +878,21 @@ function bandmapClick(call, mhz, mode){
   const inp = document.getElementById('inputCall');
   if(inp){ inp.value = call; onCallInput(); inp.focus(); }
   const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  // Mode ANNONCÉ par le spot différent du mode de saisie (spot FT8 alors
+  // qu'on est en SSB) : on DEMANDE « Passer en FT8 ? » au lieu de basculer la
+  // radio en silence en laissant le carnet dans l'autre mode (QSO loggé faux).
+  // Demande F4GLD 28/10/2026. Sans réponse, radio et carnet restent dans le
+  // mode de l'opérateur.
+  const question = (window.LogxModeSpot && mode)
+    ? LogxModeSpot.proposer(mode, Math.round(mhz*1e6), call) : false;
   if(rig.enabled){
-    // Mode du SPOT cliqué, pas le mode de saisie courant de l'opérateur —
-    // sinon un clic sur un spot CW pendant une saisie SSB fait QSY en SSB.
     // freq_hz, PAS des kHz arrondis : Math.round(mhz*1000) calait un spot à
     // 7143,5 kHz sur 7143 — 500 Hz à côté en SSB, la station inaudible
     // (F4GLD, 28/10/2026). Le serveur accepte freq_hz tel quel.
+    // Mode : celui de la saisie quand une question est posée (la réponse
+    // décidera), sinon celui du spot (même mode, ou mode non proposable).
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({freq_hz: Math.round(mhz*1e6), mode: mode || currentMode || undefined})
+      body: JSON.stringify({freq_hz: Math.round(mhz*1e6), mode: (question ? currentMode : (mode || currentMode)) || undefined})
     }).catch(()=>{});
   }
 }

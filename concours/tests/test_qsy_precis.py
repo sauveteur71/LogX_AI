@@ -60,6 +60,7 @@ def _ctx_bandmap():
       function onCallInput(){}
       var rigState = {enabled:true};
       var currentMode = 'SSB';
+      var window = {};   // page réelle : LogxModeSpot absent ici -> pas de question
     """)
     c.eval(_fn(_src('logx_logbook.js'), 'bandmapClick'))
     return c
