@@ -978,6 +978,9 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 #mobileBanner a{color:var(--accent2);font-weight:700}
 #mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px;background:none;border:none;font-family:inherit;line-height:1}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
+/* Concours où la BANDE suffit (CONTEST_EXCHANGE.freq_facultative, ex. CQ WW) :
+   champ FRÉQUENCE masqué — applyExchangeFormat() pose la classe. */
+.field-group.freq-facultative{display:none!important}
 /* Zone CQ reçue pré-remplie d'après cty.dat (logx_zone_auto.js) : atténuée tant
    que l'opérateur ne l'a pas confirmée en la retapant. */
 #inputNumRcvd.zone-auto{color:var(--muted)!important;font-style:italic}
