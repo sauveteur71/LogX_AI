@@ -1118,12 +1118,34 @@ function showTooltip(s,ev,color){
   else{st.textContent=PLBLS[s.priority]||'';st.style.background=color+'22';st.style.color=color;}
   tt.style.border=`1px solid ${color}`;
   tt.style.boxShadow=`0 0 20px ${color}40`;
-  let left=ev.clientX+16,top=ev.clientY-80;
-  if(left+220>window.innerWidth) left=ev.clientX-235;
-  if(top<60) top=60;
-  tt.style.left=left+'px';tt.style.top=top+'px';
+  const coin=positionFicheStation(ev.clientX, ev.clientY);
+  tt.style.left=coin.left+'px';tt.style.top=coin.top+'px';
   tt.style.display='block';
   setTimeout(()=>tt.style.opacity='1',10);
+}
+
+// Fiche d'une station : dans un COIN de la carte, pas sur le point cliqué
+// (F4GLD 28/10/2026 : « le popup s'ouvre en plein milieu, ce n'est pas
+// pratique »). Coin haut-droit, sous le panneau PROPAGATION s'il est
+// affiché ; si la station cliquée tomberait sous la fiche, coin haut-gauche
+// (à droite des panneaux GREAT CIRCLE / CARRÉS QRA). Coordonnées fenêtre,
+// comme avant (.map-tooltip est positionnée par rapport à la page).
+function positionFicheStation(clicX, clicY){
+  const LARG=240, HAUT=300, MARGE=10;
+  const conteneur=document.querySelector('.map-container');
+  const r=conteneur ? conteneur.getBoundingClientRect()
+                    : {left:0, top:0, right:window.innerWidth, bottom:window.innerHeight};
+  const prop=document.getElementById('propControl');
+  const pr=(prop && prop.offsetParent!==null) ? prop.getBoundingClientRect() : null;
+  const top=Math.round(pr ? pr.bottom+MARGE : r.top+MARGE);
+  let left=Math.round(r.right-LARG-MARGE);
+  const sousLaFiche=clicX>=left-20 && clicY>=top-20 && clicY<=top+HAUT+20;
+  if(sousLaFiche){
+    const carres=document.getElementById('carresControl');
+    const cr=(carres && carres.offsetParent!==null) ? carres.getBoundingClientRect() : null;
+    left=Math.round(cr ? cr.right+MARGE : r.left+MARGE);
+  }
+  return {left:left, top:top};
 }
 
 function hideTooltip(){

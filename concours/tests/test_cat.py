@@ -81,10 +81,17 @@ class FakeCivRadio:
             if not self.refuse:
                 self.freq = cat.civ_decode_freq(payload)
             self._pending = self._accuse()
-        elif cmd == 0x1A and sub == 0x06:  # flag DATA (fire-and-forget, jamais lu)
+        elif cmd == 0x1A and sub == 0x06:  # flag DATA : écrit (fire-and-forget) ou LU
             if payload:
                 self.data_flag = bool(payload[0])
-            self._pending = b''
+                self._pending = b''
+            else:
+                # Lecture : `1A 06 <data> <filtre>` (manuel CI-V Icom ; lu par
+                # Hamlib dans icom_get_mode). Jamais écrit = OFF.
+                self._pending = _swap_addr_for_test(
+                    cat.civ_build_frame(0xE0, 0x1A, sub=0x06,
+                                         data=bytes([1 if self.data_flag else 0, 0x01])),
+                    0xE0, self.addr)
         elif cmd == 0x04:  # get mode
             self._pending = _swap_addr_for_test(
                 cat.civ_build_frame(0xE0, 0x04, data=bytes([self.mode_code])), 0xE0, self.addr)
@@ -1579,3 +1586,54 @@ def test_civ_radio_autre_modele_ic9700_ne_bascule_jamais_en_6_octets():
     radio = cat.CivRadio(fake, cat.CIV_ADDRESSES['IC-9700'], model='IC-9700')
     assert radio.set_freq(1_296_000_000)['ok']
     assert fake.freq == 1_296_000_000
+
+
+# ── QSY sans mode : la bande latérale suit la fréquence (F4GLD 28/10/2026) ──
+# Passage 40 m -> 20 m depuis la band map / les Opportunités : IC-7300 resté
+# en LSB sur 14,195. En phonie (LSB/USB sans flag DATA), la bande latérale
+# doit suivre la fréquence ; en DATA (FT8, USB sur toutes les bandes) on ne
+# touche à rien.
+
+_CFG_7300 = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+             'cat_model': 'IC-7300', 'cat_port': 'COM20'}
+
+
+def _qsy_sans_mode(fake, freq):
+    def run(factory):
+        assert cat.set_freq(_CFG_7300, freq)['ok']
+    _with_fake_serial(fake, run)
+
+
+def test_qsy_sans_mode_lsb_vers_20m_passe_en_usb():
+    fake = FakeCivRadio(0x94, freq=7130000, mode_code=cat.CIV_MODES['LSB'])
+    fake.data_flag = False
+    _qsy_sans_mode(fake, 14195000)
+    assert fake.freq == 14195000
+    assert fake.mode_code == cat.CIV_MODES['USB']
+
+
+def test_qsy_sans_mode_usb_vers_40m_passe_en_lsb():
+    fake = FakeCivRadio(0x94, freq=14195000, mode_code=cat.CIV_MODES['USB'])
+    fake.data_flag = False
+    _qsy_sans_mode(fake, 7080000)
+    assert fake.mode_code == cat.CIV_MODES['LSB']
+
+
+def test_qsy_sans_mode_usb_data_ft8_reste_usb_data():
+    fake = FakeCivRadio(0x94, freq=14074000, mode_code=cat.CIV_MODES['USB'])
+    fake.data_flag = True
+    _qsy_sans_mode(fake, 7074000)
+    assert fake.mode_code == cat.CIV_MODES['USB'] and fake.data_flag is True
+
+
+def test_qsy_sans_mode_cw_reste_cw():
+    fake = FakeCivRadio(0x94, freq=14025000, mode_code=cat.CIV_MODES['CW'])
+    _qsy_sans_mode(fake, 7025000)
+    assert fake.mode_code == cat.CIV_MODES['CW']
+
+
+def test_qsy_sans_mode_bonne_bande_laterale_inchangee():
+    fake = FakeCivRadio(0x94, freq=14195000, mode_code=cat.CIV_MODES['USB'])
+    fake.data_flag = False
+    _qsy_sans_mode(fake, 14250000)
+    assert fake.mode_code == cat.CIV_MODES['USB']

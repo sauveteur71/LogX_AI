@@ -643,6 +643,16 @@ class CivRadio:
                         read_reply=False)
         return res
 
+    def get_data_flag(self):
+        """Flag DATA du poste (sous-commande 1A 06 en LECTURE : la radio
+        répond `1A 06 <data> <filtre>`, data 00 = OFF — même sous-commande
+        que celle écrite par set_mode, lue par Hamlib dans icom_get_mode).
+        True/False, ou None si le poste ne répond pas (on ne devine pas)."""
+        parsed = self._query(0x1A, sub=0x06)
+        if not parsed or not parsed[4]:
+            return None
+        return bool(parsed[4][0])
+
     def get_ptt(self):
         parsed = self._query(0x1C, sub=0x00)
         if not parsed or not parsed[4]:
@@ -2217,6 +2227,29 @@ def get_state(cfg):
         return {'ok': False, 'error': f'Radio injoignable ({e})', 'enabled': True}
 
 
+def _corriger_bande_laterale(driver, freq_hz):
+    """QSY SANS mode demandé, poste en PHONIE : remet la bonne bande latérale.
+
+    Défaut F4GLD (28/10/2026, IC-7300) : passage de 40 m à 20 m depuis la band
+    map / les Opportunités, poste resté en LSB sur 14,195. Un QSY sans mode ne
+    touchait que la fréquence ; le poste gardait la bande latérale de la bande
+    précédente. Règle : en LSB/USB SANS flag DATA (donc de la phonie), la bande
+    latérale suit la fréquence (normaliser_mode : LSB sous 10 MHz, USB
+    au-dessus). Avec le flag DATA (FT8 & co, USB sur toutes les bandes) ou si
+    le poste ne répond pas : on ne touche à rien. Best-effort, jamais bloquant."""
+    try:
+        gm = driver.get_mode()
+        if not gm.get('ok') or gm.get('mode') not in ('LSB', 'USB'):
+            return
+        if normaliser_mode('SSB', freq_hz, 'icom') == gm['mode']:
+            return
+        if driver.get_data_flag() is not False:     # DATA actif ou inconnu
+            return
+        driver.set_mode('SSB', freq_hz)
+    except Exception:
+        pass
+
+
 def set_freq(cfg, freq_hz, mode=None):
     """QSY natif — même signature que logx_rig.set_freq."""
     settings = cat_settings(cfg)
@@ -2227,6 +2260,8 @@ def set_freq(cfg, freq_hz, mode=None):
         return {'ok': False, 'error': err}
     try:
         r = driver.set_freq(freq_hz)
+        if r.get('ok') and not mode and isinstance(driver, CivRadio):
+            _corriger_bande_laterale(driver, freq_hz)
         if r.get('ok') and mode:
             # La FRÉQUENCE est passée à set_mode : elle décide de LSB ou USB en
             # phonie. Et l'échec n'est plus avalé — c'est ce silence qui a
