@@ -78,7 +78,8 @@ def test_qsy_absent_meme_active_si_pas_de_freq():
 def test_qsy_present_si_active_et_freq_connue():
     ctx = _ctx()
     html = ctx.eval("window.LogxChassePanneaux.renderNeedList([{call:'F4XYZ', band:'14', freq:14285}], {rigEnabled:true})")
-    assert 'qsy-btn' in html and "qsyTo(14285,'F4XYZ')" in html
+    # 3e argument = mode ANNONCÉ (vide ici) depuis le 28/10/2026.
+    assert 'qsy-btn' in html and "qsyTo(14285,'F4XYZ','')" in html
 
 
 def test_rotor_absent_meme_active_si_pas_de_bearing():
