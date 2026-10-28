@@ -52,6 +52,9 @@
     }
     return s;                                            // 'HF' & co : tel quel
   }
+  // Exposé pour les autres modules (filtre de bandes de CHASSE) : une seule
+  // table de libellés plutôt qu'une copie par page.
+  LB.libBande = _libBande;
 
   // Type de multiplicateur (identifiant INTERNE de logx_scoring : 'zone_cq',
   // 'grand_carre'…) -> libellé lisible. Inconnu -> underscores remplacés.

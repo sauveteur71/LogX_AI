@@ -236,7 +236,9 @@ def test_LE_VRAI_SUJET_alertes_puis_filtre_puis_coupe_a_40():
     # aussi AVANT la coupe, sinon il ne trierait que le top 40 toutes bandes.
     i_coupe = bloc.index('visibles[:limite]')
     assert 'limite = 40' in bloc
-    i_bande = bloc.index("str(e.get('band', '')) == _bande")
+    # Généralisé le 28/10/2026 (bands=/modes=, page CHASSE) : même place,
+    # avant la coupe — logx_chasse_filtre.filtrer.
+    i_bande = bloc.index("visibles = _cf.filtrer(visibles, _bandes, _cats)")
     assert i_alertes < i_filtre < i_bande < i_coupe
 
 

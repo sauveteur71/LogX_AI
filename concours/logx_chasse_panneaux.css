@@ -49,7 +49,7 @@
 .xota-pan-full{margin-top:16px}
 .xota-pan-h{font-family:var(--font-display);font-weight:900;font-size:13px;color:var(--accent2);letter-spacing:.3px;margin-bottom:8px}
 /* Chaque liste défile SEULE (bornée) plutôt que d'allonger la page à l'infini. */
-.xota-pan .scroll-list{max-height:340px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+.xota-pan .scroll-list{max-height:max(340px,45vh);overflow-y:auto;margin-right:-6px;padding-right:6px}
 
 /* Need-list compacte, dense (plusieurs colonnes si la largeur le permet). */
 .ck-needlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 12px;max-height:320px;overflow-y:auto;margin-right:-6px;padding-right:6px}
@@ -84,3 +84,16 @@
 .strat-verdict{font-size:14px;line-height:1.6}
 .strat-raw-title{margin-top:12px;font-size:11px;color:var(--muted,#7a86b6);text-transform:uppercase;letter-spacing:.5px}
 .strat-raw{font-size:12px;color:var(--muted,#7a86b6);margin-top:4px;line-height:1.5}
+
+/* Filtre « Ce que je chasse » (logx_chasse_filtre.js, 28/10/2026) :
+   puces CW / Phonie / Data + bandes. Une puce cochée = état visible, pas
+   seulement une couleur (aria-pressed + bordure pleine). */
+.chasse-filtre{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:6px 0 4px;display:flex;flex-direction:column;gap:6px}
+.cf-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.cf-lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;color:var(--muted);min-width:64px}
+.cf-puce{font-family:var(--font-mono);font-size:12px;padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;letter-spacing:.5px}
+.cf-puce:hover{border-color:var(--accent)}
+.cf-puce:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.cf-puce.on{background:rgba(var(--accent-rgb),.16);border-color:var(--accent);color:var(--accent);font-weight:700}
+.cf-note{font-size:11px;color:var(--muted)}
+.cf-masques{font-size:11px;color:var(--muted);text-align:center;padding:6px}

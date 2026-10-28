@@ -4615,7 +4615,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Spots d'activateurs POTA en direct (api.pota.app, cache 90 s)
         if path == '/data/pota_spots':
             import logx_pota as pota
-            self._json({'spots': pota.fetch_pota_spots()})
+            import logx_chasse_filtre as _cf   # mode_cat : filtre CW/Phonie/Data de CHASSE
+            self._json({'spots': _cf.annoter(pota.fetch_pota_spots())})
             return
 
         # Mise à jour logicielle : dernière release GitHub connue (cache 6h,
@@ -4729,7 +4730,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/sota_spots':
             import logx_sota as sota
             _call = (self._cfg_snapshot().get('callsign') or '').strip()
-            self._json({'spots': sota.fetch_sota_spots(callsign=_call)})
+            import logx_chasse_filtre as _cf   # mode_cat : filtre CW/Phonie/Data de CHASSE
+            self._json({'spots': _cf.annoter(sota.fetch_sota_spots(callsign=_call))})
             return
 
         # Auto-spot SOTA : état de la connexion SOTA SSO (clientId configuré,
@@ -4813,7 +4815,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Spots d'activateurs WWFF en direct (spots.wwff.co, cache 60 s)
         if path == '/data/wwff_spots':
             import logx_wwff as wwff
-            self._json({'spots': wwff.fetch_wwff_spots()})
+            import logx_chasse_filtre as _cf   # mode_cat : filtre CW/Phonie/Data de CHASSE
+            self._json({'spots': _cf.annoter(wwff.fetch_wwff_spots())})
             return
 
         # Spots IOTA en direct : PAS une source réseau dédiée (aucune fiable,
@@ -5533,17 +5536,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # défaut F4GLD 24/10/2026, CQ WW SSB : « la band map n'affiche
             # rien alors que beaucoup de QSO en cours » sur 40 m, les 40
             # places étant prises par les mults 14/21/28 MHz.
+            #
+            # Généralisé le 28/10/2026 (page CHASSE, F4GLD : « choisir CW,
+            # Phonie ou Data et les bandes où je veux des propositions ») :
+            # `bands=7,14` et `modes=cw,phonie,data`, même règle — filtrer
+            # AVANT la coupe, sinon un choix étroit ne trouve rien.
+            import logx_chasse_filtre as _cf
+            _cf.annoter(visibles)
             limite = 40
             try:
                 from urllib.parse import parse_qs as _pqs, urlparse as _up
-                _bande = (_pqs(_up(self.path).query).get('band', [''])[0] or '').strip()
+                _bandes, _cats = _cf.lire_choix(_pqs(_up(self.path).query))
             except Exception:
-                _bande = ''
-            if _bande:
-                from logx_scoring import _band_from_freq as _bff
-                visibles = [e for e in visibles
-                            if str(e.get('band', '')) == _bande
-                            or _bff(e.get('freq', '')) == _bande]
+                _bandes, _cats = set(), set()
+            if _bandes or _cats:
+                visibles = _cf.filtrer(visibles, _bandes, _cats)
                 limite = 200
             self._json({'spots': visibles[:limite], 'meta': meta,
                         'alert_matches': alert_matches, 'filtre': comptes_filtre})
