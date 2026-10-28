@@ -314,7 +314,14 @@ async function refreshBandMap(){
       // « Écouter ce spot » : mêmes règles d'hygiène que jsCall — mode et
       // coordonnées viennent du cluster (source externe), on ne laisse passer
       // dans l'attribut onclick que des caractères/nombres sûrs.
+      // Mode DÉDUIT de la fréquence (mode_deduit, serveur) : on n'en commande
+      // PAS la radio — bandmapClick retombe alors sur le mode de saisie
+      // (SSB -> LSB/USB selon la bande). Seul un mode ANNONCÉ par le spot
+      // fait changer de mode (F4GLD 28/10/2026 : passage en DATA à 7,06x).
+      // Le WebSDR (ecouterSpot) garde le mode déduit : c'est une écoute, pas
+      // une commande de la radio.
       const modeSpot = String(s.mode || '').replace(/[^A-Za-z0-9/-]/g, '');
+      const modeQsy = s.mode_deduit ? '' : modeSpot;
       const earLat = Number.isFinite(s.lat) ? s.lat : 'null';
       const earLon = Number.isFinite(s.lon) ? s.lon : 'null';
       // Le cluster fournit bien plus souvent une GRILLE que des coordonnées,
@@ -327,7 +334,7 @@ async function refreshBandMap(){
       const titreOreille = dxSitue
         ? trT('Écouter ce spot sur un récepteur WebSDR proche du DX')
         : trT('Position du DX inconnue — écouter cette fréquence sur un récepteur proche de chez toi');
-      rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f},'${modeSpot}')" title="${escHtml(infoBulle)}">`
+      rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f},'${modeQsy}')" title="${escHtml(infoBulle)}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
         + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span>`
         + (_deptM ? `<span class="bm-dept" title="Département ${escHtml(_deptM)} pas encore fait">${escHtml(_deptM)}</span>` : '')

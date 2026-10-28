@@ -5349,6 +5349,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # bouton « écouter ce spot » ouvre alors le WebSDR dans la
                     # bonne modulation au lieu de retomber en SSB par défaut.
                     'mode': s.get('mode') or awards.mode_depuis_frequence(_khz),
+                    # Mode DÉDUIT du plan de bande (pas annoncé) : sert à
+                    # l'affichage, JAMAIS à commander la radio. Défaut F4GLD
+                    # 28/10/2026 : en CQ WW SSB, un clic sur une station
+                    # phonie à 7,06x (créneau « DIGITAL » du plan) faisait
+                    # passer l'IC-7300 en USB-DATA au lieu de rester en LSB.
+                    'mode_deduit': not s.get('mode'),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),
