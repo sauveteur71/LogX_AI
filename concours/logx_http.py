@@ -913,6 +913,40 @@ def _load_access_password():
         pass
     return None
 
+# ─── LECTURE PROTÉGÉE PAR LE MOT DE PASSE D'ACCÈS ────────────────────────────
+# Audit F4GLD du 25/11/2026 : avec un mot de passe d'accès, les PAGES HTML
+# redirigeaient bien vers /auth/login, mais les routes GET de données restaient
+# ouvertes — /log/list (tout le carnet), /config, /log/export/adif|cabrillo...
+# Le mot de passe se contournait donc en lecture depuis n'importe quel appareil
+# du réseau. Désormais, mot de passe configuré => toute route GET exige une
+# session, SAUF cette liste courte, chacune avec sa raison :
+_GET_SANS_SESSION_EXACT = frozenset((
+    '/', '',                   # page d'accueil : redirigée vers /auth/login plus bas
+    '/log/lan/export',         # serveur-à-serveur, jeton de synchro LAN propre (logx_lan_sync)
+    '/app/gateway_status',     # serveur-à-serveur (logx_update._peer_get_json)
+    '/sota/oauth/callback',    # retour depuis SOTA : SameSite=Strict n'y envoie pas le cookie ; `state` vérifié
+))
+_GET_SANS_SESSION_PREFIXES = (
+    '/auth/',                  # connexion elle-même
+    '/app/update_',            # mises à jour relayées entre postes (binaires vérifiés sha256)
+)
+# Fichiers statiques d'une page déjà affichée (le HTML lui-même est traité plus
+# bas : redirection vers /auth/login). JAMAIS .json : pas une ressource de page.
+_GET_STATIQUES = ('.js', '.css', '.png', '.svg', '.ico', '.jpg', '.jpeg', '.gif',
+                  '.webp', '.woff', '.woff2', '.ttf', '.webmanifest', '.html', '.pdf')
+
+
+def get_sans_session_autorise(path):
+    """True si la route GET `path` reste accessible SANS session quand un mot
+    de passe d'accès est configuré (voir le bloc ci-dessus)."""
+    path = str(path or '').split('?')[0]
+    if path in _GET_SANS_SESSION_EXACT:
+        return True
+    if path.startswith(_GET_SANS_SESSION_PREFIXES):
+        return True
+    return path.lower().endswith(_GET_STATIQUES)
+
+
 def _access_password_enabled():
     with _access_pw_lock:
         return _load_access_password() is not None
@@ -2779,6 +2813,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _do_GET_impl(self):
         path = self.path.split('?')[0]
+
+        # Mot de passe d'accès configuré : aucune donnée sans session (voir
+        # get_sans_session_autorise). Sans mot de passe, comportement inchangé.
+        if (not get_sans_session_autorise(path) and _access_password_enabled()
+                and not self._client_authorized()):
+            self._require_auth()
+            return
 
         # Recherche plein-texte dans les pages (widget de la nav, logx_search.js)
         # — texte visible seulement (titres/contenu des pages HTML), rien de
