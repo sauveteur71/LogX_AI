@@ -2156,6 +2156,20 @@ async function submitQSO(){
     if(!(await _confirmDupBanner(trF('⚠️ {call} est déjà dans le log sur {band} MHz — enregistrer quand même ?', {call, band: currentBand})))) return;
   }
 
+  // Échange REÇU vide en concours : un clic pour confirmer, jamais un refus
+  // (audit 25/11/2026 : 6 QSO du CQ WW 2026 sans zone reçue — QSO perdus au
+  // dépouillement). Hors concours, en expédition, ou concours sans échange
+  // (no_exchange) : rien ne change.
+  if(!numRcvd && contestActif() && usageMode !== 'simple' && !expeditionMode
+     && !currentExchange.no_exchange){
+    const lib = String(currentExchange.label_r || 'N° REÇU');
+    if(!(await _confirmDupBanner(trF('⚠️ {lib} vide pour {call} — le QSO risque d\'être refusé au dépouillement.', {lib, call}),
+                                 trT('Enregistrer quand même'), trT('Compléter')))){
+      document.getElementById('inputNumRcvd')?.focus();
+      return;
+    }
+  }
+
   // N° envoyé : auto-série (VHF) ou valeur du champ (FD classe, CQ WW zone, HF dept...)
   const numSentField = document.getElementById('inputNumSent').value.trim();
   const serial = currentExchange.auto_serial ? await nextSerial(currentBand) : numSentField;
