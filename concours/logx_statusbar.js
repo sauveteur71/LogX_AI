@@ -1263,6 +1263,11 @@
       const r = await fetch('/data/calendar');
       const d = await r.json();
       (d.contests || []).forEach(c => { contestNames[c.id] = c.name; });
+      // Partagé avec la page : l'en-tête du LOGBOOK affichait l'identifiant
+      // brut « CQ_WW_SSB » (audit 25/11/2026). Voir nomConcoursLisible().
+      window.LogxNomsConcours = contestNames;
+      const hdr = document.getElementById('hdrContest');
+      if (hdr && contestNames[hdr.dataset.id || hdr.textContent]) hdr.textContent = contestNames[hdr.dataset.id || hdr.textContent];
       refreshContest();
     }catch(e){ /* le serveur n'est pas indispensable pour la barre */ }
   }
@@ -1286,6 +1291,9 @@
   function refreshFastVersion(){
     fetch('/network/info').then(r => r.ok ? r.json() : null).then(function(d){
       if (d && d.app_version) _fastVersion = d.app_version;
+      // CONFIG affichait « v3.0 » en dur (audit 25/11/2026) : la vraie version.
+      const cv = document.getElementById('cfgVersion');
+      if (cv && d && d.app_version) cv.textContent = 'v' + d.app_version;
     }).catch(function(){});
   }
   // Popup de MAJ auto-ouverte à l'ouverture de la page (pas seulement un

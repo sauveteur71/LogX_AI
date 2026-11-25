@@ -277,7 +277,10 @@ if __name__ == '__main__':
     def _maj_activation_db():
         try:
             import logx_sota as sota
-            sota.ensure_loading_started()
+            # ~296 Mo de RAM : préchargé seulement si la station s'en sert
+            # (voir prechargement_utile) ; sinon chargé à la première recherche.
+            if sota.prechargement_utile(dict(http_mod.current_config)):
+                sota.ensure_loading_started()
         except Exception as _e:
             print(f'[SOTA] indisponible : {_e}')
         try:

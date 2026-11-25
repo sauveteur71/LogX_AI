@@ -913,6 +913,63 @@ def _load_access_password():
         pass
     return None
 
+# ─── LECTURE PROTÉGÉE PAR LE MOT DE PASSE D'ACCÈS ────────────────────────────
+# Audit F4GLD du 25/11/2026 : avec un mot de passe d'accès, les PAGES HTML
+# redirigeaient bien vers /auth/login, mais les routes GET de données restaient
+# ouvertes — /log/list (tout le carnet), /config, /log/export/adif|cabrillo...
+# Le mot de passe se contournait donc en lecture depuis n'importe quel appareil
+# du réseau. Désormais, mot de passe configuré => toute route GET exige une
+# session, SAUF cette liste courte, chacune avec sa raison :
+_GET_SANS_SESSION_EXACT = frozenset((
+    '/', '',                   # page d'accueil : redirigée vers /auth/login plus bas
+    '/log/lan/export',         # serveur-à-serveur, jeton de synchro LAN propre (logx_lan_sync)
+    '/network/info',           # sonde d'instance unique (logx_singleton.PROBE_PATH) : IP, port, version
+    '/app/gateway_status',     # serveur-à-serveur (logx_update._peer_get_json)
+    '/sota/oauth/callback',    # retour depuis SOTA : SameSite=Strict n'y envoie pas le cookie ; `state` vérifié
+))
+_GET_SANS_SESSION_PREFIXES = (
+    '/auth/',                  # connexion elle-même
+    '/app/update_',            # mises à jour relayées entre postes (binaires vérifiés sha256)
+)
+# Fichiers statiques d'une page déjà affichée (le HTML lui-même est traité plus
+# bas : redirection vers /auth/login). JAMAIS .json : pas une ressource de page.
+_GET_STATIQUES = ('.js', '.css', '.png', '.svg', '.ico', '.jpg', '.jpeg', '.gif',
+                  '.webp', '.woff', '.woff2', '.ttf', '.webmanifest', '.html', '.pdf')
+
+
+_TYPES_COMPRESSIBLES = frozenset(('text/html', 'application/javascript', 'text/css',
+                                  'application/json', 'image/svg+xml',
+                                  'application/manifest+json'))
+_gzip_cache = {}            # chemin -> (etag, octets compressés)
+_gzip_cache_lock = threading.Lock()
+
+
+def _gzip_statique(filepath, etag, body, cache=True):
+    """Corps gzip d'un fichier statique, mémorisé par (chemin, ETag)."""
+    import gzip
+    if cache:
+        with _gzip_cache_lock:
+            hit = _gzip_cache.get(filepath)
+        if hit and hit[0] == etag:
+            return hit[1]
+    z = gzip.compress(body, compresslevel=6)
+    if cache:
+        with _gzip_cache_lock:
+            _gzip_cache[filepath] = (etag, z)
+    return z
+
+
+def get_sans_session_autorise(path):
+    """True si la route GET `path` reste accessible SANS session quand un mot
+    de passe d'accès est configuré (voir le bloc ci-dessus)."""
+    path = str(path or '').split('?')[0]
+    if path in _GET_SANS_SESSION_EXACT:
+        return True
+    if path.startswith(_GET_SANS_SESSION_PREFIXES):
+        return True
+    return path.lower().endswith(_GET_STATIQUES)
+
+
 def _access_password_enabled():
     with _access_pw_lock:
         return _load_access_password() is not None
@@ -2779,6 +2836,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _do_GET_impl(self):
         path = self.path.split('?')[0]
+
+        # Mot de passe d'accès configuré : aucune donnée sans session (voir
+        # get_sans_session_autorise). Sans mot de passe, comportement inchangé.
+        if (not get_sans_session_autorise(path) and _access_password_enabled()
+                and not self._client_authorized()):
+            self._require_auth()
+            return
 
         # Recherche plein-texte dans les pages (widget de la nav, logx_search.js)
         # — texte visible seulement (titres/contenu des pages HTML), rien de
@@ -5974,6 +6038,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 from urllib.parse import quote
                 self._redirect('/auth/login?next=' + quote(path, safe=''))
                 return
+            # Revalidation légère (audit 25/11/2026 : 2 à 4,7 Mo retéléchargés à
+            # CHAQUE ouverture de page, servis en no-store sans compression).
+            # ETag = taille + date du fichier : une mise à jour change l'ETag,
+            # donc jamais de vieux JS servi ; sinon 304 sans corps. Pas pour le
+            # HTML : retouché à la volée (thème incorporé) et porteur du cookie.
+            st = os.stat(filepath)
+            etag = '"%x-%x"' % (st.st_size, int(st.st_mtime_ns // 1000))
+            if not filepath.endswith('.html'):
+                inm = self.headers.get('If-None-Match', '') or ''
+                if etag in [t.strip() for t in inm.split(',')]:
+                    self.send_response(304)
+                    self.send_header('ETag', etag)
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Content-Length', '0')
+                    self._security_headers()
+                    self._cors()
+                    self.end_headers()
+                    return
             with open(filepath, 'rb') as f:
                 body = f.read()
             # Thème incorporé dans le HTML (contournement Web Shield antivirus) :
@@ -6006,8 +6088,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # — un proxy/antivirus/outil d'inspection réseau local (déjà vu
             # avec Avast sur ce poste) peut alors couper la connexion en
             # plein milieu d'un gros fichier (ex. logx_logbook.js).
+            # Texte compressé si le client l'accepte (logx_i18n.js : 1,9 Mo brut).
+            # Version compressée mise en cache par (fichier, ETag) : pas de
+            # recompression à chaque page. Le HTML, retouché à la volée, est
+            # compressé à chaque fois (petit).
+            if (ct.split(';')[0] in _TYPES_COMPRESSIBLES and len(body) > self._GZIP_MIN_SIZE
+                    and 'gzip' in (self.headers.get('Accept-Encoding', '') or '').lower()):
+                body = _gzip_statique(filepath, etag, body, cache=not filepath.endswith('.html'))
+                self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Vary', 'Accept-Encoding')
             self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            if filepath.endswith('.html'):
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            else:
+                self.send_header('Cache-Control', 'no-cache')   # revalidé à chaque fois (ETag)
+                self.send_header('ETag', etag)
             self._security_headers()
             self._cors()
             self.end_headers()

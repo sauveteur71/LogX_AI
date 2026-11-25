@@ -489,3 +489,52 @@ def test_dix_refus_d_affilee_sur_la_meme_connexion_restent_lisibles(server, isol
                for _ in range(10)]
     assert statuts[-5:] == [429] * 5
     assert 400 not in statuts
+
+
+# ─── Lecture des données protégée par le mot de passe (audit 25/11/2026) ─────
+# Avant : pages HTML redirigées, mais /log/list, /config, les exports... lisibles
+# sans session depuis n'importe quel appareil du réseau.
+
+_DONNEES = ['/log/list', '/config', '/log/export/adif', '/log/export/cabrillo',
+            '/log/status', '/log/validate', '/calldb/lookup/F4ABC', '/awards/summary']
+
+
+@pytest.mark.parametrize('route', _DONNEES)
+def test_mot_de_passe_protege_les_donnees_en_lecture(server, isolated_password_file, route):
+    _enable_password(server)
+    status, _, _ = _raw_request(server, 'GET', route)
+    assert status == 403, route
+
+
+@pytest.mark.parametrize('route', ['/log/list', '/config', '/log/export/adif'])
+def test_avec_session_les_donnees_restent_lisibles(server, isolated_password_file, route):
+    _enable_password(server)
+    status, _, _ = _raw_request(server, 'GET', route,
+                                headers={'Cookie': f'rc_token={httpmod.AUTH_TOKEN}'})
+    assert status == 200, route
+
+
+@pytest.mark.parametrize('route', ['/config', '/log/export/adif', '/log/status'])
+def test_sans_mot_de_passe_comportement_inchange(server, route):
+    status, _, _ = _raw_request(server, 'GET', route)
+    assert status == 200, route
+
+
+def test_ressources_de_page_et_serveur_a_serveur_restent_ouvertes(server, isolated_password_file):
+    _enable_password(server)
+    for route in ('/logx_theme.css', '/logx_logbook.js', '/auth/status', '/log/lan/export',
+                  '/app/gateway_status', '/network/info'):
+        status, _, _ = _raw_request(server, 'GET', route)
+        assert status != 403, route
+
+
+@pytest.mark.parametrize('route,attendu', [
+    ('/', True), ('/logx_logbook.html', True), ('/logx_theme.css', True),
+    ('/auth/login', True), ('/app/update_serve', True), ('/log/lan/export', True),
+    ('/sota/oauth/callback?code=x', True),
+    ('/network/info', True),   # sonde logx_singleton, sans cookie
+    ('/log/list', False), ('/config', False), ('/calldb.json', False),
+    ('/shared_log.json', False), ('/log/export/adif', False), ('/app/version', False),
+])
+def test_liste_des_routes_sans_session(route, attendu):
+    assert httpmod.get_sans_session_autorise(route) is attendu

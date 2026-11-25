@@ -1140,7 +1140,11 @@ function setupDone(){
   if(stored.altitude) hdrParts.push(`${stored.altitude}m`);
   if(stored.postal && stored.postal.length>=2) hdrParts.push(`Dépt.${stored.postal.slice(0,2)}`);
   document.getElementById('hdrStation').textContent = hdrParts.join(' · ');
-  document.getElementById('hdrContest').textContent = cont || 'LOGBOOK';
+  // Nom lisible (« CQ World Wide DX - SSB ») dès que la barre d'état a chargé
+  // le calendrier ; l'identifiant reste dans data-id pour la relecture.
+  const _hdrC = document.getElementById('hdrContest');
+  _hdrC.dataset.id = cont || '';
+  _hdrC.textContent = cont ? ((window.LogxNomsConcours || {})[cont] || cont) : 'LOGBOOK';
   // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 ».
   // #currentOp n'existe plus dans le HTML (retiré lors d'un refactor sans que
   // ce site soit mis à jour) : cette assignation non gardée plantait ici en
@@ -2816,6 +2820,15 @@ function setFilter(el){
   renderLog();
 }
 
+function basculerFiltreIncomplets(){
+  const versIncomplets = currentFilter !== 'incomplets';
+  document.querySelectorAll('.filter-btn').forEach(b=>{
+    b.classList.toggle('active', !versIncomplets && b.dataset.f === 'all');
+  });
+  currentFilter = versIncomplets ? 'incomplets' : 'all';
+  renderLog();
+}
+
 function filterLog(){
   renderLog();
 }
@@ -2835,6 +2848,7 @@ function renderLog(){
     if(currentFilter==='432' && q.band!=='432') return false;
     if(currentFilter==='hf' && !['14','7','3.5','1.8','21','28'].includes(q.band)) return false;
     if(currentFilter==='mine' && q.operator!==myOp) return false;
+    if(currentFilter==='incomplets' && isValidQSO(q)) return false;
     // Recherche : indicatif, locator, ET tags multi-activité (lot 6) — retrouver
     // un QSO par « SOTA », « QRP », « FT8 »… sans dupliquer le contact.
     if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)
@@ -2844,9 +2858,20 @@ function renderLog(){
   });
 
   const incompleteCount = qsoLog.filter(q=>!isValidQSO(q)).length;
-  document.getElementById('logCount').textContent = incompleteCount
-    ? `${filtered.length} QSO — ⚠️ ${incompleteCount} incomplet(s)`
-    : `${filtered.length} QSO`;
+  // Le compteur « incomplet(s) » restait affiché sans moyen d'agir (audit
+  // 25/11/2026) : c'est maintenant un bouton qui montre ces QSO, et dit
+  // ce qui leur manque. Re-clic (ou TOUS) : retour au carnet complet.
+  const lc = document.getElementById('logCount');
+  lc.textContent = `${filtered.length} QSO`;
+  if(incompleteCount){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lc-incomplets' + (currentFilter === 'incomplets' ? ' on' : '');
+    b.textContent = ` — ⚠️ ${incompleteCount} ${trT('incomplet(s)')}`;
+    b.title = trT('QSO sans RST envoyé ou reçu, date, heure ou mode — clique pour les afficher (re-clic : tout le carnet)');
+    b.onclick = basculerFiltreIncomplets;
+    lc.appendChild(b);
+  }
 
   // Rafraîchir la carte si elle est visible
   if(document.getElementById('mapWrap').classList.contains('visible')) refreshMapLayers();

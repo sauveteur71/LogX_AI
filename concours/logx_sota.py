@@ -213,6 +213,18 @@ def _load_from_disk_or_network():
         print(f"[SOTA] Erreur chargement base sommets: {e}")
 
 
+def prechargement_utile(cfg):
+    """La base des sommets (~182 000 sommets, ~296 Mo de RAM mesurés le
+    25/11/2026, 1,1 s de chargement) vaut-elle d'être chargée DÈS LE
+    DÉMARRAGE ? Oui seulement si la station s'en sert : activation SOTA en
+    cours, ou mode chasseur choisi dans CONFIG. Sinon elle se charge à la
+    première recherche (ensure_loading_started, appelé par chaque accès)."""
+    cfg = cfg or {}
+    if str(cfg.get('activation_program', '')).strip().upper() == 'SOTA':
+        return True
+    return str(cfg.get('chaser_mode', '')).strip().lower() == 'oui'
+
+
 def ensure_loading_started():
     """Démarre le chargement en tâche de fond s'il n'a pas déjà commencé —
     appelable sans risque à chaque requête, ne lance jamais deux threads."""
