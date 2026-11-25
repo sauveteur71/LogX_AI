@@ -545,14 +545,20 @@ let lastActQsoTotal = 0;
 // reste disponible dans la saisie même hors activation, pour logger un sommet/parc
 // chassé (la réf part sur le QSO -> sig/sig_info).
 function chaserModeActif(){
-  // Piloté d'abord par le MODE DE SESSION XOTA choisi à l'accueil (chasse/mixte
-  // -> champ réf. correspondant visible). Repli sur l'ancien réglage CONFIG
-  // chaser_mode pour rétro-compat si le module n'est pas chargé.
+  // Choix EXPLICITE dans CONFIG (chaser_mode « oui ») : toujours respecté.
+  try{ if(JSON.parse(localStorage.getItem('logx_config')||'{}').chaser_mode === 'oui') return true; }
+  catch(e){}
+  // Sinon, la chasse de références est une affaire d'ACTIVITÉ (doctrine F4GLD :
+  // l'axe est ce que l'opérateur fait). Hors activité « activation portable »,
+  // le bloc chasseur/portable + réf. correspondant (~190 px) poussait le bouton
+  // ENREGISTRER sous l'écran en 1366×768 (audit 25/11/2026). Il revient dès
+  // qu'on choisit cette activité à l'accueil, ou qu'une activation est lancée.
+  if(!_activiteEstXota()) return false;
+  // Dans cette activité : le MODE DE SESSION XOTA (chasse/mixte -> champ visible).
   try{
     if(window.LogxXotaRole) return !!LogxXotaRole.roleConfig(LogxXotaRole.getRole()).chasse;
   }catch(e){}
-  try{ return JSON.parse(localStorage.getItem('logx_config')||'{}').chaser_mode === 'oui'; }
-  catch(e){ return false; }
+  return true;
 }
 
 function applyActivationMode(program, ref){
@@ -567,6 +573,8 @@ function applyActivationMode(program, ref){
   if(tp && on && activationProgram) tp.value = activationProgram;
   // Reste visible si activation OU mode chasseur (sinon masqué, saisie compacte).
   if(trg) trg.style.display = (on || chaserModeActif()) ? '' : 'none';
+  // La bascule chasseur/portable apparaît/disparaît avec l'activation.
+  if(typeof renderXotaRoleSwitch === 'function') renderXotaRoleSwitch();
   if(on){
     const p = document.getElementById('actProg'); if(p) p.textContent = activationProgram;
     const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
@@ -3015,6 +3023,7 @@ function updateStats(){
   const scoreAffiche = _lastServerScore != null ? _lastServerScore : total;
   document.getElementById('sbTotal').textContent   = scoreAffiche.toLocaleString() + ' pts';
   document.getElementById('sbQso').textContent     = qsoVal;
+  document.getElementById('sbQso').title           = qsoVal;   // détail complet si tronqué (écran bas)
   document.getElementById('sbBestDX').textContent  = bestDXstr;
   document.getElementById('sbMults').textContent   = multsVal;
   document.getElementById('sbMultsLbl').textContent  = multsLbl;

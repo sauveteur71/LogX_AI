@@ -106,6 +106,11 @@ async function telechargerExportSota(role){
 function renderXotaRoleSwitch(){
   var el = document.getElementById('xotaRoleSwitch');
   if(!el || !window.LogxXotaRole) return;
+  // Seulement là où il a un sens : activité « activation portable », ou une
+  // activation déjà en cours (sinon ~70 px pris à la saisie pour rien).
+  var pertinent = (typeof _activiteEstXota === 'function' && _activiteEstXota())
+    || !!(activationProgram && myActivationRef);
+  if(!pertinent){ el.hidden = true; el.innerHTML = ''; return; }
   var actuel = LogxXotaRole.getRole();
   el.innerHTML = LogxXotaRole.ROLES.map(function(r){
     return '<button type="button" class="xrs-btn' + (r.id === actuel ? ' on' : '')
