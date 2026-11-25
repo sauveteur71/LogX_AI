@@ -936,6 +936,28 @@ _GET_STATIQUES = ('.js', '.css', '.png', '.svg', '.ico', '.jpg', '.jpeg', '.gif'
                   '.webp', '.woff', '.woff2', '.ttf', '.webmanifest', '.html', '.pdf')
 
 
+_TYPES_COMPRESSIBLES = frozenset(('text/html', 'application/javascript', 'text/css',
+                                  'application/json', 'image/svg+xml',
+                                  'application/manifest+json'))
+_gzip_cache = {}            # chemin -> (etag, octets compressés)
+_gzip_cache_lock = threading.Lock()
+
+
+def _gzip_statique(filepath, etag, body, cache=True):
+    """Corps gzip d'un fichier statique, mémorisé par (chemin, ETag)."""
+    import gzip
+    if cache:
+        with _gzip_cache_lock:
+            hit = _gzip_cache.get(filepath)
+        if hit and hit[0] == etag:
+            return hit[1]
+    z = gzip.compress(body, compresslevel=6)
+    if cache:
+        with _gzip_cache_lock:
+            _gzip_cache[filepath] = (etag, z)
+    return z
+
+
 def get_sans_session_autorise(path):
     """True si la route GET `path` reste accessible SANS session quand un mot
     de passe d'accès est configuré (voir le bloc ci-dessus)."""
@@ -6015,6 +6037,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 from urllib.parse import quote
                 self._redirect('/auth/login?next=' + quote(path, safe=''))
                 return
+            # Revalidation légère (audit 25/11/2026 : 2 à 4,7 Mo retéléchargés à
+            # CHAQUE ouverture de page, servis en no-store sans compression).
+            # ETag = taille + date du fichier : une mise à jour change l'ETag,
+            # donc jamais de vieux JS servi ; sinon 304 sans corps. Pas pour le
+            # HTML : retouché à la volée (thème incorporé) et porteur du cookie.
+            st = os.stat(filepath)
+            etag = '"%x-%x"' % (st.st_size, int(st.st_mtime_ns // 1000))
+            if not filepath.endswith('.html'):
+                inm = self.headers.get('If-None-Match', '') or ''
+                if etag in [t.strip() for t in inm.split(',')]:
+                    self.send_response(304)
+                    self.send_header('ETag', etag)
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Content-Length', '0')
+                    self._security_headers()
+                    self._cors()
+                    self.end_headers()
+                    return
             with open(filepath, 'rb') as f:
                 body = f.read()
             # Thème incorporé dans le HTML (contournement Web Shield antivirus) :
@@ -6047,8 +6087,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # — un proxy/antivirus/outil d'inspection réseau local (déjà vu
             # avec Avast sur ce poste) peut alors couper la connexion en
             # plein milieu d'un gros fichier (ex. logx_logbook.js).
+            # Texte compressé si le client l'accepte (logx_i18n.js : 1,9 Mo brut).
+            # Version compressée mise en cache par (fichier, ETag) : pas de
+            # recompression à chaque page. Le HTML, retouché à la volée, est
+            # compressé à chaque fois (petit).
+            if (ct.split(';')[0] in _TYPES_COMPRESSIBLES and len(body) > self._GZIP_MIN_SIZE
+                    and 'gzip' in (self.headers.get('Accept-Encoding', '') or '').lower()):
+                body = _gzip_statique(filepath, etag, body, cache=not filepath.endswith('.html'))
+                self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Vary', 'Accept-Encoding')
             self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            if filepath.endswith('.html'):
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            else:
+                self.send_header('Cache-Control', 'no-cache')   # revalidé à chaque fois (ETag)
+                self.send_header('ETag', etag)
             self._security_headers()
             self._cors()
             self.end_headers()
