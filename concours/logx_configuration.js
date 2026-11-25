@@ -1218,7 +1218,7 @@ async function openFirewall(){
   const st = document.getElementById('firewallStatus');
   if (st){ st.textContent = 'fenêtre Windows (UAC) — confirme pour autoriser…'; st.style.color = 'var(--muted)'; }
   try {
-    const d = await (await fetch('/lan/firewall/open', { method: 'POST' })).json();
+    const d = await (await fetch('/lan/firewall/open', { method: 'POST', headers:{'Content-Type':'application/json'}, body:'{}' })).json();
     if (st && !d.launched){ st.textContent = 'échec : ' + (d.message || ''); st.style.color = 'var(--red)'; }
     setTimeout(checkFirewall, 4500);   // l'UAC est asynchrone : on re-vérifie après
   } catch (e){ if (st){ st.textContent = 'erreur réseau'; st.style.color = 'var(--red)'; } }
@@ -5927,7 +5927,10 @@ function submitOnboarding(){
 
 // "Passer" : ferme sans RIEN choisir explicitement — getUiMode() retombe sur
 // son heuristique existante (silencieuse) plutôt que de forcer une valeur.
+// Le refus est MÉMORISÉ (audit 25/11/2026) : sans ça l'écran revenait à
+// chaque ouverture de CONFIG pour qui avait cliqué « Passer ».
 function skipOnboarding(){
+  try{ localStorage.setItem('rc_onboarding_vu', '1'); }catch(e){}
   _closeOnboarding();
 }
 
@@ -5937,6 +5940,9 @@ function skipOnboarding(){
 function maybeShowOnboarding(){
   return new Promise(function(resolve){
     if (localStorage.getItem('rc_ui_mode')) { resolve(); return; }
+    // Déjà passé, ou station déjà configurée (indicatif présent) : ce n'est
+    // pas une première visite, l'écran d'accueil n'a rien à lui apprendre.
+    try{ if (localStorage.getItem('rc_onboarding_vu') || _lireConfig().callsign) { resolve(); return; } }catch(e){}
     const overlay = document.getElementById('onboardingOverlay');
     if (!overlay) { resolve(); return; }
     _onbResolve = resolve;
