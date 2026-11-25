@@ -288,3 +288,37 @@ def test_maybeShowOnboarding_se_resout_apres_un_skip():
     ctx.eval("skipOnboarding();")
     ctx.eval("undefined")
     assert ctx.eval("resolved") is True
+
+
+# ─── Audit 25/11/2026 : l'écran revenait à chaque visite après « Passer » ───
+
+def _ctx_avec_config():
+    ctx = _make_ctx()
+    ctx.eval(_extract_function(_HTML_SRC, '_lireConfig'))
+    return ctx
+
+
+def _ouvre(ctx):
+    ctx.eval("_overlay.style.display = 'none'; var resolved = false;"
+             "maybeShowOnboarding().then(function(){ resolved = true; });")
+    ctx.eval("undefined")
+    return ctx.eval("_overlay.style.display")
+
+
+def test_passer_est_memorise_pour_la_visite_suivante():
+    ctx = _ctx_avec_config()
+    assert _ouvre(ctx) == 'flex'
+    ctx.eval("skipOnboarding();")
+    assert _ouvre(ctx) == 'none' and ctx.eval("resolved") is True
+
+
+def test_station_deja_configuree_pas_d_ecran_d_accueil():
+    ctx = _ctx_avec_config()
+    ctx.eval("localStorage.setItem('logx_config', JSON.stringify({callsign:'F4GLD'}));")
+    assert _ouvre(ctx) == 'none' and ctx.eval("resolved") is True
+
+
+def test_vraie_premiere_visite_toujours_accueillie():
+    ctx = _ctx_avec_config()
+    ctx.eval("localStorage.setItem('logx_config', JSON.stringify({locator:'JN15'}));")
+    assert _ouvre(ctx) == 'flex'

@@ -78,7 +78,7 @@ def _entry(call):
     })
 
 
-def _feed(call, dept=None, locator=None, count=0, date=None):
+def _feed(call, dept=None, locator=None, count=0, date=None, name=None):
     """Fusionne une observation dans l'index. Les champs non vides ÉCRASENT
     (les sources sont parcourues de la moins à la plus fiable)."""
     call = str(call or '').strip().upper()
@@ -92,6 +92,9 @@ def _feed(call, dept=None, locator=None, count=0, date=None):
     loc = _norm_loc(locator)
     if loc:
         e['locator'] = loc
+    nom = str(name or '').strip()
+    if nom:
+        e['name'] = nom   # prénom de la base interne (calldb.json) -> pré-remplissage
     e['qso_count'] += count
     d = str(date or '').strip()
     if d and (e['last_date'] is None or d > e['last_date']):
@@ -137,7 +140,8 @@ def _load_calldb():
             calls = (json.load(f) or {}).get('calls', {})
         for call, info in calls.items():
             if isinstance(info, dict):
-                _feed(call, dept=info.get('dept'), locator=info.get('locator'))
+                _feed(call, dept=info.get('dept'), locator=info.get('locator'),
+                      name=info.get('name'))
     except Exception:
         pass
 

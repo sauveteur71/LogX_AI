@@ -71,7 +71,11 @@ function lookupQRZ(call){
   const el = document.getElementById('qrzInfo');
   const photo = document.getElementById('qrzPhoto');
   if(!el || !row) return;
-  if(!call || call.length < 3){ row.style.display = 'none'; return; }
+  // Indicatif COMPLET seulement (chiffre puis suffixe en lettres) : « EA7 » ou
+  // « DL0 » en cours de frappe n'ont rien à trouver dans un annuaire.
+  if(!call || call.length < 3 || !/[0-9][A-Z]+(\/[A-Z0-9]+)?$/.test(String(call).toUpperCase())){
+    row.style.display = 'none'; return;
+  }
   const seq = ++_qrzSeq;
   _qrzTimer = setTimeout(async () => {
     try{

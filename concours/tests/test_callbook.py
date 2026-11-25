@@ -336,3 +336,68 @@ def test_bulk_resolve_echec_lookup_compte_en_erreur_sans_modifier(monkeypatch):
     assert log[0]['locator'] == ''
     st = callbook.bulk_resolve_status()
     assert st['updated'] == 0 and st['errors'] == 1
+
+
+# ─── Pause « hors ligne » : seules les PANNES RÉSEAU comptent (audit 25/11/2026)
+
+def test_hamdb_injoignable_est_signale(monkeypatch):
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: None)
+    assert callbook.lookup_hamdb('W1AW').get('injoignable') is True
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: HAMDB_NOT_FOUND)
+    assert not callbook.lookup_hamdb('ZZ9ZZZ').get('injoignable')
+
+
+def _tout_echoue(monkeypatch, hamdb):
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb', lambda call: dict(hamdb))
+
+
+def test_indicatifs_introuvables_ne_mettent_pas_en_pause(monkeypatch):
+    _reset()
+    _tout_echoue(monkeypatch, {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    for c in ('ZZ1AA', 'ZZ2AA', 'ZZ3AA', 'ZZ4AA', 'ZZ5AA'):
+        callbook.lookup(c, {})
+    assert callbook.circuit_status()['open'] is False
+
+
+def test_trois_pannes_reseau_mettent_en_pause(monkeypatch):
+    _reset()
+    _tout_echoue(monkeypatch, {'ok': False, 'error': 'HamDB injoignable', 'injoignable': True})
+    for c in ('ZZ1AA', 'ZZ2AA', 'ZZ3AA'):
+        callbook.lookup(c, {})
+    assert callbook.circuit_status()['open'] is True
+    _reset()
+
+
+def test_une_reponse_introuvable_remet_le_compteur_a_zero(monkeypatch):
+    _reset()
+    _tout_echoue(monkeypatch, {'ok': False, 'error': 'HamDB injoignable', 'injoignable': True})
+    callbook.lookup('ZZ1AA', {}); callbook.lookup('ZZ2AA', {})
+    _tout_echoue(monkeypatch, {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    callbook.lookup('ZZ3AA', {})
+    _tout_echoue(monkeypatch, {'ok': False, 'error': 'HamDB injoignable', 'injoignable': True})
+    callbook.lookup('ZZ4AA', {})
+    assert callbook.circuit_status()['open'] is False
+
+
+def test_lookup_client_seulement_pour_un_indicatif_complet():
+    import pytest
+    py_mini_racer = pytest.importorskip('py_mini_racer')
+    import re
+    src = open(os.path.join(os.path.dirname(callbook.__file__), 'logx_callbook.js'), encoding='utf-8').read()
+    m = re.search(r'\nfunction lookupQRZ\(', src)
+    i = m.start() + 1
+    prof, j = 0, src.index('{', i)
+    for k in range(j, len(src)):
+        prof += {'{': 1, '}': -1}.get(src[k], 0)
+        if prof == 0:
+            break
+    c = py_mini_racer.MiniRacer()
+    c.eval("""var __t = 0, _qrzTimer = 0, _qrzSeq = 0;
+      function setTimeout(){ __t++; return 1; } function clearTimeout(){}
+      var __el = {style:{}}; var document = {getElementById: function(){ return __el; }};""")
+    c.eval(src[i:k + 1])
+    for call, attendu in (('EA7', 0), ('DL0', 0), ('F4', 0), ('F4G', 1), ('EA7IXM', 1),
+                          ('ea7ixm', 1), ('F4GLD/P', 1), ('DL0WH/MM', 1)):
+        c.eval("__t = 0; lookupQRZ(%r)" % call)
+        assert c.eval("__t") == attendu, call

@@ -427,7 +427,7 @@ button:focus-visible,.eme-btn:focus-visible,a:focus-visible,select:focus-visible
 
   async function postTrack(action) {
     try {
-      const r = await fetch('/moon/track/' + action, {method: 'POST'});
+      const r = await fetch('/moon/track/' + action, {method: 'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
       const d = await r.json();
       showTrackMsg(d.message || '', !d.ok);
       poll();

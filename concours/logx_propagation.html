@@ -1154,7 +1154,10 @@ function locatorToLatLon(loc){
 // le refaire ici.
 (function(){
   const params = new URLSearchParams(location.search);
-  let bande = (params.get('band') || localStorage.getItem('rc_focus_band') || '').trim();
+  // Clé « _choisie » : seule une bande CLIQUÉE est mémorisée. L'ancienne clé
+  // rc_focus_band gardait aussi le choix AUTOMATIQUE (souvent le 160 m, voir
+  // focusCharger) et le figeait pour toujours — elle est volontairement ignorée.
+  let bande = (params.get('band') || localStorage.getItem('rc_focus_band_choisie') || '').trim();
   let mode  = (params.get('mode') || localStorage.getItem('rc_focus_mode') || '').trim();
   let bandes = [];
 
@@ -1251,7 +1254,7 @@ function locatorToLatLon(loc){
     document.getElementById('classement').querySelectorAll('.bchip').forEach(el => {
       el.onclick = () => {
         bande = el.dataset.b;
-        localStorage.setItem('rc_focus_band', bande);
+        localStorage.setItem('rc_focus_band_choisie', bande);
         // Choisir une bande à la main coupe le suivi : sinon la radio
         // reprendrait la main à la seconde suivante et le clic paraîtrait
         // sans effet.
@@ -1393,9 +1396,14 @@ function locatorToLatLon(loc){
       const d = await r.json();
       bandes = d.bandes || [];
       if(!bande && d.classement && d.classement.length){
-        // Rien de choisi : on ouvre sur la bande que le classement recommande.
-        bande = d.classement[0].band;
-        localStorage.setItem('rc_focus_band', bande);
+        // Rien de choisi : on ouvre sur la bande que le serveur RECOMMANDE
+        // (drapeau `recommandee`, logx_focus.classer_bandes). Le classement
+        // est trié par FRÉQUENCE : son premier élément était le 160 m
+        // (audit 25/11/2026). Sans recommandation, le meilleur score.
+        // Choix automatique NON mémorisé : il doit suivre la propagation.
+        const reco = d.classement.find(x => x.recommandee)
+          || d.classement.reduce((a, x) => (x.score > a.score ? x : a));
+        bande = reco.band;
       }
       document.getElementById('bandeEnCours').textContent = bande ? bande + ' MHz' : '—';
       document.title = 'LogX AI — ' + (bande ? Tf('Focus {b} MHz', {b: bande}) : T('Focus bande'));

@@ -391,7 +391,7 @@ async function enrichirNomsDepuisJournal(){
   const btn = document.getElementById('enrichNomsBtn');
   if(btn) btn.disabled = true;
   try{
-    const r = await fetch('/calldb/enrich_from_log', {method:'POST'});
+    const r = await fetch('/calldb/enrich_from_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const d = await r.json();
     const msg = (d && d.ok)
       ? '✅ ' + (d.updated||0) + ' prénom(s)/locator(s) importé(s) depuis le journal ('
@@ -414,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function(){
   try{
     if(localStorage.getItem('rc_calldb_enriched_v1')) return;
     localStorage.setItem('rc_calldb_enriched_v1', '1');
-    fetch('/calldb/enrich_from_log', {method:'POST'})
+    fetch('/calldb/enrich_from_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(d && d.ok && d.updated > 0 && typeof notify === 'function')
