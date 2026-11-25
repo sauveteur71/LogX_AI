@@ -354,6 +354,36 @@ select.field-input{cursor:pointer}
 .submit-btn{background:linear-gradient(135deg,var(--green),var(--accent2));border:none;border-radius:8px;color:#0A0B18;font-family:var(--font-mono);font-size:21px;font-weight:900;padding:11px;cursor:pointer;letter-spacing:3px;transition:all .15s;margin-top:2px}
 .submit-btn:hover{opacity:.85;transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,255,136,.3)}
 .submit-btn:active{transform:translateY(0)}
+/* ÉCRAN BAS (portable 1366×768, audit 25/11/2026) : ENREGISTRER tombait à
+   999 px, sous l'écran. Rien n'est masqué ici — on resserre seulement les
+   marges verticales de la saisie pour que toute la chaîne indicatif →
+   échange → ENREGISTRER tienne sans défiler. */
+@media (max-height:820px){
+  .panel-title{padding-top:6px;padding-bottom:5px}
+  .saisie-form .field-input{padding-top:3px;padding-bottom:3px}
+  .saisie-form .band-current-btn,.saisie-form .mode-current-btn,.saisie-form .op-current-btn{padding-top:4px;padding-bottom:4px}
+  .submit-btn{padding:8px}
+  /* Bandeaux de rythme (concours) : mêmes chiffres, sur une seule ligne. */
+  .brd-item,.ops-item{display:flex;align-items:baseline;justify-content:center;gap:8px;padding:2px 10px}
+  .brd-lbl,.ops-lbl{display:none}            /* repris en infobulle (logx_stats_bars.js) */
+  .brd-band,.ops-op{margin-bottom:0}
+  .hour-chart-bar{padding:2px 14px 1px}
+  .hour-chart-hdr{margin-bottom:0}
+  #hourChartSvg{height:24px}
+  .sb-item{padding:2px 12px;min-width:0}
+  /* Détail par bande du total QSO : une ligne, le reste en infobulle. */
+  #sbQso{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Bascule chasseur/portable : icône + libellé sur une ligne ; l'explication
+     reste au survol (title posé par renderXotaRoleSwitch). */
+  .xota-role-switch{padding:4px 4px 0}
+  .xrs-btn{flex-direction:row;justify-content:center;gap:6px;padding:4px 8px}
+  .xrs-btn .xrs-hint{display:none}
+  .sota-exp-note{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* texte complet au survol */
+}
+/* Le bouton flottant « Occupation » (logx_theme.css, en bas à gauche sur
+   toutes les pages) recouvrait ici le bas de la saisie — et donc ENREGISTRER.
+   Sur le carnet il se pose au pied de la colonne band map, juste à droite. */
+#occupationToggle{left:calc(max(432px, min(48%, 855px)) + 14px)}
 .submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
 
 /* DUPLEX CHECK */
@@ -1799,6 +1829,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           </button>
           <div class="band-picker-popup" id="bandPickerPopup" style="display:none"></div>
         </div>
+
+        <!-- Mode : un bouton (mode courant) + popup, sur la MÊME ligne que la
+             bande (audit 25/11/2026 : une ligne entière gagnée, ENREGISTRER
+             tombait sous l'écran en 1366×768). -->
+        <div class="field-group" style="position:relative">
+          <label class="field-label" for="modeCurrentBtn">MODE</label>
+          <button type="button" class="mode-current-btn" id="modeCurrentBtn" onclick="toggleModePicker()">
+            <span id="modeCurrentLabel">SSB</span>
+            <span class="mode-current-arrow">▼</span>
+          </button>
+          <div class="mode-picker-popup" id="modePickerPopup" style="display:none"></div>
+        </div>
       </div>
 
       <!-- Barre d'activation POTA/SOTA/IOTA/WWFF (visible en mode activation) -->
@@ -1833,16 +1875,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         </div>
       </div>
 
-      <!-- Mode : un bouton (mode courant) + popup pour en choisir un autre,
-           même schéma que le sélecteur de BANDE ci-dessus. -->
-      <div class="field-group" style="position:relative">
-        <label class="field-label" for="modeCurrentBtn">MODE</label>
-        <button type="button" class="mode-current-btn" id="modeCurrentBtn" onclick="toggleModePicker()">
-          <span id="modeCurrentLabel">SSB</span>
-          <span class="mode-current-arrow">▼</span>
-        </button>
-        <div class="mode-picker-popup" id="modePickerPopup" style="display:none"></div>
-      </div>
 
       <!-- SOURCE DU QSO — déplacé dans l'onglet QSO (.entry-tabpane[data-pane="qso"],
            plus bas dans ce fichier), coquille d'onglets lot 1/6. Champ SECONDAIRE
@@ -1950,7 +1982,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div id="sotaExportRow" class="sota-export" hidden>
           <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('chaser')">Exporter mes chasses SOTA</button>
           <button type="button" class="sota-exp-btn" onclick="telechargerExportSota('activator')">Exporter mon portable SOTA</button>
-          <div class="sota-exp-note">ADIF à téléverser à la main sur <a href="https://www.sotadata.org.uk/en/upload/chaser" target="_blank" rel="noopener">sotadata</a> (fichier chasse → page Chasse, fichier portable → page Portable). L'import ADIF de sotadata peut mal deviner le rôle : vérifie le premier envoi.</div>
+          <div class="sota-exp-note" title="ADIF à téléverser à la main sur sotadata (fichier chasse → page Chasse, fichier portable → page Portable). L'import ADIF de sotadata peut mal deviner le rôle : vérifie le premier envoi.">ADIF à téléverser à la main sur <a href="https://www.sotadata.org.uk/en/upload/chaser" target="_blank" rel="noopener">sotadata</a> (fichier chasse → page Chasse, fichier portable → page Portable). L'import ADIF de sotadata peut mal deviner le rôle : vérifie le premier envoi.</div>
         </div>
       </div>
 

@@ -30,7 +30,7 @@ function updateOpStats(){
   inner.innerHTML = sorted.map(([op, d])=>{
     const opColor = opColorAttr(op);
     const isLeader = d.pts === topPts && topPts > 0;
-    return `<div class="ops-item${isLeader?' leader':''}">`
+    return `<div class="ops-item${isLeader?' leader':''}" title="QSO · PTS">`
       + `<div class="ops-op ${opColor.cls}" style="border-radius:4px;display:inline-block;padding:1px 8px;${opColor.style}">${escHtml(_resolveOperatorCallsign(op))}${isLeader?' 🏆':''}</div>`
       + `<div class="ops-lbl">QSO · PTS</div>`
       + `<div class="ops-vals">${d.count} · ${d.pts.toLocaleString()}</div>`
@@ -68,6 +68,7 @@ function updateBandRecap(){
     const lbl = BAND_LABELS[b] || `${b} MHz`;
     const div = document.createElement('div');
     div.className = 'brd-item';
+    div.title = 'QSO · KM TOTAL · DX MAX';   // libellé masqué sur écran bas (logx_logbook.html)
     div.innerHTML =
       `<div class="brd-band">${lbl}</div>` +
       `<div class="brd-lbl">QSO · KM TOTAL · DX MAX</div>` +
