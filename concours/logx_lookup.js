@@ -21,6 +21,14 @@
 // commentaire d'en-tete de logx_verif_panel.js mentionnait callDB comme
 // venant de logx_logbook.js -- mis a jour dans le meme commit.
 
+// Pose une valeur pré-remplie RATTACHÉE à l'indicatif (logx_champs_auto.js) :
+// elle sera retirée si l'opérateur passe à un autre indicatif sans y toucher.
+// Repli sans le module : simple écriture, comportement d'avant.
+function _poserAuto(el, valeur, call){
+  if(typeof LogxChampsAuto !== 'undefined') LogxChampsAuto.poser(el, valeur, call);
+  else el.value = valeur;
+}
+
 // ─── LOOKUP DISTANT HAMQTH (debounce 600 ms) ─────────────────────────────────
 async function remoteCallLookup(call){
   if(call.length < 4) return;
@@ -37,7 +45,7 @@ async function remoteCallLookup(call){
     if(document.getElementById('inputCall').value.toUpperCase() !== call) return;
     // Prénom (base interne) : rempli si vide, TOUJOURS corrigeable.
     if(d.name && nameEl && !nameEl.value){
-      nameEl.value = d.name;
+      _poserAuto(nameEl, d.name, call);   // rattaché à CET indicatif (logx_champs_auto.js)
       callDB[call] = callDB[call] || {}; callDB[call].name = d.name;
     }
     if(d.locator){
@@ -315,7 +323,7 @@ function applyCallData(dbData, clusterData, logEntry){
   const existingLoc = locField.value;
   const existingValid = existingLoc && validateLocator(existingLoc);
   if(loc && (clLoc || !existingValid)){
-    locField.value = loc;
+    _poserAuto(locField, loc, callField ? callField.value : '');
     hideLocAC();
     onLocatorInput(); // calcule distance + cap → compas + hint
     const src = clLoc ? '📡 cluster' : logLoc ? '📋 log' : '🗂️ base';
@@ -335,7 +343,7 @@ function applyCallData(dbData, clusterData, logEntry){
     const numR = document.getElementById('inputNumRcvd');
     const dept = (dbData && dbData.dept) || (logEntry && logEntry.num_rcvd) || '';
     if(numR && !numR.value && dept){
-      numR.value = dept;
+      _poserAuto(numR, dept, callField ? callField.value : '');
       numR.classList.add('ok');
     }
   }
@@ -345,7 +353,7 @@ function applyCallData(dbData, clusterData, logEntry){
   const nameField = document.getElementById('inputName');
   const nm = (dbData && dbData.name) || (logEntry && logEntry.name)
           || (clusterData && clusterData.name) || '';
-  if(nameField && nm && !nameField.value){ nameField.value = nm; }
+  if(nameField && nm && !nameField.value){ _poserAuto(nameField, nm, callField ? callField.value : ''); }
 
   if(callField) callField.classList.add('ok');
   // Copilote CW/SSB : l'indicatif est RÉSOLU (enrichi) -> PRÉPARER l'échange
