@@ -13,6 +13,65 @@ poussé.
 
 ## [Non publié]
 
+## [1.2-beta12] — 2026-11-25
+
+### Corrigé
+
+- **Saisie : le locator, le prénom et le département de la station
+  précédente partaient avec le QSO suivant.** Une valeur pré-remplie est
+  désormais rattachée à son indicatif et retirée quand on en tape un autre
+  (ce que l'opérateur a tapé lui-même n'est jamais effacé). Un prénom connu
+  de la base interne est maintenant pré-rempli (#487, #488).
+- **Échange reçu vide en concours** : un bandeau demande « Enregistrer quand
+  même » ou « Compléter » au lieu d'enregistrer en silence un QSO que le
+  dépouillement refusera (#488).
+- **Callbook « en pause » tout seul** : trois indicatifs introuvables
+  suffisaient à le couper 90 s. Seules les vraies pannes réseau comptent, et
+  un indicatif incomplet n'est plus cherché (#488).
+- **Trois boutons qui ne marchaient jamais** (refus 415 du serveur) : import
+  des prénoms depuis le journal, ouverture du pare-feu (multi-poste), suivi
+  de la Lune (EME) (#488).
+- **PROPAG s'ouvrait sur le 160 m** au lieu de la bande recommandée (#488).
+- **L'écran de bienvenue de CONFIG revenait à chaque visite** après
+  « Passer » (#488).
+- **QSY fiable** : fréquence au hertz près, mode déduit du plan de bande
+  jamais envoyé à la radio, erreurs CAT affichées ; la phonie part en SSB et
+  la radio choisit LSB/USB (#484, #486).
+- **Band map et bandscope** suivent la bande de la radio (#481) ; l'IA et le
+  coach raisonnent sur le log du concours en cours (#483) ; « Tester la
+  connexion » CAT ne se bloque plus sur son propre port (#479).
+
+### Ajouté
+
+- **LOGBOOK sur un écran de portable (1366 × 768)** : saisie et bouton
+  ENREGISTRER visibles sans défiler, en concours comme en activité portable.
+  Le bloc chasseur/portable n'apparaît que dans l'activité « activation
+  portable » (#489).
+- **« Passer en FT8 ? »**, QSY depuis les DXpéditions, fiche station de la
+  carte IA dans un coin, bande des 30 m (#486).
+- **CHASSE** : filtre CW / Phonie / Data et bandes, pleine largeur,
+  need-list en tête (#485, #490).
+- Zone CQ reçue pré-remplie d'après cty.dat (CQ WW) (#480) ; bande seule pour
+  les concours où la fréquence est facultative (#482) ; saisie QSO
+  détachable sur un 2e écran (#478).
+- Compteur « incomplet(s) » cliquable ; nom lisible du concours dans
+  l'en-tête ; vraie version dans CONFIG ; lien « ← LOGBOOK » sur FT8/RTTY/
+  SSTV ouvertes en plein onglet (#490).
+
+### Sécurité
+
+- **Avec un mot de passe d'accès, plus aucune donnée lisible sans
+  session.** La config et les exports ADIF/Cabrillo du carnet étaient
+  lisibles depuis le réseau sans se connecter ; seules les pages HTML
+  étaient protégées (#490).
+
+### Performance
+
+- Pages 2 à 26 fois plus légères (cache revalidé + compression) : LOGBOOK
+  4,2 → 1,8 Mo à la première visite, CONFIG rechargée 3,1 Mo → 117 Ko ;
+  logo 245 → 37 Ko ; base SOTA (~300 Mo de mémoire) chargée seulement quand
+  la station s'en sert (#490).
+
 ## [1.2-beta11] — 2026-10-23
 
 ### Corrigé
