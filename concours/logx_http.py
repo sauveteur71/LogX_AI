@@ -3561,7 +3561,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     new_ones = awards.spotted_new_ones(shared_log, _spots_from_caches())
                 new_hints = []
                 for n in new_ones:
-                    freq_txt = f" {n['freq']}" if n.get('freq') else ''
+                    from logx_coach import texte_freq
+                    freq_txt = texte_freq(n.get('freq'), n.get('band', ''))
                     key = {'mult': 'hint_new_mult', 'dxcc': 'hint_new_dxcc'}.get(
                         n['type'], 'hint_new_dept')
                     new_hints.append({'level': 'action', 'icon': '🎯',

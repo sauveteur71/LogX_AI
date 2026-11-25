@@ -248,6 +248,8 @@ body.sans-concours .compass-pts{display:none}
 .shortcut-offer-row button{font-family:var(--font-mono);font-size:13px;padding:6px 10px;border-radius:5px;cursor:pointer}
 .shortcut-offer-yes{background:#C9822E;color:#06140C;border:none;font-weight:700;flex:1}
 .shortcut-offer-no{background:none;border:1px solid var(--border);color:var(--muted)}
+/* « Passer en FT8 ? » (logx_mode_spot.js) : au-dessus du bouton Occupation. */
+.mode-spot-offer{bottom:64px}
 
 /* MAIN LAYOUT */
 .main{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -2808,6 +2810,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_carnet_questions.js"></script>
 <script src="logx_logbook.js"></script>
 <script src="logx_occupation.js"></script>
+<script src="logx_mode_spot.js"></script>
 <script src="logx_opportunites.js"></script>
 <!-- Coquille d'onglets de la fenêtre de saisie (sous-chantier A, lot 1/6) --
      module dédié pour ne pas grossir logx_logbook.js (déjà ~4100 lignes).

@@ -878,14 +878,26 @@ function bandmapClick(call, mhz, mode){
   const inp = document.getElementById('inputCall');
   if(inp){ inp.value = call; onCallInput(); inp.focus(); }
   const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  // Mode ANNONCÉ par le spot différent du mode de saisie (spot FT8 alors
+  // qu'on est en SSB) : on DEMANDE « Passer en FT8 ? » au lieu de basculer la
+  // radio en silence en laissant le carnet dans l'autre mode (QSO loggé faux).
+  // Demande F4GLD 28/10/2026. Sans réponse, radio et carnet restent dans le
+  // mode de l'opérateur.
+  const question = (window.LogxModeSpot && mode)
+    ? LogxModeSpot.proposer(mode, Math.round(mhz*1e6), call) : false;
   if(rig.enabled){
-    // Mode du SPOT cliqué, pas le mode de saisie courant de l'opérateur —
-    // sinon un clic sur un spot CW pendant une saisie SSB fait QSY en SSB.
     // freq_hz, PAS des kHz arrondis : Math.round(mhz*1000) calait un spot à
     // 7143,5 kHz sur 7143 — 500 Hz à côté en SSB, la station inaudible
     // (F4GLD, 28/10/2026). Le serveur accepte freq_hz tel quel.
+    // Mode : TOUJOURS celui de la saisie. Le serveur en déduit la bande
+    // latérale d'après la fréquence (SSB -> LSB sous 10 MHz, USB au-dessus).
+    // Le mode du spot ne passe QUE par la question « Passer en … ? » ci-dessus.
+    // Défaut F4GLD 28/10/2026 : clic sur EA7GSL à 7,080 -> radio laissée en
+    // USB. Le spot portait un mode brut (« DIGITAL » du plan de bande, ou
+    // « USB » tel quel) envoyé directement à la radio : « DIGITAL » donne USB
+    // (+DATA) chez Icom, « USB » reste USB même sur 40 m.
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({freq_hz: Math.round(mhz*1e6), mode: mode || currentMode || undefined})
+      body: JSON.stringify({freq_hz: Math.round(mhz*1e6), mode: currentMode || undefined})
     }).catch(()=>{});
   }
 }

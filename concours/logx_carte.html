@@ -429,6 +429,27 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="13" height="13" rx="1"/><line x1="2.5" y1="7.17" x2="15.5" y2="7.17"/><line x1="2.5" y1="10.83" x2="15.5" y2="10.83"/><line x1="7.17" y1="2.5" x2="7.17" y2="15.5"/><line x1="10.83" y1="2.5" x2="10.83" y2="15.5"/></svg>GRILLE MAIDENHEAD</span>
         </label>
       </div>
+      <!-- AFFICHAGE de la carte (F4GLD 28/10/2026 : « la carte est illisible,
+           je voudrais avoir le choix et pouvoir supprimer les spots déjà
+           loggés »). Avec ~10 000 QSO au carnet, tout dessiner noyait les
+           spots. Pas expert-only : c'est ce qui rend la carte lisible.
+           Choix mémorisé par poste (logx_carte_affichage). -->
+      <div id="affichageControl" style="position:absolute;z-index:600;bottom:56px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
+        <div style="color:var(--accent2);letter-spacing:2px;margin-bottom:6px">AFFICHAGE</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:4px">
+          <input type="checkbox" id="affSpots" onchange="majAffichageCarte()" checked style="accent-color:var(--accent2)">Spots DX en direct</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;padding-left:18px">
+          <input type="checkbox" id="affMasquerFaits" onchange="majAffichageCarte()" style="accent-color:var(--accent2)">masquer ceux déjà loggés</label>
+        <label for="affQso" style="display:block;color:var(--muted);margin-bottom:3px">QSO de mon carnet</label>
+        <select id="affQso" onchange="majAffichageCarte()" style="width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:12px;cursor:pointer">
+          <option value="aucun">Aucun</option>
+          <option value="24h">Dernières 24 h</option>
+          <option value="48h">Dernières 48 h (concours)</option>
+          <option value="7j">7 derniers jours</option>
+          <option value="tous">Tous</option>
+        </select>
+        <div id="affQsoMeta" style="margin-top:4px;color:var(--muted);font-size:11px"></div>
+      </div>
       <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
       <div id="gcControl" class="expert-only" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
@@ -1037,6 +1058,8 @@ function drawMyPos(){
 function escMap(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function updateMapStations(stns){
+  _derniersSpotsCarte = stns || [];
+  stns = filtrerSpotsAffiches(_derniersSpotsCarte, _affichageCarte());
   leafletStations.forEach(l=>l.remove()); leafletStations=[];
   leafletLines.forEach(l=>l.remove()); leafletLines=[];
   drawLoggedQSOs(); // redessiner les QSOs loggés après refresh spots
@@ -1095,12 +1118,34 @@ function showTooltip(s,ev,color){
   else{st.textContent=PLBLS[s.priority]||'';st.style.background=color+'22';st.style.color=color;}
   tt.style.border=`1px solid ${color}`;
   tt.style.boxShadow=`0 0 20px ${color}40`;
-  let left=ev.clientX+16,top=ev.clientY-80;
-  if(left+220>window.innerWidth) left=ev.clientX-235;
-  if(top<60) top=60;
-  tt.style.left=left+'px';tt.style.top=top+'px';
+  const coin=positionFicheStation(ev.clientX, ev.clientY);
+  tt.style.left=coin.left+'px';tt.style.top=coin.top+'px';
   tt.style.display='block';
   setTimeout(()=>tt.style.opacity='1',10);
+}
+
+// Fiche d'une station : dans un COIN de la carte, pas sur le point cliqué
+// (F4GLD 28/10/2026 : « le popup s'ouvre en plein milieu, ce n'est pas
+// pratique »). Coin haut-droit, sous le panneau PROPAGATION s'il est
+// affiché ; si la station cliquée tomberait sous la fiche, coin haut-gauche
+// (à droite des panneaux GREAT CIRCLE / CARRÉS QRA). Coordonnées fenêtre,
+// comme avant (.map-tooltip est positionnée par rapport à la page).
+function positionFicheStation(clicX, clicY){
+  const LARG=240, HAUT=300, MARGE=10;
+  const conteneur=document.querySelector('.map-container');
+  const r=conteneur ? conteneur.getBoundingClientRect()
+                    : {left:0, top:0, right:window.innerWidth, bottom:window.innerHeight};
+  const prop=document.getElementById('propControl');
+  const pr=(prop && prop.offsetParent!==null) ? prop.getBoundingClientRect() : null;
+  const top=Math.round(pr ? pr.bottom+MARGE : r.top+MARGE);
+  let left=Math.round(r.right-LARG-MARGE);
+  const sousLaFiche=clicX>=left-20 && clicY>=top-20 && clicY<=top+HAUT+20;
+  if(sousLaFiche){
+    const carres=document.getElementById('carresControl');
+    const cr=(carres && carres.offsetParent!==null) ? carres.getBoundingClientRect() : null;
+    left=Math.round(cr ? cr.right+MARGE : r.left+MARGE);
+  }
+  return {left:left, top:top};
 }
 
 function hideTooltip(){
@@ -1146,6 +1191,57 @@ async function _refreshLoggedQsoCache(){
 setInterval(() => _refreshLoggedQsoCache().then(drawLoggedQSOs), 30*1000);
 setTimeout(() => _refreshLoggedQsoCache().then(drawLoggedQSOs), 1500);
 
+// ─── Choix d'AFFICHAGE de la carte (panneau #affichageControl) ──────────────
+// Défaut : spots visibles, QSO des dernières 24 h seulement — tout le carnet
+// (des milliers de QSO) rendait la carte illisible. Mémorisé par poste ;
+// stockage indisponible -> défaut, jamais d'erreur.
+const _AFF_CLE = 'logx_carte_affichage';
+const _AFF_DEFAUT = {spots:true, masquerFaits:false, qso:'24h'};
+function _affichageCarte(){
+  let v = null;
+  try{ v = JSON.parse(localStorage.getItem(_AFF_CLE) || 'null'); }catch(e){}
+  const a = Object.assign({}, _AFF_DEFAUT, (v && typeof v === 'object') ? v : {});
+  if(['aucun','24h','48h','7j','tous'].indexOf(a.qso) < 0) a.qso = _AFF_DEFAUT.qso;
+  return a;
+}
+// Instant UTC (ms) d'un QSO : date 'YYYYMMDD' ou 'YYYY-MM-DD', heure 'HHMM'
+// ou 'HH:MM'. NaN si illisible (un tel QSO n'est montré qu'avec « Tous »).
+function _instantQso(q){
+  const d = String(q && q.date || '').replace(/\D/g, '');
+  const t = String(q && q.time || '').replace(/\D/g, '').padEnd(4, '0');
+  if(d.length !== 8) return NaN;
+  return Date.UTC(+d.slice(0,4), +d.slice(4,6) - 1, +d.slice(6,8), +t.slice(0,2), +t.slice(2,4));
+}
+function filtrerQsoAffiches(qsos, choix, maintenant){
+  if(choix === 'tous') return qsos || [];
+  const heures = {'24h':24, '48h':48, '7j':168}[choix];
+  if(!heures) return [];
+  const limite = maintenant - heures * 3600 * 1000;
+  return (qsos || []).filter(q => { const i = _instantQso(q); return i === i && i >= limite; });
+}
+function filtrerSpotsAffiches(stns, a){
+  if(!a.spots) return [];
+  return a.masquerFaits ? (stns || []).filter(s => !s.done) : (stns || []);
+}
+let _derniersSpotsCarte = [];
+function majAffichageCarte(){
+  const a = {
+    spots: !!(document.getElementById('affSpots') || {}).checked,
+    masquerFaits: !!(document.getElementById('affMasquerFaits') || {}).checked,
+    qso: (document.getElementById('affQso') || {}).value || _AFF_DEFAUT.qso,
+  };
+  try{ localStorage.setItem(_AFF_CLE, JSON.stringify(a)); }catch(e){}
+  updateMapStations(_derniersSpotsCarte);   // redessine aussi les QSO loggés
+}
+function _initAffichageCarte(){
+  const a = _affichageCarte();
+  const sp = document.getElementById('affSpots'); if(sp) sp.checked = a.spots;
+  const mf = document.getElementById('affMasquerFaits'); if(mf) mf.checked = a.masquerFaits;
+  const q = document.getElementById('affQso'); if(q) q.value = a.qso;
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initAffichageCarte);
+else _initAffichageCarte();
+
 function drawLoggedQSOs(){
   leafletQSOMarkers.forEach(l=>l.remove()); leafletQSOMarkers=[];
   leafletQSOLines.forEach(l=>l.remove());   leafletQSOLines=[];
@@ -1153,7 +1249,10 @@ function drawLoggedQSOs(){
   const myLL = locLL(cfg.locator);
   if(!myLL) return;
 
-  const qsoLog = _loggedQsoCache || [];
+  const tousQso = _loggedQsoCache || [];
+  const qsoLog = filtrerQsoAffiches(tousQso, _affichageCarte().qso, Date.now());
+  const meta = document.getElementById('affQsoMeta');
+  if(meta) meta.textContent = tousQso.length ? (qsoLog.length + ' / ' + tousQso.length + ' QSO affichés') : '';
   if(!qsoLog.length) return;
 
   // Dédupliquer par call+locator
@@ -2740,7 +2839,13 @@ async function qsyDepuisCarte(){
   if(!s||!s.freq||!box) return;
   const khz=parseFloat(s.freq);
   const b={freq_hz:Math.round(khz*1000)};
-  if(s.mode&&!s.mode_deduit) b.mode=s.mode;
+  // Phonie -> « SSB » (le serveur choisit LSB/USB), « DIGITAL » flou -> rien :
+  // même règle que les boutons QSY de CHASSE (jsMode, logx_chasse_panneaux.js).
+  if(s.mode&&!s.mode_deduit){
+    const m=String(s.mode).toUpperCase();
+    if(/^(USB|LSB|PHONE|SSB)$/.test(m)) b.mode='SSB';
+    else if(!/^(DIGITAL|DATA|DIGI)$/.test(m)) b.mode=m;
+  }
   box.style.color='var(--muted)'; box.textContent='⏳ QSY…';
   let d=null;
   try{

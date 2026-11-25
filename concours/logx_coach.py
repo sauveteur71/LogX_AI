@@ -24,6 +24,25 @@ HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 
 # ─── HORLOGE DU CONCOURS ─────────────────────────────────────────────────────
 
+
+def texte_freq(freq, band=''):
+    """Fréquence d'une cible du coach, lisible et AVEC son unité : « (14195.5 kHz) ».
+
+    Défauts F4GLD (28/10/2026) : « C5R 50.314099999999996 spotté » (flottant brut,
+    source VHF en MHz) et « je ne sais pas sur quelle fréquence » (nombre sans
+    unité). Unité unique kHz via logx_clusters.freq_en_khz (une seule
+    conversion dans tout le programme), 10 Hz de résolution, zéros inutiles
+    retirés. '' si inexploitable."""
+    try:
+        from logx_clusters import freq_en_khz
+        khz = freq_en_khz(freq, band or '')
+    except Exception:
+        return ''
+    if not khz:
+        return ''
+    txt = ('%.2f' % round(float(khz), 2)).rstrip('0').rstrip('.')
+    return ' (%s kHz)' % txt
+
 def _parse_dt(date_str, time_str):
     """'20260801'/'2026-08-01' + '1200'/'12:00' → datetime UTC naïf, None si invalide.
     str() explicite avant les .replace() : une valeur non-str (ex. un entier
@@ -1039,7 +1058,7 @@ def coach_nudge(state, lang='fr'):
     if targets:
         n = targets[0]
         call = n.get('call', '')
-        freq = (' ' + str(n.get('freq'))) if n.get('freq') else ''
+        freq = texte_freq(n.get('freq'), n.get('band', ''))
         key = {'mult': 'nudge_new_mult', 'dxcc': 'nudge_new_dxcc'}.get(n.get('type'), 'nudge_new_dept')
         return {'sig': 'target:' + str(call), 'level': 'action',
                 'text': t(lang, key, label=n.get('label', ''), call=call, freq_txt=freq)}

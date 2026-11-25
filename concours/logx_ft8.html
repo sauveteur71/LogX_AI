@@ -4424,7 +4424,9 @@ if(localStorage.getItem('rc_theme') === null){
     el.textContent = '';
     const lignes = [
       Tf('Radio : {etat}', {etat: rigActif ? 'CAT connecté' : 'CAT NON connecté'}),
-      Tf('Bande : {b}', {b: empreinte.band ? (empreinte.band + ' m') : '—'}),
+      // empreinte.band est la CLÉ interne en MHz ('7', '14') : « 7 m » était
+      // faux (F4GLD 28/10/2026) — on l'affiche en MHz, son unité réelle.
+      Tf('Bande : {b}', {b: empreinte.band ? (empreinte.band + ' MHz') : '—'}),
       Tf('Fréquence : {f}', {f: empreinte.dial_hz ? ((empreinte.dial_hz / 1e6).toFixed(3) + ' MHz') : '—'}),
       Tf('Mode : {m}', {m: empreinte.mode || '—'}),
       Tf('Puissance : {p}', {p: empreinte.power_w ? (empreinte.power_w + ' W') : 'non limitée (voir CONFIG > RADIO)'}),
