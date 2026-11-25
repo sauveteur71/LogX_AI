@@ -60,3 +60,24 @@ def test_load_calldb_porte_le_nom(tmp_path, monkeypatch):
         json.dump({'calls': {'F4ABC': {'locator': 'JN18', 'name': 'Paul'}}}, f)
     calls = dep._load_calldb()
     assert calls.get('F4ABC', {}).get('name') == 'Paul'
+
+
+def test_index_client_porte_le_prenom_de_calldb(tmp_path, monkeypatch):
+    # /call/index (export_index) est la source de callDB côté saisie : sans le
+    # prénom ici, un correspondant connu n'était jamais pré-rempli (audit 25/11/2026).
+    import json
+    import logx_callhistory as ch
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ch, 'MASTER_SCP_FILE', str(tmp_path / 'absent.json'))
+    monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
+    monkeypatch.setattr(ch, '_load_archives', lambda: None)
+    with open('calldb.json', 'w', encoding='utf-8') as f:
+        json.dump({'calls': {'F4ABC': {'locator': 'JN18', 'name': 'Paul'},
+                             'F4XYZ': {'dept': '43'}}}, f)
+    ch.build_index([], force=True)
+    try:
+        calls = ch.export_index([])['calls']
+        assert calls['F4ABC']['name'] == 'Paul'
+        assert 'name' not in calls['F4XYZ']
+    finally:
+        ch.build_index([], force=True)   # ne pas laisser l'index du test aux suivants

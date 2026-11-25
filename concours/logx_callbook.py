@@ -74,7 +74,7 @@ def lookup_hamdb(call):
         return {'ok': False, 'error': 'Indicatif vide'}
     text = fetch_url(f'https://api.hamdb.org/v1/{call}/json/logxai', timeout=8)
     if not text:
-        return {'ok': False, 'error': 'HamDB injoignable'}
+        return {'ok': False, 'error': 'HamDB injoignable', 'injoignable': True}
     try:
         cs = json.loads(text).get('hamdb', {}).get('callsign', {})
     except (ValueError, AttributeError):
@@ -188,9 +188,16 @@ def lookup(call, cfg, shared_log=None):
     result = {'ok': False, 'error': ' · '.join(errors)}
     with _lock:
         _mettre_en_cache(call, result)
-        _circuit['fails'] += 1
-        if _circuit['fails'] >= CIRCUIT_THRESHOLD:
-            _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
+        # Seule une PANNE RÉSEAU compte pour la pause : un indicatif simplement
+        # introuvable (HamDB a répondu « inconnu ») prouve que le réseau marche.
+        # Avant (audit 25/11/2026), trois indicatifs inconnus — ou trois saisies
+        # partielles — suffisaient à mettre le callbook en pause 90 s.
+        if hd.get('injoignable'):
+            _circuit['fails'] += 1
+            if _circuit['fails'] >= CIRCUIT_THRESHOLD:
+                _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
+                _circuit['fails'] = 0
+        else:
             _circuit['fails'] = 0
     return result
 
