@@ -116,14 +116,20 @@ function lookupQRZ(call){
       // Pré-remplit le locator s'il est vide et que la source en connaît un
       const locInput = document.getElementById('inputLocator');
       if(locInput && !locInput.value && d.grid && d.grid.length >= 4){
-        locInput.value = d.grid;
+        // Rattaché à l'indicatif cherché (logx_champs_auto.js) : retiré si
+        // l'opérateur passe à un autre indicatif sans y toucher.
+        if(typeof _poserAuto === 'function') _poserAuto(locInput, d.grid, call);
+        else locInput.value = d.grid;
         onLocatorInput();
       }
       // Pré-remplit le PRÉNOM s'il est vide et que la source en connaît un (QRZ ;
       // HamQTH renvoie ''). TOUJOURS corrigeable, et l'édition manuelle enrichit
       // la base interne à l'enregistrement (source de prénom hors QRZ).
       const nameInput = document.getElementById('inputName');
-      if(nameInput && !nameInput.value && d.name){ nameInput.value = d.name; }
+      if(nameInput && !nameInput.value && d.name){
+        if(typeof _poserAuto === 'function') _poserAuto(nameInput, d.name, call);
+        else nameInput.value = d.name;
+      }
       // État US retenu pour le QSO : c'est la SEULE source à la saisie, l'état
       // ne se déduisant pas de l'indicatif (un W6 peut habiter n'importe où).
       // Mémorisé avec l'indicatif auquel il se rapporte : sans ça, un état

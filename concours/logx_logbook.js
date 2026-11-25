@@ -1826,6 +1826,10 @@ function onCallInput(){
     _inp.value = call;
     try{ if(d != null) _inp.setSelectionRange(d, f); }catch(e){}
   }
+  // Locator / prénom / département pré-remplis pour l'indicatif PRÉCÉDENT :
+  // retirés avant que les remplisseurs ne travaillent pour celui-ci (ils
+  // n'écrivent que dans un champ vide). Ce que l'opérateur a tapé reste.
+  if(typeof LogxChampsAuto !== 'undefined') LogxChampsAuto.purger(call);
   broadcastTyping(call);   // vue PARTNER : le runner diffuse sa saisie en direct
   if(typeof clearExchWarn === 'function') clearExchWarn();   // indicatif retapé : avertissement zone périmé
   // Reprendre la frappe rend obsolète un bandeau de confirmation doublon resté
