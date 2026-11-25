@@ -923,6 +923,7 @@ def _load_access_password():
 _GET_SANS_SESSION_EXACT = frozenset((
     '/', '',                   # page d'accueil : redirigée vers /auth/login plus bas
     '/log/lan/export',         # serveur-à-serveur, jeton de synchro LAN propre (logx_lan_sync)
+    '/network/info',           # sonde d'instance unique (logx_singleton.PROBE_PATH) : IP, port, version
     '/app/gateway_status',     # serveur-à-serveur (logx_update._peer_get_json)
     '/sota/oauth/callback',    # retour depuis SOTA : SameSite=Strict n'y envoie pas le cookie ; `state` vérifié
 ))

@@ -523,7 +523,7 @@ def test_sans_mot_de_passe_comportement_inchange(server, route):
 def test_ressources_de_page_et_serveur_a_serveur_restent_ouvertes(server, isolated_password_file):
     _enable_password(server)
     for route in ('/logx_theme.css', '/logx_logbook.js', '/auth/status', '/log/lan/export',
-                  '/app/gateway_status'):
+                  '/app/gateway_status', '/network/info'):
         status, _, _ = _raw_request(server, 'GET', route)
         assert status != 403, route
 
@@ -532,6 +532,7 @@ def test_ressources_de_page_et_serveur_a_serveur_restent_ouvertes(server, isolat
     ('/', True), ('/logx_logbook.html', True), ('/logx_theme.css', True),
     ('/auth/login', True), ('/app/update_serve', True), ('/log/lan/export', True),
     ('/sota/oauth/callback?code=x', True),
+    ('/network/info', True),   # sonde logx_singleton, sans cookie
     ('/log/list', False), ('/config', False), ('/calldb.json', False),
     ('/shared_log.json', False), ('/log/export/adif', False), ('/app/version', False),
 ])
