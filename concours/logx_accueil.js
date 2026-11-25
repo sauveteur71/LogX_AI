@@ -140,9 +140,14 @@ function _revelerCiblesChasse(){
   // Toute la largeur de la fenêtre pour les cibles (F4GLD 28/10/2026).
   var intro = document.getElementById('intro');
   if(intro && intro.classList) intro.classList.add('intro-large');
+  // L'onglet disait « Accueil » sur la page CHASSE.
+  try{ document.title = 'LogX AI — Chasse'; }catch(e){}
   el.innerHTML =
     '<h2 class="xota-acc-h">Cibles en direct</h2>' +
     '<div id="chasseFiltre" class="chasse-filtre" role="group" aria-label="Ce que je chasse"></div>' +
+    // Need-list (classement personnel : ce qui te manque, spotté maintenant)
+    // EN TÊTE — elle était sous cinq panneaux et les objectifs (audit 25/11/2026).
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>' +
     '<div class="xota-panneaux">' +
       '<div class="xota-pan"><div class="xota-pan-h">POTA</div><div id="panPota" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">SOTA</div><div id="panSota" class="scroll-list"></div></div>' +
@@ -150,8 +155,7 @@ function _revelerCiblesChasse(){
       '<div class="xota-pan"><div class="xota-pan-h">WCA / COTA (annoncé)</div><div id="panWca" class="scroll-list"></div></div>' +
       '<div class="xota-pan"><div class="xota-pan-h">DXpéditions</div><div id="panDx" class="scroll-list"></div></div>' +
     '</div>' +
-    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">🎯 Mes objectifs de chasse</div><div id="objectifsList" class="obj-list"></div></div>' +
-    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">Need list — cluster <span id="xotaQsyStatus" class="xota-qsy-status"></span></div><div id="ckNeedList" class="scroll-list"></div></div>';
+    '<div class="xota-pan xota-pan-full"><div class="xota-pan-h">🎯 Mes objectifs de chasse</div><div id="objectifsList" class="obj-list"></div></div>';
   // Filtre CW/Phonie/Data + bandes : un changement relit les panneaux filtrés
   // tout de suite (pas d'attente du prochain tick de polling).
   if(window.LogxChasseFiltre){
